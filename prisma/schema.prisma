@@ -1980,7 +1980,7 @@ model MediaItemTag {
 }
 
 // An archive folder's own tags before promotion (ADR-0034). Mirrored on disk as
-// `.pulseboard\#name` markers; moved to SetTag when the folder is linked to a Set.
+// `.pb\#name` markers; moved to SetTag when the folder is linked to a Set.
 model ArchiveFolderTag {
   archiveFolderId String
   tagDefinitionId String
@@ -2383,7 +2383,7 @@ model ArchiveFolder {
   review       ArchiveFolderReview?
 
   // Stub (ADR-0032): a deliberate placeholder copy, upgraded in place later.
-  // stubSince set = is a stub. stubDiskState = what .pulseboard\STUB said at the
+  // stubSince set = is a stub. stubDiskState = what .pb\STUB said at the
   // last reconciliation (null = the scan has not reported it yet); comparing it
   // with the disk now and with stubSince tells which side changed.
   stubSince     DateTime?
@@ -2395,7 +2395,7 @@ model ArchiveFolder {
 
   // Tags (ADR-0034). Before promotion a folder carries its own tags; once linked to
   // a Set they live on the Set and the disk follows those. tagsDiskState = the tag
-  // ids the `.pulseboard\#…` markers said at the last reconciliation; tagsDiskSeen
+  // ids the `.pb\#…` markers said at the last reconciliation; tagsDiskSeen
   // false = the scan has never reported this folder's markers (then both sides are
   // united, nothing is removed). Unknown marker names and exclusive-group conflicts
   // are kept as warnings until resolved.

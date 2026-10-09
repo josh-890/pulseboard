@@ -10,7 +10,7 @@
  * keep their names, colours and positions. Then merges an existing `tanlines`
  * (a visible skin state, filed under Theme before) into `skin-tanlines`: its
  * sets, folders and images move, and `tanlines` stays as an alias, so
- * `.pulseboard\#tanlines` files keep resolving.
+ * `.pb\#tanlines` files keep resolving.
  */
 
 import dotenv from 'dotenv'

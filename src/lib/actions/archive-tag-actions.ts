@@ -7,7 +7,7 @@ import { getFolderTagViews, resolveDiskTagName, type FolderTagsView } from '@/li
 type ResolveResult = { success: true; folders: number } | { success: false; error: string }
 
 /**
- * Teach the catalogue an unknown `.pulseboard\#…` name (ADR-0034): the picked tag
+ * Teach the catalogue an unknown `.pb\#…` name (ADR-0034): the picked tag
  * gains it as an alias (none when the name is the tag's own), and every folder
  * carrying the marker adopts the tag.
  */

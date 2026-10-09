@@ -22,7 +22,7 @@ const SHOWN = 4
  *
  *   **claim**  — solid green. Your statement, recorded.
  *   **cast**   — outlined grey. The linked set's credit list.
- *   **marker** — dashed violet. A file you dropped in `.pulseboard\` that nobody
+ *   **marker** — dashed violet. A file you dropped in `.pb\` that nobody
  *                has confirmed: work waiting in *My markers*.
  *
  * A folder settled by an import usually has only the cast — showing claims alone

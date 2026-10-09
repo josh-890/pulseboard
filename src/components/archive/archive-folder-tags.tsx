@@ -24,7 +24,7 @@ type ArchiveFolderTagsProps = {
  * A folder's tags on the archive list and the staging panel (ADR-0034). Before
  * promotion they are the folder's own; once a confirmed link joins it to a Set
  * the row edits the Set's tags. Either way the next scan writes them to
- * `.pulseboard\` as `#name` files. Markers the app could not place are shown
+ * `.pb\` as `#name` files. Markers the app could not place are shown
  * apart: an unknown name opens the palette to say which tag it means.
  */
 export function ArchiveFolderTags({ view, className, paletteOpen: openProp, onPaletteOpenChange }: ArchiveFolderTagsProps) {
@@ -78,7 +78,7 @@ export function ArchiveFolderTags({ view, className, paletteOpen: openProp, onPa
           key={m}
           type="button"
           onClick={() => setResolving(m)}
-          title={`Unknown tag marker in .pulseboard\\ — click to say which tag "${m}" means`}
+          title={`Unknown tag marker in .pb\\ — click to say which tag "${m}" means`}
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 transition-colors duration-150 hover:bg-amber-500/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring dark:text-amber-400"
         >
           <HelpCircle size={11} aria-hidden="true" />
@@ -87,7 +87,7 @@ export function ArchiveFolderTags({ view, className, paletteOpen: openProp, onPa
       ))}
       {view.conflicts.length > 0 && (
         <span
-          title="One exclusive group has more than one marker in .pulseboard\ — nothing was adopted for it. Delete the wrong file in Explorer."
+          title="One exclusive group has more than one marker in .pb\ — nothing was adopted for it. Delete the wrong file in Explorer."
           className="inline-flex items-center gap-1 rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-xs text-red-600 dark:text-red-400"
         >
           <TriangleAlert size={11} aria-hidden="true" />

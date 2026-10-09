@@ -1160,7 +1160,7 @@ export type FullIngestItem = {
   /** Lines of `_people.txt` that were not usable. Reported, never silently dropped. */
   folderPeopleErrors?: string[]
   /**
-   * Is `.pulseboard\STUB` there (ADR-0032)? Sent for every leaf of a Full run, so
+   * Is `.pb\STUB` there (ADR-0032)? Sent for every leaf of a Full run, so
    * `false` is a statement — a deleted marker ends the stub. Absent (targeted mode,
    * an agent from before stubs) means "not looked", and nothing is reconciled.
    */
@@ -1168,7 +1168,7 @@ export type FullIngestItem = {
   /** The text inside `STUB`, if any — becomes the note when the disk sets the stub. */
   stubNote?: string | null
   /**
-   * The `.pulseboard\#…` tag marker file names (ADR-0034). Sent for every leaf of a
+   * The `.pb\#…` tag marker file names (ADR-0034). Sent for every leaf of a
    * Full run — an empty array is a statement (all markers gone). Absent = not looked.
    */
   tagMarkers?: string[] | string
@@ -1236,14 +1236,14 @@ export type ArchiveFolderEntry = {
    * settled by the import, and a row showing claims alone would look empty for
    * exactly the folders that are finished.
    *
-   * `markers` are hand markers from `.pulseboard\` that nobody has confirmed yet
+   * `markers` are hand markers from `.pb\` that nobody has confirmed yet
    * — the work waiting in **My markers**. Kept apart from `claims` because the
    * difference is exactly what the row has to show: recorded, or still asking.
    */
   people: { claims: FolderPerson[]; cast: FolderPerson[]; markers: FolderPerson[] }
   /**
    * Tags (ADR-0034): the folder's own before promotion, its Set's once a
-   * confirmed link joins them — plus `.pulseboard\#…` markers the app could not
+   * confirmed link joins them — plus `.pb\#…` markers the app could not
    * place (unknown name, two of one exclusive group).
    */
   tags: FolderTagsView
@@ -1470,7 +1470,7 @@ export async function upsertArchiveFolders(
   keyConflicts: KeyConflict[]
   /** `_people.txt`: entries written as suggestions, and the lines that were not usable. */
   folderPeople: { written: number; badLines: string[] }
-  /** `.pulseboard\STUB` reconciliation (ADR-0032). */
+  /** `.pb\STUB` reconciliation (ADR-0032). */
   stubs: StubScanCounts
   tags: TagScanCounts
 }> {

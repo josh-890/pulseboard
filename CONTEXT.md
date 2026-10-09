@@ -238,11 +238,11 @@ _Avoid_: "archive set" (a folder is a candidate; the Set lives in the app); trea
 The app's own file inside an archive folder. Today it carries only the `archiveKey`, which is what makes a moved or renamed folder recognisable. It is the archive's only app-written artifact.
 
 **Stub** (archive folder flag, ADR-0032):
-An archive folder filed *on purpose* as a placeholder — few media, low quality, or both — until the real set is obtained. A property of the **copy**, not of the Set: the publication is complete, only the folder falls short. Set in the app or by a `.pulseboard\STUB` file; ended only explicitly (the button, or deleting the file) — swapping media in a stub does not end it. Upgraded **in place**: the media are replaced inside the same folder, `.pulseboard\` is left alone, so identity, markers and link survive.
+An archive folder filed *on purpose* as a placeholder — few media, low quality, or both — until the real set is obtained. A property of the **copy**, not of the Set: the publication is complete, only the folder falls short. Set in the app or by a `.pb\STUB` file; ended only explicitly (the button, or deleting the file) — swapping media in a stub does not end it. Upgraded **in place**: the media are replaced inside the same folder, `.pb\` is left alone, so identity, markers and link survive.
 _Avoid_: "incomplete" (that is `ArchiveStatus.INCOMPLETE`, a video the scan could not find, and `Set.isComplete`, a statement about the set); "placeholder set" (the Set is real — only the copy is a stand-in).
 
 **Folder tag** (ADR-0034):
-A tag given to an **archive folder** before (or without) promotion — in the app, or on disk as an empty `.pulseboard\#name` file (`#group=name` when the name is shared). Synced both ways per tag with the `STUB` rule. Once a CONFIRMED link joins the folder to a Set, the tags *are* the Set's and the files follow the Set. An unknown name is a **question** to resolve (alias or new tag), never a guess.
+A tag given to an **archive folder** before (or without) promotion — in the app, or on disk as an empty `.pb\#name` file (`#group=name` when the name is shared). Synced both ways per tag with the `STUB` rule. Once a CONFIRMED link joins the folder to a Set, the tags *are* the Set's and the files follow the Set. An unknown name is a **question** to resolve (alias or new tag), never a guess.
 _Avoid_: "tag marker" for the tag itself (the marker is the file; the tag is the catalogue entry).
 
 **Person catalogue** (external, on the archive host):
@@ -253,7 +253,7 @@ _Avoid_: "import source" (says what it's used for, not what it is); treating its
 Physical possession is the yardstick for what deserves to exist in the app. If a Set is in the **archive**, its participants are worth knowing — sooner or later they become curated Persons. If it is only in the **person catalogue**, it is not. This is what keeps the app from inflating to catalogue scale: the two catalogues are joined, but only the **intersection** is materialised. See ADR-0027.
 _Avoid_: bulk-importing the person catalogue "because we have it".
 
-**Folder attribution** (cast markers in `.pulseboard\`; `_cast.txt` before ADR-0030):
+**Folder attribution** (cast markers in `.pb\`; `_cast.txt` before ADR-0030):
 The owner's **direct assertion** of who is in a set — one `Common Name (ICG-ID)` per line, hand-written while working the folder. Distinct in rank from everything else that proposes people: the **person catalogue** and the app's alias/contact registry produce *suggestions* that need confirming; a folder attribution is a *statement* and outranks them. Deliberately a separate, plain-text file rather than a field in the app-written **sidecar** — so a hand-edit can never corrupt the sidecar and the app can never overwrite the hand-edit.
 _Avoid_: putting ICG-IDs in the folder *name* (multi-participant sets don't fit, and renaming breaks links). See ADR-0027.
 
@@ -261,11 +261,11 @@ _Avoid_: putting ICG-IDs in the folder *name* (multi-participant sets don't fit,
 Two statements about who is in a set, held in two places, and neither is a copy of the other. A **claim** is about an *archive folder*: your own assertion, made with the cover in front of you — `ArchiveFolderAttribution` in the app, or a hand-written cast marker on disk. A **cast** is about a *set*: who the publisher credited, as delivered by the person import (`StagingSet.participants`; after promotion `SetParticipant`, itself derived from `SessionContribution`). Linking a folder to a set places the two side by side — it does **not** merge them. A claim the cast does not name is a **contradiction to decide**, never something to fold in silently; and a person dropped from a cast is not lost while the claim survives on the folder.
 _Avoid_: "the folder's participants" (a folder carries claims, a set has a cast); resolving a contradiction by union — it hides the disagreement, because a person added to the cast can no longer be detected as contradicting it.
 
-**Metadata folder** (`.pulseboard\` inside each set folder; added 2026-08-09, ADR-0030):
-Where everything tool-written lives, so the media plane holds only media and `frames\`. Holds the **identity anchor** (`pulseboard.json` — the `archiveKey` that recognises a moved folder), the generated **cast file** (`cast.json`), and your **cast markers**. One exclude rule covers it in backup, dedup and verification runs — the separation BagIt and OCFL make between payload and metadata, as far as it can be had without restructuring 34k paths. Per archive root there is also a derived `{root}\.pulseboard\index.tsv`.
+**Metadata folder** (`.pb\` inside each set folder; added 2026-08-09, ADR-0030):
+Where everything tool-written lives, so the media plane holds only media and `frames\`. Holds the **identity anchor** (`pulseboard.json` — the `archiveKey` that recognises a moved folder), the generated **cast file** (`cast.json`), and your **cast markers**. One exclude rule covers it in backup, dedup and verification runs — the separation BagIt and OCFL make between payload and metadata, as far as it can be had without restructuring 34k paths. Per archive root there is also a derived `{root}\.pb\index.tsv`.
 _Avoid_: putting anything of ours back into the set folder; treating any of it as a backup (`db-backup.sh` is); trusting the index over the per-folder files — it is generated from them.
 
-**Cast marker** (a file in `.pulseboard\`, named `Name (ICG-ID)`):
+**Cast marker** (a file in `.pb\`, named `Name (ICG-ID)`):
 Your own claim that a person is in this set — one empty file per person. **The name is the whole statement**: content is never read, any extension is tolerated, and `Iveta_C_(IC-87VY)`, `Iveta C (IC-87VY)` and `iveta c (ic-87vy)` are one person, because the ICG-ID identifies and the name is provenance. Chosen over a line-based file because **files compose and lines do not**: one person across twelve sets is twelve pastes, and a second person in a set is simply a second file. Additive only — deleting a marker takes nothing back (ADR-0029 §5). Lands as a top-ranked `FOLDER_ATTRIBUTION` suggestion, confirmed with one key.
 _Avoid_: reading a marker's content; inferring a removal from a missing marker; identifying anyone by the name part.
 

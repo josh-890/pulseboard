@@ -1,13 +1,13 @@
 /**
  * Stub archive folders (ADR-0032) — the pure half: names, labels and the
- * reconciliation between the app's flag and `.pulseboard\STUB` on disk.
+ * reconciliation between the app's flag and `.pb\STUB` on disk.
  *
  * Client-safe: no Prisma client, no Node APIs.
  */
 
 import type { StubReason } from '@/generated/prisma/enums'
 
-/** The marker's base name inside `.pulseboard\`. Any extension is tolerated. */
+/** The marker's base name inside `.pb\`. Any extension is tolerated. */
 export const STUB_MARKER = 'STUB'
 
 export type ArchiveStub = {
@@ -50,7 +50,7 @@ export function isStubMarkerName(fileName: string): boolean {
 }
 
 export type StubReconcileInput = {
-  /** Does `.pulseboard\STUB` exist now? */
+  /** Does `.pb\STUB` exist now? */
   diskNow: boolean
   /** What the disk said at the last reconciliation; null = never reported. */
   lastSeen: boolean | null

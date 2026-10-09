@@ -3,7 +3,7 @@ import type { CatalogTag } from "@/lib/tag-query";
 import { toTagName } from "@/lib/tag-names";
 
 // Archive folder tags on disk (ADR-0034). A tag is an empty file in the folder's
-// `.pulseboard\` named `#name` — or `#group=name` when two groups share the name
+// `.pb\` named `#name` — or `#group=name` when two groups share the name
 // (`:` is not allowed in Windows file names). Pure, so the rules are pinned by
 // tests and shared by the scan ingest and the write phase.
 

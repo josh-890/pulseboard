@@ -5,7 +5,7 @@ import { getTagWrites } from '@/lib/services/archive-tag-service'
 
 // Agent endpoint (ADR-0034): the scan's write phase pulls the folders whose tags
 // changed in the app since the disk was last read, each with the complete set of
-// `.pulseboard\#…` marker names it should hold. The agent creates and deletes `#`
+// `.pb\#…` marker names it should hold. The agent creates and deletes `#`
 // files to match; the next Full scan confirms. Same API-key auth as stub-writes.
 function isAuthorized(request: Request): boolean {
   const apiKey = process.env.ARCHIVE_API_KEY

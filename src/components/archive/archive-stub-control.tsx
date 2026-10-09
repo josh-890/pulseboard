@@ -24,7 +24,7 @@ type ArchiveStubControlProps = {
 /**
  * Mark an archive folder as a stub, edit why, or end it (ADR-0032). Ending means
  * "the media in this folder are the real set now": the folder cover is rebuilt,
- * and the scan removes `.pulseboard\STUB` on its next run.
+ * and the scan removes `.pb\STUB` on its next run.
  */
 export function ArchiveStubControl({ folderId, stub, onChanged }: ArchiveStubControlProps) {
   const router = useRouter();
@@ -92,7 +92,7 @@ export function ArchiveStubControl({ folderId, stub, onChanged }: ArchiveStubCon
           <p className="text-sm font-medium">{stub ? "Stub archive copy" : "Mark as stub"}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             A placeholder you will upgrade in place. Also set by a{" "}
-            <code className="rounded bg-muted px-1">.pulseboard\STUB</code> file.
+            <code className="rounded bg-muted px-1">.pb\STUB</code> file.
           </p>
         </div>
 

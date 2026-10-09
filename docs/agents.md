@@ -75,7 +75,7 @@ there, how many files, is the video present. Cheap, safe to run often.
 
 **Full** walks the roots: detects new folders, renames, cross-drive moves (via the
 `archiveKey` in `_pulseboard.json`) and deletions, writes missing sidecars, then
-refreshes `.pulseboard\cast.json` and the per-root index.
+refreshes `.pb\cast.json` and the per-root index.
 
 ```powershell
 .\archive-scan.ps1                                   # targeted, the routine run
@@ -91,10 +91,10 @@ refreshes `.pulseboard\cast.json` and the per-root index.
 | `-Path <dir>` | Restrict the **whole run** — walk, sidecars and people files — to a full path under one of the three roots, not a channel name. Use it with `-Force` to keep a forced run quick. The per-root index is left alone on a scoped run, since it describes a whole root |
 | `-Force` | Re-read every leaf, ignoring the mtime shortcut. **Needed after editing a file inside a folder** — see the trap below |
 | `-NoSidecarPrompt` | Do not ask before writing `_pulseboard.json`; for scheduled runs |
-| `-SkipPeople` | Skip `.pulseboard\cast.json` and the per-root index |
+| `-SkipPeople` | Skip `.pb\cast.json` and the per-root index |
 | `-Rebake` / `-RebakeForce` | Run `archive-rebake.ps1` afterwards, on paths this scan just verified |
 | `-BatchSize` | Folders per POST (default 200) |
-| `-MigrateCast` | One-off: convert `_cast.txt` / `_people.txt` into markers in `.pulseboard\` |
+| `-MigrateCast` | One-off: convert `_cast.txt` / `_people.txt` into markers in `.pb\` |
 | `-SkipTargeted` | Skip the targeted sub-phase. Use for the first run **after moving folders between roots** — see below |
 | `-Baseline` | Store the reported counts as the new normal **without** deriving CHANGED from the difference. For the one run after the counting rule changes — see below |
 | `-DryRun` | Report only — including what the sidecar and people phases *would* write |
@@ -105,20 +105,20 @@ anything. Until 2026-08-08 it returned right after the delta preview, so those t
 phases — usually the ones you want to test — stayed silent.
 
 **What counts as a file of a set:** media only — images and videos. Everything
-tool-written now lives in `.pulseboard\` inside the folder, so the media plane holds
+tool-written now lives in `.pb\` inside the folder, so the media plane holds
 only the set and `frames\`:
 
 ```
 2011-01-16-MPL Talia - The Delicate Edge\
     …the images…
-    .pulseboard\
+    .pb\
         pulseboard.json        identity anchor — the archiveKey that survives a move
         cast.json              generated: who the app knows is in this set
         Iveta_C_(IC-87VY)      your own marker (see below)
 ```
 
-One exclude rule (`.pulseboard\`) covers backup, dedup and verification runs. Per
-archive root there is a derived `{root}\.pulseboard\index.tsv` — delete it and grep
+One exclude rule (`.pb\`) covers backup, dedup and verification runs. Per
+archive root there is a derived `{root}\.pb\index.tsv` — delete it and grep
 the folders if it ever looks wrong.
 
 The counting rule changed on 2026-08-08 and the layout on 2026-08-09, so stored
@@ -129,11 +129,11 @@ counts are one or two too high. Both are corrected by exactly one run:
 ```
 
 **Telling the app who is in a set** — put one empty file per person into
-`.pulseboard\`, named `Name (ICG-ID)`:
+`.pb\`, named `Name (ICG-ID)`:
 
 ```
-.pulseboard\Iveta_C_(IC-87VY)
-.pulseboard\Anna Y (AY-006S)
+.pb\Iveta_C_(IC-87VY)
+.pb\Anna Y (AY-006S)
 ```
 
 The name is the whole statement — content is never read, any extension is fine, and
@@ -144,29 +144,29 @@ file, with nothing to merge. Markers only **add**: deleting one takes nothing ba
 
 **Marking a stub** (ADR-0032) — a folder filed on purpose as a placeholder (few
 media, low quality) until the real set arrives. Put an empty file named `STUB` into
-`.pulseboard\` (an extension such as `.txt` is fine; any text inside becomes the
+`.pb\` (an extension such as `.txt` is fine; any text inside becomes the
 note):
 
 ```
-.pulseboard\STUB
+.pb\STUB
 ```
 
 The next Full run marks the folder as a stub in the app. It works the other way too:
 mark or end a stub in the app and the next Full run writes or removes `STUB` — the
 **only** file the scan ever changes for this; `pulseboard.json`, `cast.json` and your
 markers are not touched. To upgrade, replace the **media** in the same folder and
-leave `.pulseboard\` alone; the stub ends when you delete `STUB` or press **End
+leave `.pb\` alone; the stub ends when you delete `STUB` or press **End
 stub** in the app, never because media changed. A folder carrying `STUB` is listed in
 full on every run, because media overwritten under the same names do not move the
 folder's mtime. A targeted run does not look at `STUB` at all. The summary line
 reports `Stubs from STUB` / `Stubs ended` when either happened.
 
-**Tagging a folder** (ADR-0034) — put one empty file per tag into `.pulseboard\`,
+**Tagging a folder** (ADR-0034) — put one empty file per tag into `.pb\`,
 named `#` + the tag name; qualify with the group when two groups share a name:
 
 ```
-.pulseboard\#outdoor
-.pulseboard\#outfit=bikini
+.pb\#outdoor
+.pb\#outfit=bikini
 ```
 
 Case, `_` for space and a short extension (`#outdoor.txt`) make no difference; an
@@ -179,12 +179,23 @@ and shows on the archive row as a question; two files of one exclusive group
 (`#indoor` + `#outdoor`) adopt neither and show a warning. A targeted run does not
 read tags. The summary reports tags adopted / removed / unknown / conflicts.
 
-A `.pulseboard\` that Explorer draws **faded** carries the DOS hidden attribute —
+**`.pulseboard\` → `.pb\` (2026-10-09).** The metadata folder was renamed so it is
+quick to type. Nothing to do by hand: the first **Full** run renames every
+`.pulseboard\` it meets (set folders and the archive root's `index.tsv` folder) to
+`.pb\`. Where both exist — a `.pb\` you already created next to the old one — the
+files move over; identical duplicates and generated files (`cast.json`,
+`index.tsv`) yield to the `.pb\` copy, and anything else that differs (the anchor
+`pulseboard.json`, a `STUB` note) stays in `.pulseboard\` with a warning to compare.
+The summary line reports `Meta folders: N .pulseboard -> .pb`. Run it once with
+`-DryRun` first to see the count. **Update exclude rules** in backup, dedup and
+verification tools from `.pulseboard` to `.pb`. A targeted run does not rename.
+
+A `.pb\` that Explorer draws **faded** carries the DOS hidden attribute —
 Samba puts it on every dot-name, so a meta folder created from Linux, WSL or over the
 share arrives hidden. The scan reads it with `-Force` and does not care, and neither
 should you: the attribute is cosmetic, and clearing it is optional. (Before that fix
 the walk died on the first hidden one with `Get-Item: Could not find item …
-\.pulseboard`, because `Test-Path` sees hidden items and `Get-Item` does not.)
+\.pb`, because `Test-Path` sees hidden items and `Get-Item` does not.)
 
 **Right after moving folders between roots:** a Full run starts with the targeted
 sub-phase, which checks the paths the app currently records — so every moved folder
@@ -357,7 +368,7 @@ folder, `-Path` narrows a run and switches deletion detection off, `-Baseline` a
 `-MigrateCast` were one-off migrations, `-SkipTargeted` is for the run right after moving
 folders between roots, and `archive-rebake.ps1` has nothing to do with new sets.
 
-One loop closes a round later: step 1 writes `.pulseboard\cast.json` only for folders the app
+One loop closes a round later: step 1 writes `.pb\cast.json` only for folders the app
 already knows people for. For brand-new folders it does not yet, so their cast files appear on
 the **next** Full scan, after you have confirmed the attributions. That delay is inherent — the
 app has no route to the archive filesystem.

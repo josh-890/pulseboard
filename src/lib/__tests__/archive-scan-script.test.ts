@@ -34,7 +34,7 @@ function codeOnly(text: string): string {
 /** Cmdlets the script legitimately calls. Anything else Verb-Noun must be its own. */
 const KNOWN_CMDLETS = new Set([
   "Write-Host", "Write-Warning", "Write-Error", "Write-Verbose", "Write-Output",
-  "Get-Content", "Set-Content", "Get-ChildItem", "Get-Item", "Get-Date", "Get-Member",
+  "Get-Content", "Set-Content", "Get-ChildItem", "Get-FileHash", "Get-Item", "Get-Date", "Get-Member",
   "Test-Path", "Join-Path", "Split-Path", "Resolve-Path", "Convert-Path",
   "New-Item", "New-Object", "Remove-Item", "Move-Item", "Copy-Item", "Rename-Item",
   "ConvertTo-Json", "ConvertFrom-Json", "Invoke-RestMethod", "Invoke-WebRequest",
@@ -94,8 +94,20 @@ describe("archive-scan.ps1 — static checks", () => {
   // The agent and the app must agree on where things live; a drift here is silent
   // until an operator finds an empty folder.
   it("agrees with the app about the metadata layout", () => {
-    expect(SCRIPT).toContain('$META_DIR = ".pulseboard"');
+    expect(SCRIPT).toContain('$META_DIR = ".pb"');
+    expect(SCRIPT).toContain('$LEGACY_META_DIR = ".pulseboard"');
     expect(SCRIPT).toContain('"pulseboard.json"');
     expect(SCRIPT).toContain('"cast.json"');
+  });
+
+  // .pulseboard\ became .pb\ (2026-10-09). Every path to the metadata folder must
+  // go through Get-MetaDir, which renames or merges the old folder on contact — a
+  // direct `Join-Path $x $META_DIR` would read an empty .pb\ next to a full
+  // .pulseboard\ and treat every marker, stub and tag as deleted.
+  it("reaches the metadata folder only through Get-MetaDir", () => {
+    const direct = [...code.matchAll(/Join-Path\s+\$[\w.]+\s+\$META_DIR/g)].map((m) => m[0]);
+    expect(direct).toEqual(["Join-Path $ParentPath $META_DIR"]);
+    expect(code).toMatch(/function Get-MetaDir\b/);
+    expect(code).toMatch(/Rename-Item -LiteralPath \$old -NewName \$META_DIR -Force/);
   });
 });

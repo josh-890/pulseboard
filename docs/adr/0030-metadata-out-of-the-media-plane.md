@@ -4,6 +4,12 @@
 - **Date:** 2026-08-09
 - **Supersedes:** the file names and the authoring format of ADR-0029 §1 and §4
 
+
+> **Amendment 2026-10-09:** the metadata folder `.pulseboard\` is now **`.pb\`** —
+> short to type by hand. `archive-scan.ps1` renames any `.pulseboard\` it meets on a
+> Full run (merging when both exist; differing files are left with a warning).
+> Read `.pulseboard\` below as `.pb\`.
+
 ## Context
 
 The archive exists to hold media and to be backed up. A set folder should contain a

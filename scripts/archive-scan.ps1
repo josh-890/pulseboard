@@ -153,18 +153,21 @@
       Sidecars are written to ALL on-disk folders — not only linked ones.
       Existing sidecars are never overwritten.
 
-    Metadata folder (.pulseboard\ inside each set folder) — ADR-0030:
+    Metadata folder (.pb\ inside each set folder) — ADR-0030. Named .pulseboard\
+    until 2026-10-09; a Full run renames any old .pulseboard\ it meets to .pb\
+    (merging when both exist) and reports the count in its summary:
       Everything tool-written lives here, so the set folder holds only media and
       frames\. One exclude rule covers it in backup, dedup and verification runs:
-        .pulseboard\pulseboard.json   identity anchor (archiveKey) — survives moves
-        .pulseboard\cast.json         generated: who the app knows is in this set
-        .pulseboard\Name (ICG-ID)     YOUR marker files, see below
-        .pulseboard\STUB              YOUR stub marker, see below (ADR-0032)
-      Per archive root: {root}\.pulseboard\index.tsv — derived from the cast files,
+        .pb\pulseboard.json   identity anchor (archiveKey) — survives moves
+        .pb\cast.json         generated: who the app knows is in this set
+        .pb\Name (ICG-ID)     YOUR marker files, see below
+        .pb\STUB              YOUR stub marker, see below (ADR-0032)
+        .pb\#tag-name         YOUR tag markers, one empty file per tag (ADR-0034)
+      Per archive root: {root}\.pb\index.tsv — derived from the cast files,
       safe to delete. Files from before the move are removed where found.
 
     Cast markers (your own claims) — ADR-0030:
-      One empty file per person in .pulseboard\, named "Name (ICG-ID)". The name is
+      One empty file per person in .pb\, named "Name (ICG-ID)". The name is
       the whole statement: content is never read, an extension makes no difference,
       and "Iveta_C_(IC-87VY)", "Iveta C (IC-87VY)" and "iveta c (ic-87vy)" are the
       same person — the ICG-ID identifies, the name is provenance. Knowing that one
@@ -173,7 +176,7 @@
       -MigrateCast converts an older _cast.txt / _people.txt into markers, once.
 
     Stub marker (a deliberate placeholder copy) — ADR-0032:
-      An empty file named STUB in .pulseboard\ (any extension, any case) says "this
+      An empty file named STUB in .pb\ (any extension, any case) says "this
       folder is a stub — few media or a low-quality copy, to be upgraded in place".
       Text inside it becomes the note. The app can set or end a stub as well; this
       script then writes or removes STUB (the only file it ever changes for this).
@@ -187,7 +190,7 @@
       walk moments later. Use -SkipTargeted for that one run to avoid writing the
       transient verdict, then scan normally afterwards.
 
-      NOTE: adding a marker to an existing .pulseboard\ does NOT bump the set
+      NOTE: adding a marker to an existing .pb\ does NOT bump the set
       folder's own mtime — NTFS only updates the direct parent. The scan therefore
       reports the LATER of the two timestamps, so a new marker is always seen.
 
@@ -202,7 +205,7 @@
 
     Skip logic (directory LastWriteTime comparison):
       leafDirModifiedAt unchanged → skip file listing (action = unchanged)
-      …except for a folder carrying .pulseboard\STUB, which is always read.
+      …except for a folder carrying .pb\STUB, which is always read.
 
       Channel-folder and year-dir level caching have been removed: NTFS only
       propagates mtime one level up, making those caches unreliable for detecting
@@ -222,9 +225,9 @@ param(
     [string]$Path          = "",  # Full mode: restrict the walk to this subtree (channel folder, year, or a single leaf)
     [switch]$Force,               # Full mode: re-read every leaf, ignoring the leaf-mtime skip
     [switch]$NoSidecarPrompt,  # skip interactive sidecar-write prompt after Full scan (for automation)
-    [switch]$SkipPeople,       # Full mode: skip writing .pulseboard\cast.json and the per-root index
+    [switch]$SkipPeople,       # Full mode: skip writing .pb\cast.json and the per-root index
     [switch]$Baseline,         # accept the reported counts as the new normal — do NOT derive CHANGED from them
-    [switch]$MigrateCast,      # one-off: convert _cast.txt / _people.txt into markers in .pulseboard\
+    [switch]$MigrateCast,      # one-off: convert _cast.txt / _people.txt into markers in .pb\
     [switch]$SkipTargeted,     # Full mode: skip the targeted sub-phase (use right after moving folders)
     [switch]$DryRun,
     [switch]$SkipChanCache,  # retained for backward compatibility; no longer has any effect
@@ -298,7 +301,7 @@ $ImageExtensions = @(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", "
 # What counts as "a file of this set": media, and nothing else.
 #
 # A set is its images and videos. Everything else in the folder belongs to some
-# tool — our own .pulseboard\ folder, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
+# tool — our own .pb\ folder, Thumbs.db, desktop.ini, a stray readme. Counting those made the file
 # count wrong and, worse, made it MOVE: writing a people file added one, and the app
 # concluded from the changed count that someone had touched the set (276 sets were
 # marked CHANGED that way). The content signature had the same flaw — the fingerprint
@@ -306,8 +309,16 @@ $ImageExtensions = @(".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", "
 $MediaExtensions = $ImageExtensions + $VideoExtensions
 
 # Where everything tool-written lives, one per set folder (ADR-0030). Named for its
-# owner: another tool's metadata is not ours to host.
-$META_DIR = ".pulseboard"
+# owner: another tool's metadata is not ours to host. Short because people type it
+# by hand all the time — markers, STUB, #tags (renamed from .pulseboard 2026-10-09).
+$META_DIR = ".pb"
+# The name before. Get-MetaDir renames it to $META_DIR the first time it meets one.
+$LEGACY_META_DIR = ".pulseboard"
+# Generated files: when both folders hold one, the copy in $META_DIR wins (it is
+# rewritten from the app anyway). Anything else that differs is left for a human.
+$GENERATED_META_FILES = @("cast.json", "index.tsv")
+$script:MetaStats = @{ renamed = 0; merged = 0; attention = 0 }
+$script:MetaResolved = @{}
 # Our own files inside it. Anything else in there with an ICG-ID in its name is a
 # cast marker written by hand.
 $OWN_META_FILES = @("pulseboard.json", "cast.json", "index.tsv")
@@ -321,7 +332,7 @@ $META_JUNK_FILES = @("thumbs.db", "desktop.ini", ".ds_store")
 $STUB_MARKER = "stub"
 # Mirrors ICG_ID_RE in src/lib/icg-id.ts.
 $ICG_ID_PATTERN = '^[A-Z]{2}-[0-9]{2}[A-Z0-9@][A-Z0-9]+$'
-# Generated files from before the move into .pulseboard\. Removed wherever they are
+# Generated files from before the move into .pb\. Removed wherever they are
 # found, so no folder ever carries two answers to the same question. The old anchor
 # (_pulseboard.json) is NOT in this list — it is moved, never deleted.
 $LEGACY_CAST_FILES = @("_pulseboard_cast.txt", "_pulseboard_people.txt")
@@ -349,7 +360,7 @@ function Normalize-Path {
     return $P.TrimEnd("/\").ToLower().Replace("/","\")
 }
 
-# mtime of a set's .pulseboard\, or $null when there is none.
+# mtime of a set's .pb\, or $null when there is none.
 #
 # The folder frequently carries the DOS hidden attribute: Samba sets it on dot-names
 # (`hide dot files` is on by default), so any meta folder created from Linux, WSL or
@@ -364,6 +375,72 @@ function Get-MetaDirMtimeUtc {
     $item = Get-Item -LiteralPath $MetaDir -Force -ErrorAction SilentlyContinue
     if (-not $item) { return $null }
     return $item.LastWriteTimeUtc
+}
+
+# The metadata folder of a set folder (or of an archive root), moving the old
+# .pulseboard\ to .pb\ on first contact:
+#   - only .pulseboard  -> renamed to .pb (contents, hidden attribute and all)
+#   - both              -> files moved over; an identical duplicate is dropped, a
+#                          generated file (cast.json, index.tsv) yields to the .pb
+#                          copy; anything else that differs (the anchor, a STUB note)
+#                          stays in .pulseboard\ with a warning — never guessed
+# -ReadOnly (counting before a prompt) and -DryRun change nothing and return the
+# folder that holds the data now.
+function Get-MetaDir {
+    param([string]$ParentPath, [switch]$ReadOnly)
+    $new = Join-Path $ParentPath $META_DIR
+    $key = $ParentPath.ToLowerInvariant()
+    if ($script:MetaResolved.ContainsKey($key)) { return $script:MetaResolved[$key] }
+    $old = Join-Path $ParentPath $LEGACY_META_DIR
+    if (-not (Test-Path -LiteralPath $old -PathType Container)) {
+        $script:MetaResolved[$key] = $new
+        return $new
+    }
+    $hasNew = Test-Path -LiteralPath $new -PathType Container
+    if ($ReadOnly) { return $(if ($hasNew) { $new } else { $old }) }
+    if ($DryRun) {
+        # Thousands of folders carry one: show a few, count the rest
+        if ($script:MetaStats.renamed -lt 10) { Write-Host "  [DRY-RUN] Would move $old -> $META_DIR" }
+        $script:MetaStats.renamed++
+        $script:MetaResolved[$key] = $(if ($hasNew) { $new } else { $old })
+        return $script:MetaResolved[$key]
+    }
+    try {
+        if (-not $hasNew) {
+            Rename-Item -LiteralPath $old -NewName $META_DIR -Force -ErrorAction Stop
+            $script:MetaStats.renamed++
+        } else {
+            $left = $false
+            foreach ($item in @(Get-ChildItem -LiteralPath $old -Force -ErrorAction Stop)) {
+                $dest = Join-Path $new $item.Name
+                if ($item.PSIsContainer) { $left = $true; continue }
+                if (-not (Test-Path -LiteralPath $dest)) {
+                    Move-Item -LiteralPath $item.FullName -Destination $dest -Force -ErrorAction Stop
+                } elseif ($GENERATED_META_FILES -contains $item.Name.ToLowerInvariant() -or
+                          (Get-FileHash -LiteralPath $item.FullName).Hash -eq (Get-FileHash -LiteralPath $dest).Hash) {
+                    Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+                } else {
+                    Write-Warning "  $($item.FullName) differs from the copy in $META_DIR\ — kept both, please compare"
+                    $left = $true
+                }
+            }
+            if ($left) {
+                $script:MetaStats.attention++
+            } else {
+                Remove-Item -LiteralPath $old -Force -Recurse -ErrorAction Stop
+                $script:MetaStats.merged++
+            }
+        }
+    } catch {
+        Write-Warning "  Could not move $old to $META_DIR`: $_"
+        $script:MetaStats.attention++
+        if (-not (Test-Path -LiteralPath $new -PathType Container)) {
+            $script:MetaResolved[$key] = $old
+            return $old
+        }
+    }
+    $script:MetaResolved[$key] = $new
+    return $new
 }
 
 # Invoke-RestMethod in PS 5.1 may auto-convert ISO date strings to [DateTime] objects.
@@ -756,12 +833,18 @@ function Walk-Root {
 
                 $existing  = $ByPath[$normPath]  # exact path match
 
-                # ── The metadata folder (.pulseboard\, ADR-0030) ─────────────
+                # ── The metadata folder (.pb\, ADR-0030) ─────────────
                 # Everything tool-written lives here so the set folder holds only
                 # media. The anchor's archiveKey is what lets the server recognise a
                 # folder that moved to another drive; the old location is still read
                 # so a folder keeps its identity mid-migration.
-                $metaDir     = Join-Path $lf.FullName $META_DIR
+                $movedBefore = $script:MetaStats.renamed + $script:MetaStats.merged
+                $metaDir     = Get-MetaDir $lf.FullName
+                if (-not $DryRun -and ($script:MetaStats.renamed + $script:MetaStats.merged) -ne $movedBefore) {
+                    # Renaming the meta folder bumps the set folder's own mtime
+                    $lf.Refresh()
+                    $lfMtime = $lf.LastWriteTimeUtc
+                }
                 $metaMtime   = Get-MetaDirMtimeUtc $metaDir
 
                 $sidecarKey = $null
@@ -908,7 +991,7 @@ function Walk-Root {
                     }
                 }
 
-                # A marker added to an existing .pulseboard\ does NOT bump the set
+                # A marker added to an existing .pb\ does NOT bump the set
                 # folder's mtime — NTFS only updates the direct parent — so the skip
                 # below would hide it for ever. Reporting the later of the two makes
                 # anything that appears in there visible on the next run.
@@ -1107,7 +1190,7 @@ function Write-Sidecars {
             continue
         }
 
-        $metaDir     = Join-Path $folderPath $META_DIR
+        $metaDir     = Get-MetaDir $folderPath
         $sidecarPath = Join-Path $metaDir "pulseboard.json"
         $legacyPath  = Join-Path $folderPath "_pulseboard.json"
 
@@ -1225,7 +1308,7 @@ function Write-Sidecars {
 
 # ── FULL MODE — Write people files ────────────────────────────────────────────
 #
-# `.pulseboard\cast.json` per folder: who the app knows is in this set, so the
+# `.pb\cast.json` per folder: who the app knows is in this set, so the
 # archive can answer that question with no app, no database and no MinIO running
 # (ADR-0029). Plain text on purpose — ConvertTo-Json collapses a one-element array
 # into a scalar, and a participant list is exactly that shape.
@@ -1255,13 +1338,13 @@ function Write-PeopleFiles {
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $filePath = Join-Path $folderPath $META_DIR "cast.json"
+        $filePath = Join-Path (Get-MetaDir $folderPath) "cast.json"
         $want     = if ($wanted.ContainsKey($ak)) { $wanted[$ak] } else { "EMPTY" }
         $exists   = Test-Path -LiteralPath $filePath -PathType Leaf
 
         # EMPTY means the app knows nobody here. A file that has outlived its
         # content is worse than none: it answers with a stand nobody holds. Any
-        # generated file from before the move into .pulseboard\ goes the same way.
+        # generated file from before the move into .pb\ goes the same way.
         foreach ($legacyName in $LEGACY_CAST_FILES) {
             $legacyPath = Join-Path $folderPath $legacyName
             if (Test-Path -LiteralPath $legacyPath -PathType Leaf) { [void]$toDelete.Add($legacyPath) }
@@ -1310,7 +1393,7 @@ function Write-PeopleFiles {
             $ak = [string]$file.archiveKey
             if (-not $ByArchKey.ContainsKey($ak)) { continue }
             $folderPath = [string]$ByArchKey[$ak].fullPath
-            $metaDir    = Join-Path $folderPath $META_DIR
+            $metaDir    = Get-MetaDir $folderPath
             $filePath   = Join-Path $metaDir "cast.json"
             try {
                 if (-not (Test-Path -LiteralPath $metaDir -PathType Container)) {
@@ -1364,7 +1447,7 @@ function Write-PeopleIndex {
 
     foreach ($ak in $ByArchKey.Keys) {
         $folderPath = [string]$ByArchKey[$ak].fullPath
-        $filePath   = Join-Path $folderPath $META_DIR "cast.json"
+        $filePath   = Join-Path (Get-MetaDir $folderPath) "cast.json"
         if (-not (Test-Path -LiteralPath $filePath -PathType Leaf)) { continue }
 
         $root = $null
@@ -1395,7 +1478,7 @@ function Write-PeopleIndex {
     foreach ($root in $Roots) {
         $rows = $rowsByRoot[$root]
         if ($rows.Count -eq 0) { continue }
-        $indexDir  = Join-Path $root $META_DIR
+        $indexDir  = Get-MetaDir $root
         $indexPath = Join-Path $indexDir "index.tsv"
         if ($DryRun) {
             Write-Host "  [DRY-RUN] Would write $indexPath ($($rows.Count) rows)"
@@ -1424,9 +1507,9 @@ function Write-PeopleIndex {
 }
 
 # ── FULL MODE — Write stub markers (ADR-0032) ─────────────────────────────────
-# The app may set or end a stub too. This phase makes .pulseboard\STUB follow: it
+# The app may set or end a stub too. This phase makes .pb\STUB follow: it
 # creates the file (the note as its text) or removes it — and touches nothing else
-# in .pulseboard\. The next Full run reports what the disk then holds and the
+# in .pb\. The next Full run reports what the disk then holds and the
 # server's reconciliation settles it, so a failed write simply comes round again.
 
 function Write-StubMarkers {
@@ -1452,7 +1535,7 @@ function Write-StubMarkers {
     foreach ($w in $writes) {
         $folderPath = [string]$w.fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $metaDir = Join-Path $folderPath $META_DIR
+        $metaDir = Get-MetaDir $folderPath
         $existingMarkers = @()
         if (Test-Path -LiteralPath $metaDir -PathType Container) {
             $existingMarkers = @(Get-ChildItem -LiteralPath $metaDir -File -Force -ErrorAction SilentlyContinue |
@@ -1492,7 +1575,7 @@ function Write-StubMarkers {
     Write-Host "  Stub markers: $made written, $removed removed$(if ($failed -gt 0) { ", $failed failed" })"
 }
 
-# Tag markers (ADR-0034): `.pulseboard\#name` files, compared the way the app reads
+# Tag markers (ADR-0034): `.pb\#name` files, compared the way the app reads
 # them — case-insensitive, `_` = space, a short extension ignored.
 function Get-TagMarkerKey {
     param([string]$Name)
@@ -1522,7 +1605,7 @@ function Write-TagMarkers {
     foreach ($w in $writes) {
         $folderPath = [string]$w.fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $metaDir = Join-Path $folderPath $META_DIR
+        $metaDir = Get-MetaDir $folderPath
 
         # The complete set the folder should hold. @() undoes ConvertTo-Json's habit
         # of collapsing a one-element array into a bare string.
@@ -1595,7 +1678,7 @@ function Write-WritePhases {
     foreach ($ak in $target.Keys) {
         $folderPath  = [string]$target[$ak].fullPath
         if (-not (Test-Path -LiteralPath $folderPath -PathType Container)) { continue }
-        $sidecarPath = Join-Path $folderPath $META_DIR "pulseboard.json"
+        $sidecarPath = Join-Path (Get-MetaDir $folderPath -ReadOnly) "pulseboard.json"
         if (Test-Path -LiteralPath $sidecarPath -PathType Leaf) { continue }
         if (Test-Path -LiteralPath (Join-Path $folderPath "_pulseboard.json") -PathType Leaf) {
             $needsMove++
@@ -1629,7 +1712,7 @@ function Write-WritePhases {
     }
 
     # No prompt: the app asked for exactly these, one file each, and nothing else in
-    # .pulseboard\ is touched.
+    # .pb\ is touched.
     Write-Host ""
     Write-Host "Writing stub markers ($META_DIR\STUB)..."
     Write-StubMarkers -ScopeNorm $ScopeNorm
@@ -1810,6 +1893,12 @@ function Run-FullScan {
         if ($totSkip -gt 0) { Write-Host ("  Skipped (empty):  " + $totSkip) }
         if ($totStubMarked -gt 0) { Write-Host ("  Stubs from STUB:  " + $totStubMarked) }
         if ($totStubEnded -gt 0)  { Write-Host ("  Stubs ended:      " + $totStubEnded + " (STUB removed on disk)") }
+        $ms = $script:MetaStats
+        if (($ms.renamed + $ms.merged + $ms.attention) -gt 0) {
+            Write-Host ("  Meta folders:     " + $ms.renamed + " $LEGACY_META_DIR -> $META_DIR" + $(if ($DryRun) { " (dry run)" } else { "" }) +
+                $(if ($ms.merged -gt 0) { ", $($ms.merged) merged into an existing $META_DIR" } else { "" }) +
+                $(if ($ms.attention -gt 0) { ", $($ms.attention) left for you (see warnings)" } else { "" }))
+        }
         if (($totTagAdopted + $totTagRemoved + $totTagUnknown + $totTagConflicts) -gt 0) {
             Write-Host ("  Tags from #files: " + $totTagAdopted + " adopted, " + $totTagRemoved + " removed" +
                 $(if ($totTagUnknown -gt 0) { ", $totTagUnknown unknown names (resolve in /archive)" } else { "" }) +

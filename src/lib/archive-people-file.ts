@@ -1,13 +1,13 @@
 /**
  * What the archive says about who is in a set (ADR-0029, ADR-0030).
  *
- * Everything tool-written lives in a `.pulseboard\` directory inside the set folder,
+ * Everything tool-written lives in a `.pb\` directory inside the set folder,
  * so the media plane holds only media — the separation BagIt and OCFL make between
  * payload and metadata, as far as it can be had without restructuring 34k paths:
  *
- *   `.pulseboard/pulseboard.json`  the identity anchor, written once
- *   `.pulseboard/cast.json`        this file: a generated mirror of what the app knows
- *   `.pulseboard/Iveta_C_(IC-87VY)` a marker — your own claim, the name IS the payload
+ *   `.pb/pulseboard.json`  the identity anchor, written once
+ *   `.pb/cast.json`        this file: a generated mirror of what the app knows
+ *   `.pb/Iveta_C_(IC-87VY)` a marker — your own claim, the name IS the payload
  *
  * The generated file is JSON because it is machine-written and machine-read: the app
  * renders it and the agent writes the body verbatim, so PowerShell's one-element
@@ -46,7 +46,9 @@ export type ParsedPeopleFile = {
 export const EMPTY_REVISION = 'EMPTY'
 
 /** The container for everything tool-written, one per set folder. */
-export const META_DIR = '.pulseboard'
+export const META_DIR = '.pb'
+/** The folder's name until 2026-10-09; the agent renames it to META_DIR on contact */
+export const LEGACY_META_DIR = '.pulseboard'
 /** The identity anchor: its archiveKey is what finds a folder again after a move. */
 export const ANCHOR_FILE = 'pulseboard.json'
 /** The generated mirror of the app's knowledge, refreshed when its revision differs. */
@@ -55,7 +57,7 @@ export const APP_CAST_FILE = 'cast.json'
 export const INDEX_FILE = 'index.tsv'
 
 /**
- * Names used before the move into `.pulseboard\` (ADR-0030). The agent deletes any
+ * Names used before the move into `.pb\` (ADR-0030). The agent deletes any
  * it finds, so a folder never carries two answers to the same question.
  */
 export const LEGACY_FILES = [
@@ -115,7 +117,7 @@ export function parsePersonLine(line: string): FilePerson | null {
 /**
  * A person from the name of a marker file.
  *
- * The whole statement is the filename: `.pulseboard/Iveta_C_(IC-87VY)`. Content is
+ * The whole statement is the filename: `.pb/Iveta_C_(IC-87VY)`. Content is
  * never read, so a marker can be an empty file, a copy of another marker, or
  * whatever Explorer produced — and an extension makes no difference, because
  * "New → Text Document" appends `.txt` and that must not silently drop a claim.

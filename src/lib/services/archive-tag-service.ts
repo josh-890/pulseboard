@@ -15,7 +15,7 @@ import { createTagAlias, createTagDefinition } from "./tag-service";
 // Archive folder tags (ADR-0034). Before promotion a folder's tags are its own
 // (`ArchiveFolderTag`); once a CONFIRMED link joins it to a Set they live on the
 // Set (`SetTag`) and the disk follows the Set. The disk side is one empty file per
-// tag in `.pulseboard\` (`#name`), reconciled per tag with the ADR-0032 rule.
+// tag in `.pb\` (`#name`), reconciled per tag with the ADR-0032 rule.
 //
 // Ownership heals itself rather than being wired into every link path: wherever a
 // folder is read for tags, rows still on a set-linked folder move to the Set, and
@@ -207,7 +207,7 @@ export async function reconcileFolderTagsFromScan(items: TagScanItem[]): Promise
 
 export type TagWrite = {
   fullPath: string;
-  /** The complete set of `#…` marker base names the folder's `.pulseboard\` should hold */
+  /** The complete set of `#…` marker base names the folder's `.pb\` should hold */
   want: string[];
 };
 

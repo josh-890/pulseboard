@@ -56,7 +56,7 @@ relevant to the data model:
 - **Stub** (ADR-0032) — `ArchiveFolder.stubSince` (+ `stubReason`, `stubNote`):
   the archive *copy* is a deliberate placeholder, upgraded in place later. Not
   `Set.isComplete`, not `ArchiveStatus.INCOMPLETE`. `stubDiskState` remembers what
-  `.pulseboard\STUB` said at the last reconciliation; `stubEndedAt` raises the
+  `.pb\STUB` said at the last reconciliation; `stubEndedAt` raises the
   re-import offer after a stub ends.
 
 ## Production layer
@@ -191,7 +191,7 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - `ArchiveFolderTag` (ADR-0034): tags of an archive folder before promotion
   (CONTENT/ANY only, no inheritance). Once a CONFIRMED link joins the folder to a
   Set the tags live on `SetTag` instead. Sync state on `ArchiveFolder`:
-  `tagsDiskSeen` / `tagsDiskState` (tag ids the `.pulseboard\#…` files carried at
+  `tagsDiskSeen` / `tagsDiskState` (tag ids the `.pb\#…` files carried at
   the last reconcile), `tagsSyncedOwner` (`folder` or the set id the state was
   compared with), `tagMarkersUnknown` / `tagMarkersConflicts` (markers the app
   could not place).

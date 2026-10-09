@@ -3,7 +3,7 @@
  *
  * The flag sits on the ArchiveFolder: the publication is complete, only the copy
  * on disk is a placeholder. Either side may set or end it; `reconcileStub`
- * (lib/archive-stub.ts) decides between the app and `.pulseboard\STUB`, and the
+ * (lib/archive-stub.ts) decides between the app and `.pb\STUB`, and the
  * app side of both directions comes through here.
  */
 
@@ -65,7 +65,7 @@ export type StubScanCounts = {
 type StubScanItem = { fullPath: string; stubOnDisk?: unknown; stubNote?: unknown }
 
 /**
- * Reconcile what a Full scan saw in each `.pulseboard\` with the app's flag, after
+ * Reconcile what a Full scan saw in each `.pb\` with the app's flag, after
  * the folders themselves have been upserted. Only items that carry `stubOnDisk` as
  * a boolean are looked at: a targeted scan or an older agent sends nothing, and
  * "not looked" must never read as "deleted".
@@ -111,7 +111,7 @@ export async function reconcileStubsFromScan(items: StubScanItem[]): Promise<Stu
 
 export type StubWrite = {
   fullPath: string
-  /** true: create `.pulseboard\STUB` (with the note as its text); false: remove it. */
+  /** true: create `.pb\STUB` (with the note as its text); false: remove it. */
   want: boolean
   note: string | null
 }

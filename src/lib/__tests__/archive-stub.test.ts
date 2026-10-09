@@ -6,7 +6,7 @@ describe("isStubMarkerName", () => {
     for (const n of ["STUB", "stub", "STUB.txt", "Stub.TXT", " STUB "]) expect(isStubMarkerName(n), n).toBe(true);
   });
 
-  it("rejects everything else in .pulseboard\\", () => {
+  it("rejects everything else in .pb\\", () => {
     for (const n of ["pulseboard.json", "cast.json", "Iveta_C_(IC-87VY)", "STUBBED", "NOSTUB.txt", ""]) {
       expect(isStubMarkerName(n), n).toBe(false);
     }

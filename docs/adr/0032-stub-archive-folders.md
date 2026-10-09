@@ -3,6 +3,12 @@
 - **Status:** Accepted
 - **Date:** 2026-09-30
 
+
+> **Amendment 2026-10-09:** the metadata folder `.pulseboard\` is now **`.pb\`** —
+> short to type by hand. `archive-scan.ps1` renames any `.pulseboard\` it meets on a
+> Full run (merging when both exist; differing files are left with a warning).
+> Read `.pulseboard\` below as `.pb\`.
+
 ## Context
 
 Some sets are filed in the archive on purpose as **stubs**: a handful of images, or

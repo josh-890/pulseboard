@@ -1511,7 +1511,7 @@ Every folder row in the archive list shows the people it is said to hold:
 - **solid green** — your own attribution, recorded
 - **outlined grey** — the cast of the set behind a confirmed link, i.e. who the
   publisher credited
-- **dashed violet, with a `?`** — a marker file in `.pulseboard\` that nobody has
+- **dashed violet, with a `?`** — a marker file in `.pb\` that nobody has
   confirmed yet. It is waiting for you in **Attribution queue → My markers**
 
 The two are never merged. A folder settled by an import usually shows only the
@@ -1566,23 +1566,23 @@ the finished thing (ADR-0032).
   **Archive** section. Pick why: *Few media*, *Low quality* or both, plus an
   optional note (e.g. "12 of 80 images, 800 px").
 - **Mark on disk:** put an empty file named `STUB` into the set folder's
-  `.pulseboard\` (an extension such as `.txt` is fine; any text inside becomes the
+  `.pb\` (an extension such as `.txt` is fine; any text inside becomes the
   note). The next **Full** archive scan picks it up. A stub marked this way has no
   reason yet — the pill says "reason not given" until you pick one in the app.
 - Either side follows the other: mark or end a stub in the app and the next Full
   scan writes or removes `STUB` (only that one file — nothing else in
-  `.pulseboard\` is touched).
+  `.pb\` is touched).
 - A violet **Stub** pill then shows on the set page, the staged-set row and panel,
   and the archive row. Hover it for the reason, note and date. Click it to change
   the reason or note.
 
-**Upgrading:** replace the **media** inside the same folder and leave `.pulseboard\`
+**Upgrading:** replace the **media** inside the same folder and leave `.pb\`
 alone — the folder keeps its identity, its people and its link. Changing media does
 not end a stub by itself (you may swap a few images and still have a stub). A stub
 ends only when you say so:
 
 - click the pill → **End stub…** → **Yes, it's the real set**, or
-- delete `.pulseboard\STUB` on disk.
+- delete `.pb\STUB` on disk.
 
 Either way the folder cover is rebuilt from the new media on the next cover run.
 
@@ -1591,7 +1591,7 @@ Either way the folder cover is rebuilt from the new media on the next cover run.
 You often know a set's tags while filing it in Explorer — long before (or without
 ever) promoting it. Tag the folder there (ADR-0034):
 
-- **On disk:** put an empty file per tag into the folder's `.pulseboard\`:
+- **On disk:** put an empty file per tag into the folder's `.pb\`:
   `#outdoor`, `#bikini`. If two groups share a name, add the group: `#outfit=bikini`.
   `_` stands for a space, case and a `.txt` extension don't matter, aliases work.
   The next **Full** archive scan picks them up.
@@ -1600,7 +1600,7 @@ ever) promoting it. Tag the folder there (ADR-0034):
   (it edits the linked folder; a staged set without a folder can't be tagged yet).
 - **Both ways:** add or remove a tag in the app and the next Full scan creates or
   deletes the `#…` file; delete a file and the tag goes. Nothing else in
-  `.pulseboard\` is touched.
+  `.pb\` is touched.
 - **Unknown names** show as an amber `#name ?` chip. Click it, then pick the tag it
   means (the name becomes an alias) or create it — every folder carrying that
   name is tagged at once.
@@ -1728,12 +1728,12 @@ still be circular.
 ##### Finding a person's sets without the app
 
 Every archive folder the app knows people for carries a small file,
-`.pulseboard\cast.json`, naming them as `Name (ICG-ID)` in two labelled lists: **credited**
+`.pb\cast.json`, naming them as `Name (ICG-ID)` in two labelled lists: **credited**
 (who the publisher named for the linked set) and **claimed** (what you asserted about the
 folder). It is written by the scan agent, so what you confirm today appears on disk after the
 next Full scan — the app has no route to the archive filesystem.
 
-Everything the app writes lives in that `.pulseboard\` folder, next to the identity anchor.
+Everything the app writes lives in that `.pb\` folder, next to the identity anchor.
 The set folder itself holds only the set, which is what makes it possible to exclude all of it
 from a backup or verification run with a single rule.
 
@@ -1743,7 +1743,7 @@ That means the archive answers on its own. With the database, MinIO or the whole
 rg 'AI-00QAS' I:\Sites L:\Sites02 L:\VSites   # every set that person worked on
 ```
 
-Each archive root also gets a generated `.pulseboard\index.tsv` — ICG-ID, name, standing, path —
+Each archive root also gets a generated `.pb\index.tsv` — ICG-ID, name, standing, path —
 which answers the same question from one file you can copy onto a stick. It is derived from the
 per-folder files: if it ever looks wrong, delete it and grep the folders, which cannot go stale
 independently of the folders they sit in.
@@ -1754,11 +1754,11 @@ and a folder that keeps its people when you copy it somewhere else.
 
 ##### Telling the app about people from the filesystem
 
-Put one **empty file per person** into the folder's `.pulseboard\`, named `Name (ICG-ID)`:
+Put one **empty file per person** into the folder's `.pb\`, named `Name (ICG-ID)`:
 
 ```
-.pulseboard\Iveta_C_(IC-87VY)
-.pulseboard\Anna Y (AY-006S)
+.pb\Iveta_C_(IC-87VY)
+.pb\Anna Y (AY-006S)
 ```
 
 The filename is the whole statement — the file's content is never read. That is what makes the

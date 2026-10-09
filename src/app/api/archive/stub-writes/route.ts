@@ -5,7 +5,7 @@ import { getStubWrites } from '@/lib/services/archive-stub-service'
 
 // Agent endpoint (ADR-0032): the scan's write phase pulls the folders whose stub
 // flag the app changed and the disk has not followed yet, and creates or removes
-// `.pulseboard\STUB` to match. Read-only here; the next Full scan reports what the
+// `.pb\STUB` to match. Read-only here; the next Full scan reports what the
 // disk then holds and the reconciliation settles it. Same API-key auth as the
 // other archive endpoints.
 function isAuthorized(request: Request): boolean {
