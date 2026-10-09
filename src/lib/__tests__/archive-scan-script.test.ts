@@ -1,3 +1,4 @@
+import { peopleRevision, renderCastFile } from "@/lib/archive-people-file";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -98,6 +99,27 @@ describe("archive-scan.ps1 — static checks", () => {
     expect(SCRIPT).toContain('$LEGACY_META_DIR = ".pulseboard"');
     expect(SCRIPT).toContain('"pulseboard.json"');
     expect(SCRIPT).toContain('"cast.json"');
+  });
+
+  // The agent skips a cast.json whose revision already matches the server. The file
+  // is JSON since ADR-0030, but the check kept looking for the old `# revision:`
+  // header, never matched, and every Full run rewrote all ~5,300 files.
+  it("reads the revision of a cast.json the app renders", () => {
+    const m = /\[regex\]::Match\(\$line, '([^']+)'\)/.exec(code.slice(code.indexOf("function Write-PeopleFiles")));
+    expect(m).not.toBeNull();
+    const re = new RegExp(m![1]);
+    const file = renderCastFile({
+      archiveKey: "k",
+      folderName: "f",
+      set: null,
+      credited: [{ name: "Jane", icgId: "JD-12AB" }],
+      claimed: [],
+      generatedAt: new Date(0),
+    })!;
+    const lines = file.split("\n").slice(0, 12);
+    const found = lines.map((l) => re.exec(l)).find((x) => x);
+    expect(found?.[1]).toBe(peopleRevision([{ name: "Jane", icgId: "JD-12AB" }], []));
+    expect(re.exec("# revision: abc123")?.[1]).toBe("abc123");
   });
 
   // .pulseboard\ became .pb\ (2026-10-09). Every path to the metadata folder must

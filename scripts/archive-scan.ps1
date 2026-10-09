@@ -1358,7 +1358,9 @@ function Write-PeopleFiles {
         $have = $null
         if ($exists) {
             foreach ($line in (Get-Content -LiteralPath $filePath -TotalCount 12 -ErrorAction SilentlyContinue)) {
-                $rm = [regex]::Match($line, '^#\s*revision\s*:\s*(\S+)\s*$')
+                # cast.json is JSON ("revision": "…" on its second line); the
+                # `# revision:` header of the old text file is still accepted
+                $rm = [regex]::Match($line, '^\s*(?:#\s*|")revision"?\s*:\s*"?([A-Za-z0-9]+)')
                 if ($rm.Success) { $have = $rm.Groups[1].Value; break }
             }
         }
@@ -1799,6 +1801,12 @@ function Run-FullScan {
     Write-Host ("  Renamed:   " + $renames)
     Write-Host ("  Unchanged: $unchanged (mtime-only update)")
     Write-Host ("  Total items to send: " + $totalDelta)
+    $ms = $script:MetaStats
+    if (($ms.renamed + $ms.merged + $ms.attention) -gt 0) {
+        Write-Host ("  Meta folders: " + $ms.renamed + " $LEGACY_META_DIR -> $META_DIR" + $(if ($DryRun) { " (would move)" } else { "" }) +
+            $(if ($ms.merged -gt 0) { ", $($ms.merged) merged into an existing $META_DIR" } else { "" }) +
+            $(if ($ms.attention -gt 0) { ", $($ms.attention) left for you (see warnings)" } else { "" }))
+    }
 
     if ($DryRun) {
         Write-Host ""
@@ -1893,12 +1901,6 @@ function Run-FullScan {
         if ($totSkip -gt 0) { Write-Host ("  Skipped (empty):  " + $totSkip) }
         if ($totStubMarked -gt 0) { Write-Host ("  Stubs from STUB:  " + $totStubMarked) }
         if ($totStubEnded -gt 0)  { Write-Host ("  Stubs ended:      " + $totStubEnded + " (STUB removed on disk)") }
-        $ms = $script:MetaStats
-        if (($ms.renamed + $ms.merged + $ms.attention) -gt 0) {
-            Write-Host ("  Meta folders:     " + $ms.renamed + " $LEGACY_META_DIR -> $META_DIR" + $(if ($DryRun) { " (dry run)" } else { "" }) +
-                $(if ($ms.merged -gt 0) { ", $($ms.merged) merged into an existing $META_DIR" } else { "" }) +
-                $(if ($ms.attention -gt 0) { ", $($ms.attention) left for you (see warnings)" } else { "" }))
-        }
         if (($totTagAdopted + $totTagRemoved + $totTagUnknown + $totTagConflicts) -gt 0) {
             Write-Host ("  Tags from #files: " + $totTagAdopted + " adopted, " + $totTagRemoved + " removed" +
                 $(if ($totTagUnknown -gt 0) { ", $totTagUnknown unknown names (resolve in /archive)" } else { "" }) +
