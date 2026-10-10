@@ -10,6 +10,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { CompareTrayProvider } from "@/components/collections/compare-tray-provider";
 import { CompareTrayBar } from "@/components/collections/compare-tray-bar";
 import { Toaster } from "@/components/ui/sonner";
+import { StaleDeploymentGuard } from "@/components/layout/stale-deployment-guard";
 import { getCurrentTenantConfig } from "@/lib/tenant-context";
 import { isSingleTenantMode } from "@/lib/tenants";
 import "./globals.css";
@@ -64,6 +65,7 @@ export default async function RootLayout({
                     <CompareTrayBar />
                   </CompareTrayProvider>
                   <Toaster richColors />
+                  <StaleDeploymentGuard />
                 </SidebarProvider>
               </HeroLayoutProvider>
               </BrowserLayoutProvider>

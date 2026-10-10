@@ -67,8 +67,9 @@ export async function unlinkArchiveFolderAction(folderId: string): Promise<Simpl
       revalidatePath('/sets')
       revalidatePath('/import')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to unlink archive folder' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to unlink archive folder', err)
+      return { success: false, error: err instanceof Error ? `Failed to unlink archive folder: ${err.message}` : 'Failed to unlink archive folder' }
     }
   })
 }
@@ -91,8 +92,9 @@ export async function toggleMediaQueueAction(
       }
       revalidatePath('/shopping-list')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to update media queue' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to update media queue', err)
+      return { success: false, error: err instanceof Error ? `Failed to update media queue: ${err.message}` : 'Failed to update media queue' }
     }
   })
 }
@@ -111,8 +113,9 @@ export async function updateMediaPriorityAction(
       }
       revalidatePath('/shopping-list')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to update priority' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to update priority', err)
+      return { success: false, error: err instanceof Error ? `Failed to update priority: ${err.message}` : 'Failed to update priority' }
     }
   })
 }
@@ -131,8 +134,9 @@ export async function updateQueueNoteAction(
       }
       revalidatePath('/shopping-list')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to save note' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to save note', err)
+      return { success: false, error: err instanceof Error ? `Failed to save note: ${err.message}` : 'Failed to save note' }
     }
   })
 }
@@ -156,8 +160,9 @@ export async function confirmArchiveFolderLinkAction(
         revalidatePath(`/sets/${setId}`)
       }
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to confirm link' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to confirm link', err)
+      return { success: false, error: err instanceof Error ? `Failed to confirm link: ${err.message}` : 'Failed to confirm link' }
     }
   })
 }
@@ -174,8 +179,9 @@ export async function rejectArchiveSuggestionAction(
       revalidatePath('/sets')
       revalidatePath('/shopping-list')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to reject suggestion' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to reject suggestion', err)
+      return { success: false, error: err instanceof Error ? `Failed to reject suggestion: ${err.message}` : 'Failed to reject suggestion' }
     }
   })
 }
@@ -189,8 +195,9 @@ export async function createStagingSetFromOrphanAction(
       revalidatePath('/archive')
       revalidatePath('/import')
       return { success: true, stagingSetId }
-    } catch {
-      return { success: false, error: 'Failed to create staging set' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to create staging set', err)
+      return { success: false, error: err instanceof Error ? `Failed to create staging set: ${err.message}` : 'Failed to create staging set' }
     }
   })
 }
@@ -202,8 +209,9 @@ export async function reparseFolderNamesAction(): Promise<{ success: boolean; up
       const { updated } = await reparseFolderNames(tenant)
       revalidatePath('/archive')
       return { success: true, updated }
-    } catch {
-      return { success: false, error: 'Failed to re-parse folder names' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to re-parse folder names', err)
+      return { success: false, error: err instanceof Error ? `Failed to re-parse folder names: ${err.message}` : 'Failed to re-parse folder names' }
     }
   })
 }
@@ -215,8 +223,9 @@ export async function scanArchiveForAliasesAction(): Promise<{ success: boolean;
       const { updated } = await scanArchiveForAliases(tenant)
       revalidatePath('/archive')
       return { success: true, updated }
-    } catch {
-      return { success: false, error: 'Failed to scan archive for aliases' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to scan archive for aliases', err)
+      return { success: false, error: err instanceof Error ? `Failed to scan archive for aliases: ${err.message}` : 'Failed to scan archive for aliases' }
     }
   })
 }
@@ -227,8 +236,9 @@ export async function deleteArchiveFolderAction(id: string): Promise<SimpleActio
       await deleteArchiveFolder(id)
       revalidatePath('/archive')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to delete archive folder record' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to delete archive folder record', err)
+      return { success: false, error: err instanceof Error ? `Failed to delete archive folder record: ${err.message}` : 'Failed to delete archive folder record' }
     }
   })
 }
@@ -259,8 +269,9 @@ export async function rematchItemAction(
       revalidatePath('/staging-sets')
       revalidatePath(type === 'set' ? `/sets/${id}` : '/sets')
       return result
-    } catch {
-      return { matched: false, error: 'Failed to run matching pass' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to run matching pass', err)
+      return { matched: false, error: err instanceof Error ? `Failed to run matching pass: ${err.message}` : 'Failed to run matching pass' }
     }
   })
 }
@@ -279,8 +290,9 @@ export async function confirmVideoFileAction(
       revalidatePath('/staging-sets')
       revalidatePath('/import')
       return { success: true }
-    } catch {
-      return { success: false, error: 'Failed to confirm video file' }
+    } catch (err) {
+      console.error('[archive-actions] Failed to confirm video file', err)
+      return { success: false, error: err instanceof Error ? `Failed to confirm video file: ${err.message}` : 'Failed to confirm video file' }
     }
   })
 }

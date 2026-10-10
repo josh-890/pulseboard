@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FolderCheck, FolderX, Link2, FolderSearch, Check, X } from 'lucide-react'
 import { cn, formatRelativeTime } from '@/lib/utils'
 import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@/lib/actions/archive-actions'
+import { toast } from 'sonner'
 import type { ArchiveStub } from '@/lib/archive-stub'
 import { StubBadge } from './stub-badge'
 
@@ -202,7 +203,12 @@ export function ArchiveStatusBanner({
             disabled={isConfirming || isRejecting || !stagingSetId}
             onClick={() => {
               startConfirm(async () => {
-                await confirmArchiveFolderLinkAction(suggestedFolder.folderId, stagingSetId!, 'staging')
+                const res = await confirmArchiveFolderLinkAction(suggestedFolder.folderId, stagingSetId!, 'staging')
+                if (!res.success) {
+                  toast.error(res.error ?? 'Could not link the folder')
+                  return
+                }
+                toast.success('Archive folder linked')
                 onArchiveChange?.()
               })
             }}
@@ -220,7 +226,11 @@ export function ArchiveStatusBanner({
             disabled={isConfirming || isRejecting}
             onClick={() => {
               startReject(async () => {
-                await rejectArchiveSuggestionAction(suggestedFolder.folderId)
+                const res = await rejectArchiveSuggestionAction(suggestedFolder.folderId)
+                if (!res.success) {
+                  toast.error(res.error ?? 'Could not skip the suggestion')
+                  return
+                }
                 onArchiveChange?.()
               })
             }}
