@@ -1473,6 +1473,16 @@ Two filters in the staged-sets bar sort the work by how much you can trust it:
 - **Archive names others** — the linked folder names somebody the set does not
   credit. The ones that need a decision.
 
+### Filling a promoted set with its pictures
+
+After promoting, a set is empty. Instead of uploading the pictures by hand, run
+`archive-upload.ps1` on the archive machine (see `docs/agents.md`): it uploads the
+images of each promoted **photo** set's archive folder, in file-name order, with a
+`-c` cover file as the cover. Only sets that **never had pictures** are filled — a set
+you already uploaded to (even if you later removed the pictures) is left alone, and so
+are stub folders. Files it could not upload (e.g. a corrupt JPEG) are kept in a list on
+the set; an interrupted run simply continues where it stopped.
+
 ### The archive suggestion on a staged set
 
 Beside the proposed folder the row shows two things that answer different questions:

@@ -1089,6 +1089,15 @@ model Set {
   mediaPriority Int?
   mediaQueueAt  DateTime?
 
+  // Archive upload agent (scripts/archive-upload.ps1, 2026-10-10). firstMediaAt is
+  // set by a trigger on the first SetMediaItem — by any route — and never cleared:
+  // a set that ever had images never re-enters the agent's queue. The agent marks
+  // its own run (started/done) so an interrupted set is resumed, not abandoned.
+  firstMediaAt           DateTime?
+  archiveUploadStartedAt DateTime?
+  archiveUploadDoneAt    DateTime?
+  archiveUploadFailed    String[]  @default([])
+
   setMediaItems     SetMediaItem[]
   creditsRaw        SetCreditRaw[]
   participants      SetParticipant[]

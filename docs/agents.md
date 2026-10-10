@@ -1,6 +1,6 @@
 # Agents — what runs where, and with which switches
 
-Five programs run **outside** the app, on the machines that hold the data. The app
+Six programs run **outside** the app, on the machines that hold the data. The app
 server cannot reach the archive or the person catalogue, so everything that touches
 those filesystems is an agent that pulls work from the app and pushes small results
 back.
@@ -15,8 +15,10 @@ Common to all of them:
   `ARCHIVE_VIDEOSET_ROOT`, `PERSON_CATALOGUE_ROOT`. Anything passed on the command
   line wins. So the everyday call is usually just the script name.
 - **`-DryRun` exists everywhere and is the right first move** after any change.
-- **Originals never leave the machine.** Only thumbnails, signatures and small
-  derived files travel.
+- **Originals never leave the machine** — with one deliberate exception:
+  `archive-upload.ps1` sends a promoted set's images, exactly what a manual upload
+  into the set would send. Everything else carries only thumbnails, signatures and
+  small derived files.
 - Authentication is the shared `x-archive-key` header.
 
 ---
@@ -30,6 +32,7 @@ Common to all of them:
 | …and re-bake HD images right after, on freshly verified paths | `.\archive-scan.ps1 -Mode Full -Rebake` |
 | Give the archive workspace thumbnails to look at | `.\archive-cover.ps1` |
 | Sharpen aligned images from their full-resolution originals | `.\archive-rebake.ps1` |
+| Fill freshly promoted photo sets with their archive images | `.\archive-upload.ps1` |
 | Give suggested people a face in the workbench | `.\catalogue-avatar.ps1` |
 | Propose who is in the orphan archive folders | `node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json` |
 | …and actually write those proposals into the queue | same, plus `--post` |
@@ -266,6 +269,33 @@ is on the **Maintenance** page.
 
 ---
 
+## `archive-upload.ps1` — fill promoted sets with their images
+
+After a staged set is promoted, the set is empty until its pictures are uploaded.
+This agent does it unattended:
+
+```powershell
+.\archive-upload.ps1 -DryRun        # which sets wait, how many images, which cover
+.\archive-upload.ps1                # fill all of them
+.\archive-upload.ps1 -Limit 5       # a few at a time
+.\archive-upload.ps1 -SetId <id>    # one set
+```
+
+- **Queue** (the app decides): a photo set with a CONFIRMED archive folder that is on
+  disk and **not a stub**, which **never had images** — `Set.firstMediaAt` is set by
+  the first image from any route (manual or agent) and never cleared, so deleting a
+  set's images does not queue it again. Video sets are not filled.
+- **Per set:** the folder's `jpg/jpeg/png/webp/gif`, numbered by file name in natural
+  order (2 before 10). A designated cover (`Title-c.jpg`, `Title - c.jpg` — the cover
+  agent's rule) is sent **first** so it becomes the set's cover. `bmp/tif` are listed
+  as not uploadable.
+- **Resumable:** the server skips an image already in the set (same SHA-256), and a
+  set the agent started stays queued until it reports done — just run it again.
+- **Failures** (e.g. `VipsJpeg: Corrupt JPEG data` — Sharp stays strict) fail that
+  file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
+  is done. Clean the file and upload it by hand.
+- A set you meanwhile filled by hand is refused and left alone.
+
 ## `catalogue-avatar.ps1` — a face for every suggested person
 
 Walks `<CatalogueRoot>\<Initial>\<Common_Name_(ICG-ID)>\`, finds the portrait, posts
@@ -357,7 +387,8 @@ node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json -
 .\catalogue-avatar.ps1                                                     # only if the join named faceless people
 ```
 
-Then in the app: **Attribution queue → workbench**, then **Develop**.
+Then in the app: **Attribution queue → workbench**, then **Develop**. After promoting
+staged sets, `.\archive-upload.ps1` fills them with their images.
 
 Use `--cache` and **not** `--rewalk`: the cache holds the *catalogue* side, which has not
 changed — only your archive grew, and the agent pulls that from the app each run. That turns a
