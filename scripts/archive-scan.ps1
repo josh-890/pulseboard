@@ -618,6 +618,10 @@ function Run-TargetedScan {
     if ($counts.missing    -gt 0) { Write-Host ("  Missing:    " + $counts.missing)    }
     if ($counts.error      -gt 0) { Write-Host ("  Errors:     " + $counts.error)      }
     Write-Host "────────────────────────────────────────────────"
+    $script:Report.linksOk = [int]$counts.ok
+    $script:Report.linksMissing = [int]$counts.missing
+    $script:Report.linksIncomplete = [int]$counts.incomplete
+    $script:Report.linkErrors = [int]$counts.error
 }
 
 # ── FULL MODE — Helpers ───────────────────────────────────────────────────────
@@ -1910,6 +1914,12 @@ function Run-FullScan {
             Write-Host "  Matching pass:    running in background on server"
         }
         Write-Host "────────────────────────────────────────────────"
+        $script:Report.new = $totCre
+        $script:Report.changed = $totUpd
+        $script:Report.renamed = $totRen
+        $script:Report.unchanged = $totUnch
+        $script:Report.tagsAdopted = $totTagAdopted
+        $script:Report.tagsUnknown = $totTagUnknown
 
         # ── Key conflict report ──────────────────────────────────────────────
         if ($allKeyConflicts.Count -gt 0) {
@@ -1998,6 +2008,28 @@ function Run-FullScan {
     }
 }
 
+# ── Run report (dashboard "Agents" panel, 2026-10-11) ─────────────────────────
+# One line plus the counters, sent at the end. A failed report never fails the run.
+$script:RunStart = (Get-Date).ToUniversalTime()
+function Send-AgentRun {
+    param([string]$Agent, [string]$Summary, [bool]$Ok = $true, [System.Collections.IDictionary]$Details = @{})
+    try {
+        $payload = ConvertTo-Json -Depth 5 -InputObject @{
+            agent     = $Agent
+            startedAt = $script:RunStart.ToString("o")
+            ok        = $Ok
+            dryRun    = [bool]$DryRun
+            summary   = $Summary
+            details   = $Details
+        }
+        Invoke-RestMethod -Uri "$BaseUrl/api/archive/agent-runs" -Headers $headers -Method Post `
+            -Body $payload -ContentType "application/json" | Out-Null
+    } catch {
+        Write-Verbose "Run report not sent: $_"
+    }
+}
+$script:Report = [ordered]@{}
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 Write-Host "Archive scan — base URL: $BaseUrl"
@@ -2009,6 +2041,17 @@ switch ($Mode) {
     'Targeted' { Run-TargetedScan }
     'Full'     { Run-FullScan }
 }
+
+$r = $script:Report
+$parts = @($Mode)
+if ($r.Contains("new")) { $parts += "$($r.new) new · $($r.changed) changed · $($r.renamed) renamed" }
+if ($r.Contains("linksOk")) { $parts += "$($r.linksOk) links ok$(if ($r.linksMissing) { " · $($r.linksMissing) missing" })" }
+if ($script:MetaStats.renamed -gt 0) { $parts += "$($script:MetaStats.renamed) .pulseboard -> .pb" }
+if ($script:MetaStats.attention -gt 0) { $parts += "$($script:MetaStats.attention) meta folders need you" }
+$r.metaRenamed = $script:MetaStats.renamed
+$r.metaAttention = $script:MetaStats.attention
+Send-AgentRun -Agent "archive-scan" -Summary ($parts -join " · ") `
+    -Ok (-not $r.linkErrors -and -not $r.linksMissing -and $script:MetaStats.attention -eq 0) -Details $r
 
 # ── Optional: HD re-bake pass (ADR-0017) ───────────────────────────────────────
 # Run after the scan so the archive paths it reads are freshly verified.

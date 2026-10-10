@@ -156,6 +156,9 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
   links via `categoryId` to a `MediaCategory` (admin-configurable; categories
   with `entityModel` drive body-mark / body-mod / procedure linking).
 - Cover photo is `Set.coverMediaItemId` (nullable).
+- `ArchiveFolder.discoveredAt` — when a scan first found the folder (null for folders
+  found before 2026-10-11). `AgentRun` (`agent_run`) — one reported run of an agent
+  (agent, startedAt, finishedAt, ok, dryRun, summary, details JSON); the dashboard.
 - `Set.firstMediaAt` — when the set first received an image, by any route (trigger
   `set_media_item_first_media` on `SetMediaItem` insert, UTC); never cleared. The
   staging cover copied in at promotion (`MediaItem.isTransferredCover`) does not count. With

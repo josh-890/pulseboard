@@ -126,6 +126,27 @@ function Send-Image {
     return @{ status = [string]$body.status; reason = [string]$body.reason }
 }
 
+# ── Run report (dashboard "Agents" panel, 2026-10-11) ─────────────────────────
+# One line plus the counters, sent at the end. A failed report never fails the run.
+$script:RunStart = (Get-Date).ToUniversalTime()
+function Send-AgentRun {
+    param([string]$Agent, [string]$Summary, [bool]$Ok = $true, [System.Collections.IDictionary]$Details = @{})
+    try {
+        $payload = ConvertTo-Json -Depth 5 -InputObject @{
+            agent     = $Agent
+            startedAt = $script:RunStart.ToString("o")
+            ok        = $Ok
+            dryRun    = [bool]$DryRun
+            summary   = $Summary
+            details   = $Details
+        }
+        Invoke-RestMethod -Uri "$BaseUrl/api/archive/agent-runs" -Headers $headers -Method Post `
+            -Body $payload -ContentType "application/json" | Out-Null
+    } catch {
+        Write-Verbose "Run report not sent: $_"
+    }
+}
+
 # ── Worklist ──────────────────────────────────────────────────────────────────
 Write-Host "Archive upload — base URL: $BaseUrl$(if ($Tenant) { " · tenant: $Tenant" })$(if ($DryRun) { ' (dry run)' })"
 $query = @()
@@ -135,6 +156,7 @@ $wlUrl = "$BaseUrl/api/archive/upload-worklist$(if ($query.Count) { '?' + ($quer
 $sets = @((Invoke-RestMethod -Uri $wlUrl -Headers $headers -Method Get).sets | Where-Object { $_ })
 if ($sets.Count -eq 0) {
     Write-Host "No set is waiting for its archive images."
+    Send-AgentRun -Agent "archive-upload" -Summary "nothing waiting"
     return
 }
 Write-Host "$($sets.Count) set(s) waiting."
@@ -234,3 +256,9 @@ if ($DryRun) {
     if ($tot.notImages)   { Write-Host "  bmp/tif skipped:   $($tot.notImages)" }
     if ($tot.setsAborted) { Write-Host "  Sets left queued:  $($tot.setsAborted) (see warnings)" }
 }
+
+Send-AgentRun -Agent "archive-upload" -Ok ($tot.failed -eq 0 -and $tot.setsAborted -eq 0) `
+    -Summary ("{0} set(s) · {1} images{2}{3}" -f $tot.sets, $tot.uploaded,
+        $(if ($tot.failed) { " · $($tot.failed) failed" } else { "" }),
+        $(if ($tot.setsAborted) { " · $($tot.setsAborted) left queued" } else { "" })) `
+    -Details @{ sets = $tot.sets; uploaded = $tot.uploaded; skipped = $tot.skipped; failed = $tot.failed; setsLeftQueued = $tot.setsAborted }

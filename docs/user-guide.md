@@ -41,27 +41,52 @@ The app uses a fixed layout so navigation is always within reach, no matter how 
 
 **Route:** `/`
 
-The dashboard provides a high-level overview of the entire database.
+What the library holds, what happened lately, what waits for you, and what the
+agents last did. Every number is counted live.
 
-### KPI Cards
-
-A grid of clickable metric cards shows counts for core entities:
+### Numbers
 
 | Card | Description |
 |------|-------------|
-| Sessions | Total sessions (reference + production) |
-| Sets | Total sets (photo + video) |
-| People | Total persons in the database |
-| Labels | Total labels (organizations) |
-| Channels | Total channels (distribution outlets) |
-| Projects | Total projects |
-| Unresolved Credits | Appears only when credits await resolution |
+| People | Persons in the database |
+| Sets | Sets (photo + video) |
+| Sessions | Sessions (reference + production) |
+| Images | Images (annotations not counted) |
+| Staged sets | Staged sets still in the pipeline — pending, reviewing or approved |
+| Unlinked folders | Archive folders on disk without a confirmed set or staged set |
 
-Each card links to its respective list page.
+A small line underneath counts labels, channels, projects and — when there are
+any — unresolved credits. Every number links to its page.
 
-### Activity Feed
+### Activity (last 14 days)
 
-The 6 most recent activities appear with timestamps. Activities are logged automatically when entities are created, updated, or deleted. Click any activity to navigate to the related entity.
+Grouped by day, newest first. Nothing has to be logged by hand — the activity is read
+from the records themselves:
+
+- **Promoted** sets;
+- **images added** per set and day — *via the upload agent* or *added by hand* —
+  and images added to a session without a set;
+- **new archive folders** a scan found (with a few names);
+- **new people** (`Name (ICG-ID)`), **imports**;
+- **agent runs** (scan, covers, upload) with their summary;
+- older entries of the former activity log.
+
+Click an entry to open the set, session, person or page it is about.
+
+### Needs you
+
+The queues waiting for you, each with its count and a link — only non-empty ones:
+staged sets to review, approved sets ready to promote, sets waiting for their images
+(run `archive-upload.ps1`), sets with images that did not upload (with the file
+names), workflow to-dos, archive folders whose people are not yet decided, archive
+folders with unknown `#tag` names, and stub copies waiting for the real set.
+
+### Agents
+
+The last run of the archive scan, the cover agent and the upload agent: when, and
+their one-line summary (green: fine, amber: something to look at). The agents report
+this themselves from the script versions of 2026-10-11 on; before that the panel
+shows when the agent's work was last seen in the data.
 
 ### Quick Actions
 

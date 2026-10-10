@@ -180,6 +180,27 @@ Write-Host "Archive covers -> $BaseUrl$(if ($DryRun) { '  [dry-run]' })$(if ($Re
 if ($Tenant) { Write-Host "Tenant: $Tenant" }
 if ($Path)   { Write-Host "Scope:  $Path" }
 
+# ── Run report (dashboard "Agents" panel, 2026-10-11) ─────────────────────────
+# One line plus the counters, sent at the end. A failed report never fails the run.
+$script:RunStart = (Get-Date).ToUniversalTime()
+function Send-AgentRun {
+    param([string]$Agent, [string]$Summary, [bool]$Ok = $true, [System.Collections.IDictionary]$Details = @{})
+    try {
+        $payload = ConvertTo-Json -Depth 5 -InputObject @{
+            agent     = $Agent
+            startedAt = $script:RunStart.ToString("o")
+            ok        = $Ok
+            dryRun    = [bool]$DryRun
+            summary   = $Summary
+            details   = $Details
+        }
+        Invoke-RestMethod -Uri "$BaseUrl/api/archive/agent-runs" -Headers $headers -Method Post `
+            -Body $payload -ContentType "application/json" | Out-Null
+    } catch {
+        Write-Verbose "Run report not sent: $_"
+    }
+}
+
 $qs = @()
 if ($Limit -gt 0)  { $qs += "limit=$Limit" }
 if ($RetryFailed)  { $qs += "retryFailed=1" }
@@ -273,3 +294,7 @@ if ($t.failed -gt 0 -or $t.noImage -gt 0) {
     Write-Host "  thumbnail. Once the underlying files are fixed, re-run with -RetryFailed."
 }
 Write-Host "-----------------------------------------------"
+
+Send-AgentRun -Agent "archive-cover" -Ok ($t.failed -eq 0) `
+    -Summary ("{0} covers · {1} without image · {2} failed" -f $t.uploaded, $t.noImage, $t.failed) `
+    -Details @{ uploaded = $t.uploaded; noImage = $t.noImage; skipped = $t.skipped; failed = $t.failed; designated = $t.designated; firstImage = $t.firstImage }

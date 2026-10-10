@@ -2373,6 +2373,9 @@ model ArchiveFolder {
   archiveLink     ArchiveLink? // one-to-one via ArchiveLink.archiveFolderId @unique
   archiveKey      String       @unique @default(uuid()) // stable folder identity UUID; generated at first scan time (independent of Set/StagingSet link)
   scannedAt       DateTime
+  /// When a scan first found this folder (dashboard activity, 2026-10-11). Null for
+  /// folders found before the field existed.
+  discoveredAt    DateTime? @default(now())
   missingOnDisk   Boolean      @default(false) // true = last full scan did not find this path on disk
   tenant          String // which tenant DB this record belongs to
 
@@ -2795,4 +2798,23 @@ model SavedSearch {
 
   @@index([scope, pinned])
   @@map("saved_search")
+}
+
+/// One run of an agent outside the app (archive-scan, -cover, -upload), reported by
+/// the agent at its end — the dashboard's "Agents" panel (2026-10-11).
+model AgentRun {
+  id         String   @id @default(cuid())
+  /// "archive-scan" | "archive-cover" | "archive-upload"
+  agent      String
+  startedAt  DateTime
+  finishedAt DateTime @default(now())
+  ok         Boolean  @default(true)
+  dryRun     Boolean  @default(false)
+  /// One human line, e.g. "Full · 605 new · 292 changed · 3 renamed"
+  summary    String
+  /// The agent's counters as sent
+  details    Json?
+
+  @@index([agent, finishedAt])
+  @@map("agent_run")
 }

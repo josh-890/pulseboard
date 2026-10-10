@@ -69,7 +69,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return { persons, sets, labels, channels, projects, sessions, mediaItems: 0, unresolvedCredits };
 }
 
-async function getUnresolvedCreditCount(): Promise<number> {
+export async function getUnresolvedCreditCount(): Promise<number> {
   return prisma.setCreditRaw.count({
     where: { resolutionStatus: "UNRESOLVED" },
   });

@@ -20,6 +20,10 @@ Common to all of them:
   into the set would send. Everything else carries only thumbnails, signatures and
   small derived files.
 - Authentication is the shared `x-archive-key` header.
+- **Each run is reported** (archive scan, cover, upload — 2026-10-11): at its end the
+  agent sends a one-line summary and its counters to `/api/archive/agent-runs`; the
+  dashboard's **Agents** panel and activity show it. Dry runs are reported as such and
+  not shown. A failed report never fails the run.
 
 ---
 

@@ -4,26 +4,41 @@ import { KpiGrid } from "@/components/dashboard/kpi-grid";
 import { KpiGridSkeleton } from "@/components/dashboard/kpi-grid-skeleton";
 import { DashboardActivity } from "@/components/dashboard/dashboard-activity";
 import { ActivityFeedSkeleton } from "@/components/dashboard/activity-feed-skeleton";
+import { NeedsYou } from "@/components/dashboard/needs-you";
+import { AgentStatus } from "@/components/dashboard/agent-status";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { MaintenanceTile } from "@/components/dashboard/maintenance-tile";
 
 export const dynamic = "force-dynamic";
 
+const panelSkeleton = <div className="h-40 animate-pulse rounded-2xl bg-muted/30" aria-hidden="true" />;
+
+// The dashboard (2026-10-11): live library + pipeline numbers, what happened
+// (derived from the data), what waits for you, and what the agents last did.
 export default async function Home() {
   return withTenantFromHeaders(async () => {
     return (
       <div className="space-y-8">
         <h1 className="text-4xl font-bold">Dashboard</h1>
+
         <Suspense fallback={<KpiGridSkeleton />}>
           <KpiGrid />
         </Suspense>
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <Suspense fallback={<ActivityFeedSkeleton />}>
               <DashboardActivity />
             </Suspense>
           </div>
+
           <div className="space-y-6">
+            <Suspense fallback={panelSkeleton}>
+              <NeedsYou />
+            </Suspense>
+            <Suspense fallback={panelSkeleton}>
+              <AgentStatus />
+            </Suspense>
             <Suspense>
               <MaintenanceTile />
             </Suspense>
