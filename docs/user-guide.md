@@ -809,15 +809,38 @@ tags are never changed). It also moved `tanlines` from Theme into `skin-tanlines
 
 **Tags** in the sidebar opens the tag browser.
 
-**Catalogue** — every group with its tags as a tree (sub-tags indented).
-- Next to each tag: how many people (P), sessions (Se), sets (S), images (I) and projects (Pr) carry it themselves.
-- Find a tag with the search box.
-- Hover a row to rename it, move it **under** another tag of its group, **merge** it into another tag, or delete it. Deleting moves its sub-tags up one level.
-- **Drag** a tag onto another tag of the same group, then choose: make it a **sub-tag**, or **merge** the two.
-- **Groups & settings** opens Settings › Tags for the group setup (domain, typical level, colour, one-per-item).
+**Catalogue** — every group with its tags as a tree (sub-tags indented). This is
+where tags are **managed**; Settings › Tag groups only sets up the groups.
+- Next to each tag: how many people (P), sessions (Se), sets (S), images (I),
+  projects (Pr) and archive folders (A) carry it themselves — or *unused*.
+- Find a tag with the search box. The filters **Unused**, **Ambiguous** (same name in
+  several groups) and **Similar names** (likely the same tag — merge?) help clean up.
+- **New tag:** the **+** next to a group's name. Type, Enter, type the next one; Esc
+  stops. The field shows the spelling it will be saved in.
+- **Every action is in the ⋯ menu** at the end of each row — or right-click the row:
+  **Rename** (F2), **Edit details…**, **Move to group…**, **Sub-tag of…**,
+  **Merge into…**, **Delete…** (Del). Click a row's name or press Enter for its page.
+- **Move to group** checks first and says what is in the way, with numbers: items
+  the new group's domain does not allow (e.g. images when moving into a person
+  group), items that would hold two tags of a one-per-item group, or a tag of the
+  same name already there (then: *Merge into it instead*). Sub-tags come along unless
+  you untick it. Nothing moves while a conflict is shown.
+- **Several at once:** tick the boxes (Shift+click ticks a range, Space toggles the
+  focused row). The bar at the bottom moves them to a group, makes them sub-tags of
+  another tag, merges them into one, or deletes them.
+- **Delete** shows how many people, sets, images, … lose the tag, and that archive
+  folders keep their `#…` files (the next scan lists them as unknown names). It
+  cannot be undone — merge instead to keep the assignments.
+- **Drag** a tag onto another tag: make it a **sub-tag** or **merge** the two. Drag it
+  onto a **group's title** to move it to that group (the same check as above).
+- **Groups & settings** opens Settings › Tag groups (domain, typical level, colour,
+  one-per-item).
 
 **A tag's page** (click its name):
 - Its group, its parent, its description, its aliases and its sub-tags. Sub-tags count as the tag.
+- **Edit** opens the editor: name, typical level, description and aliases (add or
+  remove) in place, **Save**; plus **Move to group…**, **Sub-tag of…**,
+  **Merge into…** and **Delete…** with the same checks as in the catalogue.
 - **Images**, **Sets**, **Sessions**, **People** tabs show what carries it.
   - Images, sets and sessions appear as galleries, exactly like their browsers: the same cards and layout, plus selection and bulk tagging.
   - Images and sets include inherited tags. **Own only** switches to the item's own tags.

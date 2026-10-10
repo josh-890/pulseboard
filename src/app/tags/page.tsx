@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ListTodo, Settings2, Tag } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { countOpenTodos, getTagTree, getWorkflowTodo } from "@/lib/services/tag-browse-service";
+import { getNearDuplicateTags } from "@/lib/services/tag-service";
 import { TagCatalogTree, TodoInbox } from "@/components/tags";
 import { cn } from "@/lib/utils";
 
@@ -9,16 +10,19 @@ export const dynamic = "force-dynamic";
 
 type TagsPageProps = { searchParams: Promise<{ view?: string }> };
 
-// The tag browser (ADR-0033, S7): the catalogue tree, and the workflow To-do
-// inbox. Group configuration (domain, level, colours) stays in Settings.
+// The tag browser (ADR-0033, S7) and the place tags are managed (2026-10-10):
+// the catalogue tree with its actions, and the workflow To-do inbox. Group
+// configuration (domain, level, colours) stays in Settings.
 export default async function TagsPage({ searchParams }: TagsPageProps) {
   return withTenantFromHeaders(async () => {
     const { view } = await searchParams;
     const todoView = view === "todo";
-    const [groups, openTodos, todos] = await Promise.all([
+    const [groups, openTodos, todos, nearDuplicates] = await Promise.all([
       todoView ? Promise.resolve([]) : getTagTree(),
       countOpenTodos(),
       todoView ? getWorkflowTodo() : Promise.resolve([]),
+      // Strict: kebab names of one family (nailpolish-red/-black) are close by design
+      todoView ? Promise.resolve([]) : getNearDuplicateTags(0.7),
     ]);
     const tagCount = groups.reduce((n, g) => n + g.tags.length, 0);
 
@@ -60,7 +64,7 @@ export default async function TagsPage({ searchParams }: TagsPageProps) {
           </Link>
         </nav>
 
-        {todoView ? <TodoInbox todos={todos} /> : <TagCatalogTree groups={groups} />}
+        {todoView ? <TodoInbox todos={todos} /> : <TagCatalogTree groups={groups} nearDuplicates={nearDuplicates} />}
       </div>
     );
   });

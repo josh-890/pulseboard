@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, CornerDownRight, Filter, ListTodo, Lock } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
-import { getTagCarriers, getTagDetail, getTagImages, getTagMatchIdsFor } from "@/lib/services/tag-browse-service";
+import { getTagCarriers, getTagDetail, getTagImages, getTagMatchIdsFor, getTagTree } from "@/lib/services/tag-browse-service";
+import { TagEditPanel } from "@/components/tags/tag-edit-panel";
 import { getSetsPaginated, type SetFilters } from "@/lib/services/set-service";
 import { getSessionsPaginated, type SessionFilters } from "@/lib/services/session-service";
 import { getCoverPhotosForSessions, getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 type TagDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; own?: string }>;
+  searchParams: Promise<{ tab?: string; own?: string; edit?: string }>;
 };
 
 const TABS = ["images", "sets", "sessions", "people"] as const;
@@ -33,10 +34,13 @@ export default async function TagDetailPage({ params, searchParams }: TagDetailP
     const ownOnly = sp.own === "1";
     const query = `${tag.group.slug}:${tag.slug}`;
 
-    const [carriers, images] = await Promise.all([
+    const [carriers, images, tree] = await Promise.all([
       getTagCarriers(id),
       tab === "images" ? getTagImages(id, ownOnly) : Promise.resolve({ items: [], total: 0 }),
+      // The catalogue with usage counts: the edit dialogs (move, parent, merge, delete)
+      getTagTree(),
     ]);
+    const treeTag = tree.flatMap((g) => g.tags).find((t) => t.id === id);
     const counts: Record<TabKey, number> = {
       images: tab === "images" ? images.total : NaN,
       sets: carriers.totals.sets,
@@ -140,6 +144,17 @@ export default async function TagDetailPage({ params, searchParams }: TagDetailP
             )}
             <code className="rounded bg-muted/50 px-1.5 py-0.5 font-mono">{query}</code>
           </div>
+          {treeTag && (
+            <div className="mt-3">
+              <TagEditPanel
+                key={`${tag.id}-${tag.name}-${tag.groupId}`}
+                tag={treeTag}
+                aliases={tag.aliases}
+                groups={tree}
+                initiallyOpen={sp.edit === "1"}
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

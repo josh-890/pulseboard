@@ -19,6 +19,14 @@ import {
 } from "@/lib/services/tag-service";
 import type { TagNameClash } from "@/lib/tag-names";
 import {
+  checkTagMove,
+  deleteTags,
+  moveTagsToGroup,
+  setTagsParent,
+  type TagMoveCheck,
+  type TagMoveConflict,
+} from "@/lib/services/tag-manage-service";
+import {
   addTagsToEntity,
   removeTagsFromEntity,
   setEntityTags,
@@ -133,6 +141,7 @@ export async function updateTagDefinitionAction(
       const validated = updateTagDefinitionSchema.parse(data);
       await updateTagDefinition(id, validated);
       revalidatePath("/settings");
+      revalidatePath("/tags", "layout");
       return { success: true };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Failed to update tag" };
@@ -146,6 +155,7 @@ export async function deleteTagDefinitionAction(id: string): Promise<SimpleActio
     try {
       await deleteTagDefinition(id);
       revalidatePath("/settings");
+      revalidatePath("/tags", "layout");
       return { success: true };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Failed to delete tag" };
@@ -162,6 +172,7 @@ export async function mergeTagDefinitionsAction(
     try {
       await mergeTagDefinitions(sourceIds, targetId);
       revalidatePath("/settings");
+      revalidatePath("/tags", "layout");
       return { success: true };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : "Failed to merge tags" };
@@ -458,4 +469,59 @@ export async function getTagFacetsAction(entityType: TaggableEntity): Promise<Ta
 /** Tags a name would collide with — for the naming hint while creating or renaming */
 export async function findTagNameClashesAction(name: string, excludeId?: string): Promise<TagNameClash[]> {
   return withTenantFromHeaders(() => findTagNameClashes(name, { excludeId }));
+}
+
+// ─── Catalogue management (/tags, 2026-10-10) ──────────────────────────────
+
+const revalidateCatalogue = () => {
+  revalidatePath("/tags", "layout");
+  revalidatePath("/settings");
+};
+
+/** What stands in the way of a move — read only, for the move dialog */
+export async function checkTagMoveAction(tagIds: string[], groupId: string, withSubTags = true): Promise<TagMoveCheck> {
+  return withTenantFromHeaders(() => checkTagMove(tagIds, groupId, { withSubTags }));
+}
+
+export async function moveTagsToGroupAction(
+  tagIds: string[],
+  groupId: string,
+  withSubTags = true,
+): Promise<SimpleActionResult & { moved?: number; conflicts?: TagMoveConflict[] }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const r = await moveTagsToGroup(tagIds, groupId, { withSubTags });
+      if ("conflicts" in r) return { success: false, error: "The move has conflicts", conflicts: r.conflicts };
+      revalidateCatalogue();
+      return { success: true, moved: r.moved };
+    } catch (e) {
+      console.error("[tags] move failed", e);
+      return { success: false, error: e instanceof Error ? e.message : "Failed to move tags" };
+    }
+  });
+}
+
+export async function setTagsParentAction(tagIds: string[], parentId: string | null): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setTagsParent(tagIds, parentId);
+      revalidateCatalogue();
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to set the parent" };
+    }
+  });
+}
+
+export async function deleteTagsAction(tagIds: string[]): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await deleteTags(tagIds);
+      revalidateCatalogue();
+      return { success: true };
+    } catch (e) {
+      console.error("[tags] delete failed", e);
+      return { success: false, error: e instanceof Error ? e.message : "Failed to delete tags" };
+    }
+  });
 }

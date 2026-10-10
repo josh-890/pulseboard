@@ -2,8 +2,6 @@
 
 import { useCallback, useState, useTransition } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
   GripVertical,
   ListTodo,
   Lock,
@@ -12,21 +10,14 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import type { TagGroupWithDefinitions } from "@/lib/services/tag-service";
-import { TagNameClashHint } from "@/components/tags/tag-name-clash-hint";
-import { toTagName } from "@/lib/tag-names";
+import Link from "next/link";
 import {
   createTagGroupAction,
   updateTagGroupAction,
   deleteTagGroupAction,
-  createTagDefinitionAction,
-  updateTagDefinitionAction,
-  deleteTagDefinitionAction,
-  createTagAliasAction,
-  deleteTagAliasAction,
 } from "@/lib/actions/tag-actions";
 
 type TagCatalogManagerProps = {
@@ -150,57 +141,6 @@ function GroupFieldBadges({ group }: { group: GroupFields }) {
   );
 }
 
-function TagStructureFields({
-  tagId,
-  group,
-  parentId,
-  typicalLevel,
-  onChange,
-}: {
-  tagId: string | null;
-  group: TagGroupWithDefinitions;
-  parentId: string | null;
-  typicalLevel: TagLevel | null;
-  onChange: (value: { parentId: string | null; typicalLevel: TagLevel | null }) => void;
-}) {
-  // A tag can only be parented within its own group; the server rejects cycles
-  const candidates = group.tags.filter((t) => t.id !== tagId);
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <label className="flex items-center gap-1">
-        Parent
-        <select
-          value={parentId ?? ""}
-          onChange={(e) => onChange({ parentId: e.target.value || null, typicalLevel })}
-          className={SELECT_CLASS}
-        >
-          <option value="">— none —</option>
-          {candidates.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </label>
-      {group.domain === "CONTENT" && (
-        <label className="flex items-center gap-1">
-          Level
-          <select
-            value={typicalLevel ?? ""}
-            onChange={(e) => onChange({ parentId, typicalLevel: (e.target.value || null) as TagLevel | null })}
-            className={SELECT_CLASS}
-          >
-            <option value="">
-              {group.typicalLevel ? `group default (${LEVEL_SHORT[group.typicalLevel]})` : "group default"}
-            </option>
-            {LEVEL_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </label>
-      )}
-    </div>
-  );
-}
-
 function ColorPicker({
   value,
   onChange,
@@ -238,9 +178,6 @@ export function TagCatalogManager({
   groups: initialGroups,
 }: TagCatalogManagerProps) {
   const [groups, setGroups] = useState(initialGroups);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
-    new Set(initialGroups.map((g) => g.id)),
-  );
   const [isPending, startTransition] = useTransition();
 
   // ── Add group ──
@@ -258,35 +195,6 @@ export function TagCatalogManager({
   const [editGroupDescription, setEditGroupDescription] = useState("");
   const [editGroupExclusive, setEditGroupExclusive] = useState(false);
   const [editGroupFields, setEditGroupFields] = useState<GroupFields>(DEFAULT_GROUP_FIELDS);
-
-  // ── Add tag ──
-  const [addingTagGroupId, setAddingTagGroupId] = useState<string | null>(null);
-  const [newTagName, setNewTagName] = useState("");
-  const [newTagStructure, setNewTagStructure] = useState<{ parentId: string | null; typicalLevel: TagLevel | null }>(
-    { parentId: null, typicalLevel: null },
-  );
-  const [newTagDescription, setNewTagDescription] = useState("");
-
-  // ── Edit tag ──
-  const [editingTagId, setEditingTagId] = useState<string | null>(null);
-  const [editTagName, setEditTagName] = useState("");
-  const [editTagStructure, setEditTagStructure] = useState<{ parentId: string | null; typicalLevel: TagLevel | null }>(
-    { parentId: null, typicalLevel: null },
-  );
-  const [editTagDescription, setEditTagDescription] = useState("");
-
-  // ── Alias input ──
-  const [aliasTagId, setAliasTagId] = useState<string | null>(null);
-  const [newAliasName, setNewAliasName] = useState("");
-
-  const toggleGroup = useCallback((id: string) => {
-    setExpandedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
 
   // ── Group actions ──
 
@@ -351,99 +259,9 @@ export function TagCatalogManager({
     });
   }, []);
 
-  // ── Tag actions ──
-
-  const handleAddTag = useCallback(
-    (groupId: string) => {
-      if (!newTagName.trim()) return;
-      const name = newTagName.trim();
-      const structure = newTagStructure;
-      const description = newTagDescription.trim() || undefined;
-      startTransition(async () => {
-        const result = await createTagDefinitionAction({ groupId, name, description, ...structure });
-        if (result.success) {
-          setNewTagName("");
-          setNewTagStructure({ parentId: null, typicalLevel: null });
-          setNewTagDescription("");
-          setAddingTagGroupId(null);
-          window.location.reload();
-        }
-      });
-    },
-    [newTagName, newTagStructure, newTagDescription],
-  );
-
-  const handleUpdateTag = useCallback(
-    (id: string) => {
-      if (!editTagName.trim()) return;
-      startTransition(async () => {
-        const result = await updateTagDefinitionAction(id, {
-          name: editTagName.trim(),
-          ...editTagStructure,
-          description: editTagDescription.trim() || null,
-        });
-        if (!result.success) {
-          toast.error(result.error ?? "Failed to update tag");
-          return;
-        }
-        setGroups((prev) =>
-          prev.map((g) => ({
-            ...g,
-            tags: g.tags.map((t) =>
-              t.id === id
-                ? { ...t, name: toTagName(editTagName), ...editTagStructure, description: editTagDescription.trim() || null }
-                : t,
-            ),
-          })),
-        );
-        setEditingTagId(null);
-      });
-    },
-    [editTagName, editTagStructure, editTagDescription],
-  );
-
-  const handleDeleteTag = useCallback((id: string) => {
-    startTransition(async () => {
-      const result = await deleteTagDefinitionAction(id);
-      if (result.success) {
-        setGroups((prev) =>
-          prev.map((g) => ({
-            ...g,
-            tags: g.tags.filter((t) => t.id !== id),
-          })),
-        );
-      }
-    });
-  }, []);
-
-  // ── Alias actions ──
-
-  const handleAddAlias = useCallback(
-    (tagId: string) => {
-      if (!newAliasName.trim()) return;
-      const name = newAliasName.trim();
-      startTransition(async () => {
-        const result = await createTagAliasAction(tagId, name);
-        if (result.success) {
-          setNewAliasName("");
-          window.location.reload();
-        }
-      });
-    },
-    [newAliasName],
-  );
-
-  const handleDeleteAlias = useCallback((aliasId: string) => {
-    startTransition(async () => {
-      await deleteTagAliasAction(aliasId);
-      window.location.reload();
-    });
-  }, []);
-
   return (
     <div className={cn("space-y-3", isPending && "opacity-70 pointer-events-none")}>
       {groups.map((group) => {
-        const isExpanded = expandedGroups.has(group.id);
         const isEditing = editingGroupId === group.id;
         const hasTags = group.tags.length > 0;
 
@@ -454,15 +272,6 @@ export function TagCatalogManager({
           >
             {/* Group header */}
             <div className="flex items-center gap-2 px-3 py-2.5">
-              <button
-                type="button"
-                onClick={() => toggleGroup(group.id)}
-                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
-                aria-label={isExpanded ? "Collapse" : "Expand"}
-              >
-                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              </button>
-
               <GripVertical size={14} className="shrink-0 text-muted-foreground/50" />
 
               <ColorDot color={group.color} />
@@ -530,9 +339,13 @@ export function TagCatalogManager({
                     </span>
                   )}
                   <GroupFieldBadges group={group} />
-                  <span className="mr-1 text-xs text-muted-foreground">
+                  <Link
+                    href="/tags"
+                    className="mr-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    title="Tags are created, renamed, moved, merged and deleted in /tags"
+                  >
                     {group.tags.length} {group.tags.length === 1 ? "tag" : "tags"}
-                  </span>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => {
@@ -571,239 +384,6 @@ export function TagCatalogManager({
               )}
             </div>
 
-            {/* Tags */}
-            {isExpanded && (
-              <div className="border-t border-white/10 px-3 py-2 space-y-1">
-                {group.tags.map((tag) => {
-                  const isEditingTag = editingTagId === tag.id;
-                  const isShowingAliases = aliasTagId === tag.id;
-
-                  if (isEditingTag) {
-                    return (
-                      <div
-                        key={tag.id}
-                        className="flex flex-col gap-2 rounded-lg bg-muted/30 px-3 py-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={editTagName}
-                            onChange={(e) => setEditTagName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleUpdateTag(tag.id);
-                              if (e.key === "Escape") setEditingTagId(null);
-                            }}
-                            placeholder="Tag name"
-                            className="flex-1 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTag(tag.id)}
-                            className="rounded-md bg-primary/20 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/30"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingTagId(null)}
-                            className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                        <TagNameClashHint
-                          name={editTagName}
-                          groupName={group.name}
-                          excludeId={tag.id}
-                          onUseSuggestion={setEditTagName}
-                        />
-                        <TagStructureFields
-                          tagId={tag.id}
-                          group={group}
-                          parentId={editTagStructure.parentId}
-                          typicalLevel={editTagStructure.typicalLevel}
-                          onChange={setEditTagStructure}
-                        />
-                        <textarea
-                          value={editTagDescription}
-                          onChange={(e) => setEditTagDescription(e.target.value)}
-                          placeholder="Description (optional, max 500 chars)"
-                          maxLength={500}
-                          rows={2}
-                          className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
-
-                        {/* Aliases section */}
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
-                            Aliases
-                          </span>
-                          <div className="flex flex-wrap gap-1">
-                            {tag.aliases?.map((alias) => (
-                              <span
-                                key={alias.id}
-                                className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                              >
-                                {alias.name}
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAlias(alias.id)}
-                                  className="rounded-full p-0.5 hover:bg-foreground/10"
-                                  aria-label={`Remove alias ${alias.name}`}
-                                >
-                                  <X size={8} />
-                                </button>
-                              </span>
-                            ))}
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                value={isShowingAliases ? newAliasName : ""}
-                                onChange={(e) => {
-                                  setAliasTagId(tag.id);
-                                  setNewAliasName(e.target.value);
-                                }}
-                                onFocus={() => setAliasTagId(tag.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") handleAddAlias(tag.id);
-                                  if (e.key === "Escape") {
-                                    setAliasTagId(null);
-                                    setNewAliasName("");
-                                  }
-                                }}
-                                placeholder="+ alias"
-                                className="w-20 rounded border border-white/10 bg-background/30 px-1.5 py-0.5 text-[10px] focus:outline-none focus:ring-1 focus:ring-ring"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={tag.id}
-                      className="group flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-muted/30"
-                    >
-                      <GripVertical size={12} className="shrink-0 text-muted-foreground/40" />
-                      <ColorDot color={group.color} size={8} />
-                      <div className="flex flex-1 flex-col min-w-0">
-                        <span className="flex items-center gap-1.5 text-sm">
-                          {tag.name}
-                          {tag.parentId && (
-                            <span className="text-[10px] text-muted-foreground/50">
-                              ⊂ {group.tags.find((t) => t.id === tag.parentId)?.name}
-                            </span>
-                          )}
-                          {tag.typicalLevel && (
-                            <span className="rounded bg-muted/40 px-1 py-0.5 text-[9px] leading-none text-muted-foreground">
-                              {LEVEL_SHORT[tag.typicalLevel]}
-                            </span>
-                          )}
-                        </span>
-                        {tag.description && (
-                          <span className="text-[10px] text-muted-foreground/50 truncate">
-                            {tag.description}
-                          </span>
-                        )}
-                        {tag.aliases && tag.aliases.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground/40">
-                            aliases: {tag.aliases.map((a) => a.name).join(", ")}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingTagId(tag.id);
-                          setEditTagName(tag.name);
-                          setEditTagStructure({ parentId: tag.parentId, typicalLevel: tag.typicalLevel });
-                          setEditTagDescription(tag.description ?? "");
-                          setAliasTagId(tag.id);
-                        }}
-                        className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground group-hover:visible"
-                        aria-label="Edit tag"
-                      >
-                        <Pencil size={11} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteTag(tag.id)}
-                        className="invisible rounded-md p-1 text-muted-foreground transition-colors hover:text-destructive group-hover:visible"
-                        aria-label="Delete tag"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-                    </div>
-                  );
-                })}
-
-                {/* Add tag form */}
-                {addingTagGroupId === group.id ? (
-                  <div className="flex flex-col gap-2 rounded-lg bg-muted/30 px-3 py-2 mt-1">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={newTagName}
-                        onChange={(e) => setNewTagName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleAddTag(group.id);
-                          if (e.key === "Escape") setAddingTagGroupId(null);
-                        }}
-                        placeholder="Tag name"
-                        className="flex-1 rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleAddTag(group.id)}
-                        className="rounded-md bg-primary/20 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/30"
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAddingTagGroupId(null);
-                          setNewTagName("");
-                          setNewTagStructure({ parentId: null, typicalLevel: null });
-                          setNewTagDescription("");
-                        }}
-                        className="rounded-md p-1 text-muted-foreground hover:text-foreground"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
-                    <TagNameClashHint name={newTagName} groupName={group.name} onUseSuggestion={setNewTagName} />
-                    <TagStructureFields
-                      tagId={null}
-                      group={group}
-                      parentId={newTagStructure.parentId}
-                      typicalLevel={newTagStructure.typicalLevel}
-                      onChange={setNewTagStructure}
-                    />
-                    <input
-                      type="text"
-                      value={newTagDescription}
-                      onChange={(e) => setNewTagDescription(e.target.value)}
-                      placeholder="Description (optional)"
-                      className="rounded-md border border-white/15 bg-background/50 px-2 py-1 text-xs text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAddingTagGroupId(group.id)}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
-                  >
-                    <Plus size={12} />
-                    Add tag
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         );
       })}
