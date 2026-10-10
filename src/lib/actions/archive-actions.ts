@@ -69,7 +69,7 @@ export async function unlinkArchiveFolderAction(folderId: string): Promise<Simpl
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to unlink archive folder', err)
-      return { success: false, error: err instanceof Error ? `Failed to unlink archive folder: ${err.message}` : 'Failed to unlink archive folder' }
+      return { success: false, error: 'Failed to unlink archive folder' }
     }
   })
 }
@@ -94,7 +94,7 @@ export async function toggleMediaQueueAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to update media queue', err)
-      return { success: false, error: err instanceof Error ? `Failed to update media queue: ${err.message}` : 'Failed to update media queue' }
+      return { success: false, error: 'Failed to update media queue' }
     }
   })
 }
@@ -115,7 +115,7 @@ export async function updateMediaPriorityAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to update priority', err)
-      return { success: false, error: err instanceof Error ? `Failed to update priority: ${err.message}` : 'Failed to update priority' }
+      return { success: false, error: 'Failed to update priority' }
     }
   })
 }
@@ -136,7 +136,7 @@ export async function updateQueueNoteAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to save note', err)
-      return { success: false, error: err instanceof Error ? `Failed to save note: ${err.message}` : 'Failed to save note' }
+      return { success: false, error: 'Failed to save note' }
     }
   })
 }
@@ -162,7 +162,7 @@ export async function confirmArchiveFolderLinkAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to confirm link', err)
-      return { success: false, error: err instanceof Error ? `Failed to confirm link: ${err.message}` : 'Failed to confirm link' }
+      return { success: false, error: 'Failed to confirm link' }
     }
   })
 }
@@ -181,7 +181,7 @@ export async function rejectArchiveSuggestionAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to reject suggestion', err)
-      return { success: false, error: err instanceof Error ? `Failed to reject suggestion: ${err.message}` : 'Failed to reject suggestion' }
+      return { success: false, error: 'Failed to reject suggestion' }
     }
   })
 }
@@ -197,7 +197,7 @@ export async function createStagingSetFromOrphanAction(
       return { success: true, stagingSetId }
     } catch (err) {
       console.error('[archive-actions] Failed to create staging set', err)
-      return { success: false, error: err instanceof Error ? `Failed to create staging set: ${err.message}` : 'Failed to create staging set' }
+      return { success: false, error: 'Failed to create staging set' }
     }
   })
 }
@@ -211,7 +211,7 @@ export async function reparseFolderNamesAction(): Promise<{ success: boolean; up
       return { success: true, updated }
     } catch (err) {
       console.error('[archive-actions] Failed to re-parse folder names', err)
-      return { success: false, error: err instanceof Error ? `Failed to re-parse folder names: ${err.message}` : 'Failed to re-parse folder names' }
+      return { success: false, error: 'Failed to re-parse folder names' }
     }
   })
 }
@@ -225,7 +225,7 @@ export async function scanArchiveForAliasesAction(): Promise<{ success: boolean;
       return { success: true, updated }
     } catch (err) {
       console.error('[archive-actions] Failed to scan archive for aliases', err)
-      return { success: false, error: err instanceof Error ? `Failed to scan archive for aliases: ${err.message}` : 'Failed to scan archive for aliases' }
+      return { success: false, error: 'Failed to scan archive for aliases' }
     }
   })
 }
@@ -238,7 +238,7 @@ export async function deleteArchiveFolderAction(id: string): Promise<SimpleActio
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to delete archive folder record', err)
-      return { success: false, error: err instanceof Error ? `Failed to delete archive folder record: ${err.message}` : 'Failed to delete archive folder record' }
+      return { success: false, error: 'Failed to delete archive folder record' }
     }
   })
 }
@@ -271,7 +271,7 @@ export async function rematchItemAction(
       return result
     } catch (err) {
       console.error('[archive-actions] Failed to run matching pass', err)
-      return { matched: false, error: err instanceof Error ? `Failed to run matching pass: ${err.message}` : 'Failed to run matching pass' }
+      return { matched: false, error: 'Failed to run matching pass' }
     }
   })
 }
@@ -292,7 +292,7 @@ export async function confirmVideoFileAction(
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to confirm video file', err)
-      return { success: false, error: err instanceof Error ? `Failed to confirm video file: ${err.message}` : 'Failed to confirm video file' }
+      return { success: false, error: 'Failed to confirm video file' }
     }
   })
 }
