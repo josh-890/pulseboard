@@ -1193,6 +1193,9 @@ model MediaItem {
   copiedFromMediaItem   MediaItem?  @relation("MediaItemCopySource", fields: [copiedFromMediaItemId], references: [id], onDelete: SetNull)
   copies                MediaItem[] @relation("MediaItemCopySource")
 
+  // The staging cover copied in at promotion (cover-transfer.ts) — not an upload:
+  // it does not set Set.firstMediaAt nor keep a set out of the archive upload queue.
+  isTransferredCover Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

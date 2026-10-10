@@ -157,7 +157,8 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
   with `entityModel` drive body-mark / body-mod / procedure linking).
 - Cover photo is `Set.coverMediaItemId` (nullable).
 - `Set.firstMediaAt` — when the set first received an image, by any route (trigger
-  `set_media_item_first_media` on `SetMediaItem` insert); never cleared. With
+  `set_media_item_first_media` on `SetMediaItem` insert, UTC); never cleared. The
+  staging cover copied in at promotion (`MediaItem.isTransferredCover`) does not count. With
   `archiveUploadStartedAt` / `archiveUploadDoneAt` / `archiveUploadFailed` it drives
   the archive upload agent's queue (only sets that never had images).
 

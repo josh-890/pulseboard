@@ -307,6 +307,11 @@ type CreateMediaItemDirectInput = {
    * real image may take it over. See Set.coverIsProvisional.
    */
   provisionalCover?: boolean;
+  /**
+   * The staging cover copied in at promotion (cover-transfer.ts). Not an upload:
+   * the archive upload agent still treats the set as never filled.
+   */
+  isTransferredCover?: boolean;
 };
 
 export async function createMediaItemDirect(
@@ -333,6 +338,7 @@ export async function createMediaItemDirect(
         sourceVideoRef: input.sourceVideoRef,
         sourceTimecodeMs: input.sourceTimecodeMs,
         isAnnotation: input.isAnnotation ?? false,
+        isTransferredCover: input.isTransferredCover ?? false,
       },
     });
 

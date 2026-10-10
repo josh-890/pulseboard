@@ -32,7 +32,8 @@ export async function getUploadWorklist(opts: { setId?: string; limit?: number }
         some: { status: "CONFIRMED", archiveFolder: { isVideo: false, missingOnDisk: false, stubSince: null } },
       },
       OR: [
-        { firstMediaAt: null, setMediaItems: { none: {} } },
+        // The staging cover copied in at promotion does not count as an upload
+        { firstMediaAt: null, setMediaItems: { none: { mediaItem: { isTransferredCover: false } } } },
         { archiveUploadStartedAt: { not: null }, archiveUploadDoneAt: null },
       ],
     },

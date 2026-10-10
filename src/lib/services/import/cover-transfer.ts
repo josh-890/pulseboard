@@ -124,5 +124,7 @@ export async function transferStagingCoverToSet(
     hash: computeSha256(buffer),
     phash: await computeDHash(buffer),
     provisionalCover: isProvisionalCoverKey(key),
+    // Not an upload: the set still waits for its archive images (archive-upload.ps1)
+    isTransferredCover: true,
   })
 }

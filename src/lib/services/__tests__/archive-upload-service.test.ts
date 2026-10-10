@@ -33,9 +33,19 @@ async function setWithFolder(key: string, folder: { isVideo?: boolean; stub?: bo
   ids[`${key}Session`] = session.id;
 }
 
-async function linkImage(key: string, hash: string) {
+async function linkImage(key: string, hash: string, isTransferredCover = false) {
   const m = await prisma.mediaItem.create({
-    data: { sessionId: ids[`${key}Session`], mediaType: "PHOTO", filename: "x.jpg", mimeType: "image/jpeg", size: 1, originalWidth: 1, originalHeight: 1, hash },
+    data: {
+      sessionId: ids[`${key}Session`],
+      mediaType: "PHOTO",
+      filename: isTransferredCover ? "cover.jpg" : "x.jpg",
+      mimeType: "image/jpeg",
+      size: 1,
+      originalWidth: 1,
+      originalHeight: 1,
+      hash,
+      isTransferredCover,
+    },
   });
   created.media.push(m.id);
   await prisma.setMediaItem.create({ data: { setId: ids[key], mediaItemId: m.id } });
@@ -48,6 +58,9 @@ beforeAll(async () => {
   await setWithFolder("filled");
   await linkImage("filled", "h-filled");
   await setWithFolder("resumed");
+  // Promotion copies the staged set's cover in — that is not an upload
+  await setWithFolder("promoted");
+  await linkImage("promoted", "h-promoted-cover", true);
 });
 
 afterAll(async () => {
@@ -64,7 +77,21 @@ const queued = async () => (await getUploadWorklist()).map((w) => w.setId).filte
 
 describe("the queue", () => {
   it("holds empty photo sets only — not video sets, not stubs, not sets with images", async () => {
-    expect((await queued()).sort()).toEqual([ids.empty, ids.resumed].sort());
+    expect((await queued()).sort()).toEqual([ids.empty, ids.resumed, ids.promoted].sort());
+  });
+
+  it("does not count the cover transferred at promotion as an upload", async () => {
+    const set = await prisma.set.findUniqueOrThrow({ where: { id: ids.promoted } });
+    expect(set.firstMediaAt).toBeNull();
+    expect(await queued()).toContain(ids.promoted);
+  });
+
+  it("stamps the first real image in UTC, like every other timestamp", async () => {
+    const before = Date.now();
+    await linkImage("promoted", "h-promoted-real");
+    const set = await prisma.set.findUniqueOrThrow({ where: { id: ids.promoted } });
+    expect(Math.abs(set.firstMediaAt!.getTime() - before)).toBeLessThan(60_000);
+    expect(await queued()).not.toContain(ids.promoted);
   });
 
   it("remembers a first image for good (trigger), even after it is removed", async () => {

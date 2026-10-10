@@ -282,7 +282,8 @@ This agent does it unattended:
 ```
 
 - **Queue** (the app decides): a photo set with a CONFIRMED archive folder that is on
-  disk and **not a stub**, which **never had images** — `Set.firstMediaAt` is set by
+  disk and **not a stub**, which **never had images** (the cover copied in at
+  promotion does not count) — `Set.firstMediaAt` is set by
   the first image from any route (manual or agent) and never cleared, so deleting a
   set's images does not queue it again. Video sets are not filled.
 - **Per set:** the folder's `jpg/jpeg/png/webp/gif`, numbered by file name in natural
