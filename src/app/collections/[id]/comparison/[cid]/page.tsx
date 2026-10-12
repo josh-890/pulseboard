@@ -1,24 +1,8 @@
-import { withTenantFromHeaders } from "@/lib/tenant-context";
-import { notFound } from "next/navigation";
-import { getComparisonDetail } from "@/lib/services/comparison-service";
-import { getCollectionWithItems } from "@/lib/services/collection-service";
-import { ComparisonViewer } from "@/components/collections/comparison-viewer";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
+// A comparison opens in its collection's viewer (ADR-0015 amendment, 2026-10-12);
+// this route only keeps old links working — they meant the editor, so compose mode.
 export default async function ComparisonPage({ params }: { params: Promise<{ id: string; cid: string }> }) {
-  return withTenantFromHeaders(async () => {
-    const { id, cid } = await params;
-    const comparison = await getComparisonDetail(cid);
-    if (!comparison || comparison.collectionId !== id) notFound();
-    const collection = await getCollectionWithItems(id);
-
-    return (
-      <ComparisonViewer
-        comparison={comparison}
-        collectionId={id}
-        collectionName={collection?.name ?? "Collection"}
-      />
-    );
-  });
+  const { id, cid } = await params;
+  redirect(`/collections/${id}?c=${cid}&edit=1`);
 }

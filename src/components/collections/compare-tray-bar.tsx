@@ -130,19 +130,19 @@ function CompareTrayDialog({
       if (!res.success || !res.id) return { success: false, error: res.error };
       if (count < 2) { toast.success("Collection created — add ≥2 photos to make a comparison"); return { success: true, href: `/collections/${res.id}` }; }
       const cmp = await createComparisonAction(res.id, mediaItemIds);
-      return cmp.success && cmp.id ? { success: true, href: `/collections/${res.id}/comparison/${cmp.id}` } : { success: false, error: cmp.error };
+      return cmp.success && cmp.id ? { success: true, href: `/collections/${res.id}?c=${cmp.id}&edit=1` } : { success: false, error: cmp.error };
     });
 
   const createInSelected = () =>
     selected && run(async () => {
       const cmp = await createComparisonAction(selected.id, mediaItemIds);
-      return cmp.success && cmp.id ? { success: true, href: `/collections/${selected.id}/comparison/${cmp.id}` } : { success: false, error: cmp.error };
+      return cmp.success && cmp.id ? { success: true, href: `/collections/${selected.id}?c=${cmp.id}&edit=1` } : { success: false, error: cmp.error };
     });
 
   const appendTo = (comparisonId: string) =>
     selected && run(async () => {
       const res = await addComparisonItemsAction(comparisonId, mediaItemIds, selected.id);
-      return res.success ? { success: true, href: `/collections/${selected.id}/comparison/${comparisonId}` } : { success: false, error: res.error };
+      return res.success ? { success: true, href: `/collections/${selected.id}?c=${comparisonId}&edit=1` } : { success: false, error: res.error };
     });
 
   return (
@@ -154,12 +154,12 @@ function CompareTrayDialog({
 
         {!selected ? (
           <div className="space-y-3 py-1">
-            <p className="text-xs text-muted-foreground">Pick a before/after collection:</p>
+            <p className="text-xs text-muted-foreground">Pick a comparison collection:</p>
             {collections.length > 8 && (
               <Input value={collQuery} onChange={(e) => setCollQuery(e.target.value)} placeholder="Filter collections…" className="h-8" autoFocus />
             )}
             <div className="max-h-56 space-y-1 overflow-y-auto">
-              {collections.length === 0 && <p className="text-sm text-muted-foreground italic">No before/after collections yet.</p>}
+              {collections.length === 0 && <p className="text-sm text-muted-foreground italic">No comparison collections yet.</p>}
               {collections
                 .filter((c) => c.name.toLowerCase().includes(collQuery.trim().toLowerCase()))
                 .map((c) => (
@@ -171,7 +171,7 @@ function CompareTrayDialog({
               ))}
             </div>
             <div className="flex items-center gap-2 border-t border-white/10 pt-3">
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New before/after collection…" className="h-8" />
+              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="New comparison collection…" className="h-8" />
               <Button size="sm" variant="outline" disabled={!newName.trim() || busy} onClick={createNewCollection} className="gap-1 shrink-0">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Create
               </Button>

@@ -201,11 +201,11 @@ A person's ID-card picture, shown on cards and the hero. **Defined as the repres
 **Atlas**:
 The automatic **cross-person comparison** surface (`/atlas`). Pick a locus category → see every person's Aligned image in that locus side by side. Generated from the alignment data, not curated. Distinct from a **Collection** (hand-curated) and from the per-person **Details tab** (one person's loci). _Avoid_: "Compare" / "Details" as the surface name — the latter collides with the Details tab.
 
-**Before/after collection**:
-A `MediaCollection` with `layout = SIDE_BY_SIDE`. Its members are **Comparisons** (not photos), agnostic to whose/when. Serves both temporal (same person over time) and cross-person comparison. Era-linking is deferred polish.
+**Comparison collection**:
+A `MediaCollection` with `layout = SIDE_BY_SIDE` (named "Comparison" in the app since 2026-10-12). Its members are **Comparisons** (not photos), agnostic to whose/when. _Avoid_: "before/after collection" — that is one use case, not the type (the 2-photo reveal slider is still a before/after wipe). Serves both temporal (same person over time) and cross-person comparison. Era-linking is deferred polish.
 
 **Comparison** (code model & DB table: `Comparison`, added 2026-06-13):
-A curated, ordered group of **2…N member photos** that belong together — "the row of cells" you compare. It is a **member of exactly one** before/after collection (composition, not a reusable asset). Browsable as one **montage tile** (auto-generated from its members, before→after order — no chosen cover) and openable to the comparison viewer (cells in a row; a reveal **slider** when there are exactly 2). The analog is a Lightroom **stack** + a clinical **before/after** object. See ADR-0015. _Avoid_: "cover" (there is none — the tile is a montage); calling the flat photo list a comparison (that was the superseded first cut).
+A curated, ordered group of **2…N member photos** that belong together — "the row of cells" you compare. It is a **member of exactly one** comparison collection (composition, not a reusable asset). Shown in its collection **as composed** (its cells side by side — no chosen cover) and opened in the comparison **viewer** like a photo (click-to-zoom, synced across cells or whole; ←/→; a reveal **slider** when there are exactly 2); composing (fit, focal, ⚓, order) is the viewer's **compose mode** (Edit). The analog is a Lightroom **stack** + a clinical **before/after** object. See ADR-0015. _Avoid_: "cover" (there is none — the tile is the composition itself); calling the flat photo list a comparison (that was the superseded first cut).
 
 **Aspect-driver**:
 The one Comparison member (user-chosen, default first, independent of everything else) whose width:height sets the **cell shape** for the whole comparison — the frame the others conform to.

@@ -1,43 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { Columns2, ImageIcon, Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useSearchParams } from "next/navigation";
+import { Columns2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { ComparisonBuilderSheet } from "@/components/collections/comparison-builder-sheet";
+import { ComparisonComposite, comparisonShape } from "@/components/collections/comparison-composite";
+import { ComparisonLightbox } from "@/components/collections/comparison-lightbox";
+import { computeRows, GALLERY_GAP, MOBILE_TARGET, TARGET_ROW_HEIGHT } from "@/lib/gallery-layout";
 import type { ComparisonSummary } from "@/lib/services/comparison-service";
 
 type SortKey = "manual" | "title" | "count-desc" | "count-asc";
 
-/** A small montage of a comparison's members (up to 4 thumbs; +N overlay beyond). */
-function Montage({ members }: { members: ComparisonSummary["members"] }) {
-  const shown = members.slice(0, 4);
-  const extra = members.length - shown.length;
-  const cols = shown.length <= 1 ? 1 : 2;
-  return (
-    <div
-      className={cn("grid h-full w-full gap-0.5 bg-black/40", cols === 1 ? "grid-cols-1" : "grid-cols-2")}
-    >
-      {shown.map((m, i) => (
-        <div key={m.mediaItemId} className="relative min-h-0 overflow-hidden">
-          {m.thumbUrl ? (
-            <Image src={m.thumbUrl} alt="" fill unoptimized className="object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-muted">
-              <ImageIcon size={18} className="text-muted-foreground/40" />
-            </div>
-          )}
-          {extra > 0 && i === shown.length - 1 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm font-semibold text-white">
-              +{extra}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+// A comparison collection (ADR-0015): its comparisons as they were composed, laid
+// out like a Grid collection's photos (justified rows). A click opens the viewer
+// (?c=<id>; &edit=1 = compose mode) — the URL holds it, so Back closes it and a
+// link opens it. Opening pushes a history entry; moving within the viewer
+// replaces it. The history API is used directly so nothing is refetched.
+
+const noopSubscribe = () => () => {};
+
+function setViewerUrl(params: { c: string | null; edit: boolean }, mode: "push" | "replace") {
+  const url = new URL(window.location.href);
+  if (params.c) url.searchParams.set("c", params.c);
+  else url.searchParams.delete("c");
+  if (params.c && params.edit) url.searchParams.set("edit", "1");
+  else url.searchParams.delete("edit");
+  const next = `${url.pathname}${url.search}`;
+  if (mode === "push") window.history.pushState(null, "", next);
+  else window.history.replaceState(null, "", next);
 }
 
 export function ComparisonCollectionView({
@@ -50,6 +41,33 @@ export function ComparisonCollectionView({
   const [builderOpen, setBuilderOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("manual");
+  const searchParams = useSearchParams();
+  const openId = searchParams.get("c");
+  const editing = searchParams.get("edit") === "1";
+  // The viewer is a portal — client only
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  // Whether this page opened the viewer (then closing goes Back, so Back and
+  // close agree); a viewer opened by a link closes by replacing the URL
+  const pushedRef = useRef(false);
+  useEffect(() => {
+    const onPop = () => {
+      pushedRef.current = false;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // A callback ref: the grid mounts only once there is something to show
+  const [gridEl, setGridEl] = useState<HTMLDivElement | null>(null);
+  const [gridWidth, setGridWidth] = useState(0);
+  useEffect(() => {
+    if (!gridEl) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) setGridWidth(entry.contentRect.width);
+    });
+    observer.observe(gridEl);
+    return () => observer.disconnect();
+  }, [gridEl]);
 
   const displayed = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -65,6 +83,31 @@ export function ComparisonCollectionView({
         return list; // manual = the stored sortOrder
     }
   }, [comparisons, query, sort]);
+
+  // A comparison measures like a photo: N cells of the aspect-driver's shape
+  const rows = useMemo(() => {
+    const measured = displayed.map((c) => {
+      const { cellW, cellH } = comparisonShape(c.members);
+      return { comparison: c, originalWidth: cellW * Math.max(1, c.members.length), originalHeight: cellH };
+    });
+    return computeRows(measured, gridWidth, gridWidth < 640 ? MOBILE_TARGET : TARGET_ROW_HEIGHT);
+  }, [displayed, gridWidth]);
+
+  // The viewer walks the grid's order; a comparison hidden by the filter still opens
+  const viewerList = openId && displayed.some((c) => c.id === openId) ? displayed : comparisons;
+
+  const open = useCallback((id: string) => {
+    pushedRef.current = true;
+    setViewerUrl({ c: id, edit: false }, "push");
+  }, []);
+  const close = useCallback(() => {
+    if (pushedRef.current) {
+      pushedRef.current = false;
+      window.history.back();
+    } else {
+      setViewerUrl({ c: null, edit: false }, "replace");
+    }
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -115,25 +158,43 @@ export function ComparisonCollectionView({
       ) : displayed.length === 0 ? (
         <p className="text-sm text-muted-foreground italic">No comparisons match &ldquo;{query}&rdquo;.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {displayed.map((c) => (
-            <Link
-              key={c.id}
-              href={`/collections/${collectionId}/comparison/${c.id}`}
-              className="group overflow-hidden rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm transition-colors hover:border-amber-500/40"
-            >
-              <div className="relative aspect-[4/3]">
-                <Montage members={c.members} />
-                <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-                  <Columns2 size={10} /> {c.memberCount}
-                </span>
-              </div>
-              {c.title && (
-                <p className="truncate px-3 py-2 text-sm font-medium group-hover:text-primary" title={c.title}>{c.title}</p>
-              )}
-            </Link>
+        <div ref={setGridEl} className="w-full">
+          {rows.map((row, rowIdx) => (
+            <div key={rowIdx} className="flex" style={{ gap: GALLERY_GAP, marginBottom: GALLERY_GAP }}>
+              {row.items.map(({ comparison: c, originalWidth, originalHeight }) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => open(c.id)}
+                  title={c.title ?? undefined}
+                  aria-label={`Open comparison ${c.title ?? ""} (${c.memberCount} photos)`}
+                  className="group relative shrink-0 overflow-hidden rounded-lg outline-none ring-offset-2 ring-offset-background transition-shadow hover:ring-2 hover:ring-primary/50 focus-visible:ring-2 focus-visible:ring-primary"
+                  style={{ width: row.height * (originalWidth / originalHeight), height: row.height }}
+                >
+                  <ComparisonComposite members={c.members} fitMode={c.fitMode} source="thumb" className="h-full w-full" />
+                  <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-6 text-left text-xs text-white opacity-90">
+                    <span className="truncate font-medium">{c.title}</span>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-[10px]">
+                      <Columns2 size={10} /> {c.memberCount}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
           ))}
         </div>
+      )}
+
+      {mounted && openId && comparisons.some((c) => c.id === openId) && (
+        <ComparisonLightbox
+          comparisons={viewerList}
+          openId={openId}
+          editing={editing}
+          collectionId={collectionId}
+          onNavigate={(id) => setViewerUrl({ c: id, edit: false }, "replace")}
+          onEditChange={(edit) => setViewerUrl({ c: openId, edit }, "replace")}
+          onClose={close}
+        />
       )}
 
       <ComparisonBuilderSheet collectionId={collectionId} open={builderOpen} onOpenChange={setBuilderOpen} />

@@ -25,7 +25,7 @@ function applyFilters(
     if (exclude !== "type" && f.type === "global" && c.personId) return false;
     if (exclude !== "type" && f.type === "person" && !c.personId) return false;
     if (exclude !== "layout" && f.layout === "grid" && c.layout !== "GRID") return false;
-    if (exclude !== "layout" && f.layout === "before-after" && c.layout !== "SIDE_BY_SIDE") return false;
+    if (exclude !== "layout" && f.layout === "comparison" && c.layout !== "SIDE_BY_SIDE") return false;
     if (exclude !== "person" && f.person && c.personId !== f.person) return false;
     if (f.nonEmpty && c.itemCount === 0) return false;
     return true;
@@ -74,7 +74,8 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
     const f: Filters = {
       q: sp.q?.trim() || undefined,
       type: sp.type,
-      layout: sp.layout,
+      // "before-after" is the type's old name — old links keep working
+      layout: sp.layout === "before-after" ? "comparison" : sp.layout,
       person: sp.person,
       nonEmpty: sp.nonEmpty === "true" || undefined,
     };
@@ -124,7 +125,7 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
         options: [
           { value: "all", label: "All" },
           { value: "grid", label: "Grid" },
-          { value: "before-after", label: "Before/after" },
+          { value: "comparison", label: "Comparison" },
         ],
       },
       {

@@ -22,14 +22,12 @@ function bestUrl(variants: unknown, fileRef: string | null): string | null {
   return key ? buildUrl(key) : null;
 }
 
-export type ComparisonSummary = {
-  id: string;
-  title: string | null;
-  sortOrder: number;
-  fitMode: ComparisonFitMode;
-  memberCount: number;
-  members: { mediaItemId: string; thumbUrl: string | null }[];
-};
+/** The sharpest source, swapped in once the viewer zooms (as the photo lightbox does). */
+function zoomUrl(variants: unknown, fileRef: string | null): string | null {
+  const v = (variants ?? {}) as PhotoVariants;
+  const key = v.master_4000 ?? v.original ?? v.full_2400 ?? fileRef ?? null;
+  return key ? buildUrl(key) : null;
+}
 
 export type ComparisonMember = {
   mediaItemId: string;
@@ -41,58 +39,52 @@ export type ComparisonMember = {
   originalHeight: number;
   thumbUrl: string | null;
   viewUrl: string | null;
+  zoomUrl: string | null;
 };
 
 export type ComparisonDetail = {
   id: string;
   collectionId: string;
   title: string | null;
+  sortOrder: number;
   fitMode: ComparisonFitMode;
   aspectDriverMediaItemId: string | null;
   members: ComparisonMember[];
 };
 
-/** Comparisons of a collection, ordered, each with its ordered member thumbs (for the montage tile). */
-export async function getComparisonsForCollection(collectionId: string): Promise<ComparisonSummary[]> {
-  const comps = await prisma.comparison.findMany({
-    where: { collectionId },
-    orderBy: { sortOrder: "asc" },
-    include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-        include: { mediaItem: { select: { variants: true, fileRef: true } } },
-      },
-    },
-  });
-  return comps.map((c) => ({
-    id: c.id,
-    title: c.title,
-    sortOrder: c.sortOrder,
-    fitMode: c.fitMode as ComparisonFitMode,
-    memberCount: c.items.length,
-    members: c.items.map((it) => ({
-      mediaItemId: it.mediaItemId,
-      thumbUrl: thumbUrl(it.mediaItem.variants, it.mediaItem.fileRef),
-    })),
-  }));
-}
+/** A collection's comparison — everything the grid tile, the viewer and compose mode draw */
+export type ComparisonSummary = ComparisonDetail & { memberCount: number };
 
-export async function getComparisonDetail(comparisonId: string): Promise<ComparisonDetail | null> {
-  const c = await prisma.comparison.findUnique({
-    where: { id: comparisonId },
-    include: {
-      items: {
-        orderBy: { sortOrder: "asc" },
-        include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
-      },
-    },
-  });
-  if (!c) return null;
+const COMPARISON_INCLUDE = {
+  items: {
+    orderBy: { sortOrder: "asc" as const },
+    include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
+  },
+};
+
+type ComparisonRow = {
+  id: string;
+  collectionId: string;
+  title: string | null;
+  sortOrder: number;
+  fitMode: string;
+  aspectDriverMediaItemId: string | null;
+  items: {
+    mediaItemId: string;
+    sortOrder: number;
+    focalX: number | null;
+    focalY: number | null;
+    mediaItem: { variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number };
+  }[];
+};
+
+function toDetail(c: ComparisonRow): ComparisonDetail {
   const driverId = c.aspectDriverMediaItemId ?? c.items[0]?.mediaItemId ?? null;
   return {
     id: c.id,
     collectionId: c.collectionId,
     title: c.title,
+    sortOrder: c.sortOrder,
     fitMode: c.fitMode as ComparisonFitMode,
     aspectDriverMediaItemId: driverId,
     members: c.items.map((it) => ({
@@ -105,8 +97,24 @@ export async function getComparisonDetail(comparisonId: string): Promise<Compari
       originalHeight: it.mediaItem.originalHeight,
       thumbUrl: thumbUrl(it.mediaItem.variants, it.mediaItem.fileRef),
       viewUrl: bestUrl(it.mediaItem.variants, it.mediaItem.fileRef),
+      zoomUrl: zoomUrl(it.mediaItem.variants, it.mediaItem.fileRef),
     })),
   };
+}
+
+/** Comparisons of a collection, ordered, each complete (members, driver, focal, URLs). */
+export async function getComparisonsForCollection(collectionId: string): Promise<ComparisonSummary[]> {
+  const comps = await prisma.comparison.findMany({
+    where: { collectionId },
+    orderBy: { sortOrder: "asc" },
+    include: COMPARISON_INCLUDE,
+  });
+  return comps.map((c) => ({ ...toDetail(c), memberCount: c.items.length }));
+}
+
+export async function getComparisonDetail(comparisonId: string): Promise<ComparisonDetail | null> {
+  const c = await prisma.comparison.findUnique({ where: { id: comparisonId }, include: COMPARISON_INCLUDE });
+  return c ? toDetail(c) : null;
 }
 
 /** Create a comparison in a collection from an ordered list of photos (aspect-driver = first). */

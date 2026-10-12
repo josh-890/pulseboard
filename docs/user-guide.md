@@ -947,30 +947,37 @@ Click **"New Collection"** to open the creation dialog:
 |-------|----------|-------|
 | Name | Yes | e.g. "Portfolio Candidates" |
 | Description | No | |
-| Layout | Yes | **Grid** (default justified gallery) or **Before / after** — a side-by-side composite. Pick *Before / after* for comparisons; for matched framing on both sides, add **Aligned images** (see the Atlas). Change the layout anytime via the collection's Edit dialog. |
+| Layout | Yes | **Grid** (default justified gallery) or **Comparison** — groups of photos shown side by side (before/after, over time, across people). Pick *Comparison* for comparisons; for matched framing on both sides, add **Aligned images** (see the Atlas). Change the layout anytime via the collection's Edit dialog. |
 
 Collections created from this page are global (no person scope). Person-scoped collections are created from the lightbox info panel on a person's reference session.
 
 ### Collection Detail
 
 - **`GRID` collections** hold single photos in a justified grid (lightbox, drag-to-add, Browse & Add).
-- **`SIDE_BY_SIDE` (Before / after) collections** hold **Comparisons** — each a group of 2…N photos that belong together. The collection shows one **montage tile** per comparison (a mini collage of its members + a count). Click **New comparison** and pick 2+ photos (selection order = before→after) to make one.
+- **`SIDE_BY_SIDE` (Comparison) collections** hold **Comparisons** — each a group of 2…N photos that belong together. Each comparison shows in the grid **as you composed it** (its photos side by side, in the shape and crop you set), in rows like a photo collection. Click **New comparison** and pick 2+ photos (selection order = before→after) to make one — it opens ready to compose.
 - **Edit** — modify name, description, and layout. **Delete** — removes the collection (photos themselves are untouched).
 
-#### The Comparison viewer (open a montage tile)
+#### The Comparison viewer (click a comparison)
 
-- **Title** — click the heading to name the comparison (shows on its montage tile).
-- The whole lineup is sized to fit the screen height; cells share the aspect-driver's shape.
-- **Fill vs Fit** — *Fill* (default) crops each photo to fill its cell; click a photo to set its **focal point** (what stays centred). *Fit* letterboxes the whole photo (bars when shapes differ).
-- **Aspect-driver (⚓)** — pick which photo's shape governs every cell. Independent of order.
-- **Side by side / Slider** — for exactly two photos, a draggable before/after wipe.
-- **Reorder** (◀ ▶, sets before↔after), **Add photos**, **remove** a photo (min 2), **Delete** the comparison.
+A comparison opens like a single photo does in a photo collection:
+
+- **← / →** (or the side arrows, or a swipe) — previous / next comparison, in the grid's order. **Esc** — zooms out first, then closes. The browser's **Back** closes it too, and the address links straight to it.
+- **Click to zoom**, drag to pan, click again to zoom out. Two zoom modes, switched with **Z** (remembered):
+  - **Synced zoom** (default) — every photo zooms to the same spot and pans together: compare a detail directly.
+  - **Whole zoom** — the composition zooms as one image.
+- **S** — for exactly two photos, a draggable before/after **slider** instead of side by side.
+- **Edit (E)** — compose mode, in place:
+  - **Title** — names the comparison (shown on its tile).
+  - **Fill vs Fit** — *Fill* (default) crops each photo to its cell; click a photo to set its **focal point** (what stays centred). *Fit* letterboxes the whole photo. **Focal** hides/shows the dots.
+  - **Aspect-driver (⚓)** — which photo's shape every cell takes.
+  - **◀ ▶** reorder (before ↔ after), **🗑** remove a photo (min 2), **Add photos**, **Delete** the comparison.
+  - **Done** (or Esc) returns to viewing.
 
 ### Adding photos
 
 - **GRID collections** — from any lightbox's **info panel → Collections** (a person's Recent Photos, Photos/Details tab, a set/session), the collection's **Browse & Add** (multi-select), or **drag** a thumbnail onto the open collection.
-- **Before/after collections** — a photo belongs to a *comparison*, not the collection directly, so you build comparisons:
-  - **Compare tray** — in any lightbox, **Add to compare** (the ⧉ button) gathers photos into a tray (a bar at the bottom, kept as you browse). When you have 2+, **Make comparison** → pick a before/after collection (or make one) → it creates the comparison, or appends the tray to an existing one.
+- **Comparison collections** — a photo belongs to a *comparison*, not the collection directly, so you build comparisons:
+  - **Compare tray** — in any lightbox, **Add to compare** (the ⧉ button) gathers photos into a tray (a bar at the bottom, kept as you browse). When you have 2+, **Make comparison** → pick a comparison collection (or make one) → it creates the comparison, or appends the tray to an existing one.
   - Inside a collection, **New comparison**; inside a comparison, **Add photos**.
 
 ---

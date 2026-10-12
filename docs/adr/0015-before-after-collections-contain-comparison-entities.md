@@ -2,6 +2,10 @@
 
 Decided 2026-06-13 (design review, /grill-with-docs — supersedes the flat SIDE_BY_SIDE rendering shipped earlier the same day).
 
+> **Amended 2026-10-12 (name only):** the collection type is called **Comparison** in the app (was "Before / after") — before/after is one use of it, alongside over-time and cross-person comparisons. The stored value stays `SIDE_BY_SIDE`; the collections filter uses `layout=comparison` and still accepts the old `before-after`. Nothing else in this decision changes.
+>
+> **Amended 2026-10-12 (viewing):** the browser tile is no longer a montage of thumbnails but the comparison **as composed** (aspect-driver cells, fit, focal), laid out in justified rows like a Grid collection. Opening a comparison is **view first**: a lightbox with click-to-zoom (synchronized across cells, or the whole row as one image — the user's choice), ←/→ through the collection's comparisons, Esc/Back to close. The editing described below (fit, focal, aspect-driver, order, members) is **compose mode inside that viewer** (Edit / E), no longer the page a click lands on; `/collections/[id]/comparison/[cid]` redirects into it. Industry basis: Lightroom Loupe vs Develop, Apple/Google Photos "Edit", clinical before/after presentation views.
+
 ## Context
 
 ADR-0014 / D8 introduced `MediaCollection.layout = SIDE_BY_SIDE` as a "before/after composite". The first implementation made a SIDE_BY_SIDE collection a flat bag of photos (`MediaCollectionItem`) and rendered *all of them* in one comparison row. In use this was wrong: a collection should hold **many** comparisons, each a small group of images that belong together — not one ever-growing row.

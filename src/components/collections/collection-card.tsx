@@ -59,7 +59,7 @@ export function CollectionCard({ collection: c }: { collection: CollectionSummar
             </div>
           )}
 
-          {/* Top-left badge cluster: type, before/after, target */}
+          {/* Top-left badge cluster: type, comparison, target */}
           <div className="absolute left-2 top-2 flex flex-wrap items-center gap-1">
             {c.personId ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/30 bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-600 backdrop-blur-sm dark:text-sky-400">
@@ -75,7 +75,7 @@ export function CollectionCard({ collection: c }: { collection: CollectionSummar
             {c.layout === "SIDE_BY_SIDE" && (
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600 backdrop-blur-sm dark:text-amber-400">
                 <Columns2 size={10} />
-                Before / after
+                Comparison
               </span>
             )}
             {c.isTarget && (

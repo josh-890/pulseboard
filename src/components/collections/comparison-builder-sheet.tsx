@@ -39,7 +39,7 @@ function toPickerItem(r: MediaSearchResult): PickerItem {
 
 /**
  * Pick photos to build a comparison. Without `comparisonId` → creates a new
- * Comparison (≥2) and navigates to it; with `comparisonId` → adds the picked
+ * Comparison (≥2) and opens it in compose mode; with `comparisonId` → adds the picked
  * photos to that existing comparison.
  */
 export function ComparisonBuilderSheet({
@@ -118,7 +118,8 @@ export function ComparisonBuilderSheet({
     const result = await createComparisonAction(collectionId, ids);
     if (result.success && result.id) {
       onOpenChange(false);
-      router.push(`/collections/${collectionId}/comparison/${result.id}`);
+      // A fresh comparison opens in compose mode
+      router.push(`/collections/${collectionId}?c=${result.id}&edit=1`);
     } else {
       toast.error(result.error ?? "Failed to create comparison");
     }

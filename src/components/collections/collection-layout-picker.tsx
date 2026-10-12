@@ -6,7 +6,7 @@ import type { CollectionLayout } from "@/lib/services/collection-service";
 
 const OPTIONS: { value: CollectionLayout; label: string; icon: typeof LayoutGrid }[] = [
   { value: "GRID", label: "Grid", icon: LayoutGrid },
-  { value: "SIDE_BY_SIDE", label: "Before / after", icon: Columns2 },
+  { value: "SIDE_BY_SIDE", label: "Comparison", icon: Columns2 },
 ];
 
 export function CollectionLayoutPicker({
