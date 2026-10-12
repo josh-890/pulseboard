@@ -426,10 +426,10 @@ Only photos from the person's reference session can be embedded — external URL
   covers: title and date under each cover; a coloured dot for the status
   (promoted / approved / in review / pending), a folder icon for the
   archive state, the rating and a video mark on the image. Hovering a
-  promoted photo set shows four of its images. The cover's **frame** marks what still
-  needs work and fades as a set is developed: dashed amber = in the
-  archive only (a folder, not yet approved), solid green = approved but
-  not promoted, no frame = promoted. A set only in the pipeline (All) has
+  promoted photo set shows four of its images. The cover's **frame** shows how far a
+  set is developed, in fading steps: solid green = promoted, finer
+  dashed pale green = approved, hairline dotted amber = in the archive
+  only (a folder, not yet approved). A set only in the pipeline (All) has
   no frame and a dimmed cover. A key above the
   grid lists the frames present. Tile size **S / M / L**;
   photo covers are 2:3, video covers 16:9.

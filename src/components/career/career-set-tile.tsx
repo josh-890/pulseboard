@@ -14,13 +14,12 @@ import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-s
 // so the gallery shows what is inside, not only the cover. Same click target
 // as the row: promoted → /sets/[id]; staged → /staging-sets focused on it.
 //
-// The cover's frame marks what still needs work, and fades as a set is
-// developed: in the archive only (a folder, not yet approved) = dashed amber,
-// approved but not promoted = solid emerald, promoted = no frame — the
-// finished sets are the calm background. Line style differs as well as hue,
-// so amber and green tell apart without colour (WCAG 1.4.1). A set only in
-// the pipeline (pending / in review, no archive folder — "All" scope) has no
-// frame either, but a dimmed cover.
+// The cover's frame shows how far a set is developed, in fading steps of the
+// same green: promoted = clear solid line, approved = finer dashed line at
+// lower strength; a set only in the archive (a folder, not yet approved) =
+// hairline dotted amber. Line style changes with every step, so the steps
+// read without colour too (WCAG 1.4.1). A set only in the pipeline (pending /
+// in review, no archive folder — "All" scope) has no frame and a dimmed cover.
 
 const STATUS_DOT_CLASS: Record<CareerRowStatus, string> = {
   promoted: "bg-emerald-500",
@@ -38,9 +37,9 @@ export function careerTier(row: CareerTimelineRow): CareerTier {
 }
 
 export const CAREER_TIER_FRAME_CLASS: Record<CareerTier, string> = {
-  promoted: "",
-  approved: "outline-2 outline-solid outline-emerald-500/80",
-  archive: "outline-2 outline-dashed outline-amber-500/90",
+  promoted: "outline-2 outline-solid outline-emerald-500",
+  approved: "outline-[1.5px] outline-dashed outline-emerald-500/55",
+  archive: "outline-1 outline-dotted outline-amber-500/80",
   pipeline: "",
 };
 
