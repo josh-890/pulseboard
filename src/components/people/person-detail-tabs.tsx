@@ -136,6 +136,7 @@ type PersonDetailTabsProps = {
   careerActiveArchiveStatuses?: string[];
   careerActiveLabelIds?: string[];
   careerActiveStatuses?: string[];
+  careerScope?: import("@/lib/services/career-service").CareerScope;
   careerActiveSort?: import("@/lib/services/career-service").CareerSort;
   // ADR-0004 — eraContributions: per-era list of sessions filed into it.
   // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
@@ -1808,6 +1809,7 @@ export function PersonDetailTabs({
   careerActiveArchiveStatuses = [],
   careerActiveLabelIds = [],
   careerActiveStatuses = [],
+  careerScope = "library",
   careerActiveSort = "date-desc",
   eraContributions,
 }: PersonDetailTabsProps) {
@@ -2075,6 +2077,7 @@ export function PersonDetailTabs({
             activeArchiveStatuses={careerActiveArchiveStatuses}
             activeLabelIds={careerActiveLabelIds}
             activeStatuses={careerActiveStatuses}
+            scope={careerScope}
             activeSort={careerActiveSort}
             withTint={true}
           />

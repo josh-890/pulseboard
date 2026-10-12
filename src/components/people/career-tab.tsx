@@ -26,6 +26,7 @@ import { CareerStatsStrip } from "@/components/people/career-stats-strip";
 import type {
   CareerTimelineRow,
   CareerFacetCounts,
+  CareerScope,
   CareerSort,
   CareerStats,
 } from "@/lib/services/career-service";
@@ -62,6 +63,8 @@ export type CareerTabProps = {
   activeArchiveStatuses: string[];
   activeLabelIds: string[];
   activeStatuses: string[];
+  // "library" (default) = promoted + approved + in the archive; "all" = the pipeline
+  scope: CareerScope;
   activeSort: CareerSort;
   withTint: boolean;
 };
@@ -125,6 +128,7 @@ export function CareerTab({
   activeArchiveStatuses,
   activeLabelIds,
   activeStatuses,
+  scope,
   activeSort,
   withTint,
 }: CareerTabProps) {
@@ -274,6 +278,13 @@ export function CareerTab({
     });
   };
 
+  const handleScopeChange = (next: CareerScope) => {
+    setUrl((sp) => {
+      if (next === "all") sp.set("cscope", "all");
+      else sp.delete("cscope");
+    });
+  };
+
   const handleClearFilters = () => {
     setUrl((sp) => {
       sp.delete("channel");
@@ -412,6 +423,28 @@ export function CareerTab({
           Empty selection = all shown; an active pill filters to (only) the
           selected states. Dot colour matches the row pill/stripe palette. */}
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div role="group" aria-label="Which sets" className="mr-2 inline-flex items-center rounded-full border border-white/15 bg-muted/40 p-0.5">
+          {(
+            [
+              ["library", "Library", "Promoted, approved and every set with a confirmed archive folder"],
+              ["all", "All", "Every set, including pending and in-review sets without an archive folder"],
+            ] as const
+          ).map(([v, label, hint]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => handleScopeChange(v)}
+              aria-pressed={scope === v}
+              title={hint}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                scope === v ? "bg-primary/15 font-medium text-primary" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <span className="uppercase tracking-wider text-muted-foreground opacity-70">
           Status
         </span>
@@ -648,6 +681,7 @@ export function CareerTab({
             handleTypeChange(activeType === "photo" ? "video" : "photo")
           }
           onClearFilters={handleClearFilters}
+          onShowAll={scope === "library" ? () => handleScopeChange("all") : undefined}
           onAddSet={() => setCreateKnownSetOpen(true)}
         />
       ) : (
@@ -713,12 +747,15 @@ function CareerEmptyState({
   anyFilterActive,
   onSwitchType,
   onClearFilters,
+  onShowAll,
   onAddSet,
 }: {
   activeType: SetType;
   anyFilterActive: boolean;
   onSwitchType: () => void;
   onClearFilters: () => void;
+  /** Present in the Library scope — the sets may be in the pipeline */
+  onShowAll?: () => void;
   onAddSet: () => void;
 }) {
   if (anyFilterActive) {
@@ -731,6 +768,23 @@ function CareerEmptyState({
           className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
         >
           Clear filters
+        </button>
+      </div>
+    );
+  }
+  if (onShowAll) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-white/10 py-12 text-sm text-muted-foreground">
+        <p>
+          No {activeType === "photo" ? "photo" : "video"} sets in the library yet — none promoted, approved
+          or linked to an archive folder.
+        </p>
+        <button
+          type="button"
+          onClick={onShowAll}
+          className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary hover:bg-primary/20 transition-colors"
+        >
+          Show all sets
         </button>
       </div>
     );

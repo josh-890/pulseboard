@@ -40,6 +40,8 @@ export type CareerSort =
 // still in the pipeline. Drives the row pill/stripe/tint and the Status facet.
 export type CareerRowStatus = "promoted" | "approved" | "reviewing" | "pending";
 
+export type CareerScope = "library" | "all";
+
 export type CareerTimelineFilters = {
   type?: SetType; // "photo" | "video" — when undefined, both included
   channelIds?: string[];
@@ -51,6 +53,10 @@ export type CareerTimelineFilters = {
   labelIds?: string[];
   // Pipeline states to include. When undefined/empty, all four are shown.
   statuses?: CareerRowStatus[];
+  // "library" (the tab's default): what is in the collection — promoted sets,
+  // approved staged sets, and any staged set with a confirmed archive folder.
+  // "all" (or absent): the whole pipeline. Applied before the status filter.
+  scope?: CareerScope;
   sort?: CareerSort;
 };
 
@@ -247,6 +253,11 @@ function buildStagedWhere(
     status: { in: stagedStatuses },
     matchedSetId: null,
   };
+  if (filters.scope === "library") {
+    whereStaging.AND = [
+      { OR: [{ status: "APPROVED" }, { archiveLinks: { some: { status: "CONFIRMED" } } }] },
+    ];
+  }
   if (filters.type === "photo") whereStaging.isVideo = false;
   else if (filters.type === "video") whereStaging.isVideo = true;
   if (filters.channelIds && filters.channelIds.length > 0) {
@@ -790,6 +801,7 @@ export async function getCareerFacetCounts(
       f.archiveStatuses,
       f.labelIds,
       f.statuses,
+      f.scope,
     ]);
     let p = cache.get(key);
     if (!p) {

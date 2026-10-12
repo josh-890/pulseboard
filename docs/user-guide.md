@@ -415,12 +415,22 @@ Only photos from the person's reference session can be embedded — external URL
   density each row is one line (date · channel · title + status), with a
   chevron to expand just that row to its full card. Grouping, density and
   collapse state are remembered per person
+- **Library | All** (left of the status pills). The tab opens on
+  **Library** — what is in the collection: promoted sets, approved staged
+  sets, and any staged set with a confirmed archive folder. **All** adds
+  the rest of the pipeline (pending / in review without a folder); the
+  choice is in the URL (`cscope=all`). The status pills and their counts
+  work within the chosen scope
 - **List | Gallery** switch. Gallery shows the same sets — same filters,
   sort, groups, collapse state and year scrubber — as a poster grid of
   covers: title and date under each cover; a coloured dot for the status
   (promoted / approved / in review / pending), a folder icon for the
   archive state, the rating and a video mark on the image. Hovering a
-  promoted photo set shows four of its images. Tile size **S / M / L**;
+  promoted photo set shows four of its images. The cover's **frame** says
+  where a set stands, by colour and line: solid green = promoted, solid
+  cyan = approved, dashed grey = in the archive only; a set that is only
+  in the pipeline (All) has no frame and a dimmed cover. A key above the
+  grid lists the frames present. Tile size **S / M / L**;
   photo covers follow the Sets cover shape (Settings → Browser layout).
   The view and tile size are remembered for every person, and
   `?view=gallery` links straight to it. **Open in Sets →** opens the

@@ -5,7 +5,8 @@ import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucid
 import { cn } from "@/lib/utils";
 import { getAppScrollEl } from "@/lib/scroll-container";
 import { TimelineSetRow } from "./timeline-set-row";
-import { CareerSetTile } from "./career-set-tile";
+import { CareerSetTile, careerTier, type CareerTier } from "./career-set-tile";
+import { CareerTierLegend } from "./career-tier-legend";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { SetHoverPreview, SET_HOVER_PREVIEW_DIMS } from "./set-hover-preview";
 import { YearScrubber, type YearScrubberEntry } from "./year-scrubber";
@@ -199,6 +200,10 @@ export function TimelineSection({
 }: TimelineSectionProps) {
   const sections = useMemo(() => buildSections(rows, groupBy), [rows, groupBy]);
   const { setsCoverAspect } = useBrowserLayout();
+  const tiers = useMemo(() => {
+    const present = new Set(rows.map(careerTier));
+    return (["promoted", "approved", "archive", "pipeline"] as CareerTier[]).filter((t) => present.has(t));
+  }, [rows]);
   const yearRefs = useRef<Map<number, HTMLElement>>(new Map());
   const [activeYear, setActiveYear] = useState<number | undefined>(
     sections[0]?.year,
@@ -427,24 +432,33 @@ export function TimelineSection({
     <div className={cn("flex gap-3", showScrubber ? "pr-2" : "")}>
       <div className="min-w-0 flex-1 space-y-3">
         {/* Collapse-all / expand-all */}
-        {sections.length > 1 && (
+        {(sections.length > 1 || view === "gallery") && (
           <div className="flex items-center justify-end gap-1 text-[11px] text-muted-foreground">
-            <button
-              type="button"
-              onClick={collapseAll}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/[0.05] hover:text-foreground transition-colors"
-            >
-              <ChevronsDownUp size={12} />
-              Collapse all
-            </button>
-            <button
-              type="button"
-              onClick={expandAll}
-              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/[0.05] hover:text-foreground transition-colors"
-            >
-              <ChevronsUpDown size={12} />
-              Expand all
-            </button>
+            {view === "gallery" && (
+              <div className="mr-auto">
+                <CareerTierLegend tiers={tiers} />
+              </div>
+            )}
+            {sections.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/[0.05] hover:text-foreground transition-colors"
+                >
+                  <ChevronsDownUp size={12} />
+                  Collapse all
+                </button>
+                <button
+                  type="button"
+                  onClick={expandAll}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/[0.05] hover:text-foreground transition-colors"
+                >
+                  <ChevronsUpDown size={12} />
+                  Expand all
+                </button>
+              </>
+            )}
           </div>
         )}
 

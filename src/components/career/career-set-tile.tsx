@@ -7,7 +7,13 @@ import { cn } from "@/lib/utils";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
-// One poster in the Career gallery — the visual counterpart of
+// One poster in the Career gallery. The cover's frame says where the set
+// stands in the collection — redundantly by colour AND line style, so it reads
+// without colour too (WCAG 1.4.1): promoted = solid emerald, approved = solid
+// cyan, in the archive only = dashed slate; a set that is only in the pipeline
+// (pending / in review, no archive folder — "All" scope) has no frame and a
+// dimmed cover, so the collection stands out.
+// — the visual counterpart of
 // TimelineSetRow, for promoted and staged sets alike. Cover first; title and
 // date below; status, archive state, rating and media type as badges on the
 // image. Hovering a promoted photo set swaps in a strip of its sample images,
@@ -19,6 +25,28 @@ const STATUS_DOT_CLASS: Record<CareerRowStatus, string> = {
   approved: "bg-cyan-500",
   reviewing: "bg-amber-500",
   pending: "bg-blue-500",
+};
+
+export type CareerTier = "promoted" | "approved" | "archive" | "pipeline";
+
+export function careerTier(row: CareerTimelineRow): CareerTier {
+  if (row.rowStatus === "promoted") return "promoted";
+  if (row.rowStatus === "approved") return "approved";
+  return row.hasArchiveLink ? "archive" : "pipeline";
+}
+
+export const CAREER_TIER_FRAME_CLASS: Record<CareerTier, string> = {
+  promoted: "outline-2 outline-solid outline-emerald-500",
+  approved: "outline-2 outline-solid outline-cyan-500",
+  archive: "outline-2 outline-dashed outline-slate-400",
+  pipeline: "",
+};
+
+export const CAREER_TIER_LABEL: Record<CareerTier, string> = {
+  promoted: "Promoted",
+  approved: "Approved",
+  archive: "In archive only",
+  pipeline: "Pipeline only",
 };
 
 function formatIsoDate(date: Date | null): string {
@@ -49,9 +77,11 @@ export function CareerSetTile({ row, photoAspect }: CareerSetTileProps) {
   const archive = archiveBadge(row);
   const samples = row.sampleThumbnails;
   const rating = row.rating;
+  const tier = careerTier(row);
 
   const tooltip = [
     row.title,
+    CAREER_TIER_LABEL[tier],
     row.channelName,
     row.participants.length > 0
       ? `with ${row.participants.map((p) => p.commonAlias).join(", ")}${row.extraParticipantCount > 0 ? ` +${row.extraParticipantCount}` : ""}`
@@ -71,7 +101,8 @@ export function CareerSetTile({ row, photoAspect }: CareerSetTileProps) {
     >
       <div
         className={cn(
-          "relative w-full overflow-hidden rounded-md border border-white/10 bg-muted/40",
+          "relative w-full overflow-hidden rounded-md bg-muted/40",
+          tier === "pipeline" ? "border border-white/10" : cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[tier]),
           isVideo ? "aspect-video" : photoAspect === "portrait" ? "aspect-[2/3]" : "aspect-[4/3]",
         )}
       >
@@ -83,7 +114,10 @@ export function CareerSetTile({ row, photoAspect }: CareerSetTileProps) {
             unoptimized
             loading="lazy"
             decoding="async"
-            className="object-cover transition-transform duration-200 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+            className={cn(
+              "object-cover transition duration-200 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100",
+              tier === "pipeline" && "opacity-60 group-hover:opacity-100 group-focus-visible:opacity-100",
+            )}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">

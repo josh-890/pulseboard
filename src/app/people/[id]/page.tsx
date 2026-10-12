@@ -33,6 +33,7 @@ import {
   type CareerSort,
   type CareerArchiveStatusBucket,
   type CareerRowStatus,
+  type CareerScope,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
 import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
@@ -55,6 +56,7 @@ type PersonDetailPageProps = {
     clabel?: string;
     csort?: string;
     cstatus?: string;
+    cscope?: string;
   }>;
 };
 
@@ -111,6 +113,10 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         )
       : [];
 
+    // The tab opens on the collection (promoted, approved, in the archive);
+    // `cscope=all` shows the whole pipeline
+    const careerScope: CareerScope = sp.cscope === "all" ? "all" : "library";
+
     const careerFilters = {
       type: ctype as "photo" | "video",
       channelIds: channelIds.length > 0 ? channelIds : undefined,
@@ -119,6 +125,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       archiveStatuses: archiveStatuses.length > 0 ? archiveStatuses : undefined,
       labelIds: labelIds.length > 0 ? labelIds : undefined,
       statuses: activeStatuses.length > 0 ? activeStatuses : undefined,
+      scope: careerScope,
       sort: careerSort,
     };
 
@@ -300,6 +307,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         careerActiveArchiveStatuses={archiveStatuses}
         careerActiveLabelIds={labelIds}
         careerActiveStatuses={activeStatuses}
+        careerScope={careerScope}
         careerActiveSort={careerSort}
         eraContributions={eraContributions}
         entityTags={personEntityTags}
