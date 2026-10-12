@@ -5,6 +5,8 @@ import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucid
 import { cn } from "@/lib/utils";
 import { getAppScrollEl } from "@/lib/scroll-container";
 import { TimelineSetRow } from "./timeline-set-row";
+import { CareerSetTile } from "./career-set-tile";
+import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { SetHoverPreview, SET_HOVER_PREVIEW_DIMS } from "./set-hover-preview";
 import { YearScrubber, type YearScrubberEntry } from "./year-scrubber";
 import { GroupHeader } from "@/components/shared/group-header";
@@ -35,6 +37,17 @@ export type CareerGroupBy = "year" | "status" | "channelYear";
 
 export type CareerDensity = "full" | "compact";
 
+export type CareerView = "list" | "gallery";
+
+export type CareerTileSize = "s" | "m" | "l";
+
+// Gallery column widths per tile size — auto-fill keeps it responsive
+const TILE_GRID_CLASS: Record<CareerTileSize, string> = {
+  s: "grid-cols-[repeat(auto-fill,minmax(7rem,1fr))]",
+  m: "grid-cols-[repeat(auto-fill,minmax(10rem,1fr))]",
+  l: "grid-cols-[repeat(auto-fill,minmax(14rem,1fr))]",
+};
+
 export type TimelineSectionProps = {
   rows: CareerTimelineRow[];
   withTint: boolean;
@@ -42,6 +55,10 @@ export type TimelineSectionProps = {
   // "full" (default) renders cover cards; "compact" renders single-line rows
   // with a per-row expand affordance back to the full card.
   density?: CareerDensity;
+  // "gallery" renders each group as a poster grid instead of rows — same
+  // groups, collapse state and scrubber
+  view?: CareerView;
+  tileSize?: CareerTileSize;
   // localStorage key prefix for persisting collapsed sections. Collapse state
   // is stored per (person, groupBy) by the caller composing this key.
   collapseStorageKey?: string;
@@ -174,11 +191,14 @@ export function TimelineSection({
   withTint,
   groupBy = "year",
   density = "full",
+  view = "list",
+  tileSize = "m",
   collapseStorageKey,
   ageAtShoot,
   eraLabelForYear,
 }: TimelineSectionProps) {
   const sections = useMemo(() => buildSections(rows, groupBy), [rows, groupBy]);
+  const { setsCoverAspect } = useBrowserLayout();
   const yearRefs = useRef<Map<number, HTMLElement>>(new Map());
   const [activeYear, setActiveYear] = useState<number | undefined>(
     sections[0]?.year,
@@ -352,7 +372,16 @@ export function TimelineSection({
   };
 
   const renderRows = (list: CareerTimelineRow[]) =>
-    list.map((row) => {
+    view === "gallery" ? (
+      // content-visibility lets the browser skip layout/paint of off-screen
+      // groups — careers run to 2,000+ sets
+      <div className={cn("grid gap-2 [content-visibility:auto]", TILE_GRID_CLASS[tileSize])}>
+        {list.map((row) => (
+          <CareerSetTile key={rowKey(row)} row={row} photoAspect={setsCoverAspect} />
+        ))}
+      </div>
+    ) : (
+      list.map((row) => {
       const key = rowKey(row);
       if (density === "compact") {
         const expanded = expandedRows.has(key);
@@ -391,7 +420,8 @@ export function TimelineSection({
           onCoverLeave={handleCoverLeave}
         />
       );
-    });
+    })
+    );
 
   return (
     <div className={cn("flex gap-3", showScrubber ? "pr-2" : "")}>

@@ -415,6 +415,16 @@ Only photos from the person's reference session can be embedded — external URL
   density each row is one line (date · channel · title + status), with a
   chevron to expand just that row to its full card. Grouping, density and
   collapse state are remembered per person
+- **List | Gallery** switch. Gallery shows the same sets — same filters,
+  sort, groups, collapse state and year scrubber — as a poster grid of
+  covers: title and date under each cover; a coloured dot for the status
+  (promoted / approved / in review / pending), a folder icon for the
+  archive state, the rating and a video mark on the image. Hovering a
+  promoted photo set shows four of its images. Tile size **S / M / L**;
+  photo covers follow the Sets cover shape (Settings → Browser layout).
+  The view and tile size are remembered for every person, and
+  `?view=gallery` links straight to it. **Open in Sets →** opens the
+  person's promoted sets in the full Sets gallery (selection, bulk tagging)
 
 **Connections** (formerly "Network")
 How this person relates to others, in three sections:

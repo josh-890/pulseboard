@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { Briefcase, Camera, Film, List, Plus, Rows3, X } from "lucide-react";
+import { Briefcase, Camera, Film, LayoutGrid, List, Plus, Rows3, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +18,8 @@ import {
   TimelineSection,
   type CareerGroupBy,
   type CareerDensity,
+  type CareerTileSize,
+  type CareerView,
 } from "@/components/career/timeline-section";
 import { CreateKnownSetSheet } from "@/components/staging-sets/create-known-set-sheet";
 import { CareerStatsStrip } from "@/components/people/career-stats-strip";
@@ -169,6 +172,52 @@ export function CareerTab({
     setDensity(next);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(`career.density.${person.id}`, next);
+    }
+  };
+
+  // List or gallery — one choice for every person (like the /sets layout),
+  // remembered in localStorage; `?view=gallery` links straight to it. Switching
+  // rewrites the URL with history.replaceState, so nothing is refetched.
+  const [view, setView] = useState<CareerView>("list");
+  const [tileSize, setTileSize] = useState<CareerTileSize>("m");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlView = searchParams.get("view");
+    let stored: string | null = null;
+    let storedSize: string | null = null;
+    try {
+      stored = window.localStorage.getItem("career.view");
+      storedSize = window.localStorage.getItem("career.tileSize");
+    } catch {
+      /* storage unavailable — keep the defaults */
+    }
+    const next = urlView === "gallery" || urlView === "list" ? urlView : stored;
+    // Hydration-safe restore (default on first paint, upgrade after mount).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (next === "gallery" || next === "list") setView(next);
+    if (storedSize === "s" || storedSize === "m" || storedSize === "l") setTileSize(storedSize);
+  }, [searchParams]);
+
+  const handleViewChange = (next: CareerView) => {
+    setView(next);
+    try {
+      window.localStorage.setItem("career.view", next);
+    } catch {
+      /* ignore */
+    }
+    const sp = new URLSearchParams(window.location.search);
+    if (next === "gallery") sp.set("view", "gallery");
+    else sp.delete("view");
+    const qs = sp.toString();
+    window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const handleTileSizeChange = (next: CareerTileSize) => {
+    setTileSize(next);
+    try {
+      window.localStorage.setItem("career.tileSize", next);
+    } catch {
+      /* ignore */
     }
   };
 
@@ -482,24 +531,71 @@ export function CareerTab({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={toggleDensity}
-          aria-pressed={density === "compact"}
-          title={
-            density === "compact"
-              ? "Compact rows — click for full cover cards"
-              : "Full cover cards — click for compact rows"
-          }
-          className={cn(
-            "h-8 gap-1 text-xs",
-            density === "compact" && "border-primary/50 bg-primary/10 text-primary",
-          )}
-        >
-          {density === "compact" ? <List size={12} /> : <Rows3 size={12} />}
-          {density === "compact" ? "Compact" : "Full"}
-        </Button>
+        <div role="group" aria-label="View" className="inline-flex h-8 items-center rounded-md border border-input p-0.5">
+          {(["list", "gallery"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => handleViewChange(v)}
+              aria-pressed={view === v}
+              title={v === "list" ? "Timeline list" : "Cover gallery"}
+              className={cn(
+                "inline-flex h-full items-center gap-1 rounded px-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                view === v ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
+              )}
+            >
+              {v === "list" ? <List size={12} /> : <LayoutGrid size={12} />}
+              {v === "list" ? "List" : "Gallery"}
+            </button>
+          ))}
+        </div>
+        {view === "list" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleDensity}
+            aria-pressed={density === "compact"}
+            title={
+              density === "compact"
+                ? "Compact rows — click for full cover cards"
+                : "Full cover cards — click for compact rows"
+            }
+            className={cn(
+              "h-8 gap-1 text-xs",
+              density === "compact" && "border-primary/50 bg-primary/10 text-primary",
+            )}
+          >
+            {density === "compact" ? <List size={12} /> : <Rows3 size={12} />}
+            {density === "compact" ? "Compact" : "Full"}
+          </Button>
+        ) : (
+          <div role="group" aria-label="Tile size" className="inline-flex h-8 items-center rounded-md border border-input p-0.5">
+            {(["s", "m", "l"] as const).map((sz) => (
+              <button
+                key={sz}
+                type="button"
+                onClick={() => handleTileSizeChange(sz)}
+                aria-pressed={tileSize === sz}
+                title={{ s: "Small tiles", m: "Medium tiles", l: "Large tiles" }[sz]}
+                className={cn(
+                  "inline-flex h-full w-7 items-center justify-center rounded text-xs font-medium uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  tileSize === sz ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
+                )}
+              >
+                {sz}
+              </button>
+            ))}
+          </div>
+        )}
+        {view === "gallery" && careerStats.promoted.photos + careerStats.promoted.videos > 0 && (
+          <Link
+            href={`/sets?personId=${person.id}`}
+            title="The promoted sets in the full Sets gallery — selection, bulk tagging"
+            className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Open in Sets →
+          </Link>
+        )}
         {anyFilterActive && (
           <button
             type="button"
@@ -560,6 +656,8 @@ export function CareerTab({
           withTint={withTint}
           groupBy={groupBy}
           density={density}
+          view={view}
+          tileSize={tileSize}
           collapseStorageKey={`career.collapse.${person.id}`}
         />
       )}
