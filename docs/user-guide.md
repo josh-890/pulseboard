@@ -968,7 +968,7 @@ A comparison opens like a single photo does in a photo collection:
 - **S** — for exactly two photos, a draggable before/after **slider** instead of side by side.
 - **Edit (E)** — compose mode, in place:
   - **Title** — names the comparison (shown on its tile).
-  - **Fill vs Fit** — *Fill* (default) crops each photo to its cell; click a photo to set its **focal point** (what stays centred). *Fit* letterboxes the whole photo. **Focal** hides/shows the dots.
+  - **Fill vs Fit** — *Fill* (default) crops each photo to its cell. **Frame** a photo by **dragging** it inside its cell (it moves only where it is cropped and stops at the edge), or **click** a spot to centre it. The dot marks the saved point. *Fit* letterboxes the whole photo. **Focal** hides the dots and switches framing off.
   - **Aspect-driver (⚓)** — which photo's shape every cell takes.
   - **◀ ▶** reorder (before ↔ after), **🗑** remove a photo (min 2), **Add photos**, **Delete** the comparison.
   - **Done** (or Esc) returns to viewing.

@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Anchor, ArrowLeft, ArrowRight, Check, Crop, Crosshair, Maximize2, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ComparisonComposite, comparisonShape } from "@/components/collections/comparison-composite";
+import { ComparisonComposite, comparisonShape, memberFocal } from "@/components/collections/comparison-composite";
+import { dragAxis, focalAfterDrag, focalInCell, photoPointAt, type Focal } from "@/lib/comparison-focal";
 import { ComparisonFitStage } from "@/components/collections/comparison-fit-stage";
 import { ComparisonBuilderSheet } from "@/components/collections/comparison-builder-sheet";
 import {
@@ -20,8 +21,9 @@ import {
 import type { ComparisonDetail, ComparisonFitMode } from "@/lib/services/comparison-service";
 
 // Compose mode of the comparison viewer — how the photos of a comparison are put
-// together: title, Fill/Fit, focal points (Fill), the aspect-driver (⚓), order,
-// adding/removing photos, deleting the comparison. Entered from the viewer with
+// together: title, Fill/Fit, framing (Fill: drag a photo inside its cell, or
+// click a spot to centre it), the aspect-driver (⚓), order, adding/removing
+// photos, deleting the comparison. Entered from the viewer with
 // Edit (E); Done returns to viewing.
 
 export type ComparisonComposeToolsProps = {
@@ -51,7 +53,29 @@ export function ComparisonComposeTools({
 
   const members = comparison.members;
   const isCover = comparison.fitMode === "COVER";
-  const { rowAspect } = comparisonShape(members);
+  const { rowAspect, cellW, cellH } = comparisonShape(members);
+  const cellAspect = cellW / cellH;
+  const framing = isCover && showFocal;
+
+  // Framing: a press that moves is a drag (the photo follows the pointer, saved
+  // on release), one that does not is a click (that spot is centred). `live`
+  // shows the dragged or just-saved point until the refreshed data has it.
+  const [live, setLive] = useState<Record<string, Focal>>({});
+  const press = useRef<{ id: string; x: number; y: number; w: number; h: number; start: Focal | null; moved: boolean } | null>(null);
+  const focalOf = (m: (typeof members)[number]) => live[m.mediaItemId] ?? memberFocal(m);
+  const imageAspect = (m: (typeof members)[number]) => m.originalWidth / (m.originalHeight || 1);
+
+  const saveFocal = (mediaItemId: string, f: Focal) => {
+    setLive((l) => ({ ...l, [mediaItemId]: f }));
+    void run(() => setComparisonItemFocalAction(comparison.id, mediaItemId, f.x, f.y, collectionId)).then((ok) => {
+      if (!ok)
+        setLive((l) => {
+          const next = { ...l };
+          delete next[mediaItemId];
+          return next;
+        });
+    });
+  };
 
   const run = useCallback(
     async (fn: () => Promise<{ success: boolean; error?: string }>) => {
@@ -132,7 +156,7 @@ export function ComparisonComposeTools({
             type="button"
             onClick={() => setShowFocal((v) => !v)}
             aria-pressed={showFocal}
-            title={showFocal ? "Hide focal points" : "Show focal points (click a photo to set)"}
+            title={showFocal ? "Hide focal points (and stop framing)" : "Frame the photos: drag, or click a spot to centre it"}
             className={cn(toolButton, showFocal && "bg-white text-black hover:bg-white hover:text-black")}
           >
             <Crosshair size={12} /> Focal
@@ -157,7 +181,7 @@ export function ComparisonComposeTools({
       </div>
       {isCover && showFocal && (
         <p className="text-[11px] text-white/60">
-          Fill: click a photo to set its focal point (what stays centred). ⚓ picks whose shape every cell takes.
+          Fill: drag a photo to frame it, or click a spot to centre it. ⚓ picks whose shape every cell takes.
         </p>
       )}
 
@@ -166,86 +190,124 @@ export function ComparisonComposeTools({
           members={members}
           fitMode={comparison.fitMode}
           source="view"
-          className={cn(isCover && showFocal && "cursor-crosshair")}
-          onCellClick={(m, e) => {
-            if (!isCover || !showFocal) return;
-            const rect = e.currentTarget.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / rect.width;
-            const y = (e.clientY - rect.top) / rect.height;
-            void run(() => setComparisonItemFocalAction(comparison.id, m.mediaItemId, x, y, collectionId));
+          focalOverride={(m) => live[m.mediaItemId]}
+          cellOverlay={(m, i) => {
+            const axis = dragAxis(imageAspect(m), cellAspect);
+            const marker = focalInCell(focalOf(m), imageAspect(m), cellAspect);
+            return (
+              <>
+                {framing && (
+                  <div
+                    className={cn(
+                      "absolute inset-0 touch-none",
+                      axis === "x" ? "cursor-ew-resize" : axis === "y" ? "cursor-ns-resize" : "cursor-crosshair",
+                    )}
+                    title={axis ? "Drag to frame · click to centre a spot" : "This photo fits its cell — nothing to frame"}
+                    onPointerDown={(e) => {
+                      if (e.button !== 0 || busy) return;
+                      const r = e.currentTarget.getBoundingClientRect();
+                      press.current = { id: m.mediaItemId, x: e.clientX, y: e.clientY, w: r.width, h: r.height, start: focalOf(m), moved: false };
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    }}
+                    onPointerMove={(e) => {
+                      const p = press.current;
+                      if (!p || p.id !== m.mediaItemId) return;
+                      const dx = e.clientX - p.x;
+                      const dy = e.clientY - p.y;
+                      if (!p.moved && Math.hypot(dx, dy) < 5) return;
+                      p.moved = true;
+                      const f = focalAfterDrag(p.start, dx / p.w, dy / p.h, imageAspect(m), cellAspect);
+                      setLive((l) => ({ ...l, [m.mediaItemId]: f }));
+                    }}
+                    onPointerUp={(e) => {
+                      const p = press.current;
+                      press.current = null;
+                      if (!p || p.id !== m.mediaItemId) return;
+                      if (p.moved) {
+                        const f = focalAfterDrag(p.start, (e.clientX - p.x) / p.w, (e.clientY - p.y) / p.h, imageAspect(m), cellAspect);
+                        saveFocal(m.mediaItemId, f);
+                      } else {
+                        const r = e.currentTarget.getBoundingClientRect();
+                        const f = photoPointAt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, p.start, imageAspect(m), cellAspect);
+                        saveFocal(m.mediaItemId, f);
+                      }
+                    }}
+                    onPointerCancel={() => {
+                      press.current = null;
+                    }}
+                  />
+                )}
+                {framing && (
+                  <span
+                    className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/80 shadow"
+                    style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+                  />
+                )}
+                <div className="absolute right-1 top-1 flex gap-0.5">
+                  <button
+                    type="button"
+                    title={m.isAspectDriver ? "Aspect-driver" : "Use as aspect-driver"}
+                    aria-label={m.isAspectDriver ? "Aspect-driver" : "Use as aspect-driver"}
+                    disabled={busy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void run(() => setComparisonAspectDriverAction(comparison.id, m.mediaItemId, collectionId));
+                    }}
+                    className={cn("rounded p-1 backdrop-blur-sm", m.isAspectDriver ? "bg-amber-400 text-black" : "bg-black/55 text-white/80 hover:text-amber-300")}
+                  >
+                    <Anchor size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    title="Remove from comparison"
+                    aria-label="Remove from comparison"
+                    disabled={busy}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeMember(m.mediaItemId);
+                    }}
+                    className="rounded bg-black/55 p-1 text-white/80 backdrop-blur-sm hover:text-red-300"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] text-white/80">
+                  <span>
+                    {i === 0 ? "Before" : i === members.length - 1 ? "After" : `#${i + 1}`}
+                    {m.isAspectDriver && <span className="ml-1 text-amber-400">⚓</span>}
+                  </span>
+                  <span className="flex">
+                    <button
+                      type="button"
+                      disabled={busy || i === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        move(i, -1);
+                      }}
+                      title="Move earlier"
+                      aria-label="Move earlier"
+                      className="rounded p-0.5 hover:text-white disabled:opacity-30"
+                    >
+                      <ArrowLeft size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || i === members.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        move(i, 1);
+                      }}
+                      title="Move later"
+                      aria-label="Move later"
+                      className="rounded p-0.5 hover:text-white disabled:opacity-30"
+                    >
+                      <ArrowRight size={13} />
+                    </button>
+                  </span>
+                </div>
+              </>
+            );
           }}
-          cellOverlay={(m, i) => (
-            <>
-              {isCover && showFocal && (
-                <span
-                  className="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/80 shadow"
-                  style={{ left: `${(m.focalX ?? 0.5) * 100}%`, top: `${(m.focalY ?? 0.5) * 100}%` }}
-                />
-              )}
-              <div className="absolute right-1 top-1 flex gap-0.5">
-                <button
-                  type="button"
-                  title={m.isAspectDriver ? "Aspect-driver" : "Use as aspect-driver"}
-                  aria-label={m.isAspectDriver ? "Aspect-driver" : "Use as aspect-driver"}
-                  disabled={busy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void run(() => setComparisonAspectDriverAction(comparison.id, m.mediaItemId, collectionId));
-                  }}
-                  className={cn("rounded p-1 backdrop-blur-sm", m.isAspectDriver ? "bg-amber-400 text-black" : "bg-black/55 text-white/80 hover:text-amber-300")}
-                >
-                  <Anchor size={12} />
-                </button>
-                <button
-                  type="button"
-                  title="Remove from comparison"
-                  aria-label="Remove from comparison"
-                  disabled={busy}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeMember(m.mediaItemId);
-                  }}
-                  className="rounded bg-black/55 p-1 text-white/80 backdrop-blur-sm hover:text-red-300"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-[11px] text-white/80">
-                <span>
-                  {i === 0 ? "Before" : i === members.length - 1 ? "After" : `#${i + 1}`}
-                  {m.isAspectDriver && <span className="ml-1 text-amber-400">⚓</span>}
-                </span>
-                <span className="flex">
-                  <button
-                    type="button"
-                    disabled={busy || i === 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      move(i, -1);
-                    }}
-                    title="Move earlier"
-                    aria-label="Move earlier"
-                    className="rounded p-0.5 hover:text-white disabled:opacity-30"
-                  >
-                    <ArrowLeft size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy || i === members.length - 1}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      move(i, 1);
-                    }}
-                    title="Move later"
-                    aria-label="Move later"
-                    className="rounded p-0.5 hover:text-white disabled:opacity-30"
-                  >
-                    <ArrowRight size={13} />
-                  </button>
-                </span>
-              </div>
-            </>
-          )}
         />
       </ComparisonFitStage>
 

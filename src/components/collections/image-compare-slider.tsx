@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { ChevronsLeftRight } from "lucide-react";
+import { coverObjectPosition } from "@/lib/comparison-focal";
 
 type Focal = { x: number; y: number } | null;
 
@@ -16,12 +17,10 @@ type ImageCompareSliderProps = {
   fit?: "cover" | "contain";
   beforeFocal?: Focal;
   afterFocal?: Focal;
+  /** Each photo's width:height — with the frame's, places the focal point (cover) */
+  beforeAspect?: number;
+  afterAspect?: number;
 };
-
-function focalPos(focal: Focal): string | undefined {
-  if (!focal) return undefined;
-  return `${Math.round(focal.x * 100)}% ${Math.round(focal.y * 100)}%`;
-}
 
 /**
  * Draggable before/after reveal slider (juxtapose-style, no dependency). Both
@@ -39,7 +38,12 @@ export function ImageCompareSlider({
   fit = "contain",
   beforeFocal = null,
   afterFocal = null,
+  beforeAspect,
+  afterAspect,
 }: ImageCompareSliderProps) {
+  // Cover: the focal point centred as far as the photo allows, as in the comparison cells
+  const framePos = (focal: Focal, aspect: number | undefined) =>
+    fit === "cover" && aspect ? coverObjectPosition(focal, aspect, aspectW / aspectH) : undefined;
   const fitClass = fit === "cover" ? "object-cover" : "object-contain";
   const ref = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -73,7 +77,7 @@ export function ImageCompareSlider({
         alt={afterLabel}
         draggable={false}
         className={`pointer-events-none absolute inset-0 h-full w-full ${fitClass}`}
-        style={{ objectPosition: fit === "cover" ? focalPos(afterFocal) : undefined }}
+        style={{ objectPosition: framePos(afterFocal, afterAspect) }}
       />
       {/* Before (top layer, clipped to the left of the handle) */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -82,7 +86,7 @@ export function ImageCompareSlider({
         alt={beforeLabel}
         draggable={false}
         className={`pointer-events-none absolute inset-0 h-full w-full ${fitClass}`}
-        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)`, objectPosition: fit === "cover" ? focalPos(beforeFocal) : undefined }}
+        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)`, objectPosition: framePos(beforeFocal, beforeAspect) }}
       />
 
       <span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">{beforeLabel}</span>

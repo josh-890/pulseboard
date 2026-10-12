@@ -4,11 +4,13 @@ import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { zoomTransform, type ZoomState } from "@/lib/comparison-zoom";
+import { coverObjectPosition, type Focal } from "@/lib/comparison-focal";
 import type { ComparisonFitMode, ComparisonMember } from "@/lib/services/comparison-service";
 
 // A comparison drawn as it was composed (ADR-0015): its member photos in a row of
-// equal cells, each shaped like the aspect-driver, filled (COVER, kept on the focal
-// point) or letterboxed (CONTAIN). The grid tile, the viewer and compose mode all
+// equal cells, each shaped like the aspect-driver, filled (COVER, the focal point
+// centred as far as the photo allows — lib/comparison-focal) or letterboxed
+// (CONTAIN). The grid tile, the viewer and compose mode all
 // draw through this, so what the grid shows is what opens.
 
 export type ComparisonZoomMode = "synced" | "whole";
@@ -38,9 +40,15 @@ export type ComparisonCompositeProps = {
   /** Zoom click/drag handlers — on each cell (synced) or on the row (whole) */
   frameProps?: FrameProps;
   cellOverlay?: (member: ComparisonMember, index: number) => React.ReactNode;
-  onCellClick?: (member: ComparisonMember, e: React.MouseEvent<HTMLDivElement>) => void;
+  /** A focal point being dragged, shown instead of the stored one */
+  focalOverride?: (member: ComparisonMember) => Focal | null | undefined;
   className?: string;
 };
+
+/** A member's stored focal point */
+export function memberFocal(m: ComparisonMember): Focal | null {
+  return m.focalX != null && m.focalY != null ? { x: m.focalX, y: m.focalY } : null;
+}
 
 export function ComparisonComposite({
   members,
@@ -50,10 +58,11 @@ export function ComparisonComposite({
   zoomMode = "synced",
   frameProps,
   cellOverlay,
-  onCellClick,
+  focalOverride,
   className,
 }: ComparisonCompositeProps) {
-  const { rowAspect } = comparisonShape(members);
+  const { rowAspect, cellW, cellH } = comparisonShape(members);
+  const cellAspect = cellW / cellH;
   const isCover = fitMode === "COVER";
   const zoomed = !!zoom && zoom.scale > 1;
   const transform = zoom ? zoomTransform(zoom) : undefined;
@@ -76,7 +85,6 @@ export function ComparisonComposite({
             <div
               key={m.mediaItemId}
               className={cn("relative h-full min-w-0 flex-1 overflow-hidden", i > 0 && "border-l-2 border-black")}
-              onClick={onCellClick ? (e) => onCellClick(m, e) : undefined}
               {...(!whole ? frameProps : undefined)}
             >
               <div className="h-full w-full origin-top-left" style={!whole && transform ? { transform } : undefined}>
@@ -89,7 +97,17 @@ export function ComparisonComposite({
                     draggable={false}
                     sizes={source === "thumb" ? "320px" : "100vw"}
                     className={cn("select-none", isCover ? "object-cover" : "object-contain")}
-                    style={isCover ? { objectPosition: `${(m.focalX ?? 0.5) * 100}% ${(m.focalY ?? 0.5) * 100}%` } : undefined}
+                    style={
+                      isCover
+                        ? {
+                            objectPosition: coverObjectPosition(
+                              focalOverride?.(m) ?? memberFocal(m),
+                              m.originalWidth / (m.originalHeight || 1),
+                              cellAspect,
+                            ),
+                          }
+                        : undefined
+                    }
                   />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center bg-muted">

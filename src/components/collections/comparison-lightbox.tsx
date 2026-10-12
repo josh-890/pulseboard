@@ -237,6 +237,8 @@ export function ComparisonLightbox({
               fit={isCover ? "cover" : "contain"}
               beforeFocal={a.focalX != null && a.focalY != null ? { x: a.focalX, y: a.focalY } : null}
               afterFocal={b.focalX != null && b.focalY != null ? { x: b.focalX, y: b.focalY } : null}
+              beforeAspect={a.originalWidth / (a.originalHeight || 1)}
+              afterAspect={b.originalWidth / (b.originalHeight || 1)}
               beforeLabel="Before"
               afterLabel="After"
             />
