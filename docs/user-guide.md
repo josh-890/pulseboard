@@ -426,12 +426,13 @@ Only photos from the person's reference session can be embedded — external URL
   covers: title and date under each cover; a coloured dot for the status
   (promoted / approved / in review / pending), a folder icon for the
   archive state, the rating and a video mark on the image. Hovering a
-  promoted photo set shows four of its images. The cover's **frame** says
-  where a set stands, by colour and line: solid green = promoted, solid
-  cyan = approved, dashed grey = in the archive only; a set that is only
-  in the pipeline (All) has no frame and a dimmed cover. A key above the
+  promoted photo set shows four of its images. The cover's **frame** marks what still
+  needs work and fades as a set is developed: dashed amber = in the
+  archive only (a folder, not yet approved), solid green = approved but
+  not promoted, no frame = promoted. A set only in the pipeline (All) has
+  no frame and a dimmed cover. A key above the
   grid lists the frames present. Tile size **S / M / L**;
-  photo covers follow the Sets cover shape (Settings → Browser layout).
+  photo covers are 2:3, video covers 16:9.
   The view and tile size are remembered for every person, and
   `?view=gallery` links straight to it. **Open in Sets →** opens the
   person's promoted sets in the full Sets gallery (selection, bulk tagging)

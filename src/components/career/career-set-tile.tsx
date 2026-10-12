@@ -7,18 +7,20 @@ import { cn } from "@/lib/utils";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
-// One poster in the Career gallery. The cover's frame says where the set
-// stands in the collection — redundantly by colour AND line style, so it reads
-// without colour too (WCAG 1.4.1): promoted = solid emerald, approved = solid
-// cyan, in the archive only = dashed slate; a set that is only in the pipeline
-// (pending / in review, no archive folder — "All" scope) has no frame and a
-// dimmed cover, so the collection stands out.
-// — the visual counterpart of
+// One poster in the Career gallery — the visual counterpart of
 // TimelineSetRow, for promoted and staged sets alike. Cover first; title and
 // date below; status, archive state, rating and media type as badges on the
 // image. Hovering a promoted photo set swaps in a strip of its sample images,
 // so the gallery shows what is inside, not only the cover. Same click target
 // as the row: promoted → /sets/[id]; staged → /staging-sets focused on it.
+//
+// The cover's frame marks what still needs work, and fades as a set is
+// developed: in the archive only (a folder, not yet approved) = dashed amber,
+// approved but not promoted = solid emerald, promoted = no frame — the
+// finished sets are the calm background. Line style differs as well as hue,
+// so amber and green tell apart without colour (WCAG 1.4.1). A set only in
+// the pipeline (pending / in review, no archive folder — "All" scope) has no
+// frame either, but a dimmed cover.
 
 const STATUS_DOT_CLASS: Record<CareerRowStatus, string> = {
   promoted: "bg-emerald-500",
@@ -36,9 +38,9 @@ export function careerTier(row: CareerTimelineRow): CareerTier {
 }
 
 export const CAREER_TIER_FRAME_CLASS: Record<CareerTier, string> = {
-  promoted: "outline-2 outline-solid outline-emerald-500",
-  approved: "outline-2 outline-solid outline-cyan-500",
-  archive: "outline-2 outline-dashed outline-slate-400",
+  promoted: "",
+  approved: "outline-2 outline-solid outline-emerald-500/80",
+  archive: "outline-2 outline-dashed outline-amber-500/90",
   pipeline: "",
 };
 
@@ -67,11 +69,9 @@ function archiveBadge(row: CareerTimelineRow): { ok: boolean; label: string } | 
 
 export type CareerSetTileProps = {
   row: CareerTimelineRow;
-  /** Cover aspect for photo sets (videos are always 16:9) */
-  photoAspect: "portrait" | "landscape";
 };
 
-export function CareerSetTile({ row, photoAspect }: CareerSetTileProps) {
+export function CareerSetTile({ row }: CareerSetTileProps) {
   const isVideo = row.type === "video";
   const href = row.kind === "promoted" ? `/sets/${row.setId}` : `/staging-sets?focus=${row.stagingSetId}`;
   const archive = archiveBadge(row);
@@ -102,8 +102,10 @@ export function CareerSetTile({ row, photoAspect }: CareerSetTileProps) {
       <div
         className={cn(
           "relative w-full overflow-hidden rounded-md bg-muted/40",
-          tier === "pipeline" ? "border border-white/10" : cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[tier]),
-          isVideo ? "aspect-video" : photoAspect === "portrait" ? "aspect-[2/3]" : "aspect-[4/3]",
+          CAREER_TIER_FRAME_CLASS[tier] ? cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[tier]) : "border border-white/10",
+          // Fixed to what the covers are — photo 2:3, video 16:9 — not the
+          // per-browser Sets cover setting, so every gallery looks the same
+          isVideo ? "aspect-video" : "aspect-[2/3]",
         )}
       >
         {row.coverUrl ? (

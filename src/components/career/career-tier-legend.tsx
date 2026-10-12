@@ -15,8 +15,10 @@ export function CareerTierLegend({ tiers }: CareerTierLegendProps) {
           <span
             aria-hidden
             className={cn(
-              "inline-block h-3 w-2.5 rounded-[2px] bg-muted/60",
-              t === "pipeline" ? "border border-muted-foreground/40 opacity-60" : cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[t]),
+              "inline-block h-4 w-3 rounded-[2px] bg-muted/60",
+              CAREER_TIER_FRAME_CLASS[t]
+                ? cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[t])
+                : cn("border border-muted-foreground/40", t === "pipeline" && "opacity-60"),
             )}
           />
           {CAREER_TIER_LABEL[t]}

@@ -7,7 +7,6 @@ import { getAppScrollEl } from "@/lib/scroll-container";
 import { TimelineSetRow } from "./timeline-set-row";
 import { CareerSetTile, careerTier, type CareerTier } from "./career-set-tile";
 import { CareerTierLegend } from "./career-tier-legend";
-import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { SetHoverPreview, SET_HOVER_PREVIEW_DIMS } from "./set-hover-preview";
 import { YearScrubber, type YearScrubberEntry } from "./year-scrubber";
 import { GroupHeader } from "@/components/shared/group-header";
@@ -199,7 +198,6 @@ export function TimelineSection({
   eraLabelForYear,
 }: TimelineSectionProps) {
   const sections = useMemo(() => buildSections(rows, groupBy), [rows, groupBy]);
-  const { setsCoverAspect } = useBrowserLayout();
   const tiers = useMemo(() => {
     const present = new Set(rows.map(careerTier));
     return (["promoted", "approved", "archive", "pipeline"] as CareerTier[]).filter((t) => present.has(t));
@@ -382,7 +380,7 @@ export function TimelineSection({
       // groups — careers run to 2,000+ sets
       <div className={cn("grid gap-2 [content-visibility:auto]", TILE_GRID_CLASS[tileSize])}>
         {list.map((row) => (
-          <CareerSetTile key={rowKey(row)} row={row} photoAspect={setsCoverAspect} />
+          <CareerSetTile key={rowKey(row)} row={row} />
         ))}
       </div>
     ) : (
