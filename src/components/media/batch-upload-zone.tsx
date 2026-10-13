@@ -51,12 +51,12 @@ const ALLOWED_TYPES = new Set([
   "image/webp",
   "image/gif",
 ]);
-const MAX_SIZE = 25 * 1024 * 1024;
+const MAX_SIZE = 50 * 1024 * 1024;
 const MAX_CONCURRENT = 4;
 const PRE_SCALE_MAX_SIDE = 3000;
 
 function validateFile(file: File): string | null {
-  if (file.size > MAX_SIZE) return `${file.name}: File size must be 25MB or less`;
+  if (file.size > MAX_SIZE) return `${file.name}: File size must be 50MB or less`;
   if (!ALLOWED_TYPES.has(file.type)) return `${file.name}: Must be JPEG, PNG, WebP, or GIF`;
   return null;
 }
@@ -526,7 +526,7 @@ export function BatchUploadZone({
             Drop photos here or click to browse
           </p>
           <p className="text-xs text-muted-foreground/70">
-            JPEG, PNG, WebP, or GIF up to 25MB &middot; Large images auto-resized
+            JPEG, PNG, WebP, or GIF up to 50MB &middot; Large images auto-resized
           </p>
         </div>
       )}

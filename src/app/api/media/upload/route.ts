@@ -16,7 +16,7 @@ const ALLOWED_MIME_TYPES = [
   "image/webp",
   "image/gif",
 ];
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export async function POST(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       }
       if (file.size > MAX_FILE_SIZE) {
         return NextResponse.json(
-          { error: "File size must be 25MB or less" },
+          { error: "File size must be 50MB or less" },
           { status: 400 },
         );
       }
