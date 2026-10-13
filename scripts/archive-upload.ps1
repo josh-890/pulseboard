@@ -25,7 +25,9 @@
       - an image already in the set (same SHA-256) is skipped by the server, so an
         interrupted run is simply started again;
       - at the end of each set the names of the failed files are sent to the app
-        and kept on the set; the set then leaves the queue.
+        and kept on the set; the set then leaves the queue;
+      - one run at a time per tenant: a second start — scheduled or by hand —
+        finds the lock taken, says so and exits (a dry run needs no lock).
 
 .PARAMETER SetId
     Upload only this set (it must still be waiting).
@@ -147,118 +149,148 @@ function Send-AgentRun {
     }
 }
 
-# ── Worklist ──────────────────────────────────────────────────────────────────
-Write-Host "Archive upload — base URL: $BaseUrl$(if ($Tenant) { " · tenant: $Tenant" })$(if ($DryRun) { ' (dry run)' })"
-$query = @()
-if ($SetId) { $query += "setId=$([uri]::EscapeDataString($SetId))" }
-if ($Limit -gt 0) { $query += "limit=$Limit" }
-$wlUrl = "$BaseUrl/api/archive/upload-worklist$(if ($query.Count) { '?' + ($query -join '&') })"
-$sets = @((Invoke-RestMethod -Uri $wlUrl -Headers $headers -Method Get).sets | Where-Object { $_ })
-if ($sets.Count -eq 0) {
-    Write-Host "No set is waiting for its archive images."
-    Send-AgentRun -Agent "archive-upload" -Summary "nothing waiting"
-    return
+# ── One run at a time (2026-10-13) ────────────────────────────────────────────
+# A named mutex, per tenant, held for the whole run: the hourly scheduled task
+# and a run started by hand never upload side by side. Global\ so it also holds
+# across Windows sessions (a task running while logged off). A run that died
+# without releasing it leaves it "abandoned" — the next run takes it over.
+$lockName = "Global\Pulseboard-archive-upload-$(if ($Tenant) { $Tenant } else { 'default' })"
+$lock = $null
+if (-not $DryRun) {
+    $lock = [System.Threading.Mutex]::new($false, $lockName)
+    $held = $false
+    try {
+        $held = $lock.WaitOne(0)
+    } catch [System.Threading.AbandonedMutexException] {
+        $held = $true
+    }
+    if (-not $held) {
+        Write-Host "Another archive upload is still running$(if ($Tenant) { " (tenant $Tenant)" }) — this start is skipped."
+        $lock.Dispose()
+        $client.Dispose()
+        return
+    }
 }
-Write-Host "$($sets.Count) set(s) waiting."
 
-$tot = @{ sets = 0; uploaded = 0; skipped = 0; failed = 0; notImages = 0; setsAborted = 0 }
-$sw = [System.Diagnostics.Stopwatch]::StartNew()
-
-foreach ($s in $sets) {
-    $folder = [string]$s.folderPath
-    Write-Host ""
-    Write-Host "▶ $($s.title)  [$($s.setId)]$(if ($s.resume) { '  (resuming)' })"
-    Write-Host "  $folder"
-    if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
-        Write-Warning "  Folder not found on this machine — skipped (it stays queued)."
-        $tot.setsAborted++
-        continue
+try {
+    # ── Worklist ──────────────────────────────────────────────────────────────────
+    Write-Host "Archive upload — base URL: $BaseUrl$(if ($Tenant) { " · tenant: $Tenant" })$(if ($DryRun) { ' (dry run)' })"
+    $query = @()
+    if ($SetId) { $query += "setId=$([uri]::EscapeDataString($SetId))" }
+    if ($Limit -gt 0) { $query += "limit=$Limit" }
+    $wlUrl = "$BaseUrl/api/archive/upload-worklist$(if ($query.Count) { '?' + ($query -join '&') })"
+    $sets = @((Invoke-RestMethod -Uri $wlUrl -Headers $headers -Method Get).sets | Where-Object { $_ })
+    if ($sets.Count -eq 0) {
+        Write-Host "No set is waiting for its archive images."
+        Send-AgentRun -Agent "archive-upload" -Summary "nothing waiting"
+        return
     }
+    Write-Host "$($sets.Count) set(s) waiting."
 
-    $all = @(Get-ChildItem -LiteralPath $folder -File -ErrorAction Stop)
-    $images = @($all | Where-Object { $MimeByExt.ContainsKey($_.Extension.ToLowerInvariant()) } |
-        Sort-Object { Get-NaturalKey $_.Name })
-    $others = @($all | Where-Object { $OtherImageExt -contains $_.Extension.ToLowerInvariant() })
-    if ($images.Count -eq 0) {
-        Write-Warning "  No uploadable images (jpg, png, webp, gif) — skipped (it stays queued)."
-        $tot.setsAborted++
-        continue
-    }
+    $tot = @{ sets = 0; uploaded = 0; skipped = 0; failed = 0; notImages = 0; setsAborted = 0 }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-    # Positions follow the names; a designated cover is sent first so it becomes the cover
-    $order = @{}
-    for ($i = 0; $i -lt $images.Count; $i++) { $order[$images[$i].FullName] = $i }
-    $cover = $images | Where-Object { Test-DesignatedCover $_ } | Select-Object -First 1
-    $sendList = @(if ($cover) { $cover }) + @($images | Where-Object { -not $cover -or $_.FullName -ne $cover.FullName })
-
-    Write-Host ("  {0} image(s){1}{2}" -f $images.Count,
-        $(if ($cover) { " · cover: $($cover.Name)" } else { " · cover: first by name" }),
-        $(if ($others.Count) { " · $($others.Count) bmp/tif not uploadable" } else { "" }))
-    if ($DryRun) { continue }
-
-    $failed = [System.Collections.ArrayList]::new()
-    foreach ($o in $others) { [void]$failed.Add("$($o.Name) (unsupported type)") }
-    $tot.notImages += $others.Count
-    $aborted = $false
-    $n = 0
-    foreach ($f in $sendList) {
-        $n++
-        Write-Host ("  [{0}/{1}] {2}" -f $n, $sendList.Count, $f.Name) -NoNewline
-        try {
-            $r = Send-Image -TargetSetId $s.setId -File $f -Mime $MimeByExt[$f.Extension.ToLowerInvariant()] -SortOrder $order[$f.FullName]
-        } catch {
-            $r = @{ status = "error"; reason = $_.Exception.Message }
+    foreach ($s in $sets) {
+        $folder = [string]$s.folderPath
+        Write-Host ""
+        Write-Host "▶ $($s.title)  [$($s.setId)]$(if ($s.resume) { '  (resuming)' })"
+        Write-Host "  $folder"
+        if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+            Write-Warning "  Folder not found on this machine — skipped (it stays queued)."
+            $tot.setsAborted++
+            continue
         }
-        switch ($r.status) {
-            "uploaded" { Write-Host "  ✓"; $tot.uploaded++ }
-            "skipped"  { Write-Host "  = already in the set"; $tot.skipped++ }
-            "refused"  {
-                # A set-level refusal (images added by hand meanwhile, no session) stops the set
-                if ($r.reason -match 'set (already|not found)|primary session') {
-                    Write-Host ""
-                    Write-Warning "  Set refused: $($r.reason) — stopping this set."
-                    $aborted = $true
-                } else {
+
+        $all = @(Get-ChildItem -LiteralPath $folder -File -ErrorAction Stop)
+        $images = @($all | Where-Object { $MimeByExt.ContainsKey($_.Extension.ToLowerInvariant()) } |
+            Sort-Object { Get-NaturalKey $_.Name })
+        $others = @($all | Where-Object { $OtherImageExt -contains $_.Extension.ToLowerInvariant() })
+        if ($images.Count -eq 0) {
+            Write-Warning "  No uploadable images (jpg, png, webp, gif) — skipped (it stays queued)."
+            $tot.setsAborted++
+            continue
+        }
+
+        # Positions follow the names; a designated cover is sent first so it becomes the cover
+        $order = @{}
+        for ($i = 0; $i -lt $images.Count; $i++) { $order[$images[$i].FullName] = $i }
+        $cover = $images | Where-Object { Test-DesignatedCover $_ } | Select-Object -First 1
+        $sendList = @(if ($cover) { $cover }) + @($images | Where-Object { -not $cover -or $_.FullName -ne $cover.FullName })
+
+        Write-Host ("  {0} image(s){1}{2}" -f $images.Count,
+            $(if ($cover) { " · cover: $($cover.Name)" } else { " · cover: first by name" }),
+            $(if ($others.Count) { " · $($others.Count) bmp/tif not uploadable" } else { "" }))
+        if ($DryRun) { continue }
+
+        $failed = [System.Collections.ArrayList]::new()
+        foreach ($o in $others) { [void]$failed.Add("$($o.Name) (unsupported type)") }
+        $tot.notImages += $others.Count
+        $aborted = $false
+        $n = 0
+        foreach ($f in $sendList) {
+            $n++
+            Write-Host ("  [{0}/{1}] {2}" -f $n, $sendList.Count, $f.Name) -NoNewline
+            try {
+                $r = Send-Image -TargetSetId $s.setId -File $f -Mime $MimeByExt[$f.Extension.ToLowerInvariant()] -SortOrder $order[$f.FullName]
+            } catch {
+                $r = @{ status = "error"; reason = $_.Exception.Message }
+            }
+            switch ($r.status) {
+                "uploaded" { Write-Host "  ✓"; $tot.uploaded++ }
+                "skipped"  { Write-Host "  = already in the set"; $tot.skipped++ }
+                "refused"  {
+                    # A set-level refusal (images added by hand meanwhile, no session) stops the set
+                    if ($r.reason -match 'set (already|not found)|primary session') {
+                        Write-Host ""
+                        Write-Warning "  Set refused: $($r.reason) — stopping this set."
+                        $aborted = $true
+                    } else {
+                        Write-Host "  ✗ $($r.reason)"
+                        [void]$failed.Add("$($f.Name) ($($r.reason))"); $tot.failed++
+                    }
+                }
+                default {
                     Write-Host "  ✗ $($r.reason)"
                     [void]$failed.Add("$($f.Name) ($($r.reason))"); $tot.failed++
                 }
             }
-            default {
-                Write-Host "  ✗ $($r.reason)"
-                [void]$failed.Add("$($f.Name) ($($r.reason))"); $tot.failed++
-            }
+            if ($aborted) { break }
         }
-        if ($aborted) { break }
-    }
-    if ($aborted) { $tot.setsAborted++; continue }
+        if ($aborted) { $tot.setsAborted++; continue }
 
-    try {
-        $payload = ConvertTo-Json -InputObject @{ failed = @($failed) } -Depth 3
-        Invoke-RestMethod -Uri "$BaseUrl/api/archive/set-upload/$($s.setId)/complete" -Headers $headers `
-            -Method Post -Body $payload -ContentType "application/json" | Out-Null
-        $tot.sets++
-        Write-Host ("  Done{0}" -f $(if ($failed.Count) { " — $($failed.Count) file(s) not uploaded, listed on the set" } else { "" }))
-    } catch {
-        Write-Warning "  Could not mark the set done: $_ (a re-run resumes it)"
+        try {
+            $payload = ConvertTo-Json -InputObject @{ failed = @($failed) } -Depth 3
+            Invoke-RestMethod -Uri "$BaseUrl/api/archive/set-upload/$($s.setId)/complete" -Headers $headers `
+                -Method Post -Body $payload -ContentType "application/json" | Out-Null
+            $tot.sets++
+            Write-Host ("  Done{0}" -f $(if ($failed.Count) { " — $($failed.Count) file(s) not uploaded, listed on the set" } else { "" }))
+        } catch {
+            Write-Warning "  Could not mark the set done: $_ (a re-run resumes it)"
+        }
+    }
+
+    Write-Host ""
+    Write-Host "── Summary ($([int]$sw.Elapsed.TotalMinutes) min) ──"
+    if ($DryRun) {
+        Write-Host "  Dry run — nothing sent. $($sets.Count) set(s) would be filled."
+    } else {
+        Write-Host "  Sets filled:       $($tot.sets)"
+        Write-Host "  Images uploaded:   $($tot.uploaded)"
+        if ($tot.skipped)     { Write-Host "  Already in set:    $($tot.skipped)" }
+        if ($tot.failed)      { Write-Host "  Failed:            $($tot.failed) (listed on their sets)" }
+        if ($tot.notImages)   { Write-Host "  bmp/tif skipped:   $($tot.notImages)" }
+        if ($tot.setsAborted) { Write-Host "  Sets left queued:  $($tot.setsAborted) (see warnings)" }
+    }
+
+    Send-AgentRun -Agent "archive-upload" -Ok ($tot.failed -eq 0 -and $tot.setsAborted -eq 0) `
+        -Summary ("{0} set(s) · {1} images{2}{3}" -f $tot.sets, $tot.uploaded,
+            $(if ($tot.failed) { " · $($tot.failed) failed" } else { "" }),
+            $(if ($tot.setsAborted) { " · $($tot.setsAborted) left queued" } else { "" })) `
+        -Details @{ sets = $tot.sets; uploaded = $tot.uploaded; skipped = $tot.skipped; failed = $tot.failed; setsLeftQueued = $tot.setsAborted }
+} finally {
+    $client.Dispose()
+    if ($lock) {
+        $lock.ReleaseMutex()
+        $lock.Dispose()
     }
 }
-
-$client.Dispose()
-Write-Host ""
-Write-Host "── Summary ($([int]$sw.Elapsed.TotalMinutes) min) ──"
-if ($DryRun) {
-    Write-Host "  Dry run — nothing sent. $($sets.Count) set(s) would be filled."
-} else {
-    Write-Host "  Sets filled:       $($tot.sets)"
-    Write-Host "  Images uploaded:   $($tot.uploaded)"
-    if ($tot.skipped)     { Write-Host "  Already in set:    $($tot.skipped)" }
-    if ($tot.failed)      { Write-Host "  Failed:            $($tot.failed) (listed on their sets)" }
-    if ($tot.notImages)   { Write-Host "  bmp/tif skipped:   $($tot.notImages)" }
-    if ($tot.setsAborted) { Write-Host "  Sets left queued:  $($tot.setsAborted) (see warnings)" }
-}
-
-Send-AgentRun -Agent "archive-upload" -Ok ($tot.failed -eq 0 -and $tot.setsAborted -eq 0) `
-    -Summary ("{0} set(s) · {1} images{2}{3}" -f $tot.sets, $tot.uploaded,
-        $(if ($tot.failed) { " · $($tot.failed) failed" } else { "" }),
-        $(if ($tot.setsAborted) { " · $($tot.setsAborted) left queued" } else { "" })) `
-    -Details @{ sets = $tot.sets; uploaded = $tot.uploaded; skipped = $tot.skipped; failed = $tot.failed; setsLeftQueued = $tot.setsAborted }

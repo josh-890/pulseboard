@@ -300,6 +300,38 @@ This agent does it unattended:
   file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
   is done. Clean the file and upload it by hand.
 - A set you meanwhile filled by hand is refused and left alone.
+- **One run at a time** (per tenant): the script holds a named lock
+  (`Global\Pulseboard-archive-upload-<tenant>`) for the whole run. A second start —
+  scheduled or by hand — prints "Another archive upload is still running — this start
+  is skipped" and exits. A run that crashed leaves the lock abandoned; the next run
+  takes it over. A dry run takes no lock.
+
+### Run it every hour (Windows Task Scheduler)
+
+Once, in PowerShell 7 (adjust `$script`):
+
+```powershell
+$script = "C:\Pulseboard\archive-upload.ps1"     # with its .env next to it
+$logDir = Join-Path (Split-Path $script) "logs"
+New-Item -ItemType Directory -Force $logDir | Out-Null
+$action = New-ScheduledTaskAction -Execute "pwsh.exe" `
+  -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command `"& '$script' *>> '$logDir\archive-upload.log'`"" `
+  -WorkingDirectory (Split-Path $script)
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddHours((Get-Date).Hour + 1) `
+  -RepetitionInterval (New-TimeSpan -Hours 1)
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) `
+  -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "Pulseboard archive upload" -Action $action -Trigger $trigger -Settings $settings
+```
+
+- `-MultipleInstances IgnoreNew`: the scheduler skips the hour while the last run is
+  still going (the script's own lock covers runs started by hand).
+- `-ExecutionTimeLimit 0`: Windows otherwise stops a task after 72 hours.
+- `pwsh.exe`, not `powershell.exe` — the script needs PowerShell 7.
+- Output goes to `logs\archive-upload.log`; each run also shows on the dashboard.
+- **Trap:** registered like this it runs only while you are logged on — which is what
+  makes mapped drive letters (`X:\`) work. To run logged off, register with
+  `-User`/`-Password` and make sure the archive paths need no drive letter (UNC).
 
 ## `catalogue-avatar.ps1` — a face for every suggested person
 

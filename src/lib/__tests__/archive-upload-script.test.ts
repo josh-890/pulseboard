@@ -31,4 +31,34 @@ describe("archive-upload.ps1 — static checks", () => {
   it("only sends what the server accepts", () => {
     for (const ext of [".jpg", ".jpeg", ".png", ".webp", ".gif"]) expect(code).toContain(`"${ext}"`);
   });
+
+  // One run at a time per tenant (2026-10-13): the hourly scheduled task and a
+  // run by hand must not upload side by side
+  it("takes a per-tenant lock before the worklist and always releases it", () => {
+    const take = code.indexOf("[System.Threading.Mutex]::new(");
+    const worklist = code.indexOf("/api/archive/upload-worklist");
+    expect(take).toBeGreaterThan(-1);
+    expect(take).toBeLessThan(worklist);
+    expect(code).toMatch(/\$lockName = "Global\\Pulseboard-archive-upload-/);
+    expect(code).toContain("WaitOne(0)");
+    expect(code).toContain("AbandonedMutexException");
+    // The whole run sits in try { … } finally { ReleaseMutex }
+    const tryAt = code.indexOf("\ntry {", take);
+    const finallyAt = code.lastIndexOf("} finally {");
+    expect(tryAt).toBeGreaterThan(take);
+    expect(tryAt).toBeLessThan(worklist);
+    expect(finallyAt).toBeGreaterThan(worklist);
+    expect(code.slice(finallyAt)).toContain("$lock.ReleaseMutex()");
+  });
+
+  it("lets a dry run go without the lock", () => {
+    expect(code).toMatch(/if \(-not \$DryRun\) \{\s*\$lock = \[System\.Threading\.Mutex\]/);
+  });
+
+  it("keeps its braces balanced", () => {
+    const strip = code.replace(/"(?:[^"`]|`.)*"|'[^']*'/g, '""');
+    const open = (strip.match(/\{/g) ?? []).length;
+    const close = (strip.match(/\}/g) ?? []).length;
+    expect(open).toBe(close);
+  });
 });
