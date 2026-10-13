@@ -1122,7 +1122,7 @@ Media upload is available in three contexts:
 | Production session | Session detail page | MediaItem.sessionId = production session |
 | Set gallery | Set detail page | MediaItem.sessionId = set's primary session |
 
-**Supported formats:** JPEG, PNG, WebP, GIF (max 50MB per file; larger than 3000 px is scaled down in the browser before upload, up to 4 concurrent uploads)
+**Supported formats:** JPEG, PNG, WebP, GIF (max 50MB per file; larger than 4000 px is scaled down in the browser before upload, up to 4 concurrent uploads)
 
 **Upload flow:**
 1. Drag files onto the upload zone or click to browse

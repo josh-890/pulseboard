@@ -53,7 +53,7 @@ const ALLOWED_TYPES = new Set([
 ]);
 const MAX_SIZE = 50 * 1024 * 1024;
 const MAX_CONCURRENT = 4;
-const PRE_SCALE_MAX_SIDE = 3000;
+const PRE_SCALE_MAX_SIDE = 4000; // = server master (MASTER_MAX_SIDE)
 
 function validateFile(file: File): string | null {
   if (file.size > MAX_SIZE) return `${file.name}: File size must be 50MB or less`;
