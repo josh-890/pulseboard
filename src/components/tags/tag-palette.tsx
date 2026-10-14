@@ -20,20 +20,16 @@ import { cn } from "@/lib/utils";
 
 type PaletteData = { groups: PaletteGroup[]; tags: PaletteTag[] };
 
-// One fetch per entity type per page life; dropped after an inline create
+// The last list per entity type, shown at once when the palette opens; every
+// open also re-reads the catalogue (2026-10-14: a tag added under Settings →
+// Tags was missing until a full reload, because this cache lived for the tab)
 const paletteCache = new Map<TaggableEntity, Promise<PaletteData>>();
 
-function loadPaletteData(entityType: TaggableEntity): Promise<PaletteData> {
-  let p = paletteCache.get(entityType);
-  if (!p) {
-    p = fetch(`/api/tags/palette?entityType=${entityType}`).then((r) => {
-      if (!r.ok) throw new Error(`palette ${r.status}`);
-      return r.json() as Promise<PaletteData>;
-    });
-    p.catch(() => paletteCache.delete(entityType));
-    paletteCache.set(entityType, p);
-  }
-  return p;
+function fetchPaletteData(entityType: TaggableEntity): Promise<PaletteData> {
+  return fetch(`/api/tags/palette?entityType=${entityType}`).then((r) => {
+    if (!r.ok) throw new Error(`palette ${r.status}`);
+    return r.json() as Promise<PaletteData>;
+  });
 }
 
 const LAST_GROUP_KEY = (entityType: TaggableEntity) => `pulseboard:tag-create-group:${entityType}`;
@@ -131,11 +127,26 @@ export function TagPalette({
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    loadPaletteData(entityType)
+    let freshArrived = false;
+    const cached = paletteCache.get(entityType);
+    cached
+      ?.then((d) => {
+        if (alive && !freshArrived) setData(d);
+      })
+      .catch(() => {});
+    const fresh = fetchPaletteData(entityType);
+    paletteCache.set(entityType, fresh);
+    fresh
       .then((d) => {
+        freshArrived = true;
         if (alive) setData(d);
       })
-      .catch(() => toast.error("Could not load tags"));
+      .catch(() => {
+        // Keep the last good list; only complain when there is nothing to show
+        if (cached) paletteCache.set(entityType, cached);
+        else paletteCache.delete(entityType);
+        if (alive && !cached) toast.error("Could not load tags");
+      });
     return () => {
       alive = false;
     };
