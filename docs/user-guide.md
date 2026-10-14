@@ -1484,6 +1484,14 @@ Once you pick a cover yourself, it is yours: no upload ever displaces it.
 
 The Archive workspace shows the filesystem scan results — a record of every folder found in the configured archive root(s) and its link status to DB records.
 
+### Is this set already in the archive?
+
+Type part of the folder name or title into the **search box** — it is there on
+**All**, **No Set** and **Linked**. On **All** it finds a folder whether or not it is
+linked to a set yet, which makes it the quick "do I already have this?" check. The
+search stays when you switch between these three tabs, so you can type once and then
+narrow down.
+
 ### Making a set out of an archive folder
 
 Two ways in, one outcome:

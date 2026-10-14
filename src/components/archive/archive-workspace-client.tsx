@@ -640,8 +640,12 @@ export function ArchiveWorkspaceClient({
     setChannelSummaries([])
     setChannelLeaves(new Map())
     setHasMore(false)
-    setSearch('')
-    setSearchInput('')
+    // The search carries over between the folder tabs (All / Orphan / Linked):
+    // "is this set already in the archive?" is typed once, then narrowed by tab
+    if (!(t === 'all' || t === 'orphan' || t === 'linked')) {
+      setSearch('')
+      setSearchInput('')
+    }
     setSelected(new Set())
   }
 
@@ -959,14 +963,15 @@ export function ArchiveWorkspaceClient({
                 </button>
               )}
 
-              {(tab === 'orphan' || tab === 'linked') && (
-                <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5">
-                  <Search size={11} className="text-muted-foreground/60" />
+              {isFolderTab && (
+                <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/30 px-2.5 py-0.5 focus-within:ring-1 focus-within:ring-ring">
+                  <Search size={11} className="text-muted-foreground/60" aria-hidden="true" />
                   <input
-                    type="text"
+                    type="search"
                     value={searchInput}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     placeholder="Search folders…"
+                    aria-label="Search archive folders by name or title"
                     className="w-40 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 outline-none"
                   />
                 </div>
