@@ -56,6 +56,15 @@ export async function DashboardActivity() {
                         <span className="block truncate text-sm">{e.title}</span>
                         {e.detail && <span className="block truncate text-xs text-muted-foreground">{e.detail}</span>}
                       </span>
+                      {e.count && e.count > 1 && (
+                        <span
+                          className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground"
+                          title={`${e.count} times${e.firstTime ? `, ${time(e.firstTime)}–${time(e.time)}` : ""}`}
+                          aria-label={`${e.count} times${e.firstTime ? `, from ${time(e.firstTime)} to ${time(e.time)}` : ""}`}
+                        >
+                          ×{e.count}
+                        </span>
+                      )}
                       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{time(e.time)}</span>
                     </>
                   );

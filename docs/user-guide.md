@@ -73,6 +73,10 @@ from the records themselves:
 
 Click an entry to open the set, session, person or page it is about.
 
+Identical entries in a row — typically the hourly upload agent's *nothing waiting* —
+are shown as one line with a **×n** count and the time of the latest; hover the count
+for the time span. A different entry in between splits them, so the order stays true.
+
 ### Needs you
 
 The queues waiting for you, each with its count and a link — only non-empty ones:

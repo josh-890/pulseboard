@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import {
+  collapseRepeats,
   getAgentStatus,
   getDashboardActivity,
   getDashboardKpis,
@@ -80,5 +81,31 @@ describe("needs you + numbers", () => {
     const s = await prisma.set.create({ data: { type: "photo", title: `${RUN} count` } });
     expect((await getDashboardKpis()).sets).toBe(before + 1);
     await prisma.set.delete({ where: { id: s.id } });
+  });
+});
+
+// 2026-10-14: the hourly upload agent filled the feed with "nothing waiting"
+describe("collapseRepeats", () => {
+  const at = (h: number) => new Date(Date.UTC(2026, 9, 14, h));
+  const run = (h: number, detail = "nothing waiting") =>
+    ({ kind: "agent" as const, time: at(h), title: "Archive upload", detail });
+
+  it("merges identical neighbours into one line with the newest time and a count", () => {
+    const out = collapseRepeats([run(12), run(11), run(10)]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ count: 3, time: at(12), firstTime: at(10) });
+  });
+
+  it("keeps a different event in between, so the order stays readable", () => {
+    const out = collapseRepeats([run(12), run(11), run(10, "1 set(s) · 40 images"), run(9), run(8)]);
+    expect(out.map((e) => [e.detail, e.count ?? 1])).toEqual([
+      ["nothing waiting", 2],
+      ["1 set(s) · 40 images", 1],
+      ["nothing waiting", 2],
+    ]);
+  });
+
+  it("leaves single events without a count", () => {
+    expect(collapseRepeats([run(12)])[0].count).toBeUndefined();
   });
 });

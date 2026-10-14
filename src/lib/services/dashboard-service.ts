@@ -52,6 +52,10 @@ export type ActivityEvent = {
   title: string;
   detail?: string;
   href?: string;
+  /** Identical events in a row (e.g. the hourly "nothing waiting") shown as one line; `time` is the newest */
+  count?: number;
+  /** The oldest of the collapsed events */
+  firstTime?: Date;
 };
 
 export type ActivityDay = { day: string; events: ActivityEvent[] };
@@ -163,7 +167,27 @@ export async function getDashboardActivity(days = 14): Promise<ActivityDay[]> {
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => b.localeCompare(a))
-    .map(([day, list]) => ({ day, events: list.sort((a, b) => b.time.getTime() - a.time.getTime()) }));
+    .map(([day, list]) => ({ day, events: collapseRepeats(list.sort((a, b) => b.time.getTime() - a.time.getTime())) }));
+}
+
+/**
+ * Identical events in a row (same kind, title, detail and link) become one line
+ * with a count — the hourly upload agent otherwise fills a day with "nothing
+ * waiting". Expects newest first; the line keeps the newest time. Only direct
+ * neighbours merge, so a different event in between still shows where it happened.
+ */
+export function collapseRepeats(events: ActivityEvent[]): ActivityEvent[] {
+  const out: ActivityEvent[] = [];
+  for (const e of events) {
+    const prev = out[out.length - 1];
+    if (prev && prev.kind === e.kind && prev.title === e.title && prev.detail === e.detail && prev.href === e.href) {
+      prev.count = (prev.count ?? 1) + 1;
+      prev.firstTime = e.time;
+    } else {
+      out.push({ ...e });
+    }
+  }
+  return out;
 }
 
 // ─── Needs you ───────────────────────────────────────────────────────────────
