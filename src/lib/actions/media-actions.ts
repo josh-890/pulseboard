@@ -276,6 +276,25 @@ export async function setMediaFavoriteAction(
   });
 }
 
+// A damaged source file (MediaItem.decodeIssue) was looked at and the stored
+// image is fine as it is: drop the red frame. Replacing the file also clears it.
+export async function clearMediaDecodeIssueAction(mediaItemId: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.mediaItem.update({
+        where: { id: mediaItemId },
+        data: { decodeIssue: null },
+      });
+      revalidatePath("/");
+      return { success: true };
+    } catch (err) {
+      console.error("[clearMediaDecodeIssueAction] failed:", mediaItemId, err);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 // ── Per-image appearance ("people shown", ADR-0023) ──────────────────────────
 // Stored as exclusions: `hiddenPersonIds` = the cast members NOT shown in this image.
 export async function setMediaShownPeopleAction(

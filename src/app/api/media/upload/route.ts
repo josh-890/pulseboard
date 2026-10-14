@@ -105,6 +105,7 @@ export async function POST(request: Request) {
           "session",
           sessionId,
           uniqueId,
+          { lenient: true },
         );
 
         await replaceMediaItemFile(replaceMediaItemId, {
@@ -116,6 +117,7 @@ export async function POST(request: Request) {
           phash,
           filename: file.name,
           mimeType: file.type,
+          decodeIssue: uploadResult.decodeIssue,
         });
 
         return NextResponse.json(
@@ -144,6 +146,7 @@ export async function POST(request: Request) {
         "session",
         sessionId,
         uniqueId,
+        { lenient: true },
       );
       console.log(`[upload] MinIO upload complete, creating DB record`);
 
@@ -164,6 +167,7 @@ export async function POST(request: Request) {
         sourceVideoRef,
         sourceTimecodeMs,
         isAnnotation,
+        decodeIssue: uploadResult.decodeIssue,
       });
 
       return NextResponse.json({ mediaItem }, { status: 201 });

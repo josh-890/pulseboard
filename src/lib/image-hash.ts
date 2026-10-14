@@ -9,9 +9,11 @@ export function computeSha256(buffer: Buffer): string {
 /**
  * Perceptual dHash (difference hash) — 64-bit, returned as 16-char hex string.
  * Resize to 9x8 grayscale, compare adjacent pixels → 64-bit fingerprint.
+ * Lenient decode: a damaged file still gets a fingerprint — whether it may be
+ * stored is decided by uploadPhotoToStorage, not here.
  */
 export async function computeDHash(buffer: Buffer): Promise<string> {
-  const pixels = await sharp(buffer)
+  const pixels = await sharp(buffer, { failOn: "none" })
     .greyscale()
     .resize(9, 8, { fit: "fill" })
     .raw()

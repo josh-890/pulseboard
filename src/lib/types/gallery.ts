@@ -37,6 +37,8 @@ export type GalleryItem = {
   focalX: number | null;
   focalY: number | null;
   isFavorite: boolean;
+  /** The source file was damaged and decoded leniently — red frame until cleared */
+  decodeIssue?: string | null;
   /** The image's direct tags (not inherited) — tile dots; absent when not loaded */
   tags?: import("./tag").TagChipData[];
   sortOrder: number;

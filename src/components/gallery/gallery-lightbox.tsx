@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { setMediaFavoriteAction, setMediaShownPeopleAction } from "@/lib/actions/media-actions";
+import {
+  clearMediaDecodeIssueAction,
+  setMediaFavoriteAction,
+  setMediaShownPeopleAction,
+} from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
 import { TagPalette } from "@/components/tags";
@@ -12,8 +16,10 @@ import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Copy,
@@ -78,6 +84,8 @@ type GalleryLightboxProps = {
   // Notifies the parent gallery when an image's hidden set changes, so the grid's
   // subset badge updates live (without a reload).
   onHiddenPersonsChange?: (itemId: string, hiddenPersonIds: string[]) => void;
+  /** "Looks fine" cleared a damaged image's flag — lets the parent drop its red frame */
+  onDecodeIssueCleared?: (itemId: string) => void;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
   collectionContext?: CollectionContext;
   // When true and no collectionContext is supplied, the lightbox self-fetches the
@@ -130,6 +138,7 @@ function SimpleLightbox({
   collectionContext,
   cast,
   onHiddenPersonsChange,
+  onDecodeIssueCleared,
   enableCollections,
   onDelete,
   onEdit,
@@ -137,6 +146,7 @@ function SimpleLightbox({
   onCopyToReference,
 }: GalleryLightboxProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const router = useRouter();
   const [copyPickerOpen, setCopyPickerOpen] = useState(false);
   const [copyInFlight, setCopyInFlight] = useState(false);
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
@@ -160,6 +170,9 @@ function SimpleLightbox({
   // heart works in every lightbox without per-page plumbing.
   const [localFavoriteMap, setLocalFavoriteMap] = useState<Map<string, boolean>>(new Map());
   const [, startFavTransition] = useTransition();
+  // Damaged-file flags cleared here ("Looks fine") — optimistic until the parent reloads
+  const [decodeClearedIds, setDecodeClearedIds] = useState<Set<string>>(new Set());
+  const [isDecodeClearPending, startDecodeClearTransition] = useTransition();
   // ADR-0023: optimistic per-image "people shown" override (hidden person ids).
   const [localHiddenMap, setLocalHiddenMap] = useState<Map<string, string[]>>(new Map());
   const [, startHiddenTransition] = useTransition();
@@ -197,9 +210,10 @@ function SimpleLightbox({
           if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
           if (favOverride !== undefined) result = { ...result, isFavorite: favOverride };
           if (hiddenOverride !== undefined) result = { ...result, hiddenPersonIds: hiddenOverride };
+          if (decodeClearedIds.has(it.id)) result = { ...result, decodeIssue: null };
           return result;
         }),
-    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap],
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap, decodeClearedIds],
   );
 
   const item = localItems[currentIndex];
@@ -245,6 +259,25 @@ function SimpleLightbox({
     },
     [localItems, onFavoriteToggle],
   );
+
+  // The damaged image was checked and is fine as stored: drop its red frame
+  const handleDecodeIssueClear = useCallback((id: string) => {
+    setDecodeClearedIds((prev) => new Set(prev).add(id));
+    startDecodeClearTransition(async () => {
+      const res = await clearMediaDecodeIssueAction(id);
+      if (!res.success) {
+        setDecodeClearedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        toast.error(res.error ?? "Could not clear the damage mark");
+      } else {
+        onDecodeIssueCleared?.(id);
+        router.refresh();
+      }
+    });
+  }, [router, onDecodeIssueCleared]);
 
   // ADR-0023: set the per-image "people shown" (persist the hidden set). Optimistic.
   const handleSetHidden = useCallback((id: string, hiddenIds: string[]) => {
@@ -630,6 +663,28 @@ function SimpleLightbox({
       onTouchEnd={handleTouchEnd}
       className="fixed inset-0 z-[100] flex flex-col bg-black/95 outline-none"
     >
+      {/* Damaged source file — decoded leniently, missing parts show grey */}
+      {item.decodeIssue && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1.5 shrink-0 border-b border-red-500/40 bg-red-950/80 px-4 py-2 text-xs text-red-100"
+        >
+          <AlertTriangle size={14} className="shrink-0 text-red-400" aria-hidden="true" />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium">Damaged file</span> — {item.decodeIssue}. Missing parts show
+            grey, usually at the bottom. Keep it if it looks fine, or replace it with a good copy.
+          </span>
+          <button
+            type="button"
+            onClick={() => handleDecodeIssueClear(item.id)}
+            disabled={isDecodeClearPending}
+            className="rounded-md border border-red-400/40 bg-red-500/20 px-2.5 py-1 font-medium text-red-50 transition-colors hover:bg-red-500/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 disabled:opacity-50"
+          >
+            Looks fine
+          </button>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-white/5">
         <span className="text-sm text-white/70">

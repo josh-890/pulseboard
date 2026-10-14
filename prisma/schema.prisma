@@ -1196,6 +1196,13 @@ model MediaItem {
   // The staging cover copied in at promotion (cover-transfer.ts) — not an upload:
   // it does not set Set.firstMediaAt nor keep a set out of the archive upload queue.
   isTransferredCover Boolean @default(false)
+
+  // The source file was damaged (e.g. "VipsJpeg: premature end of JPEG image")
+  // and was decoded leniently, the way a browser shows it — missing parts come out
+  // grey. Holds Sharp's strict-decode message; null = clean. Shown as a red frame
+  // until "Looks fine" clears it or a replacement file is uploaded.
+  decodeIssue String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1216,6 +1223,7 @@ model MediaItem {
   @@index([copiedFromMediaItemId])
   @@index([motifTemplateId])
   @@index([isFavorite])
+  @@index([decodeIssue])
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +

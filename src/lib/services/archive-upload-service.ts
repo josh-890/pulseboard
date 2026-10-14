@@ -67,7 +67,7 @@ export async function getUploadWorklist(opts: { setId?: string; limit?: number }
 }
 
 export type ArchiveImageResult =
-  | { status: "uploaded"; mediaItemId: string }
+  | { status: "uploaded"; mediaItemId: string; decodeIssue?: string }
   | { status: "skipped"; reason: "already-in-set" }
   | { status: "refused"; reason: string };
 
@@ -75,9 +75,12 @@ const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif
 
 /**
  * One archive image into its set — the manual upload path without its duplicate
- * dialog: an image already in the set (same SHA-256) is skipped, which is what
- * makes an interrupted run safe to repeat. Sharp stays strict; a file it cannot
- * decode throws and is reported by the agent, never "repaired" here.
+ * dialog: an image already in the set (same SHA-256, or the same file name — a
+ * copy uploaded by hand through the browser is re-encoded, so its hash differs)
+ * is skipped, which is what makes an interrupted or re-queued run safe to repeat.
+ * A damaged file (truncated / corrupt data) is stored decoded leniently and
+ * flagged (MediaItem.decodeIssue); only a file that is not an image at all
+ * throws and is reported by the agent.
  */
 export async function uploadArchiveImage(input: {
   setId: string;
@@ -109,13 +112,15 @@ export async function uploadArchiveImage(input: {
 
   const hash = computeSha256(input.buffer);
   const existing = await prisma.setMediaItem.findFirst({
-    where: { setId: input.setId, mediaItem: { hash } },
+    where: { setId: input.setId, mediaItem: { OR: [{ hash }, { filename: input.filename }] } },
     select: { mediaItemId: true },
   });
   if (existing) return { status: "skipped", reason: "already-in-set" };
 
   const phash = await computeDHash(input.buffer);
-  const stored = await uploadPhotoToStorage(input.buffer, input.mimeType, "session", sessionId, randomUUID());
+  const stored = await uploadPhotoToStorage(input.buffer, input.mimeType, "session", sessionId, randomUUID(), {
+    lenient: true,
+  });
   const item = await createMediaItemDirect({
     sessionId,
     setId: input.setId,
@@ -129,8 +134,9 @@ export async function uploadArchiveImage(input: {
     usage: "PORTFOLIO",
     hash,
     phash,
+    decodeIssue: stored.decodeIssue,
   });
-  return { status: "uploaded", mediaItemId: item.id };
+  return { status: "uploaded", mediaItemId: item.id, ...(stored.decodeIssue ? { decodeIssue: stored.decodeIssue } : {}) };
 }
 
 /** The agent went through every file of the set; `failed` are the names it could not upload */

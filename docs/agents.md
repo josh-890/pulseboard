@@ -294,11 +294,19 @@ This agent does it unattended:
   order (2 before 10). A designated cover (`Title-c.jpg`, `Title - c.jpg` — the cover
   agent's rule) is sent **first** so it becomes the set's cover. `bmp/tif` are listed
   as not uploadable.
-- **Resumable:** the server skips an image already in the set (same SHA-256), and a
-  set the agent started stays queued until it reports done — just run it again.
-- **Failures** (e.g. `VipsJpeg: Corrupt JPEG data` — Sharp stays strict) fail that
+- **Resumable:** the server skips an image already in the set (same SHA-256, or the
+  same file name — a copy you uploaded by hand through the browser is re-encoded and
+  hashes differently), and a set the agent started stays queued until it reports done
+  — just run it again.
+- **Damaged files** (2026-10-14; e.g. `VipsJpeg: premature end of JPEG image` — a
+  truncated file) are **uploaded anyway**, decoded as far as they go, the way a browser
+  shows them: missing parts come out grey, usually at the bottom. The log shows
+  `⚠ uploaded damaged — <reason> (flagged)`; in the app the image gets a **red frame**,
+  and the dashboard lists it under *Damaged images to check*. Open it: **Looks fine**
+  clears the flag; replacing the file with a good copy clears it too.
+- **Failures** — only files that are not images at all (and `bmp/tif`) — fail that
   file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
-  is done. Clean the file and upload it by hand.
+  is done.
 - A set you meanwhile filled by hand is refused and left alone.
 - **One run at a time** (per tenant): the script holds a named lock
   (`Global\Pulseboard-archive-upload-<tenant>`) for the whole run. A second start —

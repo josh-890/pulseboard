@@ -178,9 +178,24 @@ export type NeedsYouItem = {
   items?: { label: string; href: string; detail?: string }[];
 };
 
+/** Damaged images per set, most first — images in no set are only counted */
+function damagedBySet(
+  rows: { setMediaItems: { set: { id: string; title: string } }[] }[],
+): { id: string; title: string; count: number }[] {
+  const bySet = new Map<string, { id: string; title: string; count: number }>();
+  for (const r of rows) {
+    const set = r.setMediaItems[0]?.set;
+    if (!set) continue;
+    const cur = bySet.get(set.id) ?? { ...set, count: 0 };
+    cur.count++;
+    bySet.set(set.id, cur);
+  }
+  return [...bySet.values()].sort((a, b) => b.count - a.count);
+}
+
 /** The queues waiting for a decision or a run — only the non-empty ones */
 export async function getNeedsYou(): Promise<NeedsYouItem[]> {
-  const [toReview, approved, uploadQueue, failedSets, todos, attribution, unknownTagFolders, stubs] = await Promise.all([
+  const [toReview, approved, uploadQueue, failedSets, damaged, todos, attribution, unknownTagFolders, stubs] = await Promise.all([
     prisma.stagingSet.count({ where: { status: { in: ["PENDING", "REVIEWING"] } } }),
     prisma.stagingSet.count({ where: { status: "APPROVED" } }),
     getUploadWorklist(),
@@ -189,6 +204,11 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
       select: { id: true, title: true, archiveUploadFailed: true },
       orderBy: { archiveUploadDoneAt: "desc" },
       take: 20,
+    }),
+    // Damaged source files stored as far as they decode (MediaItem.decodeIssue)
+    prisma.mediaItem.findMany({
+      where: { decodeIssue: { not: null } },
+      select: { setMediaItems: { select: { set: { select: { id: true, title: true } } }, take: 1 } },
     }),
     countOpenTodos(),
     getAttributionQueue({ limit: 1 }).catch(() => null),
@@ -217,6 +237,18 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
         label: s.title,
         href: `/sets/${s.id}`,
         detail: `${s.archiveUploadFailed.length} file${s.archiveUploadFailed.length === 1 ? "" : "s"}: ${s.archiveUploadFailed.slice(0, 2).join(", ")}${s.archiveUploadFailed.length > 2 ? ", …" : ""}`,
+      })),
+    },
+    {
+      key: "damaged",
+      label: "Damaged images to check",
+      count: damaged.length,
+      href: "/sets",
+      hint: "Red frame in the set — open the image: Looks fine, or replace the file",
+      items: damagedBySet(damaged).slice(0, 5).map((d) => ({
+        label: d.title,
+        href: `/sets/${d.id}`,
+        detail: `${d.count} damaged image${d.count === 1 ? "" : "s"}`,
       })),
     },
     { key: "todo", label: "Workflow to-dos", count: todos, href: "/tags?view=todo" },

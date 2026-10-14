@@ -125,7 +125,7 @@ function Send-Image {
         $msg = if ($body -and $body.error) { [string]$body.error } else { "HTTP $([int]$resp.StatusCode)" }
         return @{ status = "error"; reason = $msg }
     }
-    return @{ status = [string]$body.status; reason = [string]$body.reason }
+    return @{ status = [string]$body.status; reason = [string]$body.reason; decodeIssue = [string]$body.decodeIssue }
 }
 
 # ── Run report (dashboard "Agents" panel, 2026-10-11) ─────────────────────────
@@ -187,7 +187,7 @@ try {
     }
     Write-Host "$($sets.Count) set(s) waiting."
 
-    $tot = @{ sets = 0; uploaded = 0; skipped = 0; failed = 0; notImages = 0; setsAborted = 0 }
+    $tot = @{ sets = 0; uploaded = 0; damaged = 0; skipped = 0; failed = 0; notImages = 0; setsAborted = 0 }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
     foreach ($s in $sets) {
@@ -236,7 +236,13 @@ try {
                 $r = @{ status = "error"; reason = $_.Exception.Message }
             }
             switch ($r.status) {
-                "uploaded" { Write-Host "  ✓"; $tot.uploaded++ }
+                "uploaded" {
+                    # A damaged file (e.g. truncated JPEG) is stored as far as it decodes
+                    # and flagged with a red frame in the app — check it there
+                    if ($r.decodeIssue) { Write-Host "  ⚠ uploaded damaged — $($r.decodeIssue) (flagged)"; $tot.damaged++ }
+                    else { Write-Host "  ✓" }
+                    $tot.uploaded++
+                }
                 "skipped"  { Write-Host "  = already in the set"; $tot.skipped++ }
                 "refused"  {
                     # A set-level refusal (images added by hand meanwhile, no session) stops the set
@@ -276,6 +282,7 @@ try {
     } else {
         Write-Host "  Sets filled:       $($tot.sets)"
         Write-Host "  Images uploaded:   $($tot.uploaded)"
+        if ($tot.damaged)     { Write-Host "  …of them damaged:  $($tot.damaged) (red frame in the app — check them)" }
         if ($tot.skipped)     { Write-Host "  Already in set:    $($tot.skipped)" }
         if ($tot.failed)      { Write-Host "  Failed:            $($tot.failed) (listed on their sets)" }
         if ($tot.notImages)   { Write-Host "  bmp/tif skipped:   $($tot.notImages)" }
@@ -283,10 +290,11 @@ try {
     }
 
     Send-AgentRun -Agent "archive-upload" -Ok ($tot.failed -eq 0 -and $tot.setsAborted -eq 0) `
-        -Summary ("{0} set(s) · {1} images{2}{3}" -f $tot.sets, $tot.uploaded,
+        -Summary ("{0} set(s) · {1} images{2}{3}{4}" -f $tot.sets, $tot.uploaded,
+            $(if ($tot.damaged) { " · $($tot.damaged) damaged" } else { "" }),
             $(if ($tot.failed) { " · $($tot.failed) failed" } else { "" }),
             $(if ($tot.setsAborted) { " · $($tot.setsAborted) left queued" } else { "" })) `
-        -Details @{ sets = $tot.sets; uploaded = $tot.uploaded; skipped = $tot.skipped; failed = $tot.failed; setsLeftQueued = $tot.setsAborted }
+        -Details @{ sets = $tot.sets; uploaded = $tot.uploaded; damaged = $tot.damaged; skipped = $tot.skipped; failed = $tot.failed; setsLeftQueued = $tot.setsAborted }
 } finally {
     $client.Dispose()
     if ($lock) {

@@ -133,4 +133,13 @@ describe("uploadArchiveImage — before the upload", () => {
     const r = await uploadArchiveImage({ setId: ids.empty, filename: "a.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer });
     expect(r).toEqual({ status: "skipped", reason: "already-in-set" });
   });
+
+  // 2026-10-14: a damaged file uploaded by hand through the browser is re-encoded
+  // there, so its hash differs — a re-queued run must still not add it twice
+  it("skips a file of the same name already in the set, even with other bytes", async () => {
+    const r = await uploadArchiveImage({
+      setId: ids.empty, filename: "x.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer: Buffer.from(`${RUN}-other-bytes`),
+    });
+    expect(r).toEqual({ status: "skipped", reason: "already-in-set" });
+  });
 });

@@ -99,6 +99,7 @@ export type MediaItemForGallery = {
   sourceVideoRef: string | null;
   sourceTimecodeMs: number | null;
   isFavorite: boolean; // global per-image favorite (ADR-0019)
+  decodeIssue?: string | null; // damaged source, decoded leniently — red frame
 
   // Optional relation slots — each maps to a single GalleryItem field.
   personMediaLinks?: Array<{
@@ -161,6 +162,7 @@ export function mapMediaItemToGalleryItem(
     focalX: item.focalX,
     focalY: item.focalY,
     isFavorite: item.isFavorite,
+    decodeIssue: item.decodeIssue ?? null,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
     // Per-person link surface — present only when caller included
@@ -312,6 +314,8 @@ type CreateMediaItemDirectInput = {
    * the archive upload agent still treats the set as never filled.
    */
   isTransferredCover?: boolean;
+  /** The file was damaged and decoded leniently (UploadResult.decodeIssue) */
+  decodeIssue?: string | null;
 };
 
 export async function createMediaItemDirect(
@@ -339,6 +343,7 @@ export async function createMediaItemDirect(
         sourceTimecodeMs: input.sourceTimecodeMs,
         isAnnotation: input.isAnnotation ?? false,
         isTransferredCover: input.isTransferredCover ?? false,
+        decodeIssue: input.decodeIssue ?? null,
       },
     });
 
@@ -1564,11 +1569,14 @@ export async function replaceMediaItemFile(
     phash: string;
     filename: string;
     mimeType: string;
+    /** The new file's decode state — a clean replacement clears the flag */
+    decodeIssue: string | null;
   },
 ): Promise<void> {
   await prisma.mediaItem.update({
     where: { id: mediaItemId },
     data: {
+      decodeIssue: newData.decodeIssue,
       variants: newData.variants as unknown as Record<string, string>,
       size: newData.size,
       originalWidth: newData.originalWidth,

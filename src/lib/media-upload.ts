@@ -36,6 +36,19 @@ export type UploadResult = {
   variants: PhotoVariants;
   originalWidth: number;
   originalHeight: number;
+  /** Set when the file was damaged and decoded leniently (MediaItem.decodeIssue) */
+  decodeIssue: string | null;
+};
+
+export type UploadPhotoOptions = {
+  /**
+   * Accept a damaged file (truncated / corrupt data) the way a browser does:
+   * decode what is there — missing parts come out grey — and report Sharp's
+   * strict-decode message as `decodeIssue` so the image can be flagged. A file
+   * that is not an image still throws. Off by default: derived images (re-bake,
+   * cover transfer) stay strict.
+   */
+  lenient?: boolean;
 };
 
 export async function uploadPhotoToStorage(
@@ -44,6 +57,7 @@ export async function uploadPhotoToStorage(
   entityType: string,
   entityId: string,
   photoId: string,
+  options: UploadPhotoOptions = {},
 ): Promise<UploadResult> {
   const prefix = `${entityType}/${entityId}/${photoId}`;
 
@@ -58,12 +72,24 @@ export async function uploadPhotoToStorage(
   }
   console.log(`[storage] sharp: ${originalWidth}×${originalHeight}, normalizing…`);
 
-  // Step 2 — Normalize: auto-rotate EXIF, strip metadata, normalize colorspace
-  const normalized = await sharp(buffer)
-    .rotate()
-    .withMetadata({ orientation: undefined })
-    .toColorspace("srgb")
-    .toBuffer();
+  // Step 2 — Normalize: auto-rotate EXIF, strip metadata, normalize colorspace.
+  // Always strict first; the lenient retry only runs for a damaged file.
+  const normalize = (failOn: "warning" | "none") =>
+    sharp(buffer, { failOn })
+      .rotate()
+      .withMetadata({ orientation: undefined })
+      .toColorspace("srgb")
+      .toBuffer();
+  let normalized: Buffer;
+  let decodeIssue: string | null = null;
+  try {
+    normalized = await normalize("warning");
+  } catch (err) {
+    if (!options.lenient) throw err;
+    normalized = await normalize("none");
+    decodeIssue = err instanceof Error ? err.message : String(err);
+    console.warn(`[storage] sharp: damaged file decoded leniently — ${decodeIssue}`);
+  }
   console.log(`[storage] sharp: normalized (${normalized.length} bytes)`);
 
   // Step 3 — Generate all variant buffers sequentially (CPU-bound Sharp work)
@@ -116,6 +142,7 @@ export async function uploadPhotoToStorage(
     variants,
     originalWidth,
     originalHeight,
+    decodeIssue,
   };
 }
 

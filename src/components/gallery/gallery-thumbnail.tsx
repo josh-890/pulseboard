@@ -2,7 +2,7 @@
 
 import { TagDotStrip } from "@/components/tags";
 import Image from "next/image";
-import { Check, Frame, Heart, Maximize2, Users } from "lucide-react";
+import { AlertTriangle, Check, Frame, Heart, Maximize2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -129,6 +129,14 @@ export function GalleryThumbnail({
         unoptimized
       />
 
+      {/* Damaged source file, decoded leniently — red frame until "Looks fine" or a replacement */}
+      {item.decodeIssue && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-lg ring-[3px] ring-inset ring-red-500"
+          aria-hidden="true"
+        />
+      )}
+
       {/* Selection checkbox (selectable mode) */}
       {selectable && (
         <button
@@ -202,6 +210,15 @@ export function GalleryThumbnail({
 
       {/* Badge tray */}
       <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1">
+        {item.decodeIssue && (
+          <span
+            className="inline-flex items-center gap-0.5 rounded-full bg-red-600/90 px-1.5 py-0.5 text-[10px] font-medium text-white"
+            title={`Damaged file: ${item.decodeIssue} — open to check`}
+            aria-label={`Damaged file: ${item.decodeIssue}`}
+          >
+            <AlertTriangle size={9} /> damaged
+          </span>
+        )}
         {/* Subset badge — only when not all of the session cast is shown (ADR-0023) */}
         {isSubset && (
           <span

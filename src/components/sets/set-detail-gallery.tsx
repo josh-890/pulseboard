@@ -1110,6 +1110,9 @@ export function SetDetailGallery({
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),
             )
           }
+          onDecodeIssueCleared={(id) =>
+            setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, decodeIssue: null } : it)))
+          }
           detailAssignContext={
             copyToReferenceTargets && copyToReferenceTargets.length > 0
               ? { restrictTo: copyToReferenceTargets.map((t) => ({ id: t.personId, name: t.name })) }

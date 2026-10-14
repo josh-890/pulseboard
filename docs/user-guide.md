@@ -78,7 +78,7 @@ Click an entry to open the set, session, person or page it is about.
 The queues waiting for you, each with its count and a link — only non-empty ones:
 staged sets to review, approved sets ready to promote, sets waiting for their images
 (run `archive-upload.ps1`), sets with images that did not upload (with the file
-names), workflow to-dos, archive folders whose people are not yet decided, archive
+names), damaged images to check (per set), workflow to-dos, archive folders whose people are not yet decided, archive
 folders with unknown `#tag` names, and stub copies waiting for the real set.
 
 ### Agents
@@ -1533,8 +1533,16 @@ After promoting, a set is empty. Instead of uploading the pictures by hand, run
 images of each promoted **photo** set's archive folder, in file-name order, with a
 `-c` cover file as the cover. Only sets that **never had pictures** are filled — a set
 you already uploaded to (even if you later removed the pictures) is left alone, and so
-are stub folders. Files it could not upload (e.g. a corrupt JPEG) are kept in a list on
-the set; an interrupted run simply continues where it stopped.
+are stub folders. Files it could not upload (not an image, `bmp/tif`) are kept in a list
+on the set; an interrupted run simply continues where it stopped.
+
+**Damaged pictures.** A damaged file — typically a JPEG cut short by an interrupted
+copy ("premature end of JPEG image") — is uploaded anyway, as far as it can be read;
+the missing part shows grey, usually at the bottom. Such a picture gets a **red frame**
+and a *damaged* badge in the set, and the dashboard lists it under **Damaged images to
+check**. Open it: a red bar names the problem. Click **Looks fine** if the picture is
+usable, or replace the file with a good copy — either removes the frame. The same
+applies to a damaged file you upload by hand.
 
 ### The archive suggestion on a staged set
 
