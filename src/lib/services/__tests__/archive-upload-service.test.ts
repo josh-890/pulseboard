@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import { computeSha256 } from "@/lib/image-hash";
 import { completeArchiveUpload, getUploadWorklist, uploadArchiveImage } from "@/lib/services/archive-upload-service";
@@ -6,6 +6,19 @@ import { completeArchiveUpload, getUploadWorklist, uploadArchiveImage } from "@/
 // The archive upload agent's queue (2026-10-10): promoted photo sets that never had
 // images, resumable when the agent was interrupted. Storage is not touched here —
 // these cases stop before the upload.
+
+// Storage is mocked for the repair case: it needs an upload, not MinIO
+const storage = vi.hoisted(() => ({ deleted: [] as unknown[] }));
+vi.mock("@/lib/media-upload", () => ({
+  uploadPhotoToStorage: async () => ({
+    variants: { gallery_512: "new/gallery_512.webp" }, originalWidth: 4000, originalHeight: 6000, decodeIssue: null,
+  }),
+  deleteMediaFiles: async (list: unknown[]) => { storage.deleted.push(...list); },
+}));
+vi.mock("@/lib/image-hash", async (orig) => ({
+  ...(await orig<typeof import("@/lib/image-hash")>()),
+  computeDHash: async () => "0000000000000000",
+}));
 
 const RUN = `aus${Date.now().toString(36)}`;
 const ids: Record<string, string> = {};
@@ -141,5 +154,28 @@ describe("uploadArchiveImage — before the upload", () => {
       setId: ids.empty, filename: "x.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer: Buffer.from(`${RUN}-other-bytes`),
     });
     expect(r).toEqual({ status: "skipped", reason: "already-in-set" });
+  });
+
+  // 2026-10-15: images over 10 MB arrived cut off (middleware body limit) and were
+  // stored flagged damaged — a re-run replaces the flagged copy with the full file
+  it("replaces a same-named copy still flagged damaged, and drops its old files", async () => {
+    const m = await prisma.mediaItem.create({
+      data: {
+        sessionId: ids.emptySession, mediaType: "PHOTO", filename: "big.jpg", mimeType: "image/jpeg", size: 10485760,
+        originalWidth: 4000, originalHeight: 6000, hash: "h-truncated", decodeIssue: "VipsJpeg: premature end of JPEG image",
+        variants: { gallery_512: "old/gallery_512.webp" },
+      },
+    });
+    created.media.push(m.id);
+    await prisma.setMediaItem.create({ data: { setId: ids.empty, mediaItemId: m.id } });
+
+    const buffer = Buffer.from(`${RUN}-full-file`);
+    const r = await uploadArchiveImage({ setId: ids.empty, filename: "big.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer });
+    expect(r).toEqual({ status: "uploaded", mediaItemId: m.id, replaced: true });
+    const after = await prisma.mediaItem.findUniqueOrThrow({ where: { id: m.id } });
+    expect(after).toMatchObject({ decodeIssue: null, hash: computeSha256(buffer), size: buffer.length });
+    expect(after.variants).toEqual({ gallery_512: "new/gallery_512.webp" });
+    expect(storage.deleted).toEqual([{ gallery_512: "old/gallery_512.webp" }]);
+    expect(await prisma.setMediaItem.count({ where: { setId: ids.empty, mediaItem: { filename: "big.jpg" } } })).toBe(1);
   });
 });

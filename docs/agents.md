@@ -304,6 +304,14 @@ This agent does it unattended:
   `⚠ uploaded damaged — <reason> (flagged)`; in the app the image gets a **red frame**,
   and the dashboard lists it under *Damaged images to check*. Open it: **Looks fine**
   clears the flag; replacing the file with a good copy clears it too.
+- **A flagged copy is repaired on a re-run** (2026-10-15): a file whose same-named
+  image in the set still carries the damaged flag is not skipped — the server swaps
+  the full file in (log: `↻ damaged copy replaced`) and drops the old variants. Until
+  that day every file over **10 MB** reached the server cut off (the middleware's
+  default body limit, now 110 MB), so big archive images showed up as "damaged" while
+  the originals were fine; the migration `20261015090000_requeue_truncated_uploads`
+  re-queued those sets. A body that still arrives shorter than its `Content-Length`
+  now fails that file with `body arrived incomplete (x of y bytes)` — never stored.
 - **Failures** — only files that are not images at all (and `bmp/tif`) — fail that
   file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
   is done.

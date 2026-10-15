@@ -1554,7 +1554,11 @@ the missing part shows grey, usually at the bottom. Such a picture gets a **red 
 and a *damaged* badge in the set, and the dashboard lists it under **Damaged images to
 check**. Open it: a red bar names the problem. Click **Looks fine** if the picture is
 usable, or replace the file with a good copy — either removes the frame. The same
-applies to a damaged file you upload by hand.
+applies to a damaged file you upload by hand. When the archive upload agent runs a
+set again, it replaces each picture still marked damaged with the file from the
+archive, so a copy that was only damaged on the way repairs itself. (Until
+2026-10-15 the agent cut every picture over 10 MB short on the way; those sets were
+queued again and are repaired by the next run.)
 
 ### The archive suggestion on a staged set
 

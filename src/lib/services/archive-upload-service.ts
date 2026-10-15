@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/db";
 import { computeDHash, computeSha256 } from "@/lib/image-hash";
-import { uploadPhotoToStorage } from "@/lib/media-upload";
-import { createMediaItemDirect } from "./media-service";
+import { deleteMediaFiles, uploadPhotoToStorage } from "@/lib/media-upload";
+import type { PhotoVariants } from "@/lib/types";
+import { createMediaItemDirect, replaceMediaItemFile } from "./media-service";
 
 // The archive upload agent (scripts/archive-upload.ps1, 2026-10-10): fills a
 // promoted photo set with the images of its archive folder, the same way a manual
@@ -67,7 +68,7 @@ export async function getUploadWorklist(opts: { setId?: string; limit?: number }
 }
 
 export type ArchiveImageResult =
-  | { status: "uploaded"; mediaItemId: string; decodeIssue?: string }
+  | { status: "uploaded"; mediaItemId: string; decodeIssue?: string; replaced?: boolean }
   | { status: "skipped"; reason: "already-in-set" }
   | { status: "refused"; reason: string };
 
@@ -80,7 +81,9 @@ const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif
  * is skipped, which is what makes an interrupted or re-queued run safe to repeat.
  * A damaged file (truncated / corrupt data) is stored decoded leniently and
  * flagged (MediaItem.decodeIssue); only a file that is not an image at all
- * throws and is reported by the agent.
+ * throws and is reported by the agent. A same-named copy that is still flagged
+ * damaged is not skipped but replaced with this file — that repairs images that
+ * arrived cut off (10 MB body limit, fixed 2026-10-15) when the set is re-run.
  */
 export async function uploadArchiveImage(input: {
   setId: string;
@@ -113,14 +116,35 @@ export async function uploadArchiveImage(input: {
   const hash = computeSha256(input.buffer);
   const existing = await prisma.setMediaItem.findFirst({
     where: { setId: input.setId, mediaItem: { OR: [{ hash }, { filename: input.filename }] } },
-    select: { mediaItemId: true },
+    select: { mediaItemId: true, mediaItem: { select: { hash: true, decodeIssue: true, variants: true } } },
   });
-  if (existing) return { status: "skipped", reason: "already-in-set" };
+  const repair = existing !== null && existing.mediaItem.decodeIssue !== null && existing.mediaItem.hash !== hash;
+  if (existing && !repair) return { status: "skipped", reason: "already-in-set" };
 
   const phash = await computeDHash(input.buffer);
   const stored = await uploadPhotoToStorage(input.buffer, input.mimeType, "session", sessionId, randomUUID(), {
     lenient: true,
   });
+  if (existing && repair) {
+    await replaceMediaItemFile(existing.mediaItemId, {
+      variants: stored.variants,
+      size: input.buffer.length,
+      originalWidth: stored.originalWidth,
+      originalHeight: stored.originalHeight,
+      hash,
+      phash,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      decodeIssue: stored.decodeIssue,
+    });
+    await deleteMediaFiles([existing.mediaItem.variants as PhotoVariants]);
+    return {
+      status: "uploaded",
+      mediaItemId: existing.mediaItemId,
+      replaced: true,
+      ...(stored.decodeIssue ? { decodeIssue: stored.decodeIssue } : {}),
+    };
+  }
   const item = await createMediaItemDirect({
     sessionId,
     setId: input.setId,

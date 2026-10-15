@@ -36,6 +36,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ set
 
   const buffer = Buffer.from(await request.arrayBuffer())
   if (buffer.length === 0) return NextResponse.json({ error: 'empty body' }, { status: 400 })
+  // A body cut off on the way (a size limit in front of the route) must fail
+  // loudly, never be stored as a "damaged" image
+  const declared = Number(request.headers.get('content-length') ?? '')
+  if (declared > 0 && buffer.length < declared) {
+    console.error('[archive/set-upload] truncated body:', setId, filename, buffer.length, 'of', declared)
+    return NextResponse.json(
+      { error: `body arrived incomplete (${buffer.length} of ${declared} bytes)` },
+      { status: 500 },
+    )
+  }
   if (buffer.length > MAX_BYTES) return NextResponse.json({ status: 'refused', reason: 'larger than 100 MB' })
 
   return runWithTenant(resolveTenant(request), async () => {
