@@ -225,4 +225,13 @@ describe("an incomplete copy", () => {
     });
     expect(r).toEqual({ status: "refused", reason: "set already has (or had) images" });
   });
+
+  it("ignores a re-fetch mark left on a copy that is no longer flagged", async () => {
+    await prisma.mediaItem.updateMany({
+      where: { filename: "p1.jpg", setMediaItems: { some: { setId: ids.partial } } },
+      data: { archiveRetry: true },
+    });
+    expect(await getUploadWorklist({ setId: ids.partial })).toEqual([]);
+  });
 });
+

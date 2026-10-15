@@ -31,6 +31,9 @@ export type UploadWorkItem = {
   retryFiles: string[] | null;
 };
 
+/** A copy to fetch again: marked, and still flagged damaged */
+const RETRY = { archiveRetry: true, decodeIssue: { not: null } } as const;
+
 /** Sets waiting for their archive images, oldest promotion first */
 export async function getUploadWorklist(opts: { setId?: string; limit?: number } = {}): Promise<UploadWorkItem[]> {
   const sets = await prisma.set.findMany({
@@ -44,7 +47,9 @@ export async function getUploadWorklist(opts: { setId?: string; limit?: number }
         // The staging cover copied in at promotion does not count as an upload
         { firstMediaAt: null, setMediaItems: { none: { mediaItem: { isTransferredCover: false } } } },
         { archiveUploadStartedAt: { not: null }, archiveUploadDoneAt: null },
-        { archiveUploadStartedAt: { not: null }, setMediaItems: { some: { mediaItem: { archiveRetry: true } } } },
+        // Only while the copy is still flagged: a repair by an older server left
+        // archiveRetry behind on clean images (2026-10-15)
+        { archiveUploadStartedAt: { not: null }, setMediaItems: { some: { mediaItem: RETRY } } },
       ],
     },
     orderBy: [{ mediaPriority: { sort: "desc", nulls: "last" } }, { createdAt: "asc" }],
@@ -59,7 +64,7 @@ export async function getUploadWorklist(opts: { setId?: string; limit?: number }
         select: { archiveFolder: { select: { fullPath: true, folderName: true, fileCount: true } } },
         take: 1,
       },
-      setMediaItems: { where: { mediaItem: { archiveRetry: true } }, select: { mediaItem: { select: { filename: true } } } },
+      setMediaItems: { where: { mediaItem: RETRY }, select: { mediaItem: { select: { filename: true } } } },
     },
   });
   return sets.flatMap((s) => {
