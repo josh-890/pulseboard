@@ -3549,47 +3549,64 @@ export async function createStagingSetFromOrphan(
   // the archive link and one holding the import payload (ADR-0028).
   const title = overrides.title?.trim() || folder.parsedTitle || folder.folderName
   const releaseDate = overrides.releaseDate ? new Date(overrides.releaseDate) : folder.parsedDate
-  const stagingSet = await prisma.stagingSet.create({
-    data: {
-      title,
-      titleNorm: normalizeForSearch(title),
-      channelName,
-      channelId: channelId ?? null,
-      releaseDate: releaseDate ?? undefined,
-      // A date without a precision is a date the app refuses to use: the age of a
-      // participant is computed from the session or release date and returns
-      // nothing when the precision is UNKNOWN, so a set developed from a folder
-      // showed no ages at all. Both sources here are day-precise — the folder
-      // name carries a full YYYY-MM-DD, and the dialogue's date field is a day.
-      releaseDatePrecision: overrides.releaseDatePrecision ?? (releaseDate ? 'DAY' : 'UNKNOWN'),
-      isVideo: overrides.isVideo ?? folder.isVideo,
-      ...(overrides.externalId ? { externalId: overrides.externalId } : {}),
-      ...(overrides.notes ? { notes: overrides.notes } : {}),
-      // A set born here has no publisher image, and the picture that belongs to it
-      // is already in MinIO under this folder. Writing it now rather than only
-      // rendering it means the rest of the pipeline needs no special case: the
-      // list shows it, and promotion carries it into the Set through the transfer
-      // that already exists.
-      coverImageUrl: folder.coverKey ? buildUrl(folder.coverKey) : null,
-    },
-    select: { id: true },
+  // One link per folder. A CONFIRMED one means the folder already belongs to a
+  // set — say so instead of failing on the unique index. A SUGGESTED one is only
+  // the matcher's guess (the folder still shows under "No Set") and gives way:
+  // making a set from the folder is the operator's answer. 2026-10-16: the guess
+  // pointed at another staged set, the create hit the unique index, and the
+  // staged set made just before was left behind without its folder.
+  const existingLink = await prisma.archiveLink.findUnique({
+    where: { archiveFolderId: folderId },
+    select: { status: true },
   })
+  if (existingLink?.status === 'CONFIRMED') throw new Error('This folder is already linked to a set')
 
-  // Create CONFIRMED ArchiveLink. The set is being made *from* this folder, so the
-  // link inherits what the scan already established about it — see
-  // `archiveFieldsFromFolder`.
-  await prisma.archiveLink.create({
-    data: {
-      archiveFolderId: folderId,
+  // Staged set and link together — never one without the other
+  return prisma.$transaction(async (tx) => {
+    const stagingSet = await tx.stagingSet.create({
+      data: {
+        title,
+        titleNorm: normalizeForSearch(title),
+        channelName,
+        channelId: channelId ?? null,
+        releaseDate: releaseDate ?? undefined,
+        // A date without a precision is a date the app refuses to use: the age of a
+        // participant is computed from the session or release date and returns
+        // nothing when the precision is UNKNOWN, so a set developed from a folder
+        // showed no ages at all. Both sources here are day-precise — the folder
+        // name carries a full YYYY-MM-DD, and the dialogue's date field is a day.
+        releaseDatePrecision: overrides.releaseDatePrecision ?? (releaseDate ? 'DAY' : 'UNKNOWN'),
+        isVideo: overrides.isVideo ?? folder.isVideo,
+        ...(overrides.externalId ? { externalId: overrides.externalId } : {}),
+        ...(overrides.notes ? { notes: overrides.notes } : {}),
+        // A set born here has no publisher image, and the picture that belongs to it
+        // is already in MinIO under this folder. Writing it now rather than only
+        // rendering it means the rest of the pipeline needs no special case: the
+        // list shows it, and promotion carries it into the Set through the transfer
+        // that already exists.
+        coverImageUrl: folder.coverKey ? buildUrl(folder.coverKey) : null,
+      },
+      select: { id: true },
+    })
+
+    // Create CONFIRMED ArchiveLink. The set is being made *from* this folder, so the
+    // link inherits what the scan already established about it — see
+    // `archiveFieldsFromFolder`.
+    const link = {
+      setId: null,
       stagingSetId: stagingSet.id,
-      status: 'CONFIRMED',
+      status: 'CONFIRMED' as const,
       confirmedAt: new Date(),
-      tenant: folder.tenant,
       ...archiveFieldsFromFolder(folder),
-    },
-  })
+    }
+    await tx.archiveLink.upsert({
+      where: { archiveFolderId: folderId },
+      create: { archiveFolderId: folderId, tenant: folder.tenant, ...link },
+      update: { ...link, confidence: null },
+    })
 
-  return { stagingSetId: stagingSet.id }
+    return { stagingSetId: stagingSet.id }
+  })
 }
 
 // ─── Folder Name Re-parse ─────────────────────────────────────────────────────

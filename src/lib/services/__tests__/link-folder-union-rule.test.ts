@@ -157,4 +157,33 @@ describe("createStagingSetFromOrphan", () => {
     expect(ss.titleNorm).toBe(normalizeForSearch(ss.title));
     expect(ss.titleNorm).toBeTruthy();
   });
+
+  // 2026-10-16: a folder under "No Set" may still carry the matcher's SUGGESTED
+  // link to another staged set. Making a set from it hit the one-link-per-folder
+  // index and left the new staged set behind without its folder.
+  it("replaces a suggested link to another set with its own confirmed one", async () => {
+    const folder = await makeFolder("Suggested");
+    const other = await makeStagingSet("Other guess", []);
+    await prisma.archiveLink.create({
+      data: { archiveFolderId: folder.id, stagingSetId: other.id, status: "SUGGESTED", confidence: "MEDIUM", tenant: TENANT },
+    });
+
+    const { stagingSetId } = await createStagingSetFromOrphan(folder.id);
+
+    const link = await prisma.archiveLink.findUniqueOrThrow({ where: { archiveFolderId: folder.id } });
+    expect(link).toMatchObject({ stagingSetId, setId: null, status: "CONFIRMED", confidence: null });
+    expect(link.confirmedAt).not.toBeNull();
+  });
+
+  it("refuses a folder already confirmed to a set, and leaves no staged set behind", async () => {
+    const folder = await makeFolder("Confirmed");
+    const owner = await makeStagingSet("Owner", []);
+    await prisma.archiveLink.create({
+      data: { archiveFolderId: folder.id, stagingSetId: owner.id, status: "CONFIRMED", confirmedAt: new Date(), tenant: TENANT },
+    });
+
+    await expect(createStagingSetFromOrphan(folder.id)).rejects.toThrow("This folder is already linked to a set");
+    expect(await prisma.stagingSet.count({ where: { title: `${PREFIX} Confirmed` } })).toBe(0);
+  });
 });
+
