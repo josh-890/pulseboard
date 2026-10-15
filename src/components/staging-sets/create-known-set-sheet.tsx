@@ -20,8 +20,11 @@ import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { createManualStagingSetAction } from "@/lib/actions/staging-set-actions";
 import {
   createStagingSetFromFolderAction,
-  findExistingStagingSetAction,
+  findStagingCandidatesAction,
+  linkFolderToCandidateAction,
 } from "@/lib/actions/attribution-actions";
+import { FolderMatchCandidates } from "@/components/staging-sets/folder-match-candidates";
+import type { FolderMatchCandidate, FolderMatchCheck } from "@/lib/services/folder-match-service";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -168,29 +171,56 @@ export function CreateKnownSetSheet({
   }, [open, initialChannelShortName, channels]);
 
   /**
-   * The staged set this folder probably already is.
-   *
-   * Asked when the sheet opens, so a twin can be prevented rather than cleaned up:
-   * a folder often corresponds to a set that arrived through a person's import
-   * and was never linked (106 such folders measured on xpulse). Saving anyway is
-   * allowed — the service links instead of duplicating — but seeing it first is
-   * what stops the operator filling in a form for nothing.
+   * The staged sets this folder could already be — the last check before a new
+   * one (2026-10-16). Asked when the sheet opens, so a twin is prevented rather
+   * than cleaned up: a folder often corresponds to a set that arrived through a
+   * person's import and was never linked, or the matcher already suggested one.
+   * Keyed by folder, so "loading" is simply "no answer for this folder yet".
    */
-  const [existingMatch, setExistingMatch] = useState<{
-    id: string
-    title: string
-    channelName: string | null
-    releaseDate: string | null
-    channelAgrees: boolean
+  const [matchCheck, setMatchCheck] = useState<{
+    folderId: string;
+    check: FolderMatchCheck | null;
+    error: string | null;
   } | null>(null);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
   useEffect(() => {
     if (!open || !archiveFolderId) return;
     let cancelled = false;
-    findExistingStagingSetAction(archiveFolderId).then((res) => {
-      if (!cancelled && res.success) setExistingMatch(res.data);
+    findStagingCandidatesAction(archiveFolderId).then((res) => {
+      if (cancelled) return;
+      setMatchCheck(
+        res.success
+          ? { folderId: archiveFolderId, check: res.data, error: null }
+          : { folderId: archiveFolderId, check: null, error: res.error },
+      );
     });
     return () => { cancelled = true; };
   }, [open, archiveFolderId]);
+  const checkForFolder = archiveFolderId && matchCheck?.folderId === archiveFolderId ? matchCheck : null;
+  const checkLoading = !!archiveFolderId && !checkForFolder;
+  const candidateCount = checkForFolder?.check?.candidates.length ?? 0;
+
+  function handleLinkCandidate(candidate: FolderMatchCandidate) {
+    if (!archiveFolderId) return;
+    setError(null);
+    setLinkingId(candidate.id);
+    startTransition(async () => {
+      const res = await linkFolderToCandidateAction(archiveFolderId, candidate.id);
+      setLinkingId(null);
+      if (!res.success) {
+        setError(res.error);
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        `Folder linked to “${candidate.title}”` +
+          (res.data.promoted ? " — its set" : "") +
+          (res.data.withheld ? ` · ${res.data.withheld} claimed person(s) not in its cast were left out` : ""),
+      );
+      onCreated?.();
+      onOpenChange(false);
+    });
+  }
 
   // The folder's confirmed people, when it has them: no search, no guessing —
   // the ICG-ID and personId are already the answer.
@@ -331,6 +361,8 @@ export function CreateKnownSetSheet({
       const result = archiveFolderId
         ? await createStagingSetFromFolderAction(archiveFolderId, {
             participants: people,
+            // The operator was shown the possible matches and chose a new set
+            createNew: !!checkForFolder?.check,
             overrides: {
               title: title.trim(),
               channelId,
@@ -373,29 +405,25 @@ export function CreateKnownSetSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-lg overflow-y-auto">
+      <SheetContent
+        side="right"
+        className={cn("flex w-full flex-col overflow-y-auto", archiveFolderId ? "sm:max-w-xl" : "sm:max-w-lg")}
+      >
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle>Add known set</SheetTitle>
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
-          {/* This folder is probably a set you already have. Saving links to it
-              rather than creating a twin — said before the form is filled in. */}
-          {existingMatch && (
-            <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
-              <p className="font-medium text-amber-700 dark:text-amber-400">
-                A staging set for this folder already exists
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                {existingMatch.title}
-                {existingMatch.releaseDate ? ` · ${existingMatch.releaseDate}` : ""}
-                {existingMatch.channelName ? ` · ${existingMatch.channelName}` : ""}
-                {!existingMatch.channelAgrees && " · different channel"}
-              </p>
-              <p className="mt-1 text-muted-foreground">
-                Saving links the folder to it and adds the people — nothing is duplicated.
-              </p>
-            </div>
+          {/* The last check: a staged set this folder already is? */}
+          {archiveFolderId && (
+            <FolderMatchCandidates
+              check={checkForFolder?.check ?? null}
+              loading={checkLoading}
+              error={checkForFolder?.error ?? null}
+              linkingId={linkingId}
+              disabled={isPending}
+              onLink={handleLinkCandidate}
+            />
           )}
 
           {/* Title */}
@@ -610,8 +638,8 @@ export function CreateKnownSetSheet({
             Cancel
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={isPending}>
-            {isPending && <Loader2 size={14} className="mr-2 animate-spin" />}
-            Create staged set
+            {isPending && !linkingId && <Loader2 size={14} className="mr-2 animate-spin" />}
+            {candidateCount > 0 ? "None of these — create new set" : "Create staged set"}
           </Button>
         </SheetFooter>
       </SheetContent>

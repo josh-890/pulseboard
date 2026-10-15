@@ -28,7 +28,11 @@ import {
   getAttributionGroups,
   type AttributionGroup,
 } from '@/lib/services/attribution-suggestion-service'
-import { archiveFieldsFromFolder, parseFolderParticipantRaw } from '@/lib/services/archive-service'
+import {
+  archiveFieldsFromFolder,
+  confirmArchiveFolderLink,
+  parseFolderParticipantRaw,
+} from '@/lib/services/archive-service'
 import { buildUrl } from '@/lib/media-url'
 import { resolvePersonReferences, type PersonReference } from '@/lib/services/person-reference-service'
 import { UNSETTLED_FOLDER } from '@/lib/services/archive-unsettled'
@@ -756,6 +760,11 @@ export async function createStagingSetFromFolder(
   input: {
     participants: StagingParticipantInput[]
     overrides?: StagingSetFromFolderOverrides
+    /**
+     * The operator saw the possible matches (`findStagingCandidatesForFolder`)
+     * and chose a new set: no silent reuse of the exact match behind their back.
+     */
+    createNew?: boolean
   },
 ): Promise<{
   stagingSetId: string
@@ -763,11 +772,11 @@ export async function createStagingSetFromFolder(
   linkedExisting: boolean
   withheld: WithheldClaim[]
 }> {
-  // Never create a set that already exists. We come at the archive from the disk
+  // Never create a set that already exists — unless the operator was shown it. We come at the archive from the disk
   // side now, so a folder may well correspond to a StagingSet that arrived through
   // a person's import and was simply never linked — measured at 106 such folders
   // on xpulse. Creating a second one would be a duplicate of curated work.
-  const existing = await findExistingStagingSet(folderId)
+  const existing = input.createNew ? null : await findExistingStagingSet(folderId)
   if (existing) {
     const { added, withheld } = await linkFolderToStagingSet(folderId, existing.id)
     return { stagingSetId: existing.id, participants: added, linkedExisting: true, withheld }
@@ -908,6 +917,8 @@ export async function linkFolderToStagingSet(
       setId: null,
       status: 'CONFIRMED',
       confirmedAt: new Date(),
+      // replaces a SUGGESTED link: its confidence was the matcher's
+      confidence: null,
       ...archiveFields,
     },
   })
@@ -947,6 +958,43 @@ export async function linkFolderToStagingSet(
     await setReview(tx, folderId, { develop: 'DEVELOPED' })
   })
   return { added, withheld }
+}
+
+/**
+ * The operator picked one of the possible matches in the "Add known set" sheet:
+ * attach the folder to it instead of creating a new staged set. A promoted one is
+ * linked to its Set (`confirmArchiveFolderLink` follows the promotion). A set that
+ * is already CONFIRMED to another folder cannot take a second one — said plainly
+ * rather than tripping the partial unique index.
+ */
+export async function linkFolderToCandidate(
+  folderId: string,
+  stagingSetId: string,
+): Promise<{ added: number; withheld: WithheldClaim[]; promoted: boolean }> {
+  const ss = await prisma.stagingSet.findUnique({
+    where: { id: stagingSetId },
+    select: { status: true, promotedSetId: true },
+  })
+  if (!ss) throw new Error('Staging set not found')
+  const promotedSetId = ss.status === 'PROMOTED' ? ss.promotedSetId : null
+  const taken = await prisma.archiveLink.findFirst({
+    where: {
+      status: 'CONFIRMED',
+      archiveFolderId: { not: folderId },
+      OR: [{ stagingSetId }, ...(promotedSetId ? [{ setId: promotedSetId }] : [])],
+    },
+    select: { archiveFolder: { select: { folderName: true } } },
+  })
+  if (taken) throw new Error(`That set already has its folder: ${taken.archiveFolder.folderName}`)
+
+  if (promotedSetId) {
+    await confirmArchiveFolderLink(folderId, stagingSetId, 'staging')
+    await prisma.$transaction(async (tx) => {
+      await setReview(tx, folderId, { develop: 'DEVELOPED' })
+    })
+    return { added: 0, withheld: [], promoted: true }
+  }
+  return { ...(await linkFolderToStagingSet(folderId, stagingSetId)), promoted: false }
 }
 
 /** Park a confirmed folder: the set will arrive via the person's import instead. */

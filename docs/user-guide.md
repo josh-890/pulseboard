@@ -1508,9 +1508,18 @@ attributions** — with their ICG-ID, and resolved to a Person where one exists 
 not from the name in the folder path; the alias from the path is kept as the
 *credited as* name.
 
-If a staged set for that folder already exists — typically one that arrived
-through a person's import and was never linked — the dialogue says so when it
-opens, and saving **links to it** instead of creating a second one.
+**Is it one of these?** Before a folder becomes a *new* staged set, the dialogue
+checks which staged sets it could already be, and lists them at the top: the
+set the matcher **suggested**, one with the same or a similar title, the same or a
+nearby date, the same channel, or the person from the folder name in its cast.
+Each shows its cover next to the folder's own, title, channel, date (and how
+many days apart), image count, cast, status, whether it was imported, and why it
+is listed. **Click a cover** to see it large beside the folder's cover. **Link
+folder to this set** attaches the folder to that one (for a promoted set: to its
+set) and closes the dialogue — nothing new is created. A set that already has its
+own folder is shown greyed with that folder's name; it cannot take a second one.
+If none fits, **None of these — create new set** creates the new staged set as
+before.
 
 ### Finding the folder for a set
 

@@ -20,10 +20,12 @@ import {
   rejectCandidate,
   searchAssignablePeople,
   developFolder,
+  linkFolderToCandidate,
   waitOnFolder,
   type ConfirmResult,
 } from '@/lib/services/attribution-confirm-service'
 import type { StagingSetFromFolderOverrides } from '@/lib/services/archive-service'
+import { findStagingCandidatesForFolder, type FolderMatchCheck } from '@/lib/services/folder-match-service'
 
 export type AttributionActionResult<T> = { success: true; data: T } | { success: false; error: string }
 
@@ -116,6 +118,7 @@ export async function createStagingSetFromFolderAction(
   input: {
     participants: { name: string; icgId?: string; personId?: string; usedName?: string }[]
     overrides?: StagingSetFromFolderOverrides
+    createNew?: boolean
   },
 ): Promise<AttributionActionResult<{ stagingSetId: string; participants: number; linkedExisting: boolean }>> {
   return run(async () => {
@@ -126,6 +129,22 @@ export async function createStagingSetFromFolderAction(
       linkedExisting: res.linkedExisting,
     }
   }, BOTH)
+}
+
+/** The staged sets this folder could already be — the last check before a new one. Read-only. */
+export async function findStagingCandidatesAction(folderId: string): Promise<AttributionActionResult<FolderMatchCheck>> {
+  return run(() => findStagingCandidatesForFolder(folderId), [])
+}
+
+/** Attach the folder to the candidate the operator picked, instead of creating a set. */
+export async function linkFolderToCandidateAction(
+  folderId: string,
+  stagingSetId: string,
+): Promise<AttributionActionResult<{ added: number; withheld: number; promoted: boolean }>> {
+  return run(async () => {
+    const res = await linkFolderToCandidate(folderId, stagingSetId)
+    return { added: res.added, withheld: res.withheld.length, promoted: res.promoted }
+  }, [...BOTH, '/staging-sets', '/sets'])
 }
 
 /** Is there already a staged set this folder belongs to? Read-only, asked before saving. */
