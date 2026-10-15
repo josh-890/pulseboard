@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Camera, Film, FolderCheck, FolderX, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
@@ -111,6 +111,7 @@ export function CareerSetTile({ row }: CareerSetTileProps) {
           <Image
             src={row.coverUrl}
             alt=""
+            style={focalStyle(row.coverFocalX, row.coverFocalY)}
             fill
             unoptimized
             loading="lazy"

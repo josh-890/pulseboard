@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Camera, Film, FolderCheck, FolderX, Star, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, focalStyle } from "@/lib/utils";
 import {
   StatusPill,
   STATUS_STRIPE_CLASS,
@@ -244,6 +244,7 @@ export function TimelineSetRow({
           <Image
             src={row.coverUrl}
             alt=""
+            style={focalStyle(row.coverFocalX, row.coverFocalY)}
             fill
             className="object-cover"
             unoptimized

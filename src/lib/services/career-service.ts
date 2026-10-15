@@ -130,6 +130,10 @@ type CareerTimelineRowBase = {
   type: SetType;
   rowStatus: CareerRowStatus;
   coverUrl: string | null;
+  // The cover's focal point (0–1), so cropped tiles keep the subject in frame.
+  // Null for staged rows and covers without one.
+  coverFocalX: number | null;
+  coverFocalY: number | null;
   archiveStatus: ArchiveStatus | null;
   hasArchiveLink: boolean;
   itemCount: number | null;
@@ -401,6 +405,8 @@ async function getPromotedRowsForPerson(
       itemCount: s.imageCount ?? null,
       rating: s.rating,
       coverUrl: coverMap.get(s.id)?.url ?? null,
+      coverFocalX: coverMap.get(s.id)?.focalX ?? null,
+      coverFocalY: coverMap.get(s.id)?.focalY ?? null,
       archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
       hasArchiveLink: !!s.archiveLinks[0],
       eraId: eraBySetId.get(s.id) ?? null,
@@ -638,6 +644,8 @@ async function getStagedRowsForPerson(
       itemCount: s.imageCount ?? null,
       rating: null,
       coverUrl: s.coverImageUrl,
+      coverFocalX: null,
+      coverFocalY: null,
       archiveStatus: s.archiveLinks[0]?.archiveStatus ?? null,
       hasArchiveLink: !!s.archiveLinks[0],
       eraId: null,
