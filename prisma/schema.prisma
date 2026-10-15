@@ -1202,6 +1202,10 @@ model MediaItem {
   // grey. Holds Sharp's strict-decode message; null = clean. Shown as a red frame
   // until "Looks fine" clears it or a replacement file is uploaded.
   decodeIssue String?
+  // The archive upload agent's copy arrived incomplete (a cut-off transfer, not a
+  // damaged original): every agent run sends the archive file again and replaces
+  // this one, until a complete copy is in. Cleared by "Looks fine" or a replacement.
+  archiveRetry Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1224,6 +1228,7 @@ model MediaItem {
   @@index([motifTemplateId])
   @@index([isFavorite])
   @@index([decodeIssue])
+  @@index([archiveRetry])
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +

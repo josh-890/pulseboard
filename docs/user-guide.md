@@ -1554,11 +1554,15 @@ the missing part shows grey, usually at the bottom. Such a picture gets a **red 
 and a *damaged* badge in the set, and the dashboard lists it under **Damaged images to
 check**. Open it: a red bar names the problem. Click **Looks fine** if the picture is
 usable, or replace the file with a good copy — either removes the frame. The same
-applies to a damaged file you upload by hand. When the archive upload agent runs a
-set again, it replaces each picture still marked damaged with the file from the
-archive, so a copy that was only damaged on the way repairs itself. (Until
-2026-10-15 the agent cut every picture over 10 MB short on the way; those sets were
-queued again and are repaired by the next run.)
+applies to a damaged file you upload by hand.
+
+If a picture from the archive upload agent **arrived incomplete** on the way (the
+original in the archive is fine), the red bar says so: *Arrived incomplete (x of y MB)
+— the next archive upload run fetches it again*. You still see the part that arrived,
+and every run sends the file again until a complete copy is in; the red frame then
+disappears on its own. You don't have to wait: **Looks fine**, replacing the file
+yourself, or deleting the picture all stop the re-fetch. (Until 2026-10-15 every
+picture over 10 MB arrived this way; those are being fetched again.)
 
 ### The archive suggestion on a staged set
 

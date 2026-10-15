@@ -61,4 +61,15 @@ describe("archive-upload.ps1 — static checks", () => {
     const close = (strip.match(/\}/g) ?? []).length;
     expect(open).toBe(close);
   });
+
+  // 2026-10-15: a finished set back for incomplete copies sends just those and
+  // does not report the set done again (that would overwrite its failed list)
+  it("sends only the retry files of a finished set and skips the done report", () => {
+    expect(code).toMatch(/\$sendList = @\(\$sendList \| Where-Object \{ \$retry -contains \$_\.Name \}\)/);
+    const skip = code.indexOf("if ($retry) { Write-Host \"  Re-fetch done\"; continue }");
+    const complete = code.indexOf("/complete");
+    expect(skip).toBeGreaterThan(-1);
+    expect(skip).toBeLessThan(complete);
+  });
 });
+

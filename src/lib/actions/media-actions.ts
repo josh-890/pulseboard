@@ -277,13 +277,14 @@ export async function setMediaFavoriteAction(
 }
 
 // A damaged source file (MediaItem.decodeIssue) was looked at and the stored
-// image is fine as it is: drop the red frame. Replacing the file also clears it.
+// image is fine as it is: drop the red frame — and stop the archive agent from
+// fetching it again (archiveRetry). Replacing the file also clears both.
 export async function clearMediaDecodeIssueAction(mediaItemId: string): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
       await prisma.mediaItem.update({
         where: { id: mediaItemId },
-        data: { decodeIssue: null },
+        data: { decodeIssue: null, archiveRetry: false },
       });
       revalidatePath("/");
       return { success: true };

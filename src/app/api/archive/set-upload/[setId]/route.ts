@@ -36,21 +36,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ set
 
   const buffer = Buffer.from(await request.arrayBuffer())
   if (buffer.length === 0) return NextResponse.json({ error: 'empty body' }, { status: 400 })
-  // A body cut off on the way (a size limit in front of the route) must fail
-  // loudly, never be stored as a "damaged" image
-  const declared = Number(request.headers.get('content-length') ?? '')
-  if (declared > 0 && buffer.length < declared) {
-    console.error('[archive/set-upload] truncated body:', setId, filename, buffer.length, 'of', declared)
-    return NextResponse.json(
-      { error: `body arrived incomplete (${buffer.length} of ${declared} bytes)` },
-      { status: 500 },
-    )
-  }
   if (buffer.length > MAX_BYTES) return NextResponse.json({ status: 'refused', reason: 'larger than 100 MB' })
+  // A body cut off on the way (a size limit in front of the route) is stored as
+  // far as it decodes, flagged, and fetched again on the next run — never passed
+  // off as the whole file
+  const declared = Number(request.headers.get('content-length') ?? '')
+  const incomplete = declared > 0 && buffer.length < declared ? { received: buffer.length, declared } : undefined
+  if (incomplete) console.error('[archive/set-upload] incomplete body:', setId, filename, buffer.length, 'of', declared)
 
   return runWithTenant(resolveTenant(request), async () => {
     try {
-      return NextResponse.json(await uploadArchiveImage({ setId, filename, mimeType, sortOrder, buffer }))
+      return NextResponse.json(await uploadArchiveImage({ setId, filename, mimeType, sortOrder, buffer, incomplete }))
     } catch (err) {
       console.error('[archive/set-upload] failed:', setId, filename, err)
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Upload failed' }, { status: 500 })

@@ -304,14 +304,23 @@ This agent does it unattended:
   `⚠ uploaded damaged — <reason> (flagged)`; in the app the image gets a **red frame**,
   and the dashboard lists it under *Damaged images to check*. Open it: **Looks fine**
   clears the flag; replacing the file with a good copy clears it too.
-- **A flagged copy is repaired on a re-run** (2026-10-15): a file whose same-named
-  image in the set still carries the damaged flag is not skipped — the server swaps
-  the full file in (log: `↻ damaged copy replaced`) and drops the old variants. Until
-  that day every file over **10 MB** reached the server cut off (the middleware's
-  default body limit, now 110 MB), so big archive images showed up as "damaged" while
-  the originals were fine; the migration `20261015090000_requeue_truncated_uploads`
-  re-queued those sets. A body that still arrives shorter than its `Content-Length`
-  now fails that file with `body arrived incomplete (x of y bytes)` — never stored.
+- **A copy that arrived incomplete is fetched again — every run, until whole**
+  (2026-10-15). If a file reaches the server shorter than its `Content-Length`, it is
+  still stored as far as it decodes, with a red frame reading *Arrived incomplete
+  (x of y MB) — the next archive upload run fetches it again*, and marked
+  `MediaItem.archiveRetry`. The worklist then brings the finished set back with
+  `retryFiles` (log: `(fetching N incomplete image(s) again)`): the agent sends only
+  those files, the server swaps the whole file in (`↻ damaged copy replaced`) and
+  drops the old variants, and the set's done mark and failed list stay as they were.
+  **Looks fine**, replacing the file by hand, or deleting the picture stops the
+  re-fetch. A damaged *original* (whole file, Sharp still fails) is not retried —
+  sending it again changes nothing. A file named in `retryFiles` that is gone from the
+  folder is reported as a warning and stays flagged.
+- Background: until 2026-10-15 every file over **10 MB** reached the server cut off
+  (the middleware's default body limit, now 110 MB via
+  `experimental.proxyClientMaxBodySize`), so big archive images showed up "damaged"
+  while the originals were fine. Migration `20261015120000_media_archive_retry`
+  marked those copies for re-fetch.
 - **Failures** — only files that are not images at all (and `bmp/tif`) — fail that
   file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
   is done.

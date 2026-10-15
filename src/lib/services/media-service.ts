@@ -316,6 +316,8 @@ type CreateMediaItemDirectInput = {
   isTransferredCover?: boolean;
   /** The file was damaged and decoded leniently (UploadResult.decodeIssue) */
   decodeIssue?: string | null;
+  /** The archive agent's copy arrived incomplete — fetch it again (MediaItem.archiveRetry) */
+  archiveRetry?: boolean;
 };
 
 export async function createMediaItemDirect(
@@ -344,6 +346,7 @@ export async function createMediaItemDirect(
         isAnnotation: input.isAnnotation ?? false,
         isTransferredCover: input.isTransferredCover ?? false,
         decodeIssue: input.decodeIssue ?? null,
+        archiveRetry: input.archiveRetry ?? false,
       },
     });
 
@@ -1571,12 +1574,15 @@ export async function replaceMediaItemFile(
     mimeType: string;
     /** The new file's decode state — a clean replacement clears the flag */
     decodeIssue: string | null;
+    /** Only the archive agent sets it; any other replacement ends the re-fetch */
+    archiveRetry?: boolean;
   },
 ): Promise<void> {
   await prisma.mediaItem.update({
     where: { id: mediaItemId },
     data: {
       decodeIssue: newData.decodeIssue,
+      archiveRetry: newData.archiveRetry ?? false,
       variants: newData.variants as unknown as Record<string, string>,
       size: newData.size,
       originalWidth: newData.originalWidth,

@@ -125,7 +125,7 @@ function Send-Image {
         $msg = if ($body -and $body.error) { [string]$body.error } else { "HTTP $([int]$resp.StatusCode)" }
         return @{ status = "error"; reason = $msg }
     }
-    return @{ status = [string]$body.status; reason = [string]$body.reason; decodeIssue = [string]$body.decodeIssue; replaced = [bool]$body.replaced }
+    return @{ status = [string]$body.status; reason = [string]$body.reason; decodeIssue = [string]$body.decodeIssue; archiveRetry = [bool]$body.archiveRetry; replaced = [bool]$body.replaced }
 }
 
 # ── Run report (dashboard "Agents" panel, 2026-10-11) ─────────────────────────
@@ -193,7 +193,12 @@ try {
     foreach ($s in $sets) {
         $folder = [string]$s.folderPath
         Write-Host ""
-        Write-Host "▶ $($s.title)  [$($s.setId)]$(if ($s.resume) { '  (resuming)' })"
+        # retryFiles: a finished set back only for copies that arrived incomplete
+        # (plain assignment: an if-expression would unroll a one-name array to a string)
+        $retry = $null
+        if ($null -ne $s.retryFiles) { $retry = @($s.retryFiles) }
+        $label = if ($retry) { "  (fetching $($retry.Count) incomplete image(s) again)" } elseif ($s.resume) { '  (resuming)' } else { '' }
+        Write-Host "▶ $($s.title)  [$($s.setId)]$label"
         Write-Host "  $folder"
         if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
             Write-Warning "  Folder not found on this machine — skipped (it stays queued)."
@@ -216,6 +221,13 @@ try {
         for ($i = 0; $i -lt $images.Count; $i++) { $order[$images[$i].FullName] = $i }
         $cover = $images | Where-Object { Test-DesignatedCover $_ } | Select-Object -First 1
         $sendList = @(if ($cover) { $cover }) + @($images | Where-Object { -not $cover -or $_.FullName -ne $cover.FullName })
+        if ($retry) {
+            $sendList = @($sendList | Where-Object { $retry -contains $_.Name })
+            $present = @($images | ForEach-Object { $_.Name })
+            $gone = @($retry | Where-Object { $present -notcontains $_ })
+            if ($gone.Count) { Write-Warning "  Not in the folder any more: $($gone -join ', ') — check them in the app." }
+            if ($DryRun) { Write-Host "  $($sendList.Count) image(s) to fetch again"; continue }
+        }
 
         Write-Host ("  {0} image(s){1}{2}" -f $images.Count,
             $(if ($cover) { " · cover: $($cover.Name)" } else { " · cover: first by name" }),
@@ -224,7 +236,7 @@ try {
 
         $failed = [System.Collections.ArrayList]::new()
         foreach ($o in $others) { [void]$failed.Add("$($o.Name) (unsupported type)") }
-        $tot.notImages += $others.Count
+        if (-not $retry) { $tot.notImages += $others.Count }
         $aborted = $false
         $n = 0
         foreach ($f in $sendList) {
@@ -240,7 +252,8 @@ try {
                     # A damaged file (e.g. truncated JPEG) is stored as far as it decodes
                     # and flagged with a red frame in the app — check it there
                     # replaced = a copy in the set flagged damaged was swapped for this file
-                    if ($r.decodeIssue) { Write-Host "  ⚠ uploaded damaged — $($r.decodeIssue) (flagged)"; $tot.damaged++ }
+                    if ($r.archiveRetry) { Write-Host "  ⚠ arrived incomplete — shown as far as it goes, fetched again next run"; $tot.damaged++ }
+                    elseif ($r.decodeIssue) { Write-Host "  ⚠ uploaded damaged — $($r.decodeIssue) (flagged)"; $tot.damaged++ }
                     elseif ($r.replaced) { Write-Host "  ↻ damaged copy replaced"; $tot.repaired++ }
                     else { Write-Host "  ✓" }
                     $tot.uploaded++
@@ -265,6 +278,8 @@ try {
             if ($aborted) { break }
         }
         if ($aborted) { $tot.setsAborted++; continue }
+        # A re-fetch pass leaves the set's done mark and its list of failed files as they are
+        if ($retry) { Write-Host "  Re-fetch done"; continue }
 
         try {
             $payload = ConvertTo-Json -InputObject @{ failed = @($failed) } -Depth 3

@@ -11,7 +11,7 @@ import { completeArchiveUpload, getUploadWorklist, uploadArchiveImage } from "@/
 const storage = vi.hoisted(() => ({ deleted: [] as unknown[] }));
 vi.mock("@/lib/media-upload", () => ({
   uploadPhotoToStorage: async () => ({
-    variants: { gallery_512: "new/gallery_512.webp" }, originalWidth: 4000, originalHeight: 6000, decodeIssue: null,
+    variants: { master_4000: "new/master_4000.webp", gallery_512: "new/gallery_512.webp" }, originalWidth: 4000, originalHeight: 6000, decodeIssue: null,
   }),
   deleteMediaFiles: async (list: unknown[]) => { storage.deleted.push(...list); },
 }));
@@ -174,8 +174,55 @@ describe("uploadArchiveImage — before the upload", () => {
     expect(r).toEqual({ status: "uploaded", mediaItemId: m.id, replaced: true });
     const after = await prisma.mediaItem.findUniqueOrThrow({ where: { id: m.id } });
     expect(after).toMatchObject({ decodeIssue: null, hash: computeSha256(buffer), size: buffer.length });
-    expect(after.variants).toEqual({ gallery_512: "new/gallery_512.webp" });
+    expect(after.variants).toEqual({ master_4000: "new/master_4000.webp", gallery_512: "new/gallery_512.webp" });
     expect(storage.deleted).toEqual([{ gallery_512: "old/gallery_512.webp" }]);
     expect(await prisma.setMediaItem.count({ where: { setId: ids.empty, mediaItem: { filename: "big.jpg" } } })).toBe(1);
+  });
+});
+
+// 2026-10-15: a copy that arrives incomplete stays visible (red frame) and every
+// run fetches the archive file again until a whole copy is in
+describe("an incomplete copy", () => {
+  it("is stored as far as it goes, flagged, and marked for re-fetch", async () => {
+    await setWithFolder("partial");
+    await prisma.set.update({ where: { id: ids.partial }, data: { archiveUploadStartedAt: new Date() } });
+    const buffer = Buffer.from(`${RUN}-first-half`);
+    const r = await uploadArchiveImage({
+      setId: ids.partial, filename: "p1.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer,
+      incomplete: { received: 10 * 1024 * 1024, declared: 21 * 1024 * 1024 },
+    });
+    expect(r).toMatchObject({ status: "uploaded", archiveRetry: true });
+    if (r.status !== "uploaded") throw new Error("not uploaded");
+    created.media.push(r.mediaItemId);
+    const item = await prisma.mediaItem.findUniqueOrThrow({ where: { id: r.mediaItemId } });
+    expect(item.archiveRetry).toBe(true);
+    expect(item.decodeIssue).toBe("Arrived incomplete (10.0 of 21.0 MB) — the next archive upload run fetches it again");
+  });
+
+  it("brings a finished set back with only the files to fetch again", async () => {
+    await completeArchiveUpload(ids.partial, ["x.tif (unsupported type)"]);
+    const item = (await getUploadWorklist({ setId: ids.partial }))[0];
+    expect(item).toMatchObject({ setId: ids.partial, retryFiles: ["p1.jpg"] });
+  });
+
+  it("is replaced by the whole file in the finished set, which then leaves the queue", async () => {
+    const buffer = Buffer.from(`${RUN}-whole-file`);
+    const r = await uploadArchiveImage({ setId: ids.partial, filename: "p1.jpg", mimeType: "image/jpeg", sortOrder: 0, buffer });
+    expect(r).toMatchObject({ status: "uploaded", replaced: true });
+    expect(r).not.toHaveProperty("archiveRetry");
+    const item = await prisma.mediaItem.findFirstOrThrow({ where: { filename: "p1.jpg", setMediaItems: { some: { setId: ids.partial } } } });
+    expect(item).toMatchObject({ archiveRetry: false, decodeIssue: null, hash: computeSha256(buffer) });
+    expect(await getUploadWorklist({ setId: ids.partial })).toEqual([]);
+    // The done mark and the list of failed files are left as they were
+    const set = await prisma.set.findUniqueOrThrow({ where: { id: ids.partial } });
+    expect(set.archiveUploadDoneAt).not.toBeNull();
+    expect(set.archiveUploadFailed).toEqual(["x.tif (unsupported type)"]);
+  });
+
+  it("still refuses a new file in a finished set — only repairs are let in", async () => {
+    const r = await uploadArchiveImage({
+      setId: ids.partial, filename: "new.jpg", mimeType: "image/jpeg", sortOrder: 1, buffer: Buffer.from(`${RUN}-new`),
+    });
+    expect(r).toEqual({ status: "refused", reason: "set already has (or had) images" });
   });
 });
