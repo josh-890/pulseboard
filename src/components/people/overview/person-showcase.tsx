@@ -76,9 +76,13 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
   function shuffle() {
     startShuffle(async () => {
       try {
-        setRandomPool(await shufflePersonShowcaseAction(person.id, crypto.randomUUID()));
+        // Not crypto.randomUUID(): browsers offer it only on https or localhost,
+        // and the app runs on plain http in the LAN
+        const seed = `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+        setRandomPool(await shufflePersonShowcaseAction(person.id, seed));
         setLightboxIndex(null);
-      } catch {
+      } catch (err) {
+        console.error("Showcase shuffle failed", err);
         toast.error("Could not shuffle — try again");
       }
     });
