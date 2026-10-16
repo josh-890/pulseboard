@@ -54,6 +54,26 @@ test.describe("Person showcase", () => {
     await expect(play).toBeFocused();
   });
 
+  test("Random deals new photos on every shuffle; Best brings the marked selection back", async ({ page, request }) => {
+    test.skip(!(await openShowcase(page, request)), "No person with photos in the dataset");
+    const imgs = page.locator('section[aria-labelledby="showcase-title"] button[aria-label^="Open photo"] img');
+    const order = async () => (await imgs.evaluateAll((els) => els.map((e) => e.getAttribute("src")))).join("|");
+    const total = Number((await page.locator('section[aria-labelledby="showcase-title"] button[aria-label^="Open photo"]').first().getAttribute("aria-label"))?.match(/of (\d+)/)?.[1]);
+    test.skip(total < 10, "Too few photos for a visible shuffle");
+
+    const best = await order();
+    await page.getByRole("radio", { name: "Random" }).click();
+    await expect(page.getByText(/^Random from \d+ sets?/)).toBeVisible();
+    await expect.poll(order).not.toBe(best);
+    const first = await order();
+
+    await page.getByRole("button", { name: "Shuffle" }).click();
+    await expect.poll(order).not.toBe(first);
+
+    await page.getByRole("radio", { name: "Best" }).click();
+    await expect.poll(order).toBe(best);
+  });
+
   test("Known for links to a set", async ({ page, request }) => {
     test.skip(!(await openShowcase(page, request)), "No person with photos in the dataset");
     const poster = page.locator('section[aria-labelledby="known-for-title"] a').first();

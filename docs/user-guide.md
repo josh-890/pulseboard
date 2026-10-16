@@ -296,6 +296,10 @@ Whenever you pick a photo for a task — a source to standardize a slot, a photo
   (on camera in its session and not hidden from it, or linked directly).
   - Click a tile (or **All N**) to open the lightbox over the whole pool. Setting ★ or the `iconic`/`outtake` tags
     there moves the photo up in tomorrow's showcase (an iconic photo moves to the front at once).
+  - **Best · Random** — the switch in the Showcase heading. **Best** is the selection above. **Random**
+    ignores your marks and deals the person's production photos (two per set in turn, so you see across
+    their whole work); **↻ Shuffle** deals a new 48 with every click. Marked photos keep their chip. The
+    page always opens in Best.
   - **▶ Slideshow** plays the pool full screen, each photo whole, cross-faded with a slow zoom (still when your
     system asks for reduced motion). **Space** pauses, **← / →** step, **Esc** closes.
 - **Known for** — the person's sets as posters: your highest-rated first, then the newest (8). Each opens the set.

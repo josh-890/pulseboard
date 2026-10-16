@@ -162,6 +162,40 @@ describe("getPersonShowcase", () => {
   });
 });
 
+describe("getPersonShowcase — random mode (Shuffle)", () => {
+  const random = (seed: string) => getPersonShowcase(ids.P, { mode: "random", seed });
+
+  it("ignores the marks for the choice but keeps them as chips, production photos only", async () => {
+    const { items, setCount } = await random("seed-a");
+    const keys = items.map((i) => keyOf(i.id));
+    // Curated reference photo out, damaged / edited / hidden still out
+    for (const k of ["refFav", "refPlain", "damaged", "annotation", "hidden"]) expect(keys).not.toContain(k);
+    // Everything else from production is in, marks included
+    expect(new Set(keys)).toEqual(
+      new Set(["iconicOld", "iconicNew", "fav", "favAndOuttake", "outtake", "r0", "r1", "r2", "r3", "r4", "r5", "s0", "s1"]),
+    );
+    expect(items.find((i) => i.id === ids.iconicNew)?.source).toBe("iconic");
+    expect(items.find((i) => i.id === ids.r0)?.source).toBe("random");
+    expect(setCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("deals two per set in turn — the small set is in the first round", async () => {
+    for (const seed of ["seed-a", "seed-b", "seed-c"]) {
+      const keys = (await random(seed)).items.map((i) => keyOf(i.id));
+      // Three groups: the big set, the small set, and the loose production photos (5 marked ones)
+      const firstRound = keys.slice(0, 6);
+      expect(firstRound.filter((k) => k === "s0" || k === "s1")).toHaveLength(2);
+    }
+  });
+
+  it("the same seed gives the same deal, another seed another", async () => {
+    const a = (await random("seed-a")).items.map((i) => i.id);
+    expect((await random("seed-a")).items.map((i) => i.id)).toEqual(a);
+    const others = await Promise.all(["seed-b", "seed-c", "seed-d"].map(async (s) => (await random(s)).items.map((i) => i.id)));
+    expect(others.some((o) => o.join() !== a.join())).toBe(true);
+  });
+});
+
 describe("getPersonKnownFor", () => {
   it("puts rated sets first, then the newest", async () => {
     const sets = await getPersonKnownFor(ids.P);

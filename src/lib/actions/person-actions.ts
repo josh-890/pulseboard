@@ -13,6 +13,7 @@ import {
 } from "@/lib/services/person-service";
 import type { PersonFilters } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getPersonShowcase, type PersonShowcase } from "@/lib/services/person-showcase-service";
 import { prisma } from "@/lib/db";
 import { icgIdPrefix, mintLocalIcgIdCandidate } from "@/lib/icg-id";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -395,4 +396,8 @@ export async function getIcgIdImpactAction(icgId: string): Promise<{
     ]);
     return { stagingSetsSubject, stagingSetsParticipant, importBatches };
   });
+}
+/** The showcase's Random mode: a fresh deal of the person's production photos per seed */
+export async function shufflePersonShowcaseAction(personId: string, seed: string): Promise<PersonShowcase> {
+  return withTenantFromHeaders(() => getPersonShowcase(personId, { mode: "random", seed }));
 }

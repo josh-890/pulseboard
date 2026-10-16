@@ -1,3 +1,4 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import type { GalleryItem } from "@/lib/types";
 import { getCoverPhotosForSets, getMediaGalleryItemsByIds } from "./media-service";
@@ -10,10 +11,21 @@ import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 // else rotates once a day (a seeded order: the same all day, new tomorrow).
 // "Shows the person" is the tag query's rule (ADR-0023, `imageShows`), so the
 // showcase and `person:ICG-ID` agree.
+//
+// Mode "random" (Shuffle): the marks don't choose — production photos only, two
+// per set in turn, in the order of the caller's seed (a new one per shuffle). The
+// marks still come back as `source`, so a marked photo keeps its chip.
 
 export type ShowcaseSource = "iconic" | "favorite" | "outtake" | "random";
 export type ShowcaseItem = GalleryItem & { source: ShowcaseSource };
-export type PersonShowcase = { items: ShowcaseItem[]; curatedCount: number };
+export type PersonShowcase = {
+  items: ShowcaseItem[];
+  /** Marked photos among the items */
+  curatedCount: number;
+  /** Sets (or sessions, for photos in no set) the items come from */
+  setCount: number;
+};
+export type ShowcaseMode = "best" | "random";
 
 const SOURCE_BY_LEVEL: Record<number, ShowcaseSource> = { 1: "iconic", 2: "favorite", 3: "outtake", 4: "random" };
 
@@ -22,15 +34,25 @@ const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.DISPLAY_TIM
 
 export async function getPersonShowcase(
   personId: string,
-  opts: { size?: number; day?: string } = {},
+  opts: { size?: number; day?: string; mode?: ShowcaseMode; seed?: string } = {},
 ): Promise<PersonShowcase> {
   const size = opts.size ?? 48;
-  const seed = `${personId}:${opts.day ?? DAY.format(new Date())}`;
+  const random = opts.mode === "random";
+  const seed = random && opts.seed ? opts.seed : `${personId}:${opts.day ?? DAY.format(new Date())}`;
+
+  // Best: by mark level, the random fill round-robin over sets. Random: one
+  // round-robin over everything, the marks ignored for the choice.
+  const roundPartition = random ? Prisma.sql`grp` : Prisma.sql`level, grp`;
+  const keep = random ? Prisma.sql`"sessionType" <> 'REFERENCE'` : Prisma.sql`level < 4 OR "sessionType" <> 'REFERENCE'`;
+  const order = random
+    ? Prisma.sql`round, md5(grp || ${seed}), md5(id || ${seed})`
+    : Prisma.sql`level, "iconicAt" DESC NULLS LAST,
+      CASE WHEN level = 4 THEN round END, CASE WHEN level = 4 THEN md5(grp || ${seed}) END, md5(id || ${seed})`;
 
   // Set-based, not per image: a person's photos run to thousands. "Shown" is the
   // rule of `imageShows` in tag-predicates.ts — on camera in the image's session
   // and not hidden from it, or linked directly
-  const rows = await prisma.$queryRaw<{ id: string; level: number }[]>`
+  const rows = await prisma.$queryRaw<{ id: string; level: number; grp: string }[]>`
     WITH on_camera AS (
       SELECT DISTINCT sc."sessionId"
       FROM "SessionContribution" sc
@@ -81,14 +103,13 @@ export async function getPersonShowcase(
       SELECT l.*,
         -- The random fill goes round the sets, two photos each per round, so a
         -- 300-photo set does not crowd out a 30-photo one
-        (row_number() OVER (PARTITION BY level, grp ORDER BY md5(id || ${seed})) - 1) / 2 AS round
+        (row_number() OVER (PARTITION BY ${roundPartition} ORDER BY md5(id || ${seed})) - 1) / 2 AS round
       FROM leveled l
-      -- A random fill comes from production work, never the reference photos
-      WHERE level < 4 OR "sessionType" <> 'REFERENCE'
+      -- Random picks come from production work, never the reference photos
+      WHERE ${keep}
     )
-    SELECT id, level FROM ranked
-    ORDER BY level, "iconicAt" DESC NULLS LAST,
-      CASE WHEN level = 4 THEN round END, CASE WHEN level = 4 THEN md5(grp || ${seed}) END, md5(id || ${seed})
+    SELECT id, level, grp FROM ranked
+    ORDER BY ${order}
     LIMIT ${size}
   `;
 
@@ -100,6 +121,7 @@ export async function getPersonShowcase(
       return item ? [{ ...item, source: SOURCE_BY_LEVEL[r.level] }] : [];
     }),
     curatedCount: rows.filter((r) => r.level < 4).length,
+    setCount: new Set(rows.map((r) => r.grp)).size,
   };
 }
 

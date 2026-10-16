@@ -1,12 +1,18 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 import NextImage from "next/image";
-import { Images, Play, Sparkles } from "lucide-react";
+import { toast } from "sonner";
+import { Images, Loader2, Play, Shuffle, Sparkles } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import type { PersonShowcase as PersonShowcaseData, ShowcaseItem } from "@/lib/services/person-showcase-service";
+import { shufflePersonShowcaseAction } from "@/lib/actions/person-actions";
+import type {
+  PersonShowcase as PersonShowcaseData,
+  ShowcaseItem,
+  ShowcaseMode,
+} from "@/lib/services/person-showcase-service";
 import { ShowcaseSourceChip } from "./showcase-source-chip";
 import { ShowcaseSlideshow } from "./showcase-slideshow";
 
@@ -15,6 +21,10 @@ import { ShowcaseSlideshow } from "./showcase-slideshow";
 // outtake), filled with their production photos at random. Iconic stays in front;
 // the rest rotates daily. A tile opens the lightbox over the whole pool, ▶ a
 // full-screen slideshow.
+//
+// "Random" (2026-10-16) deals the person's production photos instead — two per
+// set in turn, marks ignored for the choice — and Shuffle deals again. The page
+// always opens in Best.
 //
 // Tiles per width: phone 1 + 3 (3 columns), tablet 1 + 4 (4), desktop 1 + 6 (5).
 // The last visible tile carries "+N" when the pool is larger.
@@ -46,12 +56,40 @@ export type PersonShowcaseProps = {
   person: { id: string; name: string };
 };
 
+const MODES: { value: ShowcaseMode; label: string }[] = [
+  { value: "best", label: "Best" },
+  { value: "random", label: "Random" },
+];
+
 export function PersonShowcase({ showcase, personName, person }: PersonShowcaseProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [slideshow, setSlideshow] = useState(false);
+  const [mode, setMode] = useState<ShowcaseMode>("best");
+  const [randomPool, setRandomPool] = useState<PersonShowcaseData | null>(null);
+  const [isShuffling, startShuffle] = useTransition();
   const playRef = useRef<HTMLButtonElement>(null);
-  const { items, curatedCount } = showcase;
-  if (items.length === 0) return null;
+  const modeRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const pool = mode === "random" && randomPool ? randomPool : showcase;
+  const { items, curatedCount, setCount } = pool;
+  if (showcase.items.length === 0) return null;
+
+  function shuffle() {
+    startShuffle(async () => {
+      try {
+        setRandomPool(await shufflePersonShowcaseAction(person.id, crypto.randomUUID()));
+        setLightboxIndex(null);
+      } catch {
+        toast.error("Could not shuffle — try again");
+      }
+    });
+  }
+
+  function chooseMode(next: ShowcaseMode) {
+    if (next === mode) return;
+    setMode(next);
+    setLightboxIndex(null);
+    if (next === "random") shuffle();
+  }
 
   const tiles = items.slice(0, VISIBLE.lg);
 
@@ -64,12 +102,58 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
             Showcase
           </h2>
           <p className="text-xs text-muted-foreground">
-            {curatedCount > 0
-              ? `${curatedCount} you marked${curatedCount < items.length ? ", the rest picked at random" : ""} · changes daily`
-              : "Picked at random from their sets — mark photos iconic, ★ or outtake to lead here · changes daily"}
+            {mode === "random"
+              ? `Random from ${setCount} set${setCount === 1 ? "" : "s"} — shuffle for more`
+              : curatedCount > 0
+                ? `${curatedCount} you marked${curatedCount < items.length ? ", the rest picked at random" : ""} · changes daily`
+                : "Picked at random from their sets — mark photos iconic, ★ or outtake to lead here · changes daily"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label="Showcase selection"
+            className="inline-flex rounded-md border border-border bg-muted/60 p-0.5"
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              e.preventDefault();
+              const i = MODES.findIndex((m) => m.value === mode);
+              const next = (i + (e.key === "ArrowRight" ? 1 : -1) + MODES.length) % MODES.length;
+              chooseMode(MODES[next].value);
+              modeRefs.current[next]?.focus();
+            }}
+          >
+            {MODES.map((m, i) => (
+              <button
+                key={m.value}
+                ref={(el) => {
+                  modeRefs.current[i] = el;
+                }}
+                type="button"
+                role="radio"
+                aria-checked={mode === m.value}
+                tabIndex={mode === m.value ? 0 : -1}
+                onClick={() => chooseMode(m.value)}
+                className={cn(
+                  "rounded px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  mode === m.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mode === "random" && (
+            <Button type="button" variant="outline" size="sm" onClick={shuffle} disabled={isShuffling}>
+              {isShuffling ? (
+                <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Shuffle size={14} className="mr-1.5" aria-hidden="true" />
+              )}
+              Shuffle
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" onClick={() => setLightboxIndex(0)}>
             <Images size={14} className="mr-1.5" aria-hidden="true" />
             All {items.length}
@@ -81,7 +165,13 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5">
+      <div
+        className={cn(
+          "grid grid-cols-3 gap-2 transition-opacity duration-200 md:grid-cols-4 lg:grid-cols-5",
+          isShuffling && "opacity-60",
+        )}
+        aria-busy={isShuffling}
+      >
         {tiles.map((item, i) => {
           const big = i === 0;
           const more = moreOverlay(i, items.length);
@@ -93,6 +183,7 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
               aria-label={`Open photo ${i + 1} of ${items.length}`}
               className={cn(
                 "group relative overflow-hidden rounded-xl bg-muted/40 shadow-md ring-1 ring-white/10",
+                "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300",
                 "transition-[transform,box-shadow] duration-200 motion-safe:hover:-translate-y-0.5 hover:shadow-xl",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 big ? "col-span-3 aspect-[4/5] md:col-span-2 md:row-span-2 md:aspect-auto" : "aspect-[4/5]",
