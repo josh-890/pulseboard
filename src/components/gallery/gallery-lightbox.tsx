@@ -153,6 +153,8 @@ function SimpleLightbox({
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Del opens the confirmation with "Delete permanently" focused, so Enter confirms
+  const deleteActionRef = useRef<HTMLButtonElement>(null);
   // Optimistically hide just-deleted items so the lightbox can advance to the next one
   // regardless of how/when the parent updates its `items` prop.
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -507,6 +509,8 @@ function SimpleLightbox({
       // Skip if user is typing in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // The delete confirmation owns the keyboard (Esc cancels it, not the viewer)
+      if (deleteConfirmOpen) return;
 
       switch (e.key) {
         case "Escape":
@@ -576,6 +580,14 @@ function SimpleLightbox({
             handleCopyTrigger();
           }
           break;
+        case "Delete":
+        case "Backspace":
+          // Delete the current image — always through the confirmation
+          if (item && onDelete && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            setDeleteConfirmOpen(true);
+          }
+          break;
         case ".":
           // ADR-0019: toggle global favorite on the current image.
           if (item) {
@@ -619,7 +631,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, onDelete]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -905,7 +917,7 @@ function SimpleLightbox({
               onClick={() => setDeleteConfirmOpen(true)}
               className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-destructive/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
               aria-label="Delete this item"
-              title="Delete"
+              title="Delete (Del)"
             >
               <Trash2 size={16} />
             </button>
@@ -991,7 +1003,14 @@ function SimpleLightbox({
 
       {/* Delete confirmation (Radix portals itself to body) */}
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            deleteActionRef.current?.focus();
+          }}
+          // Esc cancels the confirmation only — it must not travel on and close the viewer
+          onEscapeKeyDown={(e) => e.stopPropagation()}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this item?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1001,6 +1020,7 @@ function SimpleLightbox({
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              ref={deleteActionRef}
               onClick={() => {
                 setDeleteConfirmOpen(false);
                 const deletedId = item.id;
@@ -1018,6 +1038,7 @@ function SimpleLightbox({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete permanently
+              <kbd className="ml-2 rounded border border-white/30 px-1 text-[10px] opacity-80">Enter</kbd>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

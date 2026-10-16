@@ -1201,6 +1201,10 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 - Left/right arrow buttons or keyboard arrows
 - Filmstrip toggle (thumbnail strip at bottom) — <kbd>S</kbd>
 - Escape to close
+- **Delete** — <kbd>Del</kbd> (or <kbd>Backspace</kbd>) wherever the viewer has the trash can (set and session
+  galleries, a person's Details / Appearance photos). It always asks first: the confirmation opens with
+  **Delete permanently** selected, so <kbd>Enter</kbd> deletes and <kbd>Esc</kbd> cancels — only the
+  confirmation, the viewer stays open. After deleting, the viewer moves on to the next photo.
 
 **Standard features (all contexts):**
 - Focal point editor — crosshair overlay for marking smart-crop center point. Click anywhere on the image to set.
