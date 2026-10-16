@@ -11,7 +11,7 @@ const RUN = `psc${Date.now().toString(36)}`;
 const ids: Record<string, string> = {};
 const media: string[] = [];
 
-async function photo(key: string, sessionKey: "prod" | "ref", data: { isFavorite?: boolean; decodeIssue?: string; isAnnotation?: boolean } = {}) {
+async function photo(key: string, sessionKey: "prod" | "prod2" | "ref", data: { isFavorite?: boolean; decodeIssue?: string; isAnnotation?: boolean } = {}) {
   const m = await prisma.mediaItem.create({
     data: {
       sessionId: ids[sessionKey],
@@ -44,10 +44,12 @@ beforeAll(async () => {
   ids.P = person.id;
   const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } });
   const prod = await prisma.session.create({ data: { name: `${RUN} production` } });
+  const prod2 = await prisma.session.create({ data: { name: `${RUN} production 2` } });
   const ref = await prisma.session.create({ data: { name: `${RUN} reference`, type: "REFERENCE" } });
   ids.prod = prod.id;
+  ids.prod2 = prod2.id;
   ids.ref = ref.id;
-  for (const s of [prod, ref]) {
+  for (const s of [prod, prod2, ref]) {
     await prisma.sessionContribution.create({ data: { sessionId: s.id, personId: person.id, roleDefinitionId: role.id } });
   }
 
@@ -59,6 +61,8 @@ beforeAll(async () => {
   await photo("refFav", "ref", { isFavorite: true }); // curated counts wherever it is
   await photo("refPlain", "ref"); // never part of the random fill
   for (let i = 0; i < 6; i++) await photo(`r${i}`, "prod");
+  await photo("s0", "prod2");
+  await photo("s1", "prod2");
   await photo("damaged", "prod", { isFavorite: true, decodeIssue: "Corrupt JPEG data" });
   await photo("annotation", "prod", { isFavorite: true, isAnnotation: true });
   await photo("hidden", "prod", { isFavorite: true });
@@ -68,6 +72,14 @@ beforeAll(async () => {
   await tagged("iconicNew", "iconic", new Date("2026-02-01"));
   await tagged("favAndOuttake", "outtake", new Date());
   await tagged("outtake", "outtake", new Date());
+
+  // The random fill takes two photos per set in turn: a big set and a small one
+  for (const [key, photos] of [["big", ["r0", "r1", "r2", "r3", "r4", "r5"]], ["small", ["s0", "s1"]]] as const) {
+    const set = await prisma.set.create({ data: { type: "photo", title: `${RUN} fill ${key}` } });
+    ids[`set:${key}`] = set.id;
+    await prisma.setParticipant.create({ data: { setId: set.id, personId: person.id, roleDefinitionId: role.id } });
+    await prisma.setMediaItem.createMany({ data: photos.map((k) => ({ setId: set.id, mediaItemId: ids[k] })) });
+  }
 
   // Known for: rated before unrated, then newest
   for (const [key, rating, date] of [
@@ -85,6 +97,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.setMediaItem.deleteMany({ where: { mediaItemId: { in: media } } });
   await prisma.mediaItemTag.deleteMany({ where: { mediaItemId: { in: media } } });
   await prisma.mediaItemHiddenPerson.deleteMany({ where: { mediaItemId: { in: media } } });
   await prisma.mediaItem.deleteMany({ where: { id: { in: media } } });
@@ -93,7 +106,7 @@ afterAll(async () => {
     await prisma.sessionContribution.deleteMany({ where: { personId: ids.P } });
   }
   await prisma.set.deleteMany({ where: { title: { startsWith: RUN } } });
-  await prisma.session.deleteMany({ where: { id: { in: [ids.prod, ids.ref].filter(Boolean) } } });
+  await prisma.session.deleteMany({ where: { id: { in: [ids.prod, ids.prod2, ids.ref].filter(Boolean) } } });
   if (ids.P) await prisma.person.delete({ where: { id: ids.P } });
   if (ids.group) {
     await prisma.tagDefinition.deleteMany({ where: { groupId: ids.group } });
@@ -110,7 +123,7 @@ describe("getPersonShowcase", () => {
     expect(keys.slice(0, 2)).toEqual(["iconicNew", "iconicOld"]);
     expect(new Set(keys.slice(2, 5))).toEqual(new Set(["fav", "favAndOuttake", "refFav"]));
     expect(keys[5]).toBe("outtake");
-    expect(new Set(keys.slice(6))).toEqual(new Set(["r0", "r1", "r2", "r3", "r4", "r5"]));
+    expect(new Set(keys.slice(6))).toEqual(new Set(["r0", "r1", "r2", "r3", "r4", "r5", "s0", "s1"]));
     expect(curatedCount).toBe(6);
     expect(items.map((i) => i.source).slice(0, 6)).toEqual(["iconic", "iconic", "favorite", "favorite", "favorite", "outtake"]);
   });
@@ -133,6 +146,15 @@ describe("getPersonShowcase", () => {
     expect(days.some((d) => d.join() !== a.join())).toBe(true);
   });
 
+  it("fills two photos per set in turn — a small set is not crowded out by a big one", async () => {
+    for (const day of ["2026-10-16", "2026-10-17", "2026-10-18"]) {
+      const { items } = await getPersonShowcase(ids.P, { day });
+      const firstRound = items.filter((i) => i.source === "random").slice(0, 4).map((i) => keyOf(i.id));
+      expect(firstRound.filter((k) => k === "s0" || k === "s1")).toHaveLength(2);
+      expect(firstRound.filter((k) => k?.startsWith("r"))).toHaveLength(2);
+    }
+  });
+
   it("caps the pool, curated first", async () => {
     const { items } = await getPersonShowcase(ids.P, { size: 3, day: "2026-10-16" });
     expect(items.map((i) => keyOf(i.id))[0]).toBe("iconicNew");
@@ -143,7 +165,7 @@ describe("getPersonShowcase", () => {
 describe("getPersonKnownFor", () => {
   it("puts rated sets first, then the newest", async () => {
     const sets = await getPersonKnownFor(ids.P);
-    expect(sets.map((s) => keyOf(s.id))).toEqual(["old5", "new3", "newest", "older"]);
+    expect(sets.map((s) => keyOf(s.id)).slice(0, 4)).toEqual(["old5", "new3", "newest", "older"]);
     expect(sets[0]).toMatchObject({ rating: 5, isVideo: false, coverUrl: null });
   });
 });

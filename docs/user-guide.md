@@ -288,7 +288,9 @@ Whenever you pick a photo for a task — a source to standardize a slot, a photo
   tablet 5, phone 4; the last tile shows **+N** for the rest of the pool of up to 48). The order is the way you
   marked them: **Iconic** first (in the order you tagged them — the newest leads the large tile), then **★
   Favorite**, then **Outtake**; a small chip on each tile says which. The rest is filled with photos from the
-  person's sets **at random**: never reference/headshot photos, damaged pictures (red frame) or edited copies.
+  person's sets **at random, two per set in turn** — every set gives two photos before any gives more, so one big
+  set doesn't crowd out the small ones. Never reference/headshot photos, damaged pictures (red frame) or edited
+  copies.
   Iconic photos stay in front; everything else **changes once a day**, so the page stays fresh but doesn't jump
   around on every visit. A photo counts as showing the person by the same rule as `person:` in the tag filter
   (on camera in its session and not hidden from it, or linked directly).

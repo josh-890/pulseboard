@@ -5,7 +5,8 @@ import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // The Overview showcase of a person (2026-10-16): their best photos first, the way
 // you marked them — iconic, then ★, then outtake — filled up with production
-// photos at random. Iconic stays in front in the order you tagged it; everything
+// photos at random — two per set in turn, so big sets do not crowd out small
+// ones. Iconic stays in front in the order you tagged it; everything
 // else rotates once a day (a seeded order: the same all day, new tomorrow).
 // "Shows the person" is the tag query's rule (ADR-0023, `imageShows`), so the
 // showcase and `person:ICG-ID` agree.
@@ -46,7 +47,7 @@ export async function getPersonShowcase(
       SELECT pml."mediaItemId" FROM "PersonMediaLink" pml WHERE pml."personId" = ${personId}
     ),
     shown AS (
-      SELECT mi.id, mi."isFavorite", s.type AS "sessionType"
+      SELECT mi.id, mi."isFavorite", mi."sessionId", s.type AS "sessionType"
       FROM ids
       JOIN "MediaItem" mi ON mi.id = ids.id
       JOIN "Session" s ON s.id = mi."sessionId"
@@ -61,16 +62,33 @@ export async function getPersonShowcase(
       WHERE d.slug IN ('iconic', 'outtake') AND t."mediaItemId" IN (SELECT id FROM shown)
       GROUP BY t."mediaItemId"
     ),
-    ranked AS (
-      SELECT sh.id, m."iconicAt", sh."sessionType",
+    -- The set a photo belongs to, from the person's own sets (SetMediaItem is
+    -- indexed by set, not by photo); a photo in no set groups by its session
+    set_of AS (
+      SELECT smi."mediaItemId" AS id, min(smi."setId") AS "setId"
+      FROM "SetMediaItem" smi
+      WHERE smi."setId" IN (SELECT sp."setId" FROM "SetParticipant" sp WHERE sp."personId" = ${personId})
+      GROUP BY smi."mediaItemId"
+    ),
+    leveled AS (
+      SELECT sh.id, m."iconicAt", sh."sessionType", coalesce(so."setId", sh."sessionId") AS grp,
         CASE WHEN m."iconicAt" IS NOT NULL THEN 1 WHEN sh."isFavorite" THEN 2 WHEN m.outtake THEN 3 ELSE 4 END AS level
       FROM shown sh
       LEFT JOIN marks m ON m.id = sh.id
+      LEFT JOIN set_of so ON so.id = sh.id
+    ),
+    ranked AS (
+      SELECT l.*,
+        -- The random fill goes round the sets, two photos each per round, so a
+        -- 300-photo set does not crowd out a 30-photo one
+        (row_number() OVER (PARTITION BY level, grp ORDER BY md5(id || ${seed})) - 1) / 2 AS round
+      FROM leveled l
+      -- A random fill comes from production work, never the reference photos
+      WHERE level < 4 OR "sessionType" <> 'REFERENCE'
     )
     SELECT id, level FROM ranked
-    -- A random fill comes from production work, never the reference photos
-    WHERE level < 4 OR "sessionType" <> 'REFERENCE'
-    ORDER BY level, "iconicAt" DESC NULLS LAST, md5(id || ${seed})
+    ORDER BY level, "iconicAt" DESC NULLS LAST,
+      CASE WHEN level = 4 THEN round END, CASE WHEN level = 4 THEN md5(grp || ${seed}) END, md5(id || ${seed})
     LIMIT ${size}
   `;
 
