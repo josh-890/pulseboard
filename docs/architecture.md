@@ -658,7 +658,7 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 8a. **Image editing sources the master** — the crop/annotation editor (`AnnotationEditor`) always loads `urls.original` (the best-quality master: `master_4000` for new uploads, raw `original` for legacy), never a display variant, so edits aren't silently downscaled.
 
-9. **SetParticipant is derived** — Rebuilt from SessionContribution via `rebuildSetParticipantsFromContributions()`. Never edited directly.
+9. **SetParticipant is derived** — Rebuilt from SessionContribution via `rebuildSetParticipantsFromContributions()`. Never edited directly. The rebuild ends with `syncPromotedStagingCasts()` (`set-cast-service.ts`): staging sets PROMOTED into the set take its on-camera cast (`participants`, `participantStatuses`, `participantIcgIds`, `participantNamesNorm`; the subject when it left the cast), so the staged sets person filter follows a recast. No-op when already in step or when the set has no on-camera cast.
 
 10. **Server action serialization** — Cannot pass arrow functions from Server → Client components. Use `.bind()` for callbacks (e.g., `onDelete={deleteAction.bind(null, id)}`).
 

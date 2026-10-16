@@ -1521,6 +1521,8 @@ In a (non-promoted) staging set's slide panel, the **Participants** block lets y
 - **Remove** — hover a participant and click the **×** (unresolved participants are flagged "unresolved").
 - **Add / exchange** — use **"Add participant — search person…"** to find and add a known person. To swap a wrong participant for the right one, remove the wrong one and add the correct person.
 
+After promotion the **Set's cast** is what counts. If you change who is in a promoted set (on the set page or in a person's Career tab), the staging sets promoted into it follow automatically, so the set is listed under the right person in Staging Sets.
+
 ### Promoting a Staging Set
 
 1. Select a staging set to open its slide panel

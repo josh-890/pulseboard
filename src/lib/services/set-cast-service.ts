@@ -7,8 +7,12 @@
  * shapes, one question — and two callers now ask it (the contradiction session and
  * the people files on disk), so it lives in one place.
  */
+import type { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import type { FilePerson } from '@/lib/archive-people-file'
+import { normalizeForSearch } from '@/lib/normalize'
+import type { TxClient } from './cascade-helpers'
+import { BEHIND_CAMERA_GROUP } from './session-contributors'
 
 export type CastEntry = { title: string; cast: FilePerson[] }
 
@@ -75,4 +79,73 @@ export async function loadCasts(stagingSetIds: string[], setIds: string[]): Prom
   }
 
   return out
+}
+
+type StagedParticipant = { name?: string; icgId?: string; [key: string]: unknown }
+
+/**
+ * After promotion the Set's cast is the truth, but the staged sets view still finds
+ * a person's sets by the cast recorded on the staging set. When the Set's cast
+ * changes (someone replaced, added or removed), the staging sets promoted into it
+ * follow: their participants become the Set's on-camera cast. An entry whose
+ * person stays keeps what the import recorded for them (name, url).
+ *
+ * Called from `rebuildSetParticipantsFromContributions`, so every cast change
+ * passes through here. A staging set already in step is left untouched, and so
+ * is every one while the Set has no on-camera cast.
+ */
+export async function syncPromotedStagingCasts(tx: TxClient, setId: string): Promise<number> {
+  const staged = await tx.stagingSet.findMany({
+    where: { promotedSetId: setId, status: 'PROMOTED' },
+    select: { id: true, participants: true, participantIcgIds: true, subjectPersonId: true },
+  })
+  if (staged.length === 0) return 0
+
+  const cast = await tx.setParticipant.findMany({
+    where: { setId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
+    select: {
+      person: {
+        select: {
+          id: true,
+          icgId: true,
+          aliases: { where: { isCommon: true }, select: { name: true }, take: 1 },
+        },
+      },
+    },
+  })
+  const people = [...new Map(cast.map((c) => [c.person.id, c.person])).values()]
+  // No one on camera (sessions unlinked, a merge half-way): nothing to follow
+  if (people.length === 0) return 0
+  const castIcgIds = [...new Set(people.map((p) => p.icgId))].sort()
+
+  let changed = 0
+  for (const ss of staged) {
+    if ([...new Set(ss.participantIcgIds)].sort().join() === castIcgIds.join()) continue
+
+    const before = Array.isArray(ss.participants) ? (ss.participants as StagedParticipant[]) : []
+    const participants = people.map((p) => {
+      const kept = before.find((b) => b.icgId === p.icgId)
+      return { ...kept, name: kept?.name ?? p.aliases[0]?.name ?? p.icgId, icgId: p.icgId }
+    })
+    const subjectStays = !ss.subjectPersonId || people.some((p) => p.id === ss.subjectPersonId)
+    const subject = people.length === 1 ? people[0] : null
+
+    await tx.stagingSet.update({
+      where: { id: ss.id },
+      data: {
+        participants: participants as Prisma.InputJsonValue,
+        participantStatuses: participants.map((p, i) => ({
+          name: p.name,
+          icgId: p.icgId,
+          status: 'known',
+          personId: people[i].id,
+        })),
+        participantIcgIds: castIcgIds,
+        participantNamesNorm: participants.map((p) => normalizeForSearch(p.name)).join(' '),
+        ...(subjectStays ? {} : { subjectPersonId: subject?.id ?? null, subjectIcgId: subject?.icgId ?? null }),
+      },
+    })
+    changed++
+  }
+  return changed
 }

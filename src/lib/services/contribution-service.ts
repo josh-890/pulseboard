@@ -6,6 +6,7 @@ import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildUrl } from "@/lib/media-url";
 import type { TxClient } from "./cascade-helpers";
 import { BEHIND_CAMERA_GROUP, type BehindCameraCredit } from "./session-contributors";
+import { syncPromotedStagingCasts } from "./set-cast-service";
 
 // ─── Session Contributions ──────────────────────────────────────────────────
 
@@ -591,6 +592,7 @@ export async function rebuildSetParticipantsFromContributions(
   });
   if (!links.length) {
     await tx.setParticipant.deleteMany({ where: { setId } });
+    await syncPromotedStagingCasts(tx, setId);
     return;
   }
 
@@ -651,6 +653,9 @@ export async function rebuildSetParticipantsFromContributions(
       skipDuplicates: true,
     });
   }
+
+  // The staging sets promoted into this set follow its cast
+  await syncPromotedStagingCasts(tx, setId);
 }
 
 /**
