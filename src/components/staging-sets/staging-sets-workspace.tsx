@@ -71,11 +71,12 @@ export function StagingSetsWorkspace() {
   const FILTER_STORAGE_KEY = 'staging-sets-filters'
   // Initialize with defaults to avoid hydration mismatch (sessionStorage only on client)
   const [filters, setFilters] = useState<StagingSetFilterState>(() => {
-    // URL params take priority (e.g. deep link with ?status=PROMOTED or ?select=<id>)
+    // URL params take priority (e.g. deep link with ?status=PROMOTED). A bare
+    // ?select=<id> does not: it opens that set over the filters you had, which
+    // it used to reset to the defaults (and save over yours) — 2026-10-16
     const statusParam = searchParams.get('status')
     const batchId = searchParams.get('batchId') || undefined
-    const selectParamInit = searchParams.get('select')
-    if (statusParam || batchId || selectParamInit) {
+    if (statusParam || batchId) {
       return {
         ...DEFAULT_FILTERS,
         status: statusParam
@@ -115,9 +116,9 @@ export function StagingSetsWorkspace() {
   useEffect(() => {
     if (filtersRestoredRef.current) return
     filtersRestoredRef.current = true
-    // Skip restoring when URL params drive the view (status/batch/deep-link
-    // select) — those already seeded the filter state in useState above.
-    const fromUrl = searchParams.get('status') || searchParams.get('batchId') || searchParams.get('select')
+    // Skip restoring when URL params drive the view (status/batch) — those
+    // already seeded the filter state in useState above.
+    const fromUrl = searchParams.get('status') || searchParams.get('batchId')
     if (!fromUrl) {
       try {
         const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
@@ -189,6 +190,17 @@ export function StagingSetsWorkspace() {
     )
   }, [selectedId, data, fetchedSet])
 
+  // A deep link to a video set lands on the Video tab (and a photo set on Photo),
+  // so the list behind the panel is the one the set belongs to
+  const deepLinkTabRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!selectParam || deepLinkTabRef.current === selectParam) return
+    if (fetchedSet?.id !== selectParam) return
+    deepLinkTabRef.current = selectParam
+    const tab = fetchedSet.isVideo ? 'video' : 'photo'
+    if ((activeTab === 'photo' || activeTab === 'video') && activeTab !== tab) setActiveTab(tab)
+  }, [selectParam, fetchedSet, activeTab])
+
   // ── Grid ref for keyboard nav ─────────────────────────────────────────
   const gridRef = useRef<HTMLDivElement | null>(null)
   const scrollToIndexRef = useRef<((index: number) => void) | null>(null)
@@ -232,12 +244,12 @@ export function StagingSetsWorkspace() {
   }, [isLoading, data])
 
   // Deep-link scroll: when arriving via ?select=<id>, scroll to and open that item
-  const deepLinkScrolledRef = useRef(false)
+  const deepLinkScrolledRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!selectParam || deepLinkScrolledRef.current || isLoading || !data) return
+    if (!selectParam || deepLinkScrolledRef.current === selectParam || isLoading || !data) return
     const item = data.items.find((s) => s.id === selectParam)
     if (!item) return
-    deepLinkScrolledRef.current = true
+    deepLinkScrolledRef.current = selectParam
     scrollRestoredRef.current = true  // prevent sessionStorage scroll from firing
     requestAnimationFrame(() => {
       const el = gridRef.current?.querySelector<HTMLElement>(`[data-staging-id="${selectParam}"]`)

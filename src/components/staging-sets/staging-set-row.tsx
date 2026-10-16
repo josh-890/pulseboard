@@ -692,7 +692,7 @@ export const StagingSetRow = memo(function StagingSetRow({
           {/* Split-set sibling badge */}
           {hasSibling && siblingId && (
             <Link
-              href={`/staging-sets?selected=${siblingId}`}
+              href={`/staging-sets?select=${siblingId}`}
               onClick={(e) => e.stopPropagation()}
               title={ss.isVideo ? 'Has photo sibling — click to jump' : 'Has video sibling — click to jump'}
               className="inline-flex items-center gap-0.5 rounded-md border border-sky-500/40 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-500 hover:bg-sky-500/20"

@@ -45,7 +45,7 @@ export function ArchiveLinkedRow({ item, backHref }: Props) {
   const linkedHref = item.linkedSetId
     ? `/sets/${item.linkedSetId}`
     : item.linkedStagingId
-    ? `/staging-sets?selected=${item.linkedStagingId}`
+    ? `/staging-sets?select=${item.linkedStagingId}`
     : null
 
   const linkedType = item.linkedSetId ? 'set' : 'staging'

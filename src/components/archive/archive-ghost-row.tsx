@@ -26,7 +26,7 @@ export function ArchiveGhostRow({ item }: Props) {
   const linkedHref = item.linkedSetId
     ? `/sets/${item.linkedSetId}`
     : item.linkedStagingId
-      ? `/staging-sets?selected=${item.linkedStagingId}`
+      ? `/staging-sets?select=${item.linkedStagingId}`
       : null
   const linkedTitle = item.linkedSetTitle ?? item.linkedStagingTitle
 

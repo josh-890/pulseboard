@@ -258,7 +258,7 @@ function QueueRow({
   const prio = PRIORITY_CONFIG[item.mediaPriority as 1 | 2 | 3] ?? PRIORITY_CONFIG[3]
 
   const href = item.type === 'staging'
-    ? `/staging-sets?selected=${item.id}`
+    ? `/staging-sets?select=${item.id}`
     : `/sets/${item.id}`
 
   function cyclePriority() {

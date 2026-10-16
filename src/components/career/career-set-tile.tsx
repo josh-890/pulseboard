@@ -72,7 +72,7 @@ export type CareerSetTileProps = {
 
 export function CareerSetTile({ row }: CareerSetTileProps) {
   const isVideo = row.type === "video";
-  const href = row.kind === "promoted" ? `/sets/${row.setId}` : `/staging-sets?focus=${row.stagingSetId}`;
+  const href = row.kind === "promoted" ? `/sets/${row.setId}` : `/staging-sets?select=${row.stagingSetId}`;
   const archive = archiveBadge(row);
   const samples = row.sampleThumbnails;
   const rating = row.rating;

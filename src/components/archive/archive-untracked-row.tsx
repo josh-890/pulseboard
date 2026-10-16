@@ -11,7 +11,7 @@ export function ArchiveUntrackedRow({ item }: Props) {
     ? new Date(item.releaseDate).toISOString().split('T')[0]
     : null
 
-  const href = item.type === 'set' ? `/sets/${item.id}` : `/staging-sets?selected=${item.id}`
+  const href = item.type === 'set' ? `/sets/${item.id}` : `/staging-sets?select=${item.id}`
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-card/70 px-4 py-3 shadow-sm backdrop-blur-sm opacity-70 hover:opacity-100 transition-opacity">

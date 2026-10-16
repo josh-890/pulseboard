@@ -15,7 +15,7 @@ export function ArchivePhantomRow({ item }: Props) {
     ? new Date(item.archiveLastChecked).toISOString().split('T')[0]
     : null
 
-  const href = item.type === 'set' ? `/sets/${item.id}` : `/staging-sets?selected=${item.id}`
+  const href = item.type === 'set' ? `/sets/${item.id}` : `/staging-sets?select=${item.id}`
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-card/70 px-4 py-3 shadow-sm backdrop-blur-sm">

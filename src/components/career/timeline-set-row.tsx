@@ -143,7 +143,7 @@ export function TimelineSetRow({
   const href =
     row.kind === "promoted"
       ? `/sets/${row.setId}`
-      : `/staging-sets?focus=${row.stagingSetId}`;
+      : `/staging-sets?select=${row.stagingSetId}`;
 
   // Build the metadata Line 1 segments: date · channel · item-count · age
   const segments: string[] = [];
