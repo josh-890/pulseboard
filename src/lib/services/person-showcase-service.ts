@@ -1,0 +1,123 @@
+import { prisma } from "@/lib/db";
+import type { GalleryItem } from "@/lib/types";
+import { getCoverPhotosForSets, getMediaGalleryItemsByIds } from "./media-service";
+import { BEHIND_CAMERA_GROUP } from "./session-contributors";
+
+// The Overview showcase of a person (2026-10-16): their best photos first, the way
+// you marked them — iconic, then ★, then outtake — filled up with production
+// photos at random. Iconic stays in front in the order you tagged it; everything
+// else rotates once a day (a seeded order: the same all day, new tomorrow).
+// "Shows the person" is the tag query's rule (ADR-0023, `imageShows`), so the
+// showcase and `person:ICG-ID` agree.
+
+export type ShowcaseSource = "iconic" | "favorite" | "outtake" | "random";
+export type ShowcaseItem = GalleryItem & { source: ShowcaseSource };
+export type PersonShowcase = { items: ShowcaseItem[]; curatedCount: number };
+
+const SOURCE_BY_LEVEL: Record<number, ShowcaseSource> = { 1: "iconic", 2: "favorite", 3: "outtake", 4: "random" };
+
+// The day the rotation turns over, in the display zone
+const DAY = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.DISPLAY_TIMEZONE ?? "Europe/Berlin" });
+
+export async function getPersonShowcase(
+  personId: string,
+  opts: { size?: number; day?: string } = {},
+): Promise<PersonShowcase> {
+  const size = opts.size ?? 48;
+  const seed = `${personId}:${opts.day ?? DAY.format(new Date())}`;
+
+  // Set-based, not per image: a person's photos run to thousands. "Shown" is the
+  // rule of `imageShows` in tag-predicates.ts — on camera in the image's session
+  // and not hidden from it, or linked directly
+  const rows = await prisma.$queryRaw<{ id: string; level: number }[]>`
+    WITH on_camera AS (
+      SELECT DISTINCT sc."sessionId"
+      FROM "SessionContribution" sc
+      JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
+      JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+      WHERE sc."personId" = ${personId} AND rg.name <> ${BEHIND_CAMERA_GROUP}
+    ),
+    -- Two indexed ways in, united (an OR across them scans every image)
+    ids AS (
+      SELECT mi.id FROM "MediaItem" mi
+      WHERE mi."sessionId" IN (SELECT "sessionId" FROM on_camera)
+        AND NOT EXISTS (SELECT 1 FROM media_item_hidden_person h WHERE h."mediaItemId" = mi.id AND h."personId" = ${personId})
+      UNION
+      SELECT pml."mediaItemId" FROM "PersonMediaLink" pml WHERE pml."personId" = ${personId}
+    ),
+    shown AS (
+      SELECT mi.id, mi."isFavorite", s.type AS "sessionType"
+      FROM ids
+      JOIN "MediaItem" mi ON mi.id = ids.id
+      JOIN "Session" s ON s.id = mi."sessionId"
+      WHERE mi."mediaType" = 'PHOTO' AND NOT mi."isAnnotation" AND mi."decodeIssue" IS NULL
+    ),
+    marks AS (
+      SELECT t."mediaItemId" AS id,
+        max(t."createdAt") FILTER (WHERE d.slug = 'iconic') AS "iconicAt",
+        bool_or(d.slug = 'outtake') AS outtake
+      FROM media_item_tag t
+      JOIN tag_definition d ON d.id = t."tagDefinitionId"
+      WHERE d.slug IN ('iconic', 'outtake') AND t."mediaItemId" IN (SELECT id FROM shown)
+      GROUP BY t."mediaItemId"
+    ),
+    ranked AS (
+      SELECT sh.id, m."iconicAt", sh."sessionType",
+        CASE WHEN m."iconicAt" IS NOT NULL THEN 1 WHEN sh."isFavorite" THEN 2 WHEN m.outtake THEN 3 ELSE 4 END AS level
+      FROM shown sh
+      LEFT JOIN marks m ON m.id = sh.id
+    )
+    SELECT id, level FROM ranked
+    -- A random fill comes from production work, never the reference photos
+    WHERE level < 4 OR "sessionType" <> 'REFERENCE'
+    ORDER BY level, "iconicAt" DESC NULLS LAST, md5(id || ${seed})
+    LIMIT ${size}
+  `;
+
+  const items = await getMediaGalleryItemsByIds(rows.map((r) => r.id));
+  const byId = new Map(items.map((i) => [i.id, i]));
+  return {
+    items: rows.flatMap((r) => {
+      const item = byId.get(r.id);
+      return item ? [{ ...item, source: SOURCE_BY_LEVEL[r.level] }] : [];
+    }),
+    curatedCount: rows.filter((r) => r.level < 4).length,
+  };
+}
+
+export type KnownForSet = {
+  id: string;
+  title: string;
+  year: number | null;
+  channelName: string | null;
+  rating: number | null;
+  isVideo: boolean;
+  coverUrl: string | null;
+  coverFocalX: number | null;
+  coverFocalY: number | null;
+};
+
+/** The person's sets as posters: your highest-rated first, then the newest */
+export async function getPersonKnownFor(personId: string, limit = 8): Promise<KnownForSet[]> {
+  const sets = await prisma.set.findMany({
+    where: { participants: { some: { personId } } },
+    orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { releaseDate: { sort: "desc", nulls: "last" } }],
+    take: limit,
+    select: { id: true, title: true, releaseDate: true, rating: true, type: true, channel: { select: { name: true } } },
+  });
+  const covers = await getCoverPhotosForSets(sets.map((s) => s.id));
+  return sets.map((s) => {
+    const cover = covers.get(s.id);
+    return {
+      id: s.id,
+      title: s.title,
+      year: s.releaseDate ? Number(DAY.format(s.releaseDate).slice(0, 4)) : null,
+      channelName: s.channel?.name ?? null,
+      rating: s.rating,
+      isVideo: s.type === "video",
+      coverUrl: cover?.url ?? null,
+      coverFocalX: cover?.focalX ?? null,
+      coverFocalY: cover?.focalY ?? null,
+    };
+  });
+}

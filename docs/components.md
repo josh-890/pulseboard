@@ -59,6 +59,14 @@
 | `ConnectionsSection` | Server | `relationships` | Co-workers with shared set count |
 | `NotesSection` | Client | `person` | Editable rating, notes, and tags |
 
+### Overview (`components/people/overview/`)
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `PersonShowcase` | Client | `showcase`, `personName`, `person` | Mosaic of the person's best photos (1 large + up to 6; "+N"), source chips, "All N" lightbox, ▶ slideshow |
+| `ShowcaseSlideshow` | Client | `items`, `startIndex`, `title`, `onClose` | Full-screen portal slideshow: crossfade + slow zoom (reduced-motion off), Space / ← → / Esc, progress bar |
+| `ShowcaseSourceChip` | Server | `source`, `className?` | "Iconic" / "★ Favorite" / "Outtake" chip; nothing for random photos |
+| `KnownForRow` | Server | `sets` | Scroll-snap row of 2:3 set posters (focal point, video badge, rating) linking to `/sets/[id]` |
+
 ---
 
 ## Sets Components (`components/sets/`)

@@ -133,39 +133,51 @@ export default function PersonDetailLoading() {
         ))}
       </div>
 
-      {/* Overview tab content: About + Recent Work/Photos + Ratings */}
+      {/* Overview tab content: Showcase mosaic + Known for + About */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* About card (full width) */}
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm md:col-span-2 space-y-3">
-          <Skeleton className="h-5 w-40" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-        </div>
-
-        {/* Recent Work */}
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm space-y-3">
-          <Skeleton className="h-5 w-28" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-md" />
-              <div className="space-y-1 flex-1">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-3 w-24" />
-              </div>
+        {/* Showcase: header + mosaic (phone 1+3, tablet 1+4, desktop 1+6) */}
+        <div className="space-y-3 md:col-span-2">
+          <div className="flex items-end justify-between">
+            <div className="space-y-1.5">
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-3 w-56" />
             </div>
-          ))}
-        </div>
-
-        {/* Recent Photos */}
-        <div className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm space-y-3">
-          <Skeleton className="h-5 w-28" />
-          <div className="flex gap-1.5">
+            <div className="flex gap-2">
+              <Skeleton className="h-8 w-20 rounded-md" />
+              <Skeleton className="h-8 w-24 rounded-md" />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5">
+            <Skeleton className="col-span-3 aspect-[4/5] rounded-xl md:col-span-2 md:row-span-2 md:aspect-auto" />
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-16 w-16 rounded-lg" />
+              <Skeleton
+                key={i}
+                className={i < 3 ? "aspect-[4/5] rounded-xl" : i < 4 ? "hidden aspect-[4/5] rounded-xl md:block" : "hidden aspect-[4/5] rounded-xl lg:block"}
+              />
             ))}
           </div>
         </div>
 
+        {/* Known for: poster row */}
+        <div className="space-y-3 md:col-span-2">
+          <Skeleton className="h-5 w-28" />
+          <div className="flex gap-3 overflow-hidden">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="w-36 shrink-0 space-y-1.5 sm:w-40">
+                <Skeleton className="aspect-[2/3] w-full rounded-xl" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* About card */}
+        <div className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm space-y-3">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
       </div>
     </div>
   );

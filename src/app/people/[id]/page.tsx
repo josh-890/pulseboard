@@ -36,6 +36,7 @@ import {
   type CareerScope,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
+import { getPersonKnownFor, getPersonShowcase } from "@/lib/services/person-showcase-service";
 import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -132,7 +133,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -160,6 +161,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getCareerErasForPerson(id),
       getImportHistoryForPerson(id),
       getAliasPromotionQueue(id),
+      getPersonShowcase(id),
+      getPersonKnownFor(id),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -311,6 +314,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         careerActiveSort={careerSort}
         eraContributions={eraContributions}
         entityTags={personEntityTags}
+        showcase={showcase}
+        knownFor={knownFor}
       />
     </div>
     );

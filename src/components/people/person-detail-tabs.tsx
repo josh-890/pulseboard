@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { cn, computeAge, formatPartialDate, splitOptionLabel } from "@/lib/utils";
+import { cn, computeAge, splitOptionLabel } from "@/lib/utils";
 import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -59,6 +59,8 @@ import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import { BatchUploadZone } from "@/components/media/batch-upload-zone";
 import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
+import { KnownForRow, PersonShowcase } from "@/components/people/overview";
+import type { KnownForSet, PersonShowcase as PersonShowcaseData } from "@/lib/services/person-showcase-service";
 import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
@@ -141,6 +143,9 @@ type PersonDetailTabsProps = {
   // ADR-0004 — eraContributions: per-era list of sessions filed into it.
   // Keyed by era id. Loaded by the page via `getPersonEraContributions`.
   eraContributions?: Record<string, EraContributionInfo>;
+  // The Overview's showcase and "Known for" covers (person-showcase-service)
+  showcase?: PersonShowcaseData;
+  knownFor?: KnownForSet[];
 };
 
 // ── Style maps ──────────────────────────────────────────────────────────────
@@ -1477,7 +1482,8 @@ function DataQualityBanner({ issues, onTabSwitch, onEditPerson }: { issues: Plau
 function OverviewTab({
   person,
   currentState,
-  sessionWorkHistory,
+  showcase,
+  knownFor = [],
   referencePhotos,
   plausibilityIssues = [],
   onTabSwitch,
@@ -1487,7 +1493,8 @@ function OverviewTab({
 }: {
   person: PersonData;
   currentState: PersonCurrentState;
-  sessionWorkHistory?: PersonSessionWorkEntry[];
+  showcase?: PersonShowcaseData;
+  knownFor?: KnownForSet[];
   referencePhotos?: GalleryItem[];
   plausibilityIssues?: PlausibilityIssue[];
   onTabSwitch?: (tab: string) => void;
@@ -1496,10 +1503,8 @@ function OverviewTab({
   // Slice 16E: catalog defs for NewEraSheet's hair-color routing.
   attributeGroups?: PhysicalAttributeGroupWithDefinitions[];
 }) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const hasHistory = person.eras.length > 0;
-  const recentWork = (sessionWorkHistory ?? []).slice(0, 3);
-  const recentPhotos = (referencePhotos ?? []).slice(0, 8);
+  const displayName = person.aliases.find((a) => a.isCommon)?.name ?? person.icgId;
 
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -1514,64 +1519,16 @@ function OverviewTab({
         }}
       />
 
-      {/* 2. About */}
+      {/* 2. The person's best photos, then their sets as posters */}
+      {showcase && (
+        <PersonShowcase showcase={showcase} personName={displayName} person={{ id: person.id, name: displayName }} />
+      )}
+      <KnownForRow sets={knownFor} />
+
+      {/* 3. About */}
       <AboutCard person={person} referencePhotos={referencePhotos} />
 
-      {/* 3. Recent Work | Recent Photos */}
-      {recentWork.length > 0 && (
-        <SectionCard title="Recent Work" icon={<Film size={18} />} badge={recentWork.length}>
-          <div className="space-y-2">
-            {recentWork.map((entry) => (
-              <Link
-                key={entry.sessionId}
-                href={`/sessions/${entry.sessionId}`}
-                className="flex items-center gap-3 rounded-lg border border-white/10 bg-card/30 p-2.5 transition-colors hover:border-white/20 hover:bg-card/50"
-              >
-                {entry.thumbnails[0] && (
-                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md">
-                    <NextImage src={entry.thumbnails[0].url} alt="" width={40} height={40} className="h-full w-full object-cover" unoptimized />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{entry.sessionName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {entry.labelName && <span>{entry.labelName}</span>}
-                    {entry.sessionDate && <span> · {formatPartialDate(entry.sessionDate, entry.sessionDatePrecision)}</span>}
-                  </p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </SectionCard>
-      )}
-
-      {recentPhotos.length > 0 && (
-        <SectionCard title="Recent Photos" icon={<ImageIcon size={18} />} badge={recentPhotos.length}>
-          <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-1">
-            {recentPhotos.map((photo, idx) => (
-              <button
-                key={photo.id}
-                type="button"
-                onClick={() => setLightboxIndex(idx)}
-                className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 transition-all hover:border-white/25"
-              >
-                <NextImage src={photo.urls.gallery_512 ?? photo.urls.original} alt="" width={64} height={64} className="h-full w-full object-cover" unoptimized />
-              </button>
-            ))}
-          </div>
-          {lightboxIndex !== null && (
-            <GalleryLightbox
-              items={recentPhotos}
-              initialIndex={lightboxIndex}
-              enableCollections
-              detailAssignContext={{ defaultPerson: { id: person.id, name: person.aliases.find((a) => a.isCommon)?.name ?? person.icgId } }}
-              onClose={() => setLightboxIndex(null)}
-            />
-          )}
-        </SectionCard>
-      )}
-
-      {/* 3. History — default collapsed */}
+      {/* 4. History — default collapsed */}
       {hasHistory && (
         <SectionCard
           title="History"
@@ -1812,6 +1769,8 @@ export function PersonDetailTabs({
   careerScope = "library",
   careerActiveSort = "date-desc",
   eraContributions,
+  showcase,
+  knownFor,
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
     () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos", "research"]),
@@ -1977,7 +1936,8 @@ export function PersonDetailTabs({
           <OverviewTab
             person={person}
             currentState={currentState}
-            sessionWorkHistory={sessionWorkHistory}
+            showcase={showcase}
+            knownFor={knownFor}
             referencePhotos={photos}
             plausibilityIssues={plausibilityIssues}
             onTabSwitch={(tab) => setActiveTab(tab as TabId)}

@@ -284,8 +284,20 @@ Whenever you pick a photo for a task — a source to standardize a slot, a photo
 #### Tabs
 
 **Overview**
+- **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,
+  tablet 5, phone 4; the last tile shows **+N** for the rest of the pool of up to 48). The order is the way you
+  marked them: **Iconic** first (in the order you tagged them — the newest leads the large tile), then **★
+  Favorite**, then **Outtake**; a small chip on each tile says which. The rest is filled with photos from the
+  person's sets **at random**: never reference/headshot photos, damaged pictures (red frame) or edited copies.
+  Iconic photos stay in front; everything else **changes once a day**, so the page stays fresh but doesn't jump
+  around on every visit. A photo counts as showing the person by the same rule as `person:` in the tag filter
+  (on camera in its session and not hidden from it, or linked directly).
+  - Click a tile (or **All N**) to open the lightbox over the whole pool. Setting ★ or the `iconic`/`outtake` tags
+    there moves the photo up in tomorrow's showcase (an iconic photo moves to the front at once).
+  - **▶ Slideshow** plays the pool full screen, each photo whole, cross-faded with a slow zoom (still when your
+    system asks for reduced motion). **Space** pauses, **← / →** step, **Esc** closes.
+- **Known for** — the person's sets as posters: your highest-rated first, then the newest (8). Each opens the set.
 - **About [Name]** — editable bio section with Markdown support (see [Bio & Markdown](#bio--markdown) below)
-- Recent Photos — horizontal scroll of latest reference photos with lightbox
 - History — collapsible era timeline (one card per phase, baseline first; auto-created "draft" eras are flagged with an amber pill until you curate them)
 - Digital Identities, Notes & Tags
 

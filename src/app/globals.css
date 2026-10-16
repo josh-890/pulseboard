@@ -142,3 +142,13 @@
     background: linear-gradient(135deg, #0b1120 0%, #1a1033 50%, #0b1120 100%);
   }
 }
+
+/* Person showcase slideshow (2026-10-16): slow zoom per photo, progress bar */
+@keyframes showcase-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.04); }
+}
+@keyframes showcase-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
