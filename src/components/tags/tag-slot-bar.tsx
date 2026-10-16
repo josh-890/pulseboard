@@ -79,6 +79,11 @@ export function TagSlotBar({ entityType, onApplySlot, stateOf, tone = "default" 
           const tag = slots.slotTag(pos);
           const fits = tag ? tagFitsEntity(tag.group.domain, entityType) : false;
           const state = tag && stateOf ? stateOf(tag.id) : "none";
+          // With a state to show, a slot whose tag the item does not carry is
+          // dimmed and one it carries is filled in the tag's colour — the row
+          // must never read like the item's own tags (2026-10-16)
+          const set = !editing && !!tag && !!stateOf && state !== "none";
+          const unset = !editing && !!tag && !!stateOf && state === "none";
           return (
             <span key={pos} className="inline-flex items-center">
               <button
@@ -91,8 +96,12 @@ export function TagSlotBar({ entityType, onApplySlot, stateOf, tone = "default" 
                   border,
                   onDark ? "text-white/85 hover:bg-white/10" : "text-foreground hover:bg-muted/40",
                   !tag && "border-dashed",
-                  state === "all" && "bg-primary/15",
+                  unset && (onDark ? "text-white/45 hover:text-white/85" : "text-muted-foreground hover:text-foreground"),
+                  set && "font-medium",
+                  set && (onDark ? "text-white" : "text-foreground"),
                 )}
+                style={set ? { backgroundColor: `${tag.group.color}40`, borderColor: tag.group.color } : undefined}
+                aria-pressed={stateOf && tag && !editing ? (state === "all" ? true : state === "some" ? "mixed" : false) : undefined}
                 aria-label={
                   tag
                     ? `Slot ${pos}: ${tag.name}${editing ? " — change" : ""}`
@@ -104,7 +113,7 @@ export function TagSlotBar({ entityType, onApplySlot, stateOf, tone = "default" 
                 {tag ? (
                   <>
                     <span
-                      className="inline-block size-1.5 shrink-0 rounded-full"
+                      className={cn("inline-block size-1.5 shrink-0 rounded-full", unset && "opacity-40")}
                       style={{ backgroundColor: tag.group.color }}
                       aria-hidden="true"
                     />

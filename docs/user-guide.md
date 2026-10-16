@@ -964,6 +964,9 @@ selection bar then offers:
 - **Quick-tag slots** <kbd>1</kbd>–<kbd>9</kbd> — nine tags on the number keys, Lightroom-style.
   A key toggles its tag: on the current image in the viewer, or on the whole selection here
   (removes it when everything already has it, adds it otherwise).
+  - In the viewer's info panel the slots sit in their own framed box, **Quick tags · keys 1–9**,
+    below the image's real tags — they are shortcuts, not tags of the image. A slot whose tag the
+    image carries is filled in the tag's colour with ✓; the others are dimmed.
   - **Set them up** with the pencil in the **Slots** popover (or under Tags in the viewer's info panel).
     Click a slot to choose its tag; ✕ empties it.
   - **Slot sets:** keep several named sets, e.g. *Poses* or *Review*, and switch between them

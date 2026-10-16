@@ -1225,7 +1225,11 @@ export function GalleryInfoPanel({
             <p className="text-xs text-white/40">Tags unavailable here.</p>
           )}
           {tagController && onApplySlot && (
-            <div className="mt-3 space-y-2 border-t border-white/10 pt-2">
+            <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+              {/* Not the image's tags: shortcuts to add or remove them */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                Quick tags · keys 1–9 · click to add / remove
+              </p>
               <TagSlotBar
                 entityType="MEDIA_ITEM"
                 onApplySlot={onApplySlot}
