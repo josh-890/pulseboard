@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Loader2,
@@ -52,6 +52,7 @@ function parseTierParam(value: string | null): ChannelTier[] | null {
 
 export function StagingSetsWorkspace() {
   const searchParams = useSearchParams()
+  const router = useRouter()
 
   // ── Tab state ─────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'photo' | 'video' | 'missing-cover' | 'cover-baskets'>(
@@ -76,6 +77,16 @@ export function StagingSetsWorkspace() {
     // it used to reset to the defaults (and save over yours) — 2026-10-16
     const statusParam = searchParams.get('status')
     const batchId = searchParams.get('batchId') || undefined
+    // A jump from a person's career (?jump=person): that person's staged sets,
+    // every tier — a Low/Trash channel must not hide the set. Never saved.
+    if (searchParams.get('jump') === 'person' && searchParams.get('personId')) {
+      return {
+        ...DEFAULT_FILTERS,
+        personId: searchParams.get('personId') || undefined,
+        personLabel: searchParams.get('personLabel') || undefined,
+        channelTier: [...CHANNEL_TIER_VALUES],
+      }
+    }
     if (statusParam || batchId) {
       return {
         ...DEFAULT_FILTERS,
@@ -105,6 +116,30 @@ export function StagingSetsWorkspace() {
     }
   })
 
+  // The temporary view of a jump from a person's career: shown, never saved. The
+  // first filter change ends it (and is saved, as always); the chip in the filter
+  // bar goes back to the filters you had.
+  const [jump, setJump] = useState<{ label: string } | null>(() =>
+    searchParams.get('jump') === 'person' && searchParams.get('personId')
+      ? { label: searchParams.get('personLabel') || 'this person' }
+      : null,
+  )
+  const changeFilters = useCallback((next: StagingSetFilterState) => {
+    setJump(null)
+    setFilters(next)
+  }, [])
+  const leaveJump = useCallback(() => {
+    let saved: StagingSetFilterState = DEFAULT_FILTERS
+    try {
+      const raw = sessionStorage.getItem(FILTER_STORAGE_KEY)
+      if (raw) saved = { ...DEFAULT_FILTERS, ...JSON.parse(raw) } as StagingSetFilterState
+    } catch {}
+    setJump(null)
+    setFilters(saved)
+    setSelectedId(null)
+    router.replace('/staging-sets')
+  }, [router])
+
   // Restore from sessionStorage after hydration (avoids server/client mismatch)
   const filtersRestoredRef = useRef(false)
   // Gates the first data fetch until the sessionStorage restore has run. Without
@@ -118,7 +153,7 @@ export function StagingSetsWorkspace() {
     filtersRestoredRef.current = true
     // Skip restoring when URL params drive the view (status/batch) — those
     // already seeded the filter state in useState above.
-    const fromUrl = searchParams.get('status') || searchParams.get('batchId')
+    const fromUrl = searchParams.get('status') || searchParams.get('batchId') || searchParams.get('jump')
     if (!fromUrl) {
       try {
         const saved = sessionStorage.getItem(FILTER_STORAGE_KEY)
@@ -130,12 +165,13 @@ export function StagingSetsWorkspace() {
     setFiltersReady(true)
   }, [searchParams])
 
-  // Persist filter changes to sessionStorage
+  // Persist filter changes to sessionStorage — not a jump's temporary view
   useEffect(() => {
+    if (jump) return
     try {
       sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
     } catch {}
-  }, [filters])
+  }, [filters, jump])
 
   // ── Data state ────────────────────────────────────────────────────────
   const [data, setData] = useState<FetchResult | null>(null)
@@ -203,7 +239,7 @@ export function StagingSetsWorkspace() {
 
   // ── Grid ref for keyboard nav ─────────────────────────────────────────
   const gridRef = useRef<HTMLDivElement | null>(null)
-  const scrollToIndexRef = useRef<((index: number) => void) | null>(null)
+  const scrollToIdRef = useRef<((id: string, align?: 'auto' | 'center') => boolean) | null>(null)
 
   // ── Scroll position persistence ──────────────────────────────────────
   const SCROLL_STORAGE_KEY = 'pulseboard-staging-scroll'
@@ -230,6 +266,7 @@ export function StagingSetsWorkspace() {
   useEffect(() => {
     if (isLoading || scrollRestoredRef.current || !data) return
     scrollRestoredRef.current = true
+    if (selectParam) return  // a deep link scrolls to its set instead
     try {
       const saved = sessionStorage.getItem(SCROLL_STORAGE_KEY)
       if (saved) {
@@ -241,21 +278,7 @@ export function StagingSetsWorkspace() {
         }
       }
     } catch {}
-  }, [isLoading, data])
-
-  // Deep-link scroll: when arriving via ?select=<id>, scroll to and open that item
-  const deepLinkScrolledRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!selectParam || deepLinkScrolledRef.current === selectParam || isLoading || !data) return
-    const item = data.items.find((s) => s.id === selectParam)
-    if (!item) return
-    deepLinkScrolledRef.current = selectParam
-    scrollRestoredRef.current = true  // prevent sessionStorage scroll from firing
-    requestAnimationFrame(() => {
-      const el = gridRef.current?.querySelector<HTMLElement>(`[data-staging-id="${selectParam}"]`)
-      el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    })
-  }, [selectParam, isLoading, data])
+  }, [isLoading, data, selectParam])
 
   // ── Fetch data ────────────────────────────────────────────────────────
   // Monotonic request id — only the latest in-flight fetch may write state, so a
@@ -615,8 +638,37 @@ export function StagingSetsWorkspace() {
     onEscape: () => setSelectedId(null),
     onOpen: (id) => setSelectedId(id),
     onToggle: (id) => toggleCheck(id),
-    onScrollToIndex: (index) => scrollToIndexRef.current?.(index),
+    onScrollToIndex: (index) => { if (visibleIds[index]) scrollToIdRef.current?.(visibleIds[index]) },
   })
+
+  // Deep link (?select=<id>): bring the set into the list — page it in when it is
+  // further down than the loaded part (a few large steps, then give up; the
+  // panel shows it either way) — then scroll to it and give it the keyboard focus.
+  // Keyed by set and tab: a video set switches tabs first, and the new list is
+  // searched afresh.
+  const revealRef = useRef<{ key: string; steps: number; done: boolean } | null>(null)
+  const { setFocusedIndex } = keyNav
+  useEffect(() => {
+    if (!selectParam || isLoading || isLoadingMore || !data) return
+    const key = `${selectParam}:${activeTab}`
+    if (revealRef.current?.key !== key) revealRef.current = { key, steps: 0, done: false }
+    const r = revealRef.current
+    if (r.done) return
+    const index = data.items.findIndex((s) => s.id === selectParam)
+    if (index >= 0) {
+      r.done = true
+      setFocusedIndex(index)
+      requestAnimationFrame(() => scrollToIdRef.current?.(selectParam, 'center'))
+      return
+    }
+    // Known not to be in this list (its tab or status is filtered out): stop
+    const off =
+      fetchedSet?.id === selectParam &&
+      ((activeTab === 'video') !== fetchedSet.isVideo || !filters.status.includes(fetchedSet.status))
+    if (off || data.items.length >= data.total || r.steps >= 5) { r.done = true; return }
+    r.steps++
+    void fetchData(true, undefined, data.items.length, 200)
+  }, [selectParam, activeTab, isLoading, isLoadingMore, data, fetchedSet, filters.status, fetchData, setFocusedIndex])
 
   // ── Load more ─────────────────────────────────────────────────────────
   const handleLoadMore = useCallback(() => {
@@ -768,7 +820,9 @@ export function StagingSetsWorkspace() {
       {/* Filter bar */}
       <StagingSetFilterBar
         filters={filters}
-        onChange={setFilters}
+        onChange={changeFilters}
+        jumpLabel={jump?.label}
+        onLeaveJump={leaveJump}
         stats={stats}
       />
 
@@ -823,7 +877,7 @@ export function StagingSetsWorkspace() {
               isLoadingMore={isLoadingMore}
               total={data?.total ?? 0}
               scrollRef={gridRef}
-              onVirtualizerReady={(fn) => { scrollToIndexRef.current = fn }}
+              onVirtualizerReady={(fn) => { scrollToIdRef.current = fn }}
               inlineCoverUpload={activeTab === 'missing-cover' ? {
                 uploadedCovers,
                 acceptedCovers,

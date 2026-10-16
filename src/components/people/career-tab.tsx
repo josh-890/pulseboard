@@ -1,5 +1,6 @@
 "use client";
 
+import { stagingJumpPersonLabel } from "@/lib/staging-jump";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -39,6 +40,7 @@ import type { SetType } from "@/generated/prisma/client";
 
 type CareerTabPerson = {
   id: string;
+  icgId: string | null;
   activeFrom: Date | null;
   activeFromPrecision: string;
   retiredAt: Date | null;
@@ -133,6 +135,8 @@ export function CareerTab({
   withTint,
 }: CareerTabProps) {
   const router = useRouter();
+  const commonName = person.aliases.find((a) => a.isCommon)?.name ?? person.aliases[0]?.name ?? person.icgId ?? "";
+  const jumpPerson = { id: person.id, label: stagingJumpPersonLabel(commonName, person.icgId) };
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [createKnownSetOpen, setCreateKnownSetOpen] = useState(false);
@@ -693,6 +697,7 @@ export function CareerTab({
           view={view}
           tileSize={tileSize}
           collapseStorageKey={`career.collapse.${person.id}`}
+          jumpPerson={jumpPerson}
         />
       )}
 

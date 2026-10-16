@@ -1392,6 +1392,22 @@ Each row shows:
 - **Match badge** — "Exact" or confidence percentage if a production Set match was found
 - **Archive section** — inline strip below the row (see below)
 
+### Jumping to one staged set
+
+Your filters in the staging list are sticky: they are still there the next time you
+open it. A link that jumps to **one** staged set works with that:
+
+- **From a person's Career tab** (a staged set's tile or row): the list shows **that
+  person's** pending, reviewing and approved sets, in all channel tiers. The set you
+  clicked is scrolled into view and framed, and its panel is open. This view is
+  **temporary**: an amber chip *From <person>'s career · Back to my filters* takes you
+  back to the filters you had, and the next time you open Staging Sets normally they
+  are there too. If you change a filter while in the jump view, that change becomes your
+  filters as usual.
+- **From anywhere else** (archive rows, the media queue, a duplicate's "Open"): the set
+  opens in the panel over your own filters. If it is in the list, the list loads down to
+  it, scrolls to it and frames it. A video set opens on the Video tab.
+
 ### Archive Section (per row)
 
 Each staging set row shows its archive status as a compact strip below the main row:

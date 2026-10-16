@@ -36,8 +36,12 @@ type StagingSetGridProps = {
   isLoadingMore: boolean
   total: number
   scrollRef: React.RefObject<HTMLDivElement | null>
-  /** Called when virtualizer is ready — passes scrollToIndex for keyboard nav */
-  onVirtualizerReady?: (scrollToIndex: (index: number) => void) => void
+  /**
+   * Called when the virtualizer is ready — passes scrollToId (keyboard nav, deep
+   * links). By id, not index: group headers sit between the items in the
+   * virtual list, so an item's index there is not its index among the sets.
+   */
+  onVirtualizerReady?: (scrollToId: (id: string, align?: 'auto' | 'center') => boolean) => void
   inlineCoverUpload?: {
     uploadedCovers: Map<string, string>
     acceptedCovers: Set<string>
@@ -334,11 +338,14 @@ export function StagingSetGrid({
   // Expose scrollToIndex to parent for keyboard nav
   useEffect(() => {
     if (onVirtualizerReady) {
-      onVirtualizerReady((index: number) => {
-        virtualizer.scrollToIndex(index, { align: 'auto' })
+      onVirtualizerReady((id, align = 'auto') => {
+        const index = flatList.findIndex((e) => e.type === 'item' && e.data.id === id)
+        if (index < 0) return false
+        virtualizer.scrollToIndex(index, { align })
+        return true
       })
     }
-  }, [onVirtualizerReady, virtualizer])
+  }, [onVirtualizerReady, virtualizer, flatList])
 
   const toggleGroup = (key: string) => {
     setCollapsedGroups((prev) => {

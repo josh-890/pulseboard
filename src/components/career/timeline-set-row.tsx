@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Camera, Film, FolderCheck, FolderX, Star, Users } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
+import { stagedSetJumpHref, type StagingJumpPerson } from "@/lib/staging-jump";
 import {
   StatusPill,
   STATUS_STRIPE_CLASS,
@@ -116,6 +117,8 @@ function StarsCompact({ rating }: { rating: number | null }) {
 
 export type TimelineSetRowProps = {
   row: CareerTimelineRow;
+  /** Whose career — a staged set opens over a view of their staged sets */
+  jumpPerson?: StagingJumpPerson;
   withTint: boolean;
   ageAtShoot?: string | null;
   // "full" (default) renders the cover + sample-thumbnail card; "compact"
@@ -132,6 +135,7 @@ export type TimelineSetRowProps = {
 
 export function TimelineSetRow({
   row,
+  jumpPerson,
   withTint,
   ageAtShoot,
   variant = "full",
@@ -143,7 +147,9 @@ export function TimelineSetRow({
   const href =
     row.kind === "promoted"
       ? `/sets/${row.setId}`
-      : `/staging-sets?select=${row.stagingSetId}`;
+      : jumpPerson
+        ? stagedSetJumpHref({ stagingSetId: row.stagingSetId, isVideo, person: jumpPerson })
+        : `/staging-sets?select=${row.stagingSetId}`;
 
   // Build the metadata Line 1 segments: date · channel · item-count · age
   const segments: string[] = [];

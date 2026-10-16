@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Camera, Film, FolderCheck, FolderX, Star } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
+import { stagedSetJumpHref, type StagingJumpPerson } from "@/lib/staging-jump";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
@@ -68,11 +69,18 @@ function archiveBadge(row: CareerTimelineRow): { ok: boolean; label: string } | 
 
 export type CareerSetTileProps = {
   row: CareerTimelineRow;
+  /** Whose career — a staged set opens over a view of their staged sets */
+  jumpPerson?: StagingJumpPerson;
 };
 
-export function CareerSetTile({ row }: CareerSetTileProps) {
+export function CareerSetTile({ row, jumpPerson }: CareerSetTileProps) {
   const isVideo = row.type === "video";
-  const href = row.kind === "promoted" ? `/sets/${row.setId}` : `/staging-sets?select=${row.stagingSetId}`;
+  const href =
+    row.kind === "promoted"
+      ? `/sets/${row.setId}`
+      : jumpPerson
+        ? stagedSetJumpHref({ stagingSetId: row.stagingSetId, isVideo, person: jumpPerson })
+        : `/staging-sets?select=${row.stagingSetId}`;
   const archive = archiveBadge(row);
   const samples = row.sampleThumbnails;
   const rating = row.rating;

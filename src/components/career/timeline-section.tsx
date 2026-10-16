@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAppScrollEl } from "@/lib/scroll-container";
+import type { StagingJumpPerson } from "@/lib/staging-jump";
 import { TimelineSetRow } from "./timeline-set-row";
 import { CareerSetTile, careerTier, type CareerTier } from "./career-set-tile";
 import { CareerTierLegend } from "./career-tier-legend";
@@ -64,6 +65,9 @@ export type TimelineSectionProps = {
   collapseStorageKey?: string;
   ageAtShoot?: (row: CareerTimelineRow) => string | null;
   eraLabelForYear?: (year: number) => string | null;
+  // The person whose career this is — a staged set links into the staging
+  // workspace over a temporary view of their staged sets
+  jumpPerson?: StagingJumpPerson;
 };
 
 // A renderable leaf: rows sharing a year (or the whole status/channel group in
@@ -196,6 +200,7 @@ export function TimelineSection({
   collapseStorageKey,
   ageAtShoot,
   eraLabelForYear,
+  jumpPerson,
 }: TimelineSectionProps) {
   const sections = useMemo(() => buildSections(rows, groupBy), [rows, groupBy]);
   const tiers = useMemo(() => {
@@ -380,7 +385,7 @@ export function TimelineSection({
       // groups — careers run to 2,000+ sets
       <div className={cn("grid gap-2 [content-visibility:auto]", TILE_GRID_CLASS[tileSize])}>
         {list.map((row) => (
-          <CareerSetTile key={rowKey(row)} row={row} />
+          <CareerSetTile key={rowKey(row)} row={row} jumpPerson={jumpPerson} />
         ))}
       </div>
     ) : (
@@ -402,6 +407,7 @@ export function TimelineSection({
             <div className="min-w-0 flex-1">
               <TimelineSetRow
                 row={row}
+                jumpPerson={jumpPerson}
                 withTint={withTint}
                 variant={expanded ? "full" : "compact"}
                 ageAtShoot={ageAtShoot?.(row)}
@@ -416,6 +422,7 @@ export function TimelineSection({
         <TimelineSetRow
           key={key}
           row={row}
+          jumpPerson={jumpPerson}
           withTint={withTint}
           variant="full"
           ageAtShoot={ageAtShoot?.(row)}

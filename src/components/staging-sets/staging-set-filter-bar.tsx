@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, CalendarDays, X, HardDrive, CheckCheck, User, Radio } from 'lucide-react'
+import { Search, CalendarDays, X, HardDrive, CheckCheck, User, Radio, Undo2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import type { ChannelTier, StagingSetStatus } from '@/generated/prisma/client'
@@ -75,6 +75,10 @@ type StagingSetFilterBarProps = {
   filters: StagingSetFilterState
   onChange: (filters: StagingSetFilterState) => void
   stats: StagingSetStats | null
+  /** Set while showing a jump from a person's career — a view that is not saved */
+  jumpLabel?: string
+  /** Back to the filters you had before the jump */
+  onLeaveJump?: () => void
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -124,7 +128,7 @@ const GROUP_OPTIONS = [
 
 type PersonResult = { id: string; displayName: string; icgId: string; matchedAlias?: string | null }
 
-export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilterBarProps) {
+export function StagingSetFilterBar({ filters, onChange, stats, jumpLabel, onLeaveJump }: StagingSetFilterBarProps) {
   // Tag facets of archive folders — a staged set answers through its folder (ADR-0034)
   const [tagFacets, setTagFacets] = useState<TagFacetGroup[]>([])
   useEffect(() => {
@@ -391,6 +395,18 @@ export function StagingSetFilterBar({ filters, onChange, stats }: StagingSetFilt
             <Radio size={10} aria-hidden="true" />
             {filters.channelLabel ?? 'Channel'}
             <X size={10} aria-hidden="true" />
+          </button>
+        )}
+
+        {jumpLabel && onLeaveJump && (
+          <button
+            type="button"
+            onClick={onLeaveJump}
+            title="This view is not saved — your own filters come back"
+            className="flex items-center gap-1.5 rounded-full border border-amber-500/50 bg-amber-500/15 px-2.5 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-amber-400"
+          >
+            <Undo2 size={10} aria-hidden="true" />
+            From {jumpLabel}&apos;s career · Back to my filters
           </button>
         )}
 
