@@ -159,6 +159,7 @@ export const TAG_VOCABULARY: VocabularyGroup[] = [
       { name: "upload-HD" },
       { name: "review" },
       { name: "missing-cover" },
+      { name: "auto-uploaded", description: "Filled by the archive upload agent — check and finish the set, then remove" },
     ],
   },
   {

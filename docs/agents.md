@@ -298,6 +298,10 @@ This agent does it unattended:
   same file name — a copy you uploaded by hand through the browser is re-encoded and
   hashes differently), and a set the agent started stays queued until it reports done
   — just run it again.
+- **To-do tag** (2026-10-16): when the agent reports a set done (`/complete`), the
+  server gives it the workflow tag `auto-uploaded` (source AUTO; tag and Workflow group
+  are created if missing). It lists the set on the To-do tab of `/tags` until you
+  remove it. Re-fetch runs skip `/complete`, so they never re-tag a set.
 - **Damaged files** (2026-10-14; e.g. `VipsJpeg: premature end of JPEG image` — a
   truncated file) are **uploaded anyway**, decoded as far as they go, the way a browser
   shows them: missing parts come out grey, usually at the bottom. The log shows

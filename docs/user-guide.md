@@ -896,7 +896,7 @@ where tags are **managed**; Settings › Tag groups only sets up the groups.
   - Images and sets include inherited tags. **Own only** switches to the item's own tags.
   - **Open as filter** jumps to the browser filtered by this tag.
 
-**To-do** — every item carrying a workflow tag (needs-crop, check-cast, …), per tag. **Done** removes the tag from that item. The tab shows the number of open to-dos.
+**To-do** — every item carrying a workflow tag (needs-crop, check-cast, auto-uploaded, …), per tag. **Done** removes the tag from that item. The tab shows the number of open to-dos.
 
 ### Saved views and Smart Collections (ADR-0033)
 
@@ -1556,6 +1556,13 @@ images of each promoted **photo** set's archive folder, in file-name order, with
 you already uploaded to (even if you later removed the pictures) is left alone, and so
 are stub folders. Files it could not upload (not an image, `bmp/tif`) are kept in a list
 on the set; an interrupted run simply continues where it stopped.
+
+**To-do: `auto-uploaded`.** Every set the agent finishes gets the workflow tag
+`auto-uploaded`, so the sets still waiting for you are easy to find: the **To-do** tab
+of **Tags** lists them, and `workflow:auto-uploaded` (or just `auto-uploaded`) filters the Sets
+browser to them. When a set is checked and finished, remove the tag (**Done** on the
+To-do tab, or ✕ on the amber badge). It is put on once, when the set is finished — a
+later run that only fetches incomplete pictures again does not bring it back.
 
 **Damaged pictures.** A damaged file — typically a JPEG cut short by an interrupted
 copy ("premature end of JPEG image") — is uploaded anyway, as far as it can be read;

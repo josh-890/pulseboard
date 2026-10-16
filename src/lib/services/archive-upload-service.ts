@@ -189,10 +189,47 @@ export async function uploadArchiveImage(input: {
   return { status: "uploaded", mediaItemId: item.id, ...flags };
 }
 
-/** The agent went through every file of the set; `failed` are the names it could not upload */
+/** The workflow tag a finished agent upload carries until you have checked the set */
+export const AUTO_UPLOAD_TODO_TAG = "auto-uploaded";
+
+/**
+ * The agent went through every file of the set; `failed` are the names it could
+ * not upload. The set gets the to-do tag `auto-uploaded` (2026-10-16), so it shows
+ * on the To-do tab of /tags and under `workflow:auto-uploaded` in the browsers until you remove it. Only
+ * the first finish tags: a re-fetch run never calls this, so a to-do you closed
+ * stays closed.
+ */
 export async function completeArchiveUpload(setId: string, failed: string[]): Promise<void> {
-  await prisma.set.update({
-    where: { id: setId },
-    data: { archiveUploadDoneAt: new Date(), archiveUploadFailed: failed.slice(0, 500) },
+  await prisma.$transaction(async (tx) => {
+    await tx.set.update({
+      where: { id: setId },
+      data: { archiveUploadDoneAt: new Date(), archiveUploadFailed: failed.slice(0, 500) },
+    });
+    const group = await tx.tagGroup.upsert({
+      where: { slug: "workflow" },
+      create: {
+        slug: "workflow",
+        name: "Workflow",
+        color: "#f97316",
+        description: "To-do markers — remove when done; never inherited",
+        kind: "WORKFLOW",
+      },
+      update: {},
+    });
+    const tag = await tx.tagDefinition.upsert({
+      where: { groupId_slug: { groupId: group.id, slug: AUTO_UPLOAD_TODO_TAG } },
+      create: {
+        groupId: group.id,
+        name: AUTO_UPLOAD_TODO_TAG,
+        slug: AUTO_UPLOAD_TODO_TAG,
+        nameNorm: AUTO_UPLOAD_TODO_TAG,
+        description: "Filled by the archive upload agent — check and finish the set, then remove",
+      },
+      update: {},
+    });
+    await tx.setTag.createMany({
+      data: [{ setId, tagDefinitionId: tag.id, source: "AUTO" }],
+      skipDuplicates: true,
+    });
   });
 }

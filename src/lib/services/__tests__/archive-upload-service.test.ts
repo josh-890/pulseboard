@@ -77,6 +77,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.setTag.deleteMany({ where: { setId: { in: created.sets } } });
   await prisma.setMediaItem.deleteMany({ where: { setId: { in: created.sets } } });
   await prisma.mediaItem.deleteMany({ where: { id: { in: created.media } } });
   await prisma.archiveLink.deleteMany({ where: { archiveFolderId: { in: created.folders } } });
@@ -124,6 +125,15 @@ describe("the queue", () => {
     expect(await queued()).not.toContain(ids.resumed);
     const set = await prisma.set.findUniqueOrThrow({ where: { id: ids.resumed } });
     expect(set.archiveUploadFailed).toEqual(["bad.jpg (Corrupt JPEG data)"]);
+  });
+
+  it("marks a finished set with the to-do tag, once", async () => {
+    await completeArchiveUpload(ids.resumed, []);
+    const tags = await prisma.setTag.findMany({
+      where: { setId: ids.resumed },
+      select: { source: true, tagDefinition: { select: { slug: true, group: { select: { kind: true } } } } },
+    });
+    expect(tags).toEqual([{ source: "AUTO", tagDefinition: { slug: "auto-uploaded", group: { kind: "WORKFLOW" } } }]);
   });
 });
 
