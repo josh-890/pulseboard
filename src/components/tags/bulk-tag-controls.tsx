@@ -9,6 +9,9 @@ import { useArmedTag } from "@/hooks/use-armed-tag";
 import { useBulkTagging, type BulkTagChange } from "@/hooks/use-bulk-tagging";
 import { useTagHotkeys } from "@/hooks/use-tag-hotkeys";
 import { useTagSlots } from "@/hooks/use-tag-slots";
+import { useMarkTags } from "@/hooks/use-mark-tags";
+import { MARK_BY_KEY } from "@/components/gallery/media-marks";
+import { cn } from "@/lib/utils";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity, type TaggableEntity } from "@/lib/tag-domains";
 import { ArmedTagChip } from "./armed-tag-chip";
@@ -31,6 +34,7 @@ export function BulkTagControls({ entityType, entityIds, onApplied, hotkeysEnabl
   const bulk = useBulkTagging(entityType, entityIds, onApplied);
   const { loadCounts, counts, apply } = bulk;
   const slots = useTagSlots();
+  const markTags = useMarkTags();
   const { armed, arm } = useArmedTag();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [armOpen, setArmOpen] = useState(false);
@@ -83,6 +87,32 @@ export function BulkTagControls({ entityType, entityIds, onApplied, hotkeysEnabl
 
   return (
     <>
+      {/* Photo marks (2026-10-16): all of the selection has it → remove, else add */}
+      {entityType === "MEDIA_ITEM" &&
+        markTags &&
+        (["iconic", "outtake"] as const).map((key) => {
+          const mark = MARK_BY_KEY[key];
+          const tag = markTags[key];
+          const state = stateOf(tag.id);
+          return (
+            <Button
+              key={key}
+              variant="outline"
+              size="sm"
+              className={cn("gap-1.5", state === "all" && mark.activeClass, state === "some" && "border-dashed")}
+              onClick={() => applyIfFits(tag, state !== "all")}
+              aria-pressed={state === "all" ? true : state === "some" ? "mixed" : false}
+              title={
+                state === "all"
+                  ? `Remove ${mark.label} from the selection`
+                  : `Mark the selection ${mark.label}${state === "some" ? " (some already are)" : ""}`
+              }
+            >
+              <mark.Icon size={14} fill={state === "none" ? "none" : "currentColor"} />
+              {mark.label}
+            </Button>
+          );
+        })}
       <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setPaletteOpen(true)} title="Tag the selection (T)">
         <Tag size={14} />
         Tags

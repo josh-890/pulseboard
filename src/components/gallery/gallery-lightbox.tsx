@@ -12,6 +12,8 @@ import { TagPalette } from "@/components/tags";
 import { useEntityTags } from "@/hooks/use-entity-tags";
 import { useArmedTag } from "@/hooks/use-armed-tag";
 import { useTagSlots } from "@/hooks/use-tag-slots";
+import { useMarkTags } from "@/hooks/use-mark-tags";
+import { MARK_BY_KEY, type MarkKey } from "./media-marks";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
@@ -25,7 +27,6 @@ import {
   Copy,
   Crosshair,
   FolderPlus,
-  Heart,
   ImagePlus,
   Loader2,
   PanelRight,
@@ -222,6 +223,8 @@ function SimpleLightbox({
   const tagController = useEntityTags("MEDIA_ITEM", item?.id ?? null);
   // S3: quick-tag slots (1–9) and the armed tag (Shift+T / P) on the current image
   const tagSlots = useTagSlots();
+  // Iconic / outtake marks (2026-10-16): tags with their own buttons and keys
+  const markTags = useMarkTags();
   const { armed: armedTag, arm: armTag } = useArmedTag();
   const [armPaletteOpen, setArmPaletteOpen] = useState(false);
   const applyTagToCurrent = useCallback(
@@ -258,6 +261,13 @@ function SimpleLightbox({
       }
     },
     [localItems, onFavoriteToggle],
+  );
+
+  const toggleTagMark = useCallback(
+    (key: "iconic" | "outtake") => {
+      if (markTags) applyTagToCurrent(markTags[key]);
+    },
+    [markTags, applyTagToCurrent],
   );
 
   // The damaged image was checked and is fine as stored: drop its red frame
@@ -573,6 +583,14 @@ function SimpleLightbox({
             handleFavorite(item.id);
           }
           break;
+        case ",":
+        case "-":
+          // The iconic / outtake marks, either side of ★ on the keyboard
+          if (item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            toggleTagMark(e.key === "," ? "iconic" : "outtake");
+          }
+          break;
         case "b":
         case "B":
           // ADR-0019: open the collection quick-add palette.
@@ -601,7 +619,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -727,20 +745,31 @@ function SimpleLightbox({
               <Rows3 size={16} />
             </button>
           )}
-          {item && (
-            <button
-              type="button"
-              onClick={() => handleFavorite(item.id)}
-              className={cn(
-                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-                item.isFavorite ? "bg-red-500/90 text-white" : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-              )}
-              aria-label={item.isFavorite ? "Remove from favorites" : "Add to favorites"}
-              title="Favorite (.)"
-            >
-              <Heart size={16} fill={item.isFavorite ? "currentColor" : "none"} />
-            </button>
-          )}
+          {item &&
+            (["iconic", "favorite", "outtake"] as MarkKey[]).map((key) => {
+              const mark = MARK_BY_KEY[key];
+              if (key !== "favorite" && !(markTags && tagController)) return null;
+              const on =
+                key === "favorite"
+                  ? item.isFavorite
+                  : (tagController?.directTagIds.includes(markTags![key].id) ?? false);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => (key === "favorite" ? handleFavorite(item.id) : toggleTagMark(key))}
+                  className={cn(
+                    "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                    on ? mark.activeClass : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
+                  )}
+                  aria-pressed={on}
+                  aria-label={key === "favorite" ? (on ? "Remove from favorites" : "Add to favorites") : `${mark.label}${on ? " — remove" : ""}`}
+                  title={`${mark.label} (${mark.hotkey})`}
+                >
+                  <mark.Icon size={16} fill={on ? "currentColor" : "none"} />
+                </button>
+              );
+            })}
           {item && (
             <button
               type="button"

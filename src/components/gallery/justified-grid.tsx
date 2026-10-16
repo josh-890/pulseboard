@@ -25,6 +25,8 @@ type JustifiedGridProps = {
   showFavoriteBadge?: boolean;
   /** Hover "open" button on each tile, for grids where a click selects. */
   showOpenButton?: boolean;
+  /** Iconic / ★ / outtake buttons on hover (default true) */
+  markControls?: boolean;
 };
 
 export function JustifiedGrid({
@@ -37,6 +39,7 @@ export function JustifiedGrid({
   onOpen,
   showFavoriteBadge = true,
   showOpenButton = false,
+  markControls = true,
 }: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -91,6 +94,7 @@ export function JustifiedGrid({
                 onOpen={onOpen}
                 showFavoriteBadge={showFavoriteBadge}
                 showOpenButton={showOpenButton}
+                markControls={markControls}
               />
             );
           })}

@@ -1,12 +1,9 @@
 import { cn } from "@/lib/utils";
+import { MARK_BY_KEY } from "@/components/gallery/media-marks";
 import type { ShowcaseSource } from "@/lib/services/person-showcase-service";
 
-// Where a showcase photo comes from — shown on curated photos only
-const SOURCE_CHIP: Record<Exclude<ShowcaseSource, "random">, { label: string; className: string }> = {
-  iconic: { label: "Iconic", className: "bg-amber-400/90 text-amber-950" },
-  favorite: { label: "★ Favorite", className: "bg-yellow-300/90 text-yellow-950" },
-  outtake: { label: "Outtake", className: "bg-violet-500/85 text-white" },
-};
+// Where a showcase photo comes from — the photo's mark, with the same icon and
+// colour as on tiles and in the lightbox. Nothing for random photos.
 
 export type ShowcaseSourceChipProps = {
   source: ShowcaseSource;
@@ -15,16 +12,17 @@ export type ShowcaseSourceChipProps = {
 
 export function ShowcaseSourceChip({ source, className }: ShowcaseSourceChipProps) {
   if (source === "random") return null;
-  const chip = SOURCE_CHIP[source];
+  const mark = MARK_BY_KEY[source];
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm backdrop-blur-sm",
-        chip.className,
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm",
+        mark.activeClass,
         className,
       )}
     >
-      {chip.label}
+      <mark.Icon size={10} fill="currentColor" aria-hidden="true" />
+      {mark.label}
     </span>
   );
 }

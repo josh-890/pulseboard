@@ -705,6 +705,31 @@ A **favorite** is a single global per-image flag, separate from collections:
 - **Favorite persons** — the ★ on a person (detail hero) marks a favorite person; the People
   browser has a **Favorite** filter pill.
 
+### Photo marks: Iconic, Favorite, Outtake
+
+Three marks you set on a photo while browsing — they also decide which photos lead a
+person's **Showcase**:
+
+| Mark | Icon | Key in the viewer | What it is |
+|---|---|---|---|
+| **Iconic** | amber crown | <kbd>,</kbd> | the person's signature photos — they lead the showcase |
+| **Favorite** | red heart | <kbd>.</kbd> | the global favorite (see above) |
+| **Outtake** | violet bookmark | <kbd>-</kbd> | photos you like and want to keep in view |
+
+The three keys sit side by side on a German keyboard. Iconic and Outtake are the tags `iconic` and
+`outtake` in the **Judgment** group — so the tag filter (`iconic`, `-outtake`), smart collections and
+bulk tagging work with them as with any tag; they just get their own icons instead of a tag dot.
+(The `outtake` tag is created the first time the marks are used, if it doesn't exist yet.)
+
+- **In the image viewer:** crown, heart and bookmark sit side by side in the toolbar — click or press
+  the key; pressed again, the mark comes off.
+- **On a grid tile:** a set mark shows as a small coloured badge at the right edge. Hover the tile
+  and all three appear (the unset ones as outlines) — click one to mark the photo **without opening
+  it**. On touch screens, and while several photos are selected, the badges only show.
+- **For a selection:** with photos selected in a set or session gallery, the selection bar has
+  **Iconic** and **Outtake** buttons. If all selected photos already carry the mark, the button
+  removes it from all; otherwise it adds it to all (a dashed outline means "some have it").
+
 ### Fast collection assignment (ADR-0019)
 
 In the image viewer:

@@ -34,6 +34,7 @@ import {
   bulkRemoveTagsFromEntities,
 } from "@/lib/services/entity-tag-service";
 import type { TaggableEntity } from "@/lib/services/entity-tag-service";
+import { getMarkTags, type MarkTags } from "@/lib/services/media-mark-service";
 import {
   createSlotSet,
   deleteSlotSet,
@@ -524,4 +525,9 @@ export async function deleteTagsAction(tagIds: string[]): Promise<SimpleActionRe
       return { success: false, error: e instanceof Error ? e.message : "Failed to delete tags" };
     }
   });
+}
+
+/** The `iconic` and `outtake` tags the photo marks toggle (created on first use) */
+export async function getMarkTagsAction(): Promise<MarkTags> {
+  return withTenantFromHeaders(() => getMarkTags());
 }

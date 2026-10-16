@@ -171,6 +171,7 @@ export const TAG_VOCABULARY: VocabularyGroup[] = [
     tags: [
       { name: "best-of" },
       { name: "iconic" },
+      { name: "outtake" },
       { name: "weak-light" },
       { name: "duplicate-suspect" },
     ],

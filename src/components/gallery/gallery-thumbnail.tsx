@@ -2,7 +2,7 @@
 
 import { TagDotStrip } from "@/components/tags";
 import Image from "next/image";
-import { AlertTriangle, Check, Frame, Heart, Maximize2, Users } from "lucide-react";
+import { AlertTriangle, Check, Frame, Maximize2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -11,6 +11,8 @@ import {
   MediaCollectionIcon,
   MediaSetCountBadge,
 } from "@/components/media/media-badge";
+import { GalleryTileMarks } from "./gallery-tile-marks";
+import { useMarkTags } from "@/hooks/use-mark-tags";
 
 /** The modifier keys a selection gesture carries (mouse or keyboard). */
 export type SelectModifiers = { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean };
@@ -29,6 +31,8 @@ type GalleryThumbnailProps = {
   showFavoriteBadge?: boolean;
   /** A hover button that opens the lightbox — for grids where a click selects. */
   showOpenButton?: boolean;
+  /** Iconic / ★ / outtake toggle on hover (badges only when off) */
+  markControls?: boolean;
 };
 
 export function GalleryThumbnail({
@@ -44,7 +48,9 @@ export function GalleryThumbnail({
   onOpen,
   showFavoriteBadge = true,
   showOpenButton = false,
+  markControls = true,
 }: GalleryThumbnailProps) {
+  const markTags = useMarkTags();
   const imgSrc = item.urls.gallery_512 ?? item.urls.original;
   if (!imgSrc) return null;
 
@@ -188,18 +194,13 @@ export function GalleryThumbnail({
         </button>
       )}
 
-      {/* Favorite badge (top-right) — ADR-0019 global favorite */}
-      {showFavoriteBadge && item.isFavorite && (
-        <span
-          className={cn(
-            "absolute top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500/90 text-white pointer-events-none",
-            showOpenButton ? "right-9" : "right-1.5",
-          )}
-          aria-label="Favorite"
-        >
-          <Heart size={10} fill="currentColor" />
-        </span>
-      )}
+      {/* Marks (top-right): iconic, ★ (ADR-0019) and outtake — badges, buttons on hover */}
+      <GalleryTileMarks
+        item={item}
+        interactive={markControls && !isMultiSelectMode}
+        showFavorite={showFavoriteBadge}
+        className={cn("absolute right-1.5", showOpenButton ? "top-9" : "top-1.5")}
+      />
 
       {/* Set count badge (bottom-left) */}
       {item.setCount !== undefined && item.setCount > 0 && (
@@ -235,7 +236,8 @@ export function GalleryThumbnail({
         ))}
         {hasEntityLink && <MediaLinkIcon />}
         {hasCollections && <MediaCollectionIcon />}
-        <TagDotStrip tags={item.tags} />
+        {/* Iconic / outtake have their own badges up top */}
+        <TagDotStrip tags={markTags ? item.tags?.filter((t) => t.id !== markTags.iconic.id && t.id !== markTags.outtake.id) : item.tags} />
       </div>
     </div>
   );
