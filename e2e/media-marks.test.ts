@@ -5,6 +5,7 @@ import { test, expect } from "@playwright/test";
 import { Client } from "pg";
 
 // Photo marks (2026-10-16): iconic, ★ and outtake toggled from a tile on hover,
+// as tiers since 2026-10-17 (iconic > ★ > outtake),
 // from the lightbox (buttons and the keys , . -) and for a grid selection. The
 // set + session are created here ("Test Set …", so e2e/cleanup-test-data.ts
 // also catches a leftover) and removed afterwards.
@@ -52,51 +53,89 @@ test.afterAll(async () => {
   await db.end();
 });
 
+// Each test starts from unmarked photos
+async function resetMarks() {
+  await db.query(
+    `DELETE FROM media_item_tag t USING tag_definition d
+     WHERE d.id = t."tagDefinitionId" AND d.slug IN ('iconic', 'outtake') AND t."mediaItemId" = ANY($1::text[])`,
+    [media],
+  );
+  await db.query(`UPDATE "MediaItem" SET "isFavorite" = false WHERE id = ANY($1::text[])`, [media]);
+}
+
+const all = (on: boolean) => ({ tags: on ? ["iconic", "outtake"] : [], favorite: on });
+
 test.describe.serial("Photo marks", () => {
-  test("a tile marks on hover without opening the photo, and the mark stays", async ({ page }) => {
+  test.beforeEach(resetMarks);
+
+  test("a tile marks on hover without opening the photo; iconic brings ★ and outtake along", async ({ page }) => {
     await page.goto(`/sets/${setId}`);
     const tile = page.getByRole("button", { name: "Gallery image" }).first();
     await tile.hover();
     await tile.getByRole("button", { name: "Iconic (not set)" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect.poll(async () => (await marksOf(media[0])).tags.length + (await marksOf(media[1])).tags.length).toBe(1);
+    await expect(tile.getByRole("button", { name: "Favorite (set)" })).toBeVisible();
+    await expect(tile.getByRole("button", { name: "Outtake (set)" })).toBeVisible();
+    await expect.poll(async () => [await marksOf(media[0]), await marksOf(media[1])].filter((m) => m.favorite).length).toBe(1);
 
     await page.reload();
     await expect(page.getByRole("button", { name: "Iconic (set)" })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Outtake (set)" })).toHaveCount(1);
   });
 
-  test("the lightbox toggles with , . - and its buttons", async ({ page }) => {
+  test("the lightbox keys , . - follow the tiers", async ({ page }) => {
     await page.goto(`/sets/${setId}`);
     await page.getByRole("button", { name: "Gallery image" }).nth(1).click();
-    const iconic = page.getByRole("button", { name: /^Iconic/ }).and(page.locator('[title="Iconic (,)"]'));
-    const outtake = page.locator('button[title="Outtake (-)"]');
+    const iconic = page.locator('button[title="Iconic (,)"]');
     const favorite = page.locator('button[title="Favorite (.)"]');
-    await expect(outtake).toHaveAttribute("aria-pressed", "false");
+    const outtake = page.locator('button[title="Outtake (-)"]');
+    const pressed = async () =>
+      [await iconic.getAttribute("aria-pressed"), await favorite.getAttribute("aria-pressed"), await outtake.getAttribute("aria-pressed")].join();
+    await expect.poll(pressed).toBe("false,false,false");
 
-    await page.keyboard.press("-");
-    await expect(outtake).toHaveAttribute("aria-pressed", "true");
-    await page.keyboard.press(".");
-    await expect(favorite).toHaveAttribute("aria-pressed", "true");
-    const before = await iconic.getAttribute("aria-pressed");
+    // Iconic sets everything below it
     await page.keyboard.press(",");
-    await expect(iconic).not.toHaveAttribute("aria-pressed", before ?? "");
-
-    // And off again with a click
+    await expect.poll(pressed).toBe("true,true,true");
+    // Un-★ clears iconic too, outtake stays
+    await page.keyboard.press(".");
+    await expect.poll(pressed).toBe("false,false,true");
+    // ★ again: outtake already there, iconic stays off
+    await page.keyboard.press(".");
+    await expect.poll(pressed).toBe("false,true,true");
+    // Un-outtake clears everything above it — by click this time
     await outtake.click();
-    await expect(outtake).toHaveAttribute("aria-pressed", "false");
-    await favorite.click();
-    await expect(favorite).toHaveAttribute("aria-pressed", "false");
+    await expect.poll(pressed).toBe("false,false,false");
+
+    const shown = page.getByText(/^\d+ \/ 2$/);
+    const id = (await shown.textContent())?.startsWith("1") ? media[0] : media[1];
+    await expect.poll(() => marksOf(id)).toEqual(all(false));
   });
 
-  test("a selection is marked at once from the bulk bar", async ({ page }) => {
+  test("a selection is marked at once from the bulk bar, with the tiers", async ({ page }) => {
     await page.goto(`/sets/${setId}`);
     const select = page.getByRole("button", { name: "Select", exact: true });
     await select.nth(0).click();
     await select.nth(0).click(); // the first is now "Deselect"; the next "Select" is the second tile
+    const bulkIconic = page.getByRole("button", { name: "Iconic", exact: true });
     const bulkOuttake = page.getByRole("button", { name: "Outtake", exact: true });
-    await expect(bulkOuttake).toHaveAttribute("aria-pressed", "false");
+
     await bulkOuttake.click();
     await expect(bulkOuttake).toHaveAttribute("aria-pressed", "true");
-    await expect.poll(async () => [(await marksOf(media[0])).tags, (await marksOf(media[1])).tags].every((t) => t.includes("outtake"))).toBe(true);
+    await expect.poll(async () => [await marksOf(media[0]), await marksOf(media[1])]).toEqual([
+      { tags: ["outtake"], favorite: false },
+      { tags: ["outtake"], favorite: false },
+    ]);
+
+    await bulkIconic.click();
+    await expect(bulkIconic).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(async () => [await marksOf(media[0]), await marksOf(media[1])]).toEqual([all(true), all(true)]);
+    // While selecting, the tile marks are badges, not buttons
+    const favBadges = page.locator('span[aria-label="Favorite"]');
+    await expect(favBadges).toHaveCount(2);
+
+    // Outtake off for the selection clears ★ and iconic as well
+    await bulkOuttake.click();
+    await expect.poll(async () => [await marksOf(media[0]), await marksOf(media[1])]).toEqual([all(false), all(false)]);
+    await expect(favBadges).toHaveCount(0);
   });
 });

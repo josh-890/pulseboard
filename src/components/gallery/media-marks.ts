@@ -1,13 +1,15 @@
 import { Bookmark, Crown, Heart, type LucideIcon } from "lucide-react";
 import type { MarkTags } from "@/lib/services/media-mark-service";
 import type { GalleryItem } from "@/lib/types";
+import type { MarkKey } from "@/lib/media-mark-tiers";
+
+export { markCascade, type MarkKey } from "@/lib/media-mark-tiers";
 
 // The three marks you set on a photo while browsing (2026-10-16): iconic (a tag),
 // ★ favorite (MediaItem.isFavorite) and outtake (a tag). One definition, so the
 // lightbox, tiles, bulk bar and the person showcase look and key the same.
 // Keys sit side by side on a German keyboard: , . -
-
-export type MarkKey = "iconic" | "favorite" | "outtake";
+// They are tiers (2026-10-17): see media-mark-tiers.ts.
 
 export type MarkDef = {
   key: MarkKey;

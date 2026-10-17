@@ -13,7 +13,7 @@ import { useEntityTags } from "@/hooks/use-entity-tags";
 import { useArmedTag } from "@/hooks/use-armed-tag";
 import { useTagSlots } from "@/hooks/use-tag-slots";
 import { useMarkTags } from "@/hooks/use-mark-tags";
-import { MARK_BY_KEY, type MarkKey } from "./media-marks";
+import { MARK_BY_KEY, markCascade, type MarkKey } from "./media-marks";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
@@ -227,26 +227,6 @@ function SimpleLightbox({
   const tagSlots = useTagSlots();
   // Iconic / outtake marks (2026-10-16): tags with their own buttons and keys
   const markTags = useMarkTags();
-  const { armed: armedTag, arm: armTag } = useArmedTag();
-  const [armPaletteOpen, setArmPaletteOpen] = useState(false);
-  const applyTagToCurrent = useCallback(
-    (tag: PaletteTag, on?: boolean) => {
-      if (!tagController) return;
-      if (!tagFitsEntity(tag.group.domain, "MEDIA_ITEM")) {
-        toast.message(`${tag.name} cannot be applied to an image`);
-        return;
-      }
-      const has = tagController.directTagIds.includes(tag.id);
-      const next = on ?? !has;
-      if (next === has) {
-        toast.message(has ? `Already tagged ${tag.name}` : `Not tagged ${tag.name}`);
-        return;
-      }
-      tagController.toggle(tag, next);
-    },
-    [tagController],
-  );
-
   // ADR-0019: toggle the global favorite. Optimistic local override + either the
   // parent's handler (keeps its own state in sync) or a self-handled persist.
   const handleFavorite = useCallback(
@@ -265,11 +245,51 @@ function SimpleLightbox({
     [localItems, onFavoriteToggle],
   );
 
+  // The marks are tiers (2026-10-17, media-mark-tiers.ts): setting one sets the
+  // lower ones, clearing one clears the higher ones — each through its own write,
+  // so the parent's ★ state and the tag list follow at once
+  const setMark = useCallback(
+    (key: MarkKey, on: boolean) => {
+      if (!item) return;
+      for (const [k, v] of Object.entries(markCascade(key, on)) as [MarkKey, boolean][]) {
+        if (k === "favorite") {
+          if ((item.isFavorite ?? false) !== v) handleFavorite(item.id);
+        } else if (markTags && tagController) {
+          if (tagController.directTagIds.includes(markTags[k].id) !== v) tagController.toggle(markTags[k], v);
+        }
+      }
+    },
+    [item, handleFavorite, markTags, tagController],
+  );
+
+  const { armed: armedTag, arm: armTag } = useArmedTag();
+  const [armPaletteOpen, setArmPaletteOpen] = useState(false);
+  const applyTagToCurrent = useCallback(
+    (tag: PaletteTag, on?: boolean) => {
+      if (!tagController) return;
+      if (!tagFitsEntity(tag.group.domain, "MEDIA_ITEM")) {
+        toast.message(`${tag.name} cannot be applied to an image`);
+        return;
+      }
+      const has = tagController.directTagIds.includes(tag.id);
+      const next = on ?? !has;
+      if (next === has) {
+        toast.message(has ? `Already tagged ${tag.name}` : `Not tagged ${tag.name}`);
+        return;
+      }
+      // Iconic / outtake from the palette or a slot: with their tiers
+      const mark = markTags && (["iconic", "outtake"] as const).find((k) => markTags[k].id === tag.id);
+      if (mark) setMark(mark, next);
+      else tagController.toggle(tag, next);
+    },
+    [tagController, markTags, setMark],
+  );
+
   const toggleTagMark = useCallback(
     (key: "iconic" | "outtake") => {
-      if (markTags) applyTagToCurrent(markTags[key]);
+      if (markTags && tagController) setMark(key, !tagController.directTagIds.includes(markTags[key].id));
     },
-    [markTags, applyTagToCurrent],
+    [markTags, tagController, setMark],
   );
 
   // The damaged image was checked and is fine as stored: drop its red frame
@@ -592,7 +612,7 @@ function SimpleLightbox({
           // ADR-0019: toggle global favorite on the current image.
           if (item) {
             e.preventDefault();
-            handleFavorite(item.id);
+            setMark("favorite", !item.isFavorite);
           }
           break;
         case ",":
@@ -631,7 +651,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, handleFavorite, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, onDelete]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, onDelete]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -666,7 +686,8 @@ function SimpleLightbox({
     item,
     onSetCover,
     coverMediaItemId,
-    onFavoriteToggle: handleFavorite,
+    // The info panel's ★ is the current image's: with its tiers
+    onFavoriteToggle: () => setMark("favorite", !item.isFavorite),
     tagController,
     onOpenTagPalette: () => setTagPaletteOpen(true),
     onApplySlot: (tag: PaletteTag) => applyTagToCurrent(tag),
@@ -769,7 +790,7 @@ function SimpleLightbox({
                 <button
                   key={key}
                   type="button"
-                  onClick={() => (key === "favorite" ? handleFavorite(item.id) : toggleTagMark(key))}
+                  onClick={() => (key === "favorite" ? setMark("favorite", !item.isFavorite) : toggleTagMark(key))}
                   className={cn(
                     "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
                     on ? mark.activeClass : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",

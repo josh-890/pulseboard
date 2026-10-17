@@ -7,13 +7,15 @@ import { useMarkTags } from "@/hooks/use-mark-tags";
 import { setMediaFavoriteAction } from "@/lib/actions/media-actions";
 import { addTagsToEntityAction, removeTagsFromEntityAction } from "@/lib/actions/tag-actions";
 import type { GalleryItem } from "@/lib/types";
-import { MARKS, itemMarks, type MarkKey } from "./media-marks";
+import { MARKS, itemMarks, markCascade, type MarkKey } from "./media-marks";
 
 // The marks on a grid tile (2026-10-16): iconic, ★ and outtake as small badges
 // stacked down the right edge (narrow tiles have no room across), always visible
 // when set. Hovering the tile turns them into buttons — the unset
 // ones appear as outlines — so a click marks the photo without opening it. On
 // touch screens (no hover) and while selecting several, they only show.
+// The marks are tiers: one click also sets the lower ones or clears the higher
+// ones (the server writes those; the badges show them at once).
 
 export type GalleryTileMarksProps = {
   item: Pick<GalleryItem, "id" | "isFavorite" | "tags">;
@@ -31,14 +33,18 @@ export function GalleryTileMarks({ item, interactive, showFavorite, className }:
   const known = itemMarks(item, markTags);
 
   function toggle(key: MarkKey, next: boolean) {
-    setOverride((o) => ({ ...o, [key]: next }));
+    const implied = markCascade(key, next);
+    const before = Object.fromEntries(
+      (Object.keys(implied) as MarkKey[]).map((k) => [k, override[k] ?? known[k] ?? false]),
+    ) as Partial<Record<MarkKey, boolean>>;
+    setOverride((o) => ({ ...o, ...implied }));
     startTransition(async () => {
       const res =
         key === "favorite"
           ? await setMediaFavoriteAction(item.id, next)
           : await (next ? addTagsToEntityAction : removeTagsFromEntityAction)("MEDIA_ITEM", item.id, [markTags![key].id]);
       if (!res.success) {
-        setOverride((o) => ({ ...o, [key]: !next }));
+        setOverride((o) => ({ ...o, ...before }));
         toast.error(res.error ?? "Could not change the mark");
       }
     });

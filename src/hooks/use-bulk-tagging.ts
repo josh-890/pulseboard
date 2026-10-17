@@ -6,7 +6,13 @@ import { bulkAddTagsToEntitiesAction, bulkRemoveTagsFromEntitiesAction } from "@
 import type { PaletteTag } from "@/lib/services/tag-service";
 import type { TaggableEntity } from "@/lib/tag-domains";
 
-export type BulkTagChange = { tag: PaletteTag; on: boolean; entityIds: string[] };
+export type BulkTagChange = {
+  tag: PaletteTag;
+  on: boolean;
+  entityIds: string[];
+  /** ★ follows from a mark change (the tiers, media-mark-tiers.ts) */
+  isFavorite?: boolean;
+};
 
 /**
  * Tag a selection (ADR-0033, S3). Reads how many selected items carry each tag

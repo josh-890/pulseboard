@@ -6,6 +6,7 @@ import { domainsForEntity, type TaggableEntity } from "@/lib/tag-domains";
 export { domainsForEntity };
 export type { TaggableEntity };
 import type { TagDefinitionWithGroup } from "./tag-service";
+import { cascadeMarks, currentMarkTags, markChangesForTags, type MarkChange } from "./media-mark-service";
 
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
@@ -161,6 +162,8 @@ export async function addTagsToEntity(
           })),
           skipDuplicates: true,
         });
+        // Iconic / outtake are tiers with ★ (media-mark-tiers.ts)
+        await cascadeMarks(tx, [entityId], await markChangesForTags(tx, tagDefinitionIds, true));
         break;
       case "SET":
         await tx.setTag.createMany({
@@ -213,6 +216,7 @@ export async function removeTagsFromEntity(
         break;
       case "MEDIA_ITEM":
         await tx.mediaItemTag.deleteMany({ where: { mediaItemId: entityId, ...where } });
+        await cascadeMarks(tx, [entityId], await markChangesForTags(tx, tagDefinitionIds, false));
         break;
       case "SET":
         await tx.setTag.deleteMany({ where: { setId: entityId, ...where } });
@@ -235,6 +239,7 @@ export async function setEntityTags(
 ) {
   await prisma.$transaction(async (tx) => {
     tagDefinitionIds = await prepareTagIds(tx, entityType, tagDefinitionIds);
+    const marksBefore = entityType === "MEDIA_ITEM" ? await currentMarkTags(tx, entityId) : null;
     // Delete all existing tags for this entity
     switch (entityType) {
       case "PERSON":
@@ -318,6 +323,15 @@ export async function setEntityTags(
           break;
       }
     }
+
+    if (marksBefore) {
+      // The marks this replace set or cleared, then what they imply
+      const after = await currentMarkTags(tx, entityId);
+      const changes: MarkChange[] = (["iconic", "outtake"] as const)
+        .filter((k) => marksBefore.has(k) !== after.has(k))
+        .map((key) => ({ key, on: after.has(key) }));
+      await cascadeMarks(tx, [entityId], changes);
+    }
   });
 }
 
@@ -397,6 +411,9 @@ export async function bulkAddTagsToEntities(
             break;
         }
           }
+      if (entityType === "MEDIA_ITEM") {
+        await cascadeMarks(tx, entityIds, await markChangesForTags(tx, tagDefinitionIds, true));
+      }
     },
     { timeout: 30000 },
   );
@@ -440,6 +457,9 @@ export async function bulkRemoveTagsFromEntities(
             break;
         }
           }
+      if (entityType === "MEDIA_ITEM") {
+        await cascadeMarks(tx, entityIds, await markChangesForTags(tx, tagDefinitionIds, false));
+      }
     },
     { timeout: 30000 },
   );

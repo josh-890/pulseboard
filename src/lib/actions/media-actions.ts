@@ -20,6 +20,7 @@ import {
   bulkShowPersons,
 } from "@/lib/services/appearance-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
+import { setMediaFavorite } from "@/lib/services/media-mark-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
 import type { PersonMediaUsage, SimpleActionResult } from "@/lib/types";
 
@@ -263,10 +264,8 @@ export async function setMediaFavoriteAction(
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await prisma.mediaItem.update({
-        where: { id: mediaItemId },
-        data: { isFavorite },
-      });
+      // With the marks ★ implies: outtake when set, iconic gone when cleared
+      await setMediaFavorite([mediaItemId], isFavorite);
       revalidatePath("/favorites");
       return { success: true };
     } catch (err) {

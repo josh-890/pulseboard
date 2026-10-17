@@ -6,14 +6,16 @@ import type { PaletteTag } from "@/lib/services/tag-service";
  * add the tag to the affected items — dropping another tag of the same
  * exclusive group, as the server does — or remove it.
  */
-export function applyTagChangeToItems<T extends Pick<GalleryItem, "id" | "tags">>(
+export function applyTagChangeToItems<T extends Pick<GalleryItem, "id" | "tags"> & { isFavorite?: boolean }>(
   items: T[],
-  change: { tag: PaletteTag; on: boolean; entityIds: string[] },
+  change: { tag: PaletteTag; on: boolean; entityIds: string[]; isFavorite?: boolean },
 ): T[] {
   const ids = new Set(change.entityIds);
-  const { tag, on } = change;
-  return items.map((it) => {
-    if (!ids.has(it.id)) return it;
+  const { tag, on, isFavorite } = change;
+  return items.map((item) => {
+    if (!ids.has(item.id)) return item;
+    // ★ that a mark change implies (the tiers)
+    const it = isFavorite === undefined || item.isFavorite === isFavorite ? item : { ...item, isFavorite };
     const cur = it.tags ?? [];
     if (!on) return { ...it, tags: cur.filter((t) => t.id !== tag.id) };
     if (cur.some((t) => t.id === tag.id)) return it;

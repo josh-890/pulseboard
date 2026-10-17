@@ -727,6 +727,20 @@ The three keys sit side by side on a German keyboard. Iconic and Outtake are the
 bulk tagging work with them as with any tag; they just get their own icons instead of a tag dot.
 (The `outtake` tag is created the first time the marks are used, if it doesn't exist yet.)
 
+**The marks are tiers:** Outtake → Favorite → Iconic. Setting a mark also sets the ones below it, and
+removing a mark also removes the ones above it:
+
+| You… | …and the app also |
+|---|---|
+| mark **Iconic** | sets Favorite and Outtake |
+| mark **Favorite** | sets Outtake |
+| remove **Outtake** | removes Favorite and Iconic |
+| remove **Favorite** | removes Iconic (Outtake stays) |
+| remove **Iconic** | nothing — Favorite and Outtake stay |
+
+This holds wherever the mark changes — the viewer's keys and buttons, a tile, the selection bar, and
+also the tag palette or a quick-tag slot when the tag is `iconic` or `outtake`.
+
 - **In the image viewer:** crown, heart and bookmark sit side by side in the toolbar — click or press
   the key; pressed again, the mark comes off.
 - **On a grid tile:** a set mark shows as a small coloured badge at the right edge. Hover the tile

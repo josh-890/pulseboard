@@ -10,7 +10,7 @@ import { useBulkTagging, type BulkTagChange } from "@/hooks/use-bulk-tagging";
 import { useTagHotkeys } from "@/hooks/use-tag-hotkeys";
 import { useTagSlots } from "@/hooks/use-tag-slots";
 import { useMarkTags } from "@/hooks/use-mark-tags";
-import { MARK_BY_KEY } from "@/components/gallery/media-marks";
+import { MARK_BY_KEY, markCascade } from "@/components/gallery/media-marks";
 import { cn } from "@/lib/utils";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity, type TaggableEntity } from "@/lib/tag-domains";
@@ -31,10 +31,27 @@ export type BulkTagControlsProps = {
 // slots (1–9), and the armed tag (Shift+T to arm, P / Shift+P to paint) — all
 // acting on the whole selection. "All have it" removes, anything less adds.
 export function BulkTagControls({ entityType, entityIds, onApplied, hotkeysEnabled = true }: BulkTagControlsProps) {
-  const bulk = useBulkTagging(entityType, entityIds, onApplied);
+  const markTags = useMarkTags();
+  // Iconic / outtake are tiers with ★: the server sets what a change implies, the
+  // tiles hear about it here (the other mark and ★) — from the buttons, the
+  // palette and the slots alike
+  const appliedWithTiers = useCallback(
+    (change: BulkTagChange) => {
+      if (!onApplied) return;
+      const key = markTags && (["iconic", "outtake"] as const).find((k) => markTags[k].id === change.tag.id);
+      if (entityType !== "MEDIA_ITEM" || !markTags || !key) return onApplied(change);
+      const implied = markCascade(key, change.on);
+      onApplied({ ...change, isFavorite: implied.favorite });
+      for (const other of ["iconic", "outtake"] as const) {
+        const on = implied[other];
+        if (other !== key && on !== undefined) onApplied({ tag: markTags[other], on, entityIds: change.entityIds });
+      }
+    },
+    [onApplied, markTags, entityType],
+  );
+  const bulk = useBulkTagging(entityType, entityIds, appliedWithTiers);
   const { loadCounts, counts, apply } = bulk;
   const slots = useTagSlots();
-  const markTags = useMarkTags();
   const { armed, arm } = useArmedTag();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [armOpen, setArmOpen] = useState(false);

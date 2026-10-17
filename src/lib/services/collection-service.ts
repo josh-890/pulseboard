@@ -3,6 +3,7 @@ import { TAG_CHIP_JOIN_SELECT } from "@/lib/tag-chip";
 import type { GalleryItem, PhotoVariants } from "@/lib/types";
 import { buildUrl } from "@/lib/media-url";
 import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
+import { setMediaFavorite } from "@/lib/services/media-mark-service";
 
 export type CollectionLayout = "GRID" | "SIDE_BY_SIDE";
 
@@ -321,10 +322,7 @@ export async function convertCollectionToFavorites(collectionId: string): Promis
   });
   const ids = items.map((i) => i.mediaItemId);
   if (ids.length === 0) return 0;
-  await prisma.mediaItem.updateMany({
-    where: { id: { in: ids } },
-    data: { isFavorite: true },
-  });
+  await setMediaFavorite(ids, true);
   return ids.length;
 }
 
