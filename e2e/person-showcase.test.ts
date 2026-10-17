@@ -54,24 +54,30 @@ test.describe("Person showcase", () => {
     await expect(play).toBeFocused();
   });
 
-  test("Random deals new photos on every shuffle; Best brings the marked selection back", async ({ page, request }) => {
+  test("opens in Random; Shuffle deals again; Best loads on demand; Random comes back as left", async ({ page, request }) => {
     test.skip(!(await openShowcase(page, request)), "No person with photos in the dataset");
     const imgs = page.locator('section[aria-labelledby="showcase-title"] button[aria-label^="Open photo"] img');
     const order = async () => (await imgs.evaluateAll((els) => els.map((e) => e.getAttribute("src")))).join("|");
     const total = Number((await page.locator('section[aria-labelledby="showcase-title"] button[aria-label^="Open photo"]').first().getAttribute("aria-label"))?.match(/of (\d+)/)?.[1]);
     test.skip(total < 10, "Too few photos for a visible shuffle");
 
-    const best = await order();
-    await page.getByRole("radio", { name: "Random" }).click();
+    const random = page.getByRole("radio", { name: "Random" });
+    const best = page.getByRole("radio", { name: "Best" });
+    await expect(random).toHaveAttribute("aria-checked", "true");
     await expect(page.getByText(/^Random from \d+ sets?/)).toBeVisible();
-    await expect.poll(order).not.toBe(best);
     const first = await order();
 
     await page.getByRole("button", { name: "Shuffle" }).click();
     await expect.poll(order).not.toBe(first);
+    const second = await order();
 
-    await page.getByRole("radio", { name: "Best" }).click();
-    await expect.poll(order).toBe(best);
+    await best.click();
+    await expect(best).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("button", { name: "Shuffle" })).toHaveCount(0);
+    await expect.poll(order).not.toBe(second);
+
+    await random.click();
+    await expect.poll(order).toBe(second);
   });
 
   test("Known for links to a set", async ({ page, request }) => {

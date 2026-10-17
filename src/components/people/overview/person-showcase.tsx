@@ -7,7 +7,7 @@ import { Images, Loader2, Play, Shuffle, Sparkles } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import { shufflePersonShowcaseAction } from "@/lib/actions/person-actions";
+import { getPersonShowcaseAction } from "@/lib/actions/person-actions";
 import type {
   PersonShowcase as PersonShowcaseData,
   ShowcaseItem,
@@ -23,8 +23,9 @@ import { ShowcaseSlideshow } from "./showcase-slideshow";
 // full-screen slideshow.
 //
 // "Random" (2026-10-16) deals the person's production photos instead — two per
-// set in turn, marks ignored for the choice — and Shuffle deals again. The page
-// always opens in Best.
+// set in turn, marks ignored for the choice — and Shuffle deals again. Since
+// 2026-10-17 the page opens in Random (a new deal per visit; Best for a person with
+// reference photos only) and loads the other selection when you switch to it.
 //
 // Tiles per width: phone 1 + 3 (3 columns), tablet 1 + 4 (4), desktop 1 + 6 (5).
 // The last visible tile carries "+N" when the pool is larger.
@@ -56,43 +57,51 @@ export type PersonShowcaseProps = {
   person: { id: string; name: string };
 };
 
-const MODES: { value: ShowcaseMode; label: string }[] = [
-  { value: "best", label: "Best" },
-  { value: "random", label: "Random" },
+const MODES: { value: ShowcaseMode; label: string; icon: typeof Shuffle }[] = [
+  { value: "random", label: "Random", icon: Shuffle },
+  { value: "best", label: "Best", icon: Sparkles },
 ];
+
+// Not crypto.randomUUID(): browsers offer it only on https or localhost, and the
+// app runs on plain http in the LAN
+const newSeed = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
 export function PersonShowcase({ showcase, personName, person }: PersonShowcaseProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [slideshow, setSlideshow] = useState(false);
-  const [mode, setMode] = useState<ShowcaseMode>("best");
-  const [randomPool, setRandomPool] = useState<PersonShowcaseData | null>(null);
-  const [isShuffling, startShuffle] = useTransition();
+  const [mode, setMode] = useState<ShowcaseMode>(showcase.mode);
+  // Each selection once loaded; switching back shows it as you left it
+  const [pools, setPools] = useState<Partial<Record<ShowcaseMode, PersonShowcaseData>>>({ [showcase.mode]: showcase });
+  const [isLoading, startLoad] = useTransition();
   const playRef = useRef<HTMLButtonElement>(null);
   const modeRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const pool = mode === "random" && randomPool ? randomPool : showcase;
+  // While the other selection loads, the current one stays (dimmed)
+  const pool = pools[mode] ?? showcase;
   const { items, curatedCount, setCount } = pool;
   if (showcase.items.length === 0) return null;
 
-  function shuffle() {
-    startShuffle(async () => {
+  function load(next: ShowcaseMode, seed?: string) {
+    startLoad(async () => {
       try {
-        // Not crypto.randomUUID(): browsers offer it only on https or localhost,
-        // and the app runs on plain http in the LAN
-        const seed = `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-        setRandomPool(await shufflePersonShowcaseAction(person.id, seed));
+        const loaded = await getPersonShowcaseAction(person.id, next, seed);
+        setPools((prev) => ({ ...prev, [next]: loaded }));
         setLightboxIndex(null);
       } catch (err) {
-        console.error("Showcase shuffle failed", err);
-        toast.error("Could not shuffle — try again");
+        console.error("Showcase load failed", { mode: next }, err);
+        toast.error(seed ? "Could not shuffle — try again" : "Could not load the selection — try again");
       }
     });
   }
+
+  const shuffle = () => load("random", newSeed());
 
   function chooseMode(next: ShowcaseMode) {
     if (next === mode) return;
     setMode(next);
     setLightboxIndex(null);
+    if (pools[next]) return;
     if (next === "random") shuffle();
+    else load("best");
   }
 
   const tiles = items.slice(0, VISIBLE.lg);
@@ -106,7 +115,7 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
             Showcase
           </h2>
           <p className="text-xs text-muted-foreground">
-            {mode === "random"
+            {pool.mode === "random"
               ? `Random from ${setCount} set${setCount === 1 ? "" : "s"} — shuffle for more`
               : curatedCount > 0
                 ? `${curatedCount} you marked${curatedCount < items.length ? ", the rest picked at random" : ""} · changes daily`
@@ -117,7 +126,7 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
           <div
             role="radiogroup"
             aria-label="Showcase selection"
-            className="inline-flex rounded-md border border-border bg-muted/60 p-0.5"
+            className="inline-flex gap-0.5 rounded-md border border-border bg-background p-0.5"
             onKeyDown={(e) => {
               if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
               e.preventDefault();
@@ -139,18 +148,23 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
                 tabIndex={mode === m.value ? 0 : -1}
                 onClick={() => chooseMode(m.value)}
                 className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+                  "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors duration-150",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  mode === m.value ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  // The chosen one filled, the other plain text that reacts to the
+                  // pointer — a choice, not a disabled button
+                  mode === m.value
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-foreground hover:bg-muted active:bg-muted/80",
                 )}
               >
+                <m.icon size={12} aria-hidden="true" />
                 {m.label}
               </button>
             ))}
           </div>
           {mode === "random" && (
-            <Button type="button" variant="outline" size="sm" onClick={shuffle} disabled={isShuffling}>
-              {isShuffling ? (
+            <Button type="button" variant="outline" size="sm" onClick={shuffle} disabled={isLoading}>
+              {isLoading ? (
                 <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden="true" />
               ) : (
                 <Shuffle size={14} className="mr-1.5" aria-hidden="true" />
@@ -172,9 +186,9 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
       <div
         className={cn(
           "grid grid-cols-3 gap-2 transition-opacity duration-200 md:grid-cols-4 lg:grid-cols-5",
-          isShuffling && "opacity-60",
+          isLoading && "opacity-60",
         )}
-        aria-busy={isShuffling}
+        aria-busy={isLoading}
       >
         {tiles.map((item, i) => {
           const big = i === 0;

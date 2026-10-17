@@ -36,7 +36,7 @@ import {
   type CareerScope,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
-import { getPersonKnownFor, getPersonShowcase } from "@/lib/services/person-showcase-service";
+import { getPersonKnownFor, getPersonOverviewShowcase } from "@/lib/services/person-showcase-service";
 import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
 import { EditPersonSheet } from "@/components/people/edit-person-sheet";
@@ -161,7 +161,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getCareerErasForPerson(id),
       getImportHistoryForPerson(id),
       getAliasPromotionQueue(id),
-      getPersonShowcase(id),
+      getPersonOverviewShowcase(id),
       getPersonKnownFor(id),
     ]);
 

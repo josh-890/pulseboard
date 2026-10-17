@@ -19,6 +19,8 @@ import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 export type ShowcaseSource = "iconic" | "favorite" | "outtake" | "random";
 export type ShowcaseItem = GalleryItem & { source: ShowcaseSource };
 export type PersonShowcase = {
+  /** Which selection this is */
+  mode: ShowcaseMode;
   items: ShowcaseItem[];
   /** Marked photos among the items */
   curatedCount: number;
@@ -26,6 +28,9 @@ export type PersonShowcase = {
   setCount: number;
 };
 export type ShowcaseMode = "best" | "random";
+
+// A fresh seed per deal (the client makes its own for Shuffle)
+const newShowcaseSeed = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
 const SOURCE_BY_LEVEL: Record<number, ShowcaseSource> = { 1: "iconic", 2: "favorite", 3: "outtake", 4: "random" };
 
@@ -116,6 +121,7 @@ export async function getPersonShowcase(
   const items = await getMediaGalleryItemsByIds(rows.map((r) => r.id));
   const byId = new Map(items.map((i) => [i.id, i]));
   return {
+    mode: random ? "random" : "best",
     items: rows.flatMap((r) => {
       const item = byId.get(r.id);
       return item ? [{ ...item, source: SOURCE_BY_LEVEL[r.level] }] : [];
@@ -123,6 +129,16 @@ export async function getPersonShowcase(
     curatedCount: rows.filter((r) => r.level < 4).length,
     setCount: new Set(rows.map((r) => r.grp)).size,
   };
+}
+
+/**
+ * What the Overview opens with (2026-10-17): a random deal, new on every visit.
+ * A person with photos only in reference sessions has no random deal; they open
+ * in Best, which still shows the reference photos you marked.
+ */
+export async function getPersonOverviewShowcase(personId: string): Promise<PersonShowcase> {
+  const random = await getPersonShowcase(personId, { mode: "random", seed: newShowcaseSeed() });
+  return random.items.length > 0 ? random : getPersonShowcase(personId);
 }
 
 export type KnownForSet = {

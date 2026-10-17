@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { getPersonKnownFor, getPersonShowcase } from "@/lib/services/person-showcase-service";
+import { getPersonKnownFor, getPersonOverviewShowcase, getPersonShowcase } from "@/lib/services/person-showcase-service";
 import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
 
 // The Overview showcase (2026-10-16): iconic > ★ > outtake, then production photos
@@ -193,6 +193,29 @@ describe("getPersonShowcase — random mode (Shuffle)", () => {
     expect((await random("seed-a")).items.map((i) => i.id)).toEqual(a);
     const others = await Promise.all(["seed-b", "seed-c", "seed-d"].map(async (s) => (await random(s)).items.map((i) => i.id)));
     expect(others.some((o) => o.join() !== a.join())).toBe(true);
+  });
+});
+
+describe("getPersonOverviewShowcase — what the Overview opens with", () => {
+  it("a random deal, new on each visit", async () => {
+    const visits = await Promise.all([1, 2, 3, 4].map(() => getPersonOverviewShowcase(ids.P)));
+    for (const v of visits) expect(v.mode).toBe("random");
+    expect(new Set(visits.map((v) => v.items.map((i) => i.id).join())).size).toBeGreaterThan(1);
+  });
+
+  it("Best for a person with reference photos only — the random deal would be empty", async () => {
+    const person = await prisma.person.create({ data: { icgId: `${RUN}-REF`.toUpperCase() } });
+    ids.refOnly = person.id;
+    const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } });
+    await prisma.sessionContribution.create({ data: { sessionId: ids.ref, personId: person.id, roleDefinitionId: role.id } });
+    try {
+      const showcase = await getPersonOverviewShowcase(person.id);
+      expect(showcase.mode).toBe("best");
+      expect(showcase.items.map((i) => keyOf(i.id))).toEqual(["refFav"]);
+    } finally {
+      await prisma.sessionContribution.deleteMany({ where: { personId: person.id } });
+      await prisma.person.delete({ where: { id: person.id } });
+    }
   });
 });
 
