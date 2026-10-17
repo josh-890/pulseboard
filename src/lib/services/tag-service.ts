@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PROTECTED_TAG_SLUGS } from "@/lib/protected-tags";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import { domainsForEntity, type TaggableEntity } from "./entity-tag-service";
 import { toTagName, type TagNameClash } from "@/lib/tag-names";
@@ -273,6 +274,8 @@ export async function updateTagDefinition(
   if (data.parentId !== undefined) await assertNoCycle(id, data.parentId);
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
+    const current = await prisma.tagDefinition.findUniqueOrThrow({ where: { id }, select: { name: true } });
+    if (requireTagName(data.name) !== current.name) await assertNotProtected([id], "renamed");
     const name = requireTagName(data.name);
     updateData.name = name;
     updateData.slug = name;
@@ -302,7 +305,18 @@ export async function updateTagDefinition(
   });
 }
 
+/** Refuse to touch the photo marks' tags (protected-tags.ts) this way */
+export async function assertNotProtected(ids: string[], what: string) {
+  if (ids.length === 0) return;
+  const hit = await prisma.tagDefinition.findFirst({
+    where: { id: { in: ids }, slug: { in: [...PROTECTED_TAG_SLUGS] } },
+    select: { name: true },
+  });
+  if (hit) throw new Error(`“${hit.name}” is a photo mark and can't be ${what}`);
+}
+
 export async function deleteTagDefinition(id: string) {
+  await assertNotProtected([id], "deleted");
   return prisma.$transaction(async (tx) => {
     // Children move up to the deleted tag's parent, keeping their implication chain
     const doomed = await tx.tagDefinition.findUniqueOrThrow({ where: { id }, select: { parentId: true } });
@@ -323,6 +337,8 @@ export async function deleteTagDefinition(id: string) {
 }
 
 export async function mergeTagDefinitions(sourceIds: string[], targetId: string) {
+  // Merging into a mark is fine; merging one away deletes it
+  await assertNotProtected(sourceIds, "merged into another tag");
   return prisma.$transaction(async (tx) => {
     // ── 1. Batch-fetch all source definitions (for alias creation) ──────────
     const sourceTags = await tx.tagDefinition.findMany({ where: { id: { in: sourceIds } } });

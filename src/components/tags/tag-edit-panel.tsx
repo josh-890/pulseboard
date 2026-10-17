@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CornerDownRight, FolderInput, GitMerge, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { CornerDownRight, FolderInput, GitMerge, Loader2, Lock, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,7 @@ import type { TagTreeGroup, TagTreeTag } from "@/lib/services/tag-browse-service
 import { toTagName } from "@/lib/tag-names";
 import type { TagLevel } from "@/generated/prisma/enums";
 import { TagDeleteDialog } from "./tag-delete-dialog";
+import { PROTECTED_TAG_NOTE, isProtectedTag } from "@/lib/protected-tags";
 import { TagMoveDialog } from "./tag-move-dialog";
 import { TagNameClashHint } from "./tag-name-clash-hint";
 import { TagParentDialog } from "./tag-parent-dialog";
@@ -39,6 +40,8 @@ export function TagEditPanel({ tag, aliases, groups, initiallyOpen = false }: Ta
   const router = useRouter();
   const [open, setOpen] = useState(initiallyOpen);
   const [name, setName] = useState(tag.name);
+  // The photo marks' tags keep their name and can't be merged away or deleted
+  const protectedTag = isProtectedTag(tag);
   const [description, setDescription] = useState(tag.description ?? "");
   const [level, setLevel] = useState<TagLevel | "">(tag.typicalLevel ?? "");
   const [alias, setAlias] = useState("");
@@ -105,9 +108,17 @@ export function TagEditPanel({ tag, aliases, groups, initiallyOpen = false }: Ta
             id="tag-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="h-9 w-full rounded-md border border-white/15 bg-background/60 px-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            disabled={protectedTag}
+            aria-describedby={protectedTag ? "tag-name-locked" : undefined}
+            className="h-9 w-full rounded-md border border-white/15 bg-background/60 px-2 font-mono text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-70"
           />
-          <TagNameClashHint name={name} groupName={tag.group.name} excludeId={tag.id} onUseSuggestion={setName} />
+          {protectedTag ? (
+            <p id="tag-name-locked" className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Lock size={11} aria-hidden="true" /> {PROTECTED_TAG_NOTE}
+            </p>
+          ) : (
+            <TagNameClashHint name={name} groupName={tag.group.name} excludeId={tag.id} onUseSuggestion={setName} />
+          )}
         </div>
         <div className="space-y-1.5">
           <label htmlFor="tag-level" className="text-xs font-medium text-muted-foreground">
@@ -189,12 +200,16 @@ export function TagEditPanel({ tag, aliases, groups, initiallyOpen = false }: Ta
         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDialog("parent")}>
           <CornerDownRight size={13} /> Sub-tag of…
         </Button>
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDialog("merge")}>
-          <GitMerge size={13} /> Merge into…
-        </Button>
-        <Button size="sm" variant="outline" className="gap-1.5 text-destructive" onClick={() => setDialog("delete")}>
-          <Trash2 size={13} /> Delete…
-        </Button>
+        {!protectedTag && (
+          <>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setDialog("merge")}>
+              <GitMerge size={13} /> Merge into…
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5 text-destructive" onClick={() => setDialog("delete")}>
+              <Trash2 size={13} /> Delete…
+            </Button>
+          </>
+        )}
       </div>
 
       {dialog === "move" && (

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { domainsForEntity, type TaggableEntity } from "@/lib/tag-domains";
-import { deleteTagDefinition, updateTagDefinition } from "./tag-service";
+import { assertNotProtected, deleteTagDefinition, updateTagDefinition } from "./tag-service";
 
 // Managing the catalogue from /tags (2026-10-10): moving tags between groups and
 // acting on several tags at once. A move is checked before it is made — the
@@ -138,6 +138,8 @@ export async function setTagsParent(tagIds: string[], parentId: string | null): 
 
 /** Delete several tags; each one's sub-tags move up to its parent */
 export async function deleteTags(tagIds: string[]): Promise<number> {
+  // All or nothing: a photo mark in the selection stops it before any delete
+  await assertNotProtected(tagIds, "deleted");
   for (const id of tagIds) await deleteTagDefinition(id);
   return tagIds.length;
 }

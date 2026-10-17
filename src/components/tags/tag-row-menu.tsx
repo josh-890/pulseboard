@@ -17,11 +17,12 @@ export type TagRowMenuProps = {
   /** Controlled, so a right-click on the row can open it too */
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRename: () => void;
+  /** Left out for a photo mark (protected-tags.ts): the item is hidden */
+  onRename?: () => void;
   onMove: () => void;
   onParent: () => void;
-  onMerge: () => void;
-  onDelete: () => void;
+  onMerge?: () => void;
+  onDelete?: () => void;
 };
 
 // Every action on one tag, always visible (never hover-only): the ⋯ button, a
@@ -39,9 +40,11 @@ export function TagRowMenu({ tagId, tagName, open, onOpenChange, onRename, onMov
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem onSelect={onRename}>
-          <Pencil size={13} /> Rename <DropdownMenuShortcut>F2</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {onRename && (
+          <DropdownMenuItem onSelect={onRename}>
+            <Pencil size={13} /> Rename <DropdownMenuShortcut>F2</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem asChild>
           <Link href={`/tags/${tagId}?edit=1`}>
             <SlidersHorizontal size={13} /> Edit details…
@@ -54,13 +57,19 @@ export function TagRowMenu({ tagId, tagName, open, onOpenChange, onRename, onMov
         <DropdownMenuItem onSelect={onParent}>
           <CornerDownRight size={13} /> Sub-tag of…
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={onMerge}>
-          <GitMerge size={13} /> Merge into…
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
-          <Trash2 size={13} /> Delete… <DropdownMenuShortcut>Del</DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {onMerge && (
+          <DropdownMenuItem onSelect={onMerge}>
+            <GitMerge size={13} /> Merge into…
+          </DropdownMenuItem>
+        )}
+        {onDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
+              <Trash2 size={13} /> Delete… <DropdownMenuShortcut>Del</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

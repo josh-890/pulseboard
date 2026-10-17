@@ -726,6 +726,9 @@ The three keys sit side by side on a German keyboard. Iconic and Outtake are the
 `outtake` in the **Judgment** group — so the tag filter (`iconic`, `-outtake`), smart collections and
 bulk tagging work with them as with any tag; they just get their own icons instead of a tag dot.
 (The `outtake` tag is created the first time the marks are used, if it doesn't exist yet.)
+The two tags are **protected**: in the tag catalogue they show a 🔒 *photo mark* label and can't be
+renamed, merged into another tag or deleted (merging another tag *into* them is fine). Their
+description, aliases, group and sub-tags stay editable.
 
 **The marks are tiers:** Outtake → Favorite → Iconic. Setting a mark also sets the ones below it, and
 removing a mark also removes the ones above it:

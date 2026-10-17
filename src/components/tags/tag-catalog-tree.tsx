@@ -14,6 +14,7 @@ import type { NearDuplicatePair } from "@/lib/services/tag-service";
 import { toTagName } from "@/lib/tag-names";
 import { cn } from "@/lib/utils";
 import { TagDeleteDialog } from "./tag-delete-dialog";
+import { PROTECTED_TAG_NOTE, isProtectedTag } from "@/lib/protected-tags";
 import { TagMoveDialog } from "./tag-move-dialog";
 import { TagNameClashHint } from "./tag-name-clash-hint";
 import { TagParentDialog } from "./tag-parent-dialog";
@@ -163,10 +164,14 @@ export function TagCatalogTree({ groups, nearDuplicates = [] }: TagCatalogTreePr
     if (e.target !== e.currentTarget) return;
     if (e.key === "F2") {
       e.preventDefault();
-      setRenaming({ id: tag.id, value: tag.name });
+      if (isProtectedTag(tag)) toast.message(`${tag.name}: ${PROTECTED_TAG_NOTE}`);
+      else setRenaming({ id: tag.id, value: tag.name });
     } else if (e.key === "Delete") {
       e.preventDefault();
-      setDeleteDlg(selected.has(tag.id) && selectedTags.length > 1 ? selectedTags : [tag]);
+      const doomed = selected.has(tag.id) && selectedTags.length > 1 ? selectedTags : [tag];
+      const mark = doomed.find(isProtectedTag);
+      if (mark) toast.message(`${mark.name}: ${PROTECTED_TAG_NOTE}`);
+      else setDeleteDlg(doomed);
     } else if (e.key === " ") {
       e.preventDefault();
       toggle(tag.id, e);
@@ -375,6 +380,11 @@ export function TagCatalogTree({ groups, nearDuplicates = [] }: TagCatalogTreePr
                           {tag.name}
                         </Link>
                       )}
+                      {isProtectedTag(tag) && (
+                        <span title={PROTECTED_TAG_NOTE} className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <Lock size={10} aria-hidden="true" /> photo mark
+                        </span>
+                      )}
                       {isAmbiguous(tag) && (
                         <span
                           title={`“${tag.name}” is a tag in ${(sharedName.get(tag.name.toLowerCase()) ?? []).join(" and ")} — ambiguous on its own (use group:name, #group=name). Renaming one makes it unique.`}
@@ -408,11 +418,11 @@ export function TagCatalogTree({ groups, nearDuplicates = [] }: TagCatalogTreePr
                         tagName={tag.name}
                         open={menuFor === tag.id}
                         onOpenChange={(o) => setMenuFor(o ? tag.id : null)}
-                        onRename={() => setRenaming({ id: tag.id, value: tag.name })}
+                        onRename={isProtectedTag(tag) ? undefined : () => setRenaming({ id: tag.id, value: tag.name })}
                         onMove={() => setMoveDlg({ tags: [tag], groupId: null })}
                         onParent={() => setParentDlg([tag])}
-                        onMerge={() => setMergeDlg({ sources: [tag], targetId: null, key: Date.now() })}
-                        onDelete={() => setDeleteDlg([tag])}
+                        onMerge={isProtectedTag(tag) ? undefined : () => setMergeDlg({ sources: [tag], targetId: null, key: Date.now() })}
+                        onDelete={isProtectedTag(tag) ? undefined : () => setDeleteDlg([tag])}
                       />
                       {renaming?.id === tag.id && (
                         <TagNameClashHint
@@ -446,10 +456,24 @@ export function TagCatalogTree({ groups, nearDuplicates = [] }: TagCatalogTreePr
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setParentDlg(selectedTags)}>
             <CornerDownRight size={13} /> Sub-tags of…
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setMergeDlg({ sources: selectedTags, targetId: null, key: Date.now() })}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={selectedTags.some(isProtectedTag)}
+            title={selectedTags.some(isProtectedTag) ? `The selection holds a photo mark. ${PROTECTED_TAG_NOTE}` : undefined}
+            onClick={() => setMergeDlg({ sources: selectedTags, targetId: null, key: Date.now() })}
+          >
             <GitMerge size={13} /> Merge into…
           </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 text-destructive" onClick={() => setDeleteDlg(selectedTags)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 text-destructive"
+            disabled={selectedTags.some(isProtectedTag)}
+            title={selectedTags.some(isProtectedTag) ? `The selection holds a photo mark. ${PROTECTED_TAG_NOTE}` : undefined}
+            onClick={() => setDeleteDlg(selectedTags)}
+          >
             <Trash2 size={13} /> Delete…
           </Button>
           <Button size="sm" variant="ghost" className="gap-1" onClick={clearSelection} aria-label="Clear selection">
