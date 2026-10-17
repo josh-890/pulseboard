@@ -327,7 +327,9 @@ This agent does it unattended:
   marked those copies for re-fetch.
 - **Failures** — only files that are not images at all (and `bmp/tif`) — fail that
   file only; their names are stored on the set (`Set.archiveUploadFailed`) when the set
-  is done.
+  is done — minus files already in the set. An entry comes off once a file of that name
+  arrives in the set by any route (`pruneArchiveUploadFailed` in
+  `archive-upload-failed.ts`); the dashboard's **Dismiss** clears the rest.
 - A set you meanwhile filled by hand is refused and left alone.
 - **One run at a time** (per tenant): the script holds a named lock
   (`Global\Pulseboard-archive-upload-<tenant>`) for the whole run. A second start —

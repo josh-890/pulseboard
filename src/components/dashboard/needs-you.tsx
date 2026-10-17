@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { getNeedsYou } from "@/lib/services/dashboard-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { DismissFailedUploadButton } from "./dismiss-failed-upload-button";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -41,11 +42,14 @@ export async function NeedsYou() {
               {it.items && it.items.length > 0 && (
                 <ul className="mb-1 ml-[4.75rem] space-y-0.5">
                   {it.items.map((s) => (
-                    <li key={s.href} className="text-xs">
-                      <Link href={s.href} className="hover:underline">
-                        {s.label}
-                      </Link>
-                      {s.detail && <span className="block truncate text-muted-foreground">{s.detail}</span>}
+                    <li key={s.href} className="flex items-start gap-2 text-xs">
+                      <span className="min-w-0 flex-1">
+                        <Link href={s.href} className="hover:underline">
+                          {s.label}
+                        </Link>
+                        {s.detail && <span className="block truncate text-muted-foreground">{s.detail}</span>}
+                      </span>
+                      {s.dismissSetId && <DismissFailedUploadButton setId={s.dismissSetId} title={s.label} />}
                     </li>
                   ))}
                 </ul>

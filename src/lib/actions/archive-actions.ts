@@ -23,6 +23,7 @@ import {
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts, SearchFolderResult } from '@/lib/services/archive-service'
 import { clearArchiveFolderCover } from '@/lib/services/archive-cover-service'
+import { dismissArchiveUploadFailed } from '@/lib/services/archive-upload-failed'
 import type { SimpleActionResult } from '@/lib/types'
 
 /**
@@ -40,6 +41,20 @@ export async function clearArchiveCoverAction(folderId: string): Promise<SimpleA
     } catch (err) {
       console.error('clearArchiveCoverAction failed', err)
       return { success: false, error: err instanceof Error ? err.message : 'Failed to clear the cover' }
+    }
+  })
+}
+
+/** The dashboard's "did not upload" list for a set: seen, decided — clear it */
+export async function dismissArchiveUploadFailedAction(setId: string): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await dismissArchiveUploadFailed(setId)
+      revalidatePath('/')
+      return { success: true }
+    } catch (err) {
+      console.error('dismissArchiveUploadFailedAction failed', err)
+      return { success: false, error: err instanceof Error ? err.message : 'Failed to dismiss' }
     }
   })
 }

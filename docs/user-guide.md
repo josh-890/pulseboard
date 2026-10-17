@@ -82,7 +82,8 @@ for the time span. A different entry in between splits them, so the order stays 
 The queues waiting for you, each with its count and a link — only non-empty ones:
 staged sets to review, approved sets ready to promote, sets waiting for their images
 (run `archive-upload.ps1`), sets with images that did not upload (with the file
-names), damaged images to check (per set), workflow to-dos, archive folders whose people are not yet decided, archive
+names — a file leaves the list as soon as it is in the set, uploaded by hand or by the agent;
+**Dismiss** next to a set clears its list for files you won't upload), damaged images to check (per set), workflow to-dos, archive folders whose people are not yet decided, archive
 folders with unknown `#tag` names, and stub copies waiting for the real set.
 
 ### Agents
@@ -1667,7 +1668,7 @@ images of each promoted **photo** set's archive folder, in file-name order, with
 `-c` cover file as the cover. Only sets that **never had pictures** are filled — a set
 you already uploaded to (even if you later removed the pictures) is left alone, and so
 are stub folders. Files it could not upload (not an image, `bmp/tif`) are kept in a list
-on the set; an interrupted run simply continues where it stopped.
+on the set and shown on the dashboard until they arrive in the set or you dismiss them; an interrupted run simply continues where it stopped.
 
 **To-do: `auto-uploaded`.** Every set the agent finishes gets the workflow tag
 `auto-uploaded`, so the sets still waiting for you are easy to find: the **To-do** tab

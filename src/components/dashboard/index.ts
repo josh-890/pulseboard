@@ -6,3 +6,4 @@ export { DashboardActivity } from "./dashboard-activity";
 export { QuickActions } from "./quick-actions";
 export { NeedsYou } from "./needs-you";
 export { AgentStatus } from "./agent-status";
+export { DismissFailedUploadButton } from "./dismiss-failed-upload-button";

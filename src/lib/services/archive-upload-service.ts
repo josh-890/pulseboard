@@ -4,6 +4,7 @@ import { computeDHash, computeSha256 } from "@/lib/image-hash";
 import { deleteMediaFiles, uploadPhotoToStorage } from "@/lib/media-upload";
 import type { PhotoVariants } from "@/lib/types";
 import { createMediaItemDirect, replaceMediaItemFile } from "./media-service";
+import { withoutArrived } from "./archive-upload-failed";
 
 // The archive upload agent (scripts/archive-upload.ps1, 2026-10-10): fills a
 // promoted photo set with the images of its archive folder, the same way a manual
@@ -201,9 +202,15 @@ export const AUTO_UPLOAD_TODO_TAG = "auto-uploaded";
  */
 export async function completeArchiveUpload(setId: string, failed: string[]): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // A file already in the set (uploaded by hand meanwhile) is no longer missing
+    const inSet = await tx.mediaItem.findMany({
+      where: { setMediaItems: { some: { setId } } },
+      select: { filename: true },
+    });
+    const missing = withoutArrived(failed, inSet.map((m) => m.filename));
     await tx.set.update({
       where: { id: setId },
-      data: { archiveUploadDoneAt: new Date(), archiveUploadFailed: failed.slice(0, 500) },
+      data: { archiveUploadDoneAt: new Date(), archiveUploadFailed: missing.slice(0, 500) },
     });
     const group = await tx.tagGroup.upsert({
       where: { slug: "workflow" },

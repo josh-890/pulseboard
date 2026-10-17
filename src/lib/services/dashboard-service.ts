@@ -199,7 +199,7 @@ export type NeedsYouItem = {
   href: string;
   hint?: string;
   /** A few names to act on directly (failed uploads) */
-  items?: { label: string; href: string; detail?: string }[];
+  items?: { label: string; href: string; detail?: string; /** Set whose failed-upload list can be dismissed */ dismissSetId?: string }[];
 };
 
 /** Damaged images per set, most first — images in no set are only counted */
@@ -257,10 +257,12 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
       label: "Sets with images that did not upload",
       count: failedSets.length,
       href: "/sets",
+      hint: "Clears itself as the files arrive — or dismiss a set",
       items: failedSets.slice(0, 5).map((s) => ({
         label: s.title,
         href: `/sets/${s.id}`,
         detail: `${s.archiveUploadFailed.length} file${s.archiveUploadFailed.length === 1 ? "" : "s"}: ${s.archiveUploadFailed.slice(0, 2).join(", ")}${s.archiveUploadFailed.length > 2 ? ", …" : ""}`,
+        dismissSetId: s.id,
       })),
     },
     {

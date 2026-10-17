@@ -7,6 +7,7 @@ import type { TxClient } from "./cascade-helpers";
 import { mergeSessionsRecord } from "./session-service";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { refreshPersonAffiliations } from "./view-service";
+import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import { contributorKindForRoleGroup } from "./session-contributors";
 
 export type SetSort =
@@ -1350,6 +1351,8 @@ export async function addExistingMediaToSet(setId: string, mediaItemIds: string[
       })),
       skipDuplicates: true,
     });
+    const added = await tx.mediaItem.findMany({ where: { id: { in: mediaItemIds } }, select: { filename: true } });
+    await pruneArchiveUploadFailed(tx, setId, added.map((m) => m.filename));
 
     await syncSetSessionLinks(tx, setId);
   });

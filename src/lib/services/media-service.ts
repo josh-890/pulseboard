@@ -7,6 +7,7 @@ import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
 import { getOnCameraCastForSessions, getHiddenPersonsForMedia } from "./appearance-service";
+import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
@@ -277,6 +278,7 @@ export async function createMediaItemFromPhoto(
         mediaItemId,
       },
     });
+    await pruneArchiveUploadFailed(tx, input.setId, [input.filename]);
   });
 
   return mediaItemId;
@@ -385,6 +387,8 @@ export async function createMediaItemDirect(
           sortOrder: input.sortOrder ?? 0,
         },
       });
+      // A file the archive agent could not upload has arrived after all
+      await pruneArchiveUploadFailed(tx, input.setId, [input.filename]);
 
       // Auto-assign the cover if the set has none — or if what sits there is a
       // stand-in and this is a real picture of the set. A provisional cover
