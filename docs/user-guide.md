@@ -298,8 +298,9 @@ Whenever you pick a photo for a task — a source to standardize a slot, a photo
     there moves the photo up in tomorrow's showcase (an iconic photo moves to the front at once).
   - **Random · Best** — the switch in the Showcase heading; the filled one is the selection shown.
     **Random** ignores your marks and deals the person's production photos (two per set in turn, so you
-    see across their whole work); **↻ Shuffle** deals a new 48 with every click. Marked photos keep their
-    chip. **Best** is the selection above. The page opens in **Random**, with a new deal on every visit
+    see across their whole work); the **⤮** segment on the Random pill (Shuffle) deals a new 48 with every
+    click — and from Best it switches to Random with a fresh deal; it never moves, so you can keep the
+    pointer on it. Marked photos keep their chip. **Best** is the selection above. The page opens in **Random**, with a new deal on every visit
     (in Best for a person whose photos are all in reference sessions); switching back and forth keeps
     each selection as you left it.
   - **▶ Slideshow** plays the pool full screen, each photo whole, cross-faded with a slow zoom (still when your

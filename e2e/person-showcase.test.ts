@@ -54,7 +54,7 @@ test.describe("Person showcase", () => {
     await expect(play).toBeFocused();
   });
 
-  test("opens in Random; Shuffle deals again; Best loads on demand; Random comes back as left", async ({ page, request }) => {
+  test("opens in Random; Shuffle deals again; Best loads on demand; Random comes back as left; nothing shifts", async ({ page, request }) => {
     test.skip(!(await openShowcase(page, request)), "No person with photos in the dataset");
     const imgs = page.locator('section[aria-labelledby="showcase-title"] button[aria-label^="Open photo"] img');
     const order = async () => (await imgs.evaluateAll((els) => els.map((e) => e.getAttribute("src")))).join("|");
@@ -71,13 +71,22 @@ test.describe("Person showcase", () => {
     await expect.poll(order).not.toBe(first);
     const second = await order();
 
+    // The switch doesn't move: Shuffle stays put in Best
+    const shuffleBox = await page.getByRole("button", { name: "Shuffle" }).boundingBox();
     await best.click();
     await expect(best).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByRole("button", { name: "Shuffle" })).toHaveCount(0);
     await expect.poll(order).not.toBe(second);
+    expect(await page.getByRole("button", { name: "Shuffle" }).boundingBox()).toEqual(shuffleBox);
 
     await random.click();
     await expect.poll(order).toBe(second);
+
+    // Shuffle from Best goes to Random with a fresh deal
+    await best.click();
+    await expect.poll(order).not.toBe(second);
+    await page.getByRole("button", { name: "Shuffle" }).click();
+    await expect(random).toHaveAttribute("aria-checked", "true");
+    await expect.poll(order).not.toBe(second);
   });
 
   test("Known for links to a set", async ({ page, request }) => {

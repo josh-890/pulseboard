@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import NextImage from "next/image";
 import { toast } from "sonner";
-import { Images, Loader2, Play, Shuffle, Sparkles } from "lucide-react";
+import { Dices, Images, Loader2, Play, Shuffle, Sparkles } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
@@ -58,7 +58,7 @@ export type PersonShowcaseProps = {
 };
 
 const MODES: { value: ShowcaseMode; label: string; icon: typeof Shuffle }[] = [
-  { value: "random", label: "Random", icon: Shuffle },
+  { value: "random", label: "Random", icon: Dices },
   { value: "best", label: "Best", icon: Sparkles },
 ];
 
@@ -93,7 +93,11 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
     });
   }
 
-  const shuffle = () => load("random", newSeed());
+  // From Best too: switches to Random with a fresh deal
+  function shuffle() {
+    setMode("random");
+    load("random", newSeed());
+  }
 
   function chooseMode(next: ShowcaseMode) {
     if (next === mode) return;
@@ -123,55 +127,81 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Random · Best as one pill group; Shuffle is a segment of the Random pill
+              (like "only" on a person pill), always there so nothing shifts — in
+              Best it switches to Random with a fresh deal */}
           <div
             role="radiogroup"
             aria-label="Showcase selection"
             className="inline-flex gap-0.5 rounded-md border border-border bg-background p-0.5"
-            onKeyDown={(e) => {
-              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-              e.preventDefault();
-              const i = MODES.findIndex((m) => m.value === mode);
-              const next = (i + (e.key === "ArrowRight" ? 1 : -1) + MODES.length) % MODES.length;
-              chooseMode(MODES[next].value);
-              modeRefs.current[next]?.focus();
-            }}
           >
-            {MODES.map((m, i) => (
-              <button
-                key={m.value}
-                ref={(el) => {
-                  modeRefs.current[i] = el;
-                }}
-                type="button"
-                role="radio"
-                aria-checked={mode === m.value}
-                tabIndex={mode === m.value ? 0 : -1}
-                onClick={() => chooseMode(m.value)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors duration-150",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  // The chosen one filled, the other plain text that reacts to the
-                  // pointer — a choice, not a disabled button
-                  mode === m.value
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-foreground hover:bg-muted active:bg-muted/80",
-                )}
-              >
-                <m.icon size={12} aria-hidden="true" />
-                {m.label}
-              </button>
-            ))}
+            {MODES.map((m, i) => {
+              const on = mode === m.value;
+              const radio = (
+                <button
+                  ref={(el) => {
+                    modeRefs.current[i] = el;
+                  }}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => chooseMode(m.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                    e.preventDefault();
+                    const next = (i + (e.key === "ArrowRight" ? 1 : -1) + MODES.length) % MODES.length;
+                    chooseMode(MODES[next].value);
+                    modeRefs.current[next]?.focus();
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                    !on && "hover:bg-muted active:bg-muted/80",
+                  )}
+                >
+                  <m.icon size={12} aria-hidden="true" />
+                  {m.label}
+                </button>
+              );
+              return (
+                <span
+                  key={m.value}
+                  className={cn(
+                    // The chosen pill filled, the other plain text that reacts to
+                    // the pointer — a choice, not a disabled button
+                    "inline-flex items-stretch overflow-hidden rounded transition-colors duration-150",
+                    on ? "bg-primary text-primary-foreground shadow-sm" : "text-foreground",
+                  )}
+                >
+                  {radio}
+                  {m.value === "random" && (
+                    <button
+                      type="button"
+                      onClick={shuffle}
+                      disabled={isLoading}
+                      aria-label="Shuffle"
+                      title={on ? "Shuffle — deal new photos" : "Shuffle — random photos"}
+                      className={cn(
+                        "inline-flex items-center border-l px-1.5 transition-colors duration-150",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                        "disabled:cursor-wait",
+                        on
+                          ? "border-primary-foreground/25 hover:bg-primary-foreground/15"
+                          : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      {isLoading && mode === "random" ? (
+                        <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Shuffle size={12} aria-hidden="true" />
+                      )}
+                    </button>
+                  )}
+                </span>
+              );
+            })}
           </div>
-          {mode === "random" && (
-            <Button type="button" variant="outline" size="sm" onClick={shuffle} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 size={14} className="mr-1.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Shuffle size={14} className="mr-1.5" aria-hidden="true" />
-              )}
-              Shuffle
-            </Button>
-          )}
           <Button type="button" variant="outline" size="sm" onClick={() => setLightboxIndex(0)}>
             <Images size={14} className="mr-1.5" aria-hidden="true" />
             All {items.length}
