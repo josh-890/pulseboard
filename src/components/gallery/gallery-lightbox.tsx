@@ -13,31 +13,14 @@ import { useEntityTags } from "@/hooks/use-entity-tags";
 import { useArmedTag } from "@/hooks/use-armed-tag";
 import { useTagSlots } from "@/hooks/use-tag-slots";
 import { useMarkTags } from "@/hooks/use-mark-tags";
-import { MARK_BY_KEY, markCascade, type MarkKey } from "./media-marks";
+import { markCascade, type MarkKey } from "./media-marks";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Crosshair,
-  FolderPlus,
-  ImagePlus,
-  Loader2,
-  PanelRight,
-  PanelRightClose,
-  Pencil,
-  Rows3,
-  Columns2,
-  Tag,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +36,8 @@ import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
 import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
+import { LightboxToolbar } from "./lightbox-toolbar";
+import { LightboxShortcutsSheet } from "./lightbox-shortcuts-sheet";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import type { ReferenceContext, ProductionContext, CollectionContext } from "./gallery-info-panel";
 import { useCompareTray } from "@/components/collections/compare-tray-provider";
@@ -153,6 +138,9 @@ function SimpleLightbox({
   const [showInfoPanel, setShowInfoPanel] = useState(referenceContext ? true : false);
   const [showFilmstrip, setShowFilmstrip] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // The `?` cheat sheet and the toolbar's own menus take the keyboard while open
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [toolbarMenu, setToolbarMenu] = useState<"more" | "slots" | null>(null);
   // Del opens the confirmation with "Delete permanently" focused, so Enter confirms
   const deleteActionRef = useRef<HTMLButtonElement>(null);
   // Optimistically hide just-deleted items so the lightbox can advance to the next one
@@ -460,6 +448,11 @@ function SimpleLightbox({
 
   // Self-fetched collections list when enableCollections is set (no explicit context).
   const tray = useCompareTray();
+  const toggleTray = useCallback(() => {
+    if (!item) return;
+    if (tray.has(item.id)) tray.remove(item.id);
+    else tray.add({ mediaItemId: item.id, thumbUrl: item.urls.gallery_512 ?? item.urls.view_1200 ?? item.urls.original ?? null });
+  }, [item, tray]);
   const [fetchedCollections, setFetchedCollections] = useState<{ id: string; name: string }[]>([]);
   useEffect(() => {
     if (!enableCollections || collectionContext) return;
@@ -530,7 +523,7 @@ function SimpleLightbox({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       // The delete confirmation owns the keyboard (Esc cancels it, not the viewer)
-      if (deleteConfirmOpen) return;
+      if (deleteConfirmOpen || shortcutsOpen || toolbarMenu) return;
 
       switch (e.key) {
         case "Escape":
@@ -639,6 +632,18 @@ function SimpleLightbox({
             addToTarget();
           }
           break;
+        case "x":
+        case "X":
+          // The compare tray: add / remove the current image
+          if (item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            toggleTray();
+          }
+          break;
+        case "?":
+          e.preventDefault();
+          setShortcutsOpen(true);
+          break;
         case "d":
         case "D":
           // Reverse "assign to detail category".
@@ -651,7 +656,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, onDelete]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -736,223 +741,87 @@ function SimpleLightbox({
         </div>
       )}
 
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 shrink-0 border-b border-white/5">
-        <span className="text-sm text-white/70">
-          {currentIndex + 1} / {localItems.length}
-        </span>
-        <span className="hidden sm:block truncate max-w-[40%] text-xs text-white/50">
-          {item.filename}
-        </span>
-        <div className="flex items-center gap-1.5">
-          {hasFocalPointSupport && (
-            <button
-              type="button"
-              onClick={() => setFocalOverlay((p) => !p)}
-              className={cn(
-                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-                focalOverlay
-                  ? "bg-amber-500/30 text-amber-400 ring-1 ring-amber-500/40"
-                  : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-              )}
-              aria-label={focalOverlay ? "Hide focal point overlay" : "Show focal point overlay"}
-              aria-pressed={focalOverlay}
-              title="Focal point overlay (F)"
+      {/* Top bar — three zones (2026-10-17), see lightbox-toolbar.tsx */}
+      <LightboxToolbar
+        position={`${currentIndex + 1} / ${localItems.length}`}
+        filename={item.filename}
+        zoomed={imgZoomed}
+        marks={{
+          iconic: markTags && tagController ? tagController.directTagIds.includes(markTags.iconic.id) : false,
+          favorite: item.isFavorite ?? false,
+          outtake: markTags && tagController ? tagController.directTagIds.includes(markTags.outtake.id) : false,
+        }}
+        tagMarksReady={!!(markTags && tagController)}
+        onMark={(key) => (key === "favorite" ? setMark("favorite", !item.isFavorite) : toggleTagMark(key))}
+        onCollection={() => setPaletteOpen(true)}
+        onTag={() => setTagPaletteOpen(true)}
+        onArm={() => setArmPaletteOpen(true)}
+        onCategory={() => setAssignOpen(true)}
+        armedTag={armedTag}
+        onApplySlot={(tag) => applyTagToCurrent(tag)}
+        slotStateOf={(tagId) => (tagController?.directTagIds.includes(tagId) ? "all" : "none")}
+        compare={{ on: tray.has(item.id), toggle: toggleTray }}
+        focal={{
+          on: focalOverlay,
+          toggle: () => setFocalOverlay((p) => !p),
+          unavailable: hasFocalPointSupport ? null : "Not available in this gallery",
+        }}
+        filmstrip={{
+          on: showFilmstrip,
+          toggle: () => setShowFilmstrip((p) => !p),
+          unavailable: localItems.length > 1 ? null : "Only one photo here",
+        }}
+        info={{ on: showInfoPanel, toggle: handleToggleInfoPanel }}
+        onShortcuts={() => setShortcutsOpen(true)}
+        copy={{
+          unavailable: canCopyToReference ? null : "Only in a production set with a cast",
+          busy: copyInFlight,
+          onCopy: handleCopyTrigger,
+        }}
+        copyPicker={
+          copyPickerOpen && copyToReferenceTargets && copyToReferenceTargets.length > 1 && (
+            <div
+              className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-white/15 bg-zinc-900/95 shadow-lg backdrop-blur-sm"
+              role="menu"
             >
-              <Crosshair size={16} />
-            </button>
-          )}
-          {localItems.length > 1 && (
-            <button
-              type="button"
-              onClick={() => setShowFilmstrip((p) => !p)}
-              className={cn(
-                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-                showFilmstrip
-                  ? "bg-white/20 text-white"
-                  : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-              )}
-              aria-label={showFilmstrip ? "Hide filmstrip" : "Show filmstrip"}
-              title="Filmstrip (S)"
-            >
-              <Rows3 size={16} />
-            </button>
-          )}
-          {item &&
-            (["iconic", "favorite", "outtake"] as MarkKey[]).map((key) => {
-              const mark = MARK_BY_KEY[key];
-              if (key !== "favorite" && !(markTags && tagController)) return null;
-              const on =
-                key === "favorite"
-                  ? item.isFavorite
-                  : (tagController?.directTagIds.includes(markTags![key].id) ?? false);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => (key === "favorite" ? setMark("favorite", !item.isFavorite) : toggleTagMark(key))}
-                  className={cn(
-                    "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-                    on ? mark.activeClass : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-                  )}
-                  aria-pressed={on}
-                  aria-label={key === "favorite" ? (on ? "Remove from favorites" : "Add to favorites") : `${mark.label}${on ? " — remove" : ""}`}
-                  title={`${mark.label} (${mark.hotkey})`}
-                >
-                  <mark.Icon size={16} fill={on ? "currentColor" : "none"} />
-                </button>
-              );
-            })}
-          {item && (
-            <button
-              type="button"
-              onClick={() => setPaletteOpen(true)}
-              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              aria-label="Add to collection"
-              title="Add to collection (B)"
-            >
-              <FolderPlus size={16} />
-            </button>
-          )}
-          {item && (
-            <button
-              type="button"
-              onClick={() => setTagPaletteOpen(true)}
-              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              aria-label="Tag this image"
-              title="Tag (T)"
-            >
-              <Tag size={16} />
-            </button>
-          )}
-          {item && (
-            <button
-              type="button"
-              onClick={() => setAssignOpen(true)}
-              className="rounded-full p-2 bg-white/10 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              aria-label="Assign to detail category"
-              title="Assign to a person's detail category (D)"
-            >
-              <ImagePlus size={16} />
-            </button>
-          )}
-          {item && (
-            <button
-              type="button"
-              onClick={() => {
-                if (tray.has(item.id)) tray.remove(item.id);
-                else tray.add({ mediaItemId: item.id, thumbUrl: item.urls.gallery_512 ?? item.urls.view_1200 ?? item.urls.original ?? null });
-              }}
-              className={cn(
-                "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-                tray.has(item.id) ? "bg-amber-400 text-black" : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-              )}
-              aria-label={tray.has(item.id) ? "Remove from compare tray" : "Add to compare tray"}
-              title="Add to compare tray"
-            >
-              <Columns2 size={16} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={handleToggleInfoPanel}
-            className={cn(
-              "rounded-full p-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
-              showInfoPanel
-                ? "bg-white/20 text-white"
-                : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white",
-            )}
-            aria-label={showInfoPanel ? "Hide info panel" : "Show info panel"}
-            title="Info panel (I)"
-          >
-            {showInfoPanel ? (
-              <PanelRightClose size={16} />
-            ) : (
-              <PanelRight size={16} />
-            )}
-          </button>
-          {canCopyToReference && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={handleCopyTrigger}
-                disabled={copyInFlight}
-                className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-emerald-500/30 hover:text-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 disabled:opacity-50"
-                aria-label="Copy to reference session"
-                title="Copy to reference session (C)"
-              >
-                {copyInFlight ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />}
-              </button>
-              {copyPickerOpen && copyToReferenceTargets && copyToReferenceTargets.length > 1 && (
-                <div
-                  className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-white/15 bg-zinc-900/95 shadow-lg backdrop-blur-sm"
-                  role="menu"
-                >
-                  <div className="border-b border-white/10 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-white/50">
-                    Copy to reference of…
-                  </div>
-                  {copyToReferenceTargets.map((t) => {
-                    const disabled = t.referenceSessionId == null;
-                    return (
-                      <button
-                        key={t.personId}
-                        type="button"
-                        role="menuitem"
-                        disabled={disabled || copyInFlight}
-                        onClick={() => handleCopyToReferenceTarget(t)}
-                        className={cn(
-                          "block w-full px-3 py-2 text-left text-sm transition-colors",
-                          disabled
-                            ? "cursor-not-allowed text-white/30"
-                            : "text-white/85 hover:bg-emerald-500/20 hover:text-emerald-200",
-                        )}
-                        title={disabled ? "No reference session yet" : undefined}
-                      >
-                        <div>{t.name}</div>
-                        {disabled && (
-                          <div className="text-[10px] text-white/40">
-                            no reference session
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="border-b border-white/10 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-white/50">
+                Copy to reference of…
+              </div>
+              {copyToReferenceTargets.map((t) => {
+                const disabled = t.referenceSessionId == null;
+                return (
+                  <button
+                    key={t.personId}
+                    type="button"
+                    role="menuitem"
+                    disabled={disabled || copyInFlight}
+                    onClick={() => handleCopyToReferenceTarget(t)}
+                    className={cn(
+                      "block w-full px-3 py-2 text-left text-sm transition-colors",
+                      disabled
+                        ? "cursor-not-allowed text-white/30"
+                        : "text-white/85 hover:bg-emerald-500/20 hover:text-emerald-200",
+                    )}
+                    title={disabled ? "No reference session yet" : undefined}
+                  >
+                    <div>{t.name}</div>
+                    {disabled && (
+                      <div className="text-[10px] text-white/40">
+                        no reference session
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          )}
-          {onEdit && (
-            <button
-              type="button"
-              onClick={() => onEdit(item)}
-              className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-amber-500/30 hover:text-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              aria-label="Edit this photo"
-              title="Edit"
-            >
-              <Pencil size={16} />
-            </button>
-          )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={() => setDeleteConfirmOpen(true)}
-              className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-destructive/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-              aria-label="Delete this item"
-              title="Delete (Del)"
-            >
-              <Trash2 size={16} />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full bg-white/10 p-2 text-white/70 transition-colors hover:bg-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-      </div>
+          )
+        }
+        onEdit={onEdit ? () => onEdit(item) : null}
+        onDelete={onDelete ? () => setDeleteConfirmOpen(true) : null}
+        onClose={onClose}
+        openMenu={toolbarMenu}
+        onOpenMenuChange={setToolbarMenu}
+      />
 
       {/* Main content */}
       <div className="flex flex-1 min-h-0">
@@ -966,7 +835,10 @@ function SimpleLightbox({
                     type="button"
                     onClick={goPrev}
                     aria-label="Previous"
-                    className="absolute left-2 sm:left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-colors hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    className={cn(
+                      "absolute left-2 sm:left-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-[color,background-color,opacity] duration-200 hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                      imgZoomed && "pointer-events-none opacity-0",
+                    )}
                   >
                     <ChevronLeft size={24} />
                   </button>
@@ -976,7 +848,10 @@ function SimpleLightbox({
                     type="button"
                     onClick={goNext}
                     aria-label="Next"
-                    className="absolute right-2 sm:right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-colors hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                    className={cn(
+                      "absolute right-2 sm:right-4 top-1/2 z-10 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white/80 transition-[color,background-color,opacity] duration-200 hover:bg-black/70 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50",
+                      imgZoomed && "pointer-events-none opacity-0",
+                    )}
                   >
                     <ChevronRight size={24} />
                   </button>
@@ -1064,6 +939,8 @@ function SimpleLightbox({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <LightboxShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
 
       {/* ADR-0019: collection quick-add palette (hotkey b / toolbar) */}
       <TagPalette

@@ -86,9 +86,10 @@ test.describe.serial("Photo marks", () => {
   test("the lightbox keys , . - follow the tiers", async ({ page }) => {
     await page.goto(`/sets/${setId}`);
     await page.getByRole("button", { name: "Gallery image" }).nth(1).click();
-    const iconic = page.locator('button[title="Iconic (,)"]');
-    const favorite = page.locator('button[title="Favorite (.)"]');
-    const outtake = page.locator('button[title="Outtake (-)"]');
+    const ladder = page.getByRole("toolbar", { name: "Photo tools" }).getByRole("group", { name: "Marks" });
+    const iconic = ladder.getByRole("button", { name: "Iconic" });
+    const favorite = ladder.getByRole("button", { name: "Favorite" });
+    const outtake = ladder.getByRole("button", { name: "Outtake" });
     const pressed = async () =>
       [await iconic.getAttribute("aria-pressed"), await favorite.getAttribute("aria-pressed"), await outtake.getAttribute("aria-pressed")].join();
     await expect.poll(pressed).toBe("false,false,false");

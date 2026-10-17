@@ -745,8 +745,8 @@ removing a mark also removes the ones above it:
 This holds wherever the mark changes — the viewer's keys and buttons, a tile, the selection bar, and
 also the tag palette or a quick-tag slot when the tag is `iconic` or `outtake`.
 
-- **In the image viewer:** crown, heart and bookmark sit side by side in the toolbar — click or press
-  the key; pressed again, the mark comes off.
+- **In the image viewer:** the marks are one ladder in the middle of the toolbar — Outtake ▸ Favorite ▸
+  Iconic, lowest on the left — click a step or press its key; pressed again, the mark comes off.
 - **On a grid tile:** a set mark shows as a small coloured badge at the right edge. Hover the tile
   and all three appear (the unset ones as outlines) — click one to mark the photo **without opening
   it**. On touch screens, and while several photos are selected, the badges only show.
@@ -1047,7 +1047,7 @@ A comparison opens like a single photo does in a photo collection:
 
 - **GRID collections** — from any lightbox's **info panel → Collections** (a person's Recent Photos, Photos/Details tab, a set/session), the collection's **Browse & Add** (multi-select), or **drag** a thumbnail onto the open collection.
 - **Comparison collections** — a photo belongs to a *comparison*, not the collection directly, so you build comparisons:
-  - **Compare tray** — in any lightbox, **Add to compare** (the ⧉ button) gathers photos into a tray (a bar at the bottom, kept as you browse). When you have 2+, **Make comparison** → pick a comparison collection (or make one) → it creates the comparison, or appends the tray to an existing one.
+  - **Compare tray** — in any lightbox, **Compare tray** (the ◫ button, or <kbd>X</kbd>) gathers photos into a tray (a bar at the bottom, kept as you browse). When you have 2+, **Make comparison** → pick a comparison collection (or make one) → it creates the comparison, or appends the tray to an existing one.
   - Inside a collection, **New comparison**; inside a comparison, **Add photos**.
 
 ---
@@ -1217,11 +1217,35 @@ On set detail pages, the **"Browse & Add"** button opens a sheet to search exist
 
 The lightbox opens when clicking any media thumbnail in a gallery. It provides full-screen viewing with navigation and editing.
 
+**The toolbar (2026-10-17)** is the one bar above the photo — nothing is laid over the image — in three zones:
+
+```
+│ 1 / 42  file name │  🔖 ▸ ♥ ▸ ♛  ┊  📁  🏷│P ▾  🖼  ◫  │  ⌖ ▤ ▯ ┊ ? ┊ ⋯ ┊ ✕ │
+  where you are       the work on this photo            how you look at it · more · close
+```
+
+- **Left:** position and file name.
+- **Centre — the work on this photo:** the **mark ladder** Outtake ▸ Favorite ▸ Iconic (lowest
+  on the left, so climbing fills it from the left — see *Photo marks*), then **organize**:
+  add to a collection (<kbd>B</kbd>), tag (<kbd>T</kbd>) with the **painter segment** beside it,
+  assign to a detail category (<kbd>D</kbd>) and the compare tray (<kbd>X</kbd>).
+  The painter segment shows **P** and the armed tag (dimmed when nothing is armed); click it for the
+  painter and the quick-tag slots 1–9.
+- **Right:** the view toggles — focal point (<kbd>F</kbd>), filmstrip (<kbd>S</kbd>), info panel
+  (<kbd>I</kbd>) — then **?**, **⋯** and, alone at the edge, **✕**.
+- **⋯ More:** Copy to reference session (<kbd>C</kbd>), Edit / annotate and — last, in red, behind a
+  divider — **Delete…** (<kbd>Del</kbd>). Nothing destructive sits next to Close.
+- **Hover a button** for its name and key. **Press <kbd>?</kbd>** (or click ?) for every key at once.
+- **Buttons never move.** One that doesn't apply in a gallery (say the focal point in Favorites)
+  stays in its place, dimmed, and its tooltip says why — so ★ is in the same spot everywhere.
+- **Zoomed in**, the ‹ › arrows fade away and the bar dims; it comes back when you point at it.
+- **On a phone** the bar keeps the position, the mark ladder, ⋯ and ✕; organize and view move into ⋯.
+
 **Navigation:**
 - Left/right arrow buttons or keyboard arrows
 - Filmstrip toggle (thumbnail strip at bottom) — <kbd>S</kbd>
 - Escape to close
-- **Delete** — <kbd>Del</kbd> (or <kbd>Backspace</kbd>) wherever the viewer has the trash can (set and session
+- **Delete** — <kbd>Del</kbd> (or <kbd>Backspace</kbd>), or ⋯ → Delete…, wherever the viewer can delete (set and session
   galleries, a person's Details / Appearance photos). It always asks first: the confirmation opens with
   **Delete permanently** selected, so <kbd>Enter</kbd> deletes and <kbd>Esc</kbd> cancels — only the
   confirmation, the viewer stays open. After deleting, the viewer moves on to the next photo.
@@ -2475,6 +2499,8 @@ If you created a set and realize the media actually came from an existing sessio
 | `←` / `→` | Navigate between images | Lightbox |
 | `Escape` | Close lightbox / Close dialog | Lightbox, Dialogs |
 | `i` | Toggle info panel | Lightbox |
+| `?` | All the viewer's keys | Lightbox |
+| `x` | Compare tray — add / remove | Lightbox |
 
 ---
 
