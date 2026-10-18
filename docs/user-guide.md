@@ -574,8 +574,29 @@ Click **"Add Session"** to create a production session:
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Actions:**
   - **Edit** — modify session fields
-  - **Merge** — absorb another session into this one (consolidates participants, media, and set links; the absorbed session is permanently deleted)
+  - **Merge with…** (⋯ menu) — two sessions that were really one shoot become one (each set used to get its own session). See *Merging sessions* below.
   - **Delete** — permanently delete the session and cascade
+
+### Merging sessions (2026-10-18)
+
+Open either of the two sessions → ⋯ → **Merge with…**.
+
+- **Suggestions first.** Without typing, the dialog lists the sessions that share **people on
+  camera**, the **label** (the session's own or its sets' channel label) or the **project** with this
+  one — best first. Chips say why: *Same person: Name (ICG-ID)*, *Same label*, *Same project*,
+  *Released 12 days apart* (sets released within 90 days rank higher).
+- **Recognised by their sets.** A name like "Set 1" says nothing, so each card leads with the sets
+  published from the session — cover, title, channel, release date — then the people on camera,
+  the label and the counts. A session without sets shows a few of its photos.
+- **Search everything.** The search finds sessions by name, **set title**, channel, **person**
+  (name or ICG-ID) or **label**. <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Enter</kbd> picks.
+- **The older session stays — always.** Picking a candidate shows both side by side: **Stays**
+  (green) and **Merged in** (amber), with the reason — the older session date; without a date (or
+  the same one) the earliest set release; failing that, the one created first. It doesn't matter
+  which of the two you started from: started from the newer one, the dialog says so and you land
+  on the older one afterwards.
+- **What you get.** "Afterwards: N photos · M people · K sets"; name, label and description stay
+  those of the surviving session. The other session is **deleted** — this can't be undone.
 
 ---
 

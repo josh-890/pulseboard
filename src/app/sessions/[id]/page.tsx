@@ -324,7 +324,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             />
             <SessionActionsMenu
               sessionId={id}
-              sessionName={session.name}
               onDelete={deleteSession.bind(null, id)}
               redirectTo="/sessions"
             />

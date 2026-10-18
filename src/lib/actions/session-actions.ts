@@ -15,6 +15,7 @@ import {
   getLinkedSetIds,
 } from "@/lib/services/session-service";
 import type { SessionFilters } from "@/lib/services/session-service";
+import { getSessionMergeCandidates, getSessionMergeDirection } from "@/lib/services/session-merge-candidates";
 import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { prisma } from "@/lib/db";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -151,6 +152,35 @@ export async function mergeSessions(
       return { success: false, error: message };
     }
 
+  });
+}
+
+/** The merge dialog's suggestions (no query) or search results, as cards */
+export async function getSessionMergeCandidatesAction(sessionId: string, query?: string) {
+  return withTenantFromHeaders(async () => getSessionMergeCandidates(sessionId, query));
+}
+
+/**
+ * Merge two sessions with the older one surviving (2026-10-18) — the direction
+ * is decided here, not by where the merge was started.
+ */
+export async function mergeSessionsOldestSurvives(
+  aId: string,
+  bId: string,
+): Promise<{ success: true; survivorId: string } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { survivorId, absorbedId } = await getSessionMergeDirection(aId, bId);
+      const { affectedSetIds } = await mergeSessionsRecord(survivorId, absorbedId);
+      revalidatePath("/sessions");
+      revalidatePath(`/sessions/${survivorId}`);
+      revalidatePath("/sets");
+      revalidatePath("/");
+      for (const setId of affectedSetIds) revalidatePath(`/sets/${setId}`);
+      return { success: true, survivorId };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to merge sessions" };
+    }
   });
 }
 

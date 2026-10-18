@@ -74,6 +74,14 @@
 |---|---|---|---|
 | `CareerPromoteButton` | Client | `stagingSetId`, `title`, `stagingHref`, `variant: "tile" \| "row" \| "compact"`, `undevelopedParticipants`, `className?` | Promote badge for an approved staged set in the Career tab; popover fetches the promote preview (new set vs. enrich X), promotes via the staging promote route with `requireDevelopedCast`, then `router.refresh()`. Amber + warning + Promote disabled while anyone in the cast is not yet a Person |
 
+## Session Components (`components/sessions/`)
+
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `SessionMergeDialog` | Client | `sessionId`, `open`, `onOpenChange` | ⋯ → Merge with… (2026-10-18). Step 1: this session's card, a search combobox (↑/↓/Enter over a listbox) and the candidates — suggestions on open, search results after 300 ms (`getSessionMergeCandidatesAction`, newest answer wins). Step 2: survivor (green, **Stays**, with `resolveMergeDirection`'s reason) ← absorbed (amber, **Merged in**), the "newer one" note when started from the absorbed side, the afterwards counts and the delete warning; `mergeSessionsOldestSurvives` → `router.push` to the survivor |
+| `MergeSessionCard` | Server-safe | `card`, `badge?`, `footer?`, `compact?` | A `SessionMergeCard`: name, date · label · project, its sets (cover, title, channel · release; +N more), or 4 photos without sets, people chips, counts |
+| `MergeReasonChips` | Server-safe | `reasons` | Why a candidate is suggested: same person(s), same label (emerald), same project, released N days apart |
+
 ## Sets Components (`components/sets/`)
 
 | Component | Type | Props | Description |

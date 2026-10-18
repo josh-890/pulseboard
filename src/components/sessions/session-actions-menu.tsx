@@ -26,12 +26,11 @@ import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
 
 type SessionActionsMenuProps = {
   sessionId: string;
-  sessionName: string;
   onDelete: () => Promise<{ success: boolean; error?: string }>;
   redirectTo?: string;
 };
 
-export function SessionActionsMenu({ sessionId, sessionName, onDelete, redirectTo }: SessionActionsMenuProps) {
+export function SessionActionsMenu({ sessionId, onDelete, redirectTo }: SessionActionsMenuProps) {
   const router = useRouter();
   const [mergeOpen, setMergeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -75,8 +74,7 @@ export function SessionActionsMenu({ sessionId, sessionName, onDelete, redirectT
       </DropdownMenu>
 
       <SessionMergeDialog
-        survivingSessionId={sessionId}
-        survivingSessionName={sessionName}
+        sessionId={sessionId}
         open={mergeOpen}
         onOpenChange={setMergeOpen}
       />

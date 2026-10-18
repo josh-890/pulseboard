@@ -92,6 +92,7 @@ export type {
 } from "@/generated/prisma/client";
 
 export type { GalleryItem, PersonMediaLinkSummary, MediaItemOrigin } from "./gallery";
+export type { SessionMergeCard, SessionMergeCandidate, SessionMergeReason, SessionMergeSet } from "./session-merge";
 
 export type { ActivityItem, ActivityType } from "./activity";
 
