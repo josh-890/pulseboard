@@ -333,6 +333,7 @@ export function CollectionDetailGallery({
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
           collectionContext={collectionContext}
+          showOrigin
         />
       )}
     </>

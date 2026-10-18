@@ -156,6 +156,8 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `PeopleFilterBar` | Client | `cast`, `items`, `visibleItems`, `filter`, `onChange` | ADR-0023 filter: a **Groups** row of the people combinations that occur (with counts; one click = exactly that group) and **Shows** chips cycling off → must show → must not show, combined with AND |
 | `GroupSelectToggle` | Client | `state` (`all`/`some`/`none`), `label`, `onToggle` | Tri-state checkbox on a gallery group header (session, clip, set, "Session only") |
 | `BulkPeopleShownControl` | Client | `cast`, `selectedIds`, `onApplied` | Selection-bar popover: show / hide a person across the selected images |
+| `LightboxOriginLink` | Client | `origin` (`MediaItemOrigin \| null \| undefined`) | The viewer bar's "back" chip (2026-10-18), left zone, only with `showOrigin`: ↶ + the first set's title (+N for more sets), tooltip with key `O` and the people shown; links `mediaOriginTarget(origin)` (set opened on the photo / reference person / session). Pulsing placeholder while loading, nothing when unknown |
+| `LightboxOriginSection` | Client | `origin` | The info panel's **Origin** section: every set (each `?photo=`), the people shown (or the reference person) as `Name (ICG-ID)` links, and the session |
 
 ---
 

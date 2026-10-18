@@ -6,15 +6,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SlotState } from "@/components/tags/tag-slot-bar";
 import type { MarkKey } from "@/lib/media-mark-tiers";
 import type { PaletteTag } from "@/lib/services/tag-service";
+import type { MediaItemOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LightboxMarkLadder } from "./lightbox-mark-ladder";
 import { LightboxMoreMenu, type ToolbarToggle } from "./lightbox-more-menu";
+import { LightboxOriginLink } from "./lightbox-origin-link";
 import { LightboxTagPill } from "./lightbox-tag-pill";
 import { LightboxToolbarButton } from "./lightbox-toolbar-button";
 
 // The viewer's top bar (2026-10-17), in three zones so nothing covers the photo
 // and nothing moves:
-//   left    where you are — position and file name
+//   left    where you are — position, where the photo comes from, file name
 //   centre  the work on this photo — the mark ladder, then organize
 //   right   how you look at it — view toggles, ?, ⋯ and, alone at the edge, ✕
 // Every button always renders; one that doesn't apply is dimmed with a reason.
@@ -23,6 +25,8 @@ import { LightboxToolbarButton } from "./lightbox-toolbar-button";
 export type LightboxToolbarProps = {
   position: string;
   filename: string;
+  /** Where the photo comes from — set only in galleries gathered from everywhere */
+  origin?: { value: MediaItemOrigin | null | undefined };
   /** While zoomed into the photo the bar steps back (dimmed, full again on hover) */
   zoomed: boolean;
   marks: Record<MarkKey, boolean>;
@@ -69,7 +73,13 @@ export function LightboxToolbar(props: LightboxToolbarProps) {
         {/* Left — where you are */}
         <div className="flex min-w-0 items-baseline gap-3">
           <span className="shrink-0 text-sm text-white/70 tabular-nums">{props.position}</span>
-          <span className="hidden min-w-0 truncate text-xs text-white/50 md:block" title={props.filename}>
+          {props.origin && (
+            <span className="flex min-w-0 shrink self-center">
+              <LightboxOriginLink origin={props.origin.value} />
+            </span>
+          )}
+          {/* The file name gives way first — the way back to the set matters more */}
+          <span className="hidden min-w-0 shrink-[10] truncate text-xs text-white/50 md:block" title={props.filename}>
             {props.filename}
           </span>
         </div>

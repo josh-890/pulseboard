@@ -81,3 +81,20 @@ export type GalleryItem = {
     setTitle: string | null;
   } | null;
 };
+
+/**
+ * Where an image comes from (2026-10-18) — for galleries that gather images from
+ * everywhere (favorites, collections, tags): the set(s) it belongs to, its
+ * session, and the people shown in it, so the viewer can jump back to them.
+ * A copy (reference session) answers with its source image's sets and people.
+ */
+export type MediaItemOrigin = {
+  /** The image as it sits in those sets — the source image, for a copy */
+  imageId: string;
+  sets: { id: string; title: string; type: "photo" | "video" }[];
+  session: { id: string; name: string; type: "PRODUCTION" | "REFERENCE" };
+  /** The person a reference session belongs to */
+  referencePerson: { id: string; name: string } | null;
+  /** On camera in this image (session cast minus its hidden people), as `Name (ICG-ID)` */
+  people: { id: string; name: string }[];
+};

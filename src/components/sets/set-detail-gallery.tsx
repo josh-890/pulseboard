@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckSquare,
@@ -137,7 +137,11 @@ type SetDetailGalleryProps = {
   cast?: GalleryCastMember[];
   /** ADR-0033 tag filter: facets for the panel, and the matching image ids (null = no filter) */
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
+  /** `?photo=` — the way back from favorites / collections: open the viewer on it */
+  initialPhotoId?: string | null;
 };
+
+const noSubscribe = () => () => {};
 
 export function SetDetailGallery({
   items: initialItems,
@@ -151,11 +155,16 @@ export function SetDetailGallery({
   copyToReferenceTargets,
   cast,
   tagFilter,
+  initialPhotoId,
 }: SetDetailGalleryProps) {
   const router = useRouter();
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [localItems, setLocalItems] = useState(initialItems);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // The photo asked for by ?photo= — open until the viewer is closed. The viewer
+  // portals into document.body, so it opens only once mounted on the client.
+  const [deepLinkPhotoId, setDeepLinkPhotoId] = useState(initialPhotoId ?? null);
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -289,6 +298,22 @@ export function SetDetailGallery({
     return map;
   }, [items]);
 
+  const deepLinkIndex = deepLinkPhotoId && mounted ? indexMap.get(deepLinkPhotoId) : undefined;
+  const openIndex = lightboxIndex ?? deepLinkIndex ?? null;
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null);
+    if (!deepLinkPhotoId) return;
+    // Leave the photo in view in the grid and drop ?photo=, so a reload stays here
+    const url = new URL(window.location.href);
+    url.searchParams.delete("photo");
+    window.history.replaceState(window.history.state, "", url);
+    const tile = document.querySelector<HTMLElement>(`[data-media-id="${CSS.escape(deepLinkPhotoId)}"]`);
+    tile?.scrollIntoView({ block: "center" });
+    tile?.focus({ preventScroll: true });
+    setDeepLinkPhotoId(null);
+  }, [deepLinkPhotoId]);
+
   // Per-image "people shown" filter (ADR-0023): include / exclude per cast member.
   const {
     filter: peopleFilter,
@@ -412,7 +437,7 @@ export function SetDetailGallery({
     visibleOrder,
     onOpen: openInLightbox,
     keyboardEnabled:
-      lightboxIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering,
+      openIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering,
   });
   const {
     selectedIds,
@@ -718,7 +743,7 @@ export function SetDetailGallery({
               entityType="MEDIA_ITEM"
               entityIds={[...selectedIds]}
               onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
-              hotkeysEnabled={lightboxIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering}
+              hotkeysEnabled={openIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering}
             />
             {cast && cast.length > 0 && (
               <BulkPeopleShownControl
@@ -1092,11 +1117,11 @@ export function SetDetailGallery({
         </DialogContent>
       </Dialog>
 
-      {lightboxIndex !== null && (
+      {openIndex !== null && (
         <GalleryLightbox
           items={items}
-          initialIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
+          initialIndex={openIndex}
+          onClose={closeLightbox}
           onSetCover={handleSetCover}
           coverMediaItemId={coverId}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}

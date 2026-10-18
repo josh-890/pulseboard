@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  CornerUpLeft,
   Crosshair,
   FileText,
   Folder,
@@ -27,7 +28,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
-import type { GalleryCastMember } from "@/lib/types/gallery";
+import type { GalleryCastMember, MediaItemOrigin } from "@/lib/types/gallery";
+import { LightboxOriginSection } from "./lightbox-origin-section";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   setFocalPointAction,
@@ -168,6 +170,10 @@ type GalleryInfoPanelProps = {
   // to exclude. `onSetHiddenPersons` persists the new hidden set.
   cast?: GalleryCastMember[];
   onSetHiddenPersons?: (itemId: string, hiddenPersonIds: string[]) => void;
+  // Where the photo comes from (galleries gathered from everywhere). When
+  // `showOrigin` is set an "Origin" section leads; `origin` undefined = loading.
+  showOrigin?: boolean;
+  origin?: MediaItemOrigin | null;
 };
 
 export function GalleryInfoPanel({
@@ -190,9 +196,11 @@ export function GalleryInfoPanel({
   onCollectionCreated,
   cast,
   onSetHiddenPersons,
+  showOrigin,
+  origin,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["cover", "headshot", "favorite", "usage", "people-shown", "tags", "focal", "info", "source"]),
+    new Set(["origin", "cover", "headshot", "favorite", "usage", "people-shown", "tags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -579,6 +587,20 @@ export function GalleryInfoPanel({
 
   return (
     <div className="space-y-1 p-3 text-sm" onClick={(e) => e.stopPropagation()}>
+      {/* Origin — the way back to the set and the people (gathered galleries) */}
+      {showOrigin && (
+        <>
+          <SectionHeader
+            title="Origin"
+            icon={<CornerUpLeft size={14} />}
+            section="origin"
+            expanded={expandedSections.has("origin")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("origin") && <LightboxOriginSection origin={origin} />}
+        </>
+      )}
+
       {/* Cover toggle (set context) */}
       {onSetCover && (
         <>

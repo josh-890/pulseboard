@@ -7,6 +7,7 @@ export type ShortcutId =
   | "prev"
   | "next"
   | "close"
+  | "origin"
   | "outtake"
   | "favorite"
   | "iconic"
@@ -36,6 +37,7 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "prev", label: "Previous photo", keys: ["←"] },
       { id: "next", label: "Next photo", keys: ["→"] },
       { id: "close", label: "Close the viewer", keys: ["Esc"] },
+      { id: "origin", label: "Back to its set (favorites, collections, tags)", keys: ["O"] },
     ],
   },
   {

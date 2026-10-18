@@ -30,12 +30,12 @@ export const dynamic = "force-dynamic";
 
 type SetDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tags?: string }>;
+  searchParams: Promise<{ tags?: string; photo?: string }>;
 };
 
 export default async function SetDetailPage({ params, searchParams }: SetDetailPageProps) {
   return withTenantFromHeaders(async () => {
-    const [{ id }, { tags: tagsParam }] = await Promise.all([params, searchParams]);
+    const [{ id }, { tags: tagsParam, photo: photoParam }] = await Promise.all([params, searchParams]);
 
     const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
       getSetById(id),
@@ -229,6 +229,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
             entityId={id}
             primarySessionId={setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId}
             coverMediaItemId={setData.coverMediaItemId}
+            initialPhotoId={photoParam ?? null}
             setType={setData.type as "photo" | "video"}
             isCompilation={setData.isCompilation}
             sessionLinks={setData.sessionLinks?.map((l) => ({

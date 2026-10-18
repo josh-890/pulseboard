@@ -122,6 +122,7 @@ export function GalleryThumbnail({
       )}
       style={{ width, height }}
       aria-label={item.caption ?? "Gallery image"}
+      data-media-id={item.id}
     >
       <Image
         src={imgSrc}

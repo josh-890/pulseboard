@@ -731,6 +731,8 @@ A **favorite** is a single global per-image flag, separate from collections:
   gallery of all favorites, with a **Person** filter and a **Favorite persons** toggle.
 - **Favorite persons** — the ★ on a person (detail hero) marks a favorite person; the People
   browser has a **Favorite** filter pill.
+- **Back to the set** — see *Back to where a photo comes from* under **Lightbox**: from any
+  favorite, <kbd>O</kbd> opens its set on that very photo.
 
 ### Photo marks: Iconic, Favorite, Outtake
 
@@ -1245,7 +1247,8 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
   where you are       the work on this photo            how you look at it · more · close
 ```
 
-- **Left:** position and file name.
+- **Left:** position and file name — and, in Favorites, collections, smart collections and tag
+  pages, a **↶ set chip** naming the set the photo comes from (see below).
 - **Centre — the work on this photo:** the **mark ladder** Outtake ▸ Favorite ▸ Iconic (lowest
   on the left, so climbing fills it from the left — see *Photo marks*), then **organize**:
   add to a collection (<kbd>B</kbd>), tag (<kbd>T</kbd>) with the **painter segment** beside it,
@@ -1262,6 +1265,20 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
   stays in its place, dimmed, and its tooltip says why — so ★ is in the same spot everywhere.
 - **Zoomed in**, the ‹ › arrows fade away and the bar dims; it comes back when you point at it.
 - **On a phone** the bar keeps the position, the mark ladder, ⋯ and ✕; organize and view move into ⋯.
+
+**Back to where a photo comes from (2026-10-18).** A gallery gathered from everywhere —
+Favorites, a collection, a smart collection, a tag's page — doesn't tell you whose photo you are
+looking at. There the bar's left zone shows a **↶ chip with the set's name**; click it or press
+<kbd>O</kbd> and the set opens with the viewer **on the same photo**. Close the viewer and the
+photo is in view (and focused) in the set's grid, and the address no longer carries `?photo=`.
+- **In several sets?** The chip names the earliest and shows **+N**; the info panel's **Origin**
+  section (first in the panel) lists every set, each opening on the photo.
+- **The people:** the chip's tooltip and the Origin section name who is **in this photo**
+  (`Name (ICG-ID)`, linked to the person) — the session's on-camera cast minus anyone marked as not
+  shown on this image. The section also links the session.
+- **No set?** A reference photo leads to the person it belongs to; a reference **copy** of a
+  production photo leads back to its source's set. Anything else leads to its session.
+- Links of the form `/sets/<id>?photo=<image id>` can be shared or bookmarked the same way.
 
 **Navigation:**
 - Left/right arrow buttons or keyboard arrows

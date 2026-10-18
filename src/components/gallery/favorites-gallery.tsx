@@ -8,7 +8,8 @@ import type { GalleryItem } from "@/lib/types";
 
 // ADR-0019: the global Favorite Images gallery view. Reuses the justified grid +
 // lightbox; the lightbox self-handles the favorite toggle (no onFavoriteToggle
-// needed). On close we refresh so just-unfavorited items leave the grid.
+// needed). On close we refresh so just-unfavorited items leave the grid. Each
+// photo shows where it comes from (showOrigin) — the way back to its set.
 export function FavoritesGallery({ items }: { items: GalleryItem[] }) {
   const router = useRouter();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -30,6 +31,7 @@ export function FavoritesGallery({ items }: { items: GalleryItem[] }) {
             router.refresh();
           }}
           enableCollections
+          showOrigin
         />
       )}
     </>

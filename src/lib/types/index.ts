@@ -91,7 +91,7 @@ export type {
   SkillDefinition,
 } from "@/generated/prisma/client";
 
-export type { GalleryItem, PersonMediaLinkSummary } from "./gallery";
+export type { GalleryItem, PersonMediaLinkSummary, MediaItemOrigin } from "./gallery";
 
 export type { ActivityItem, ActivityType } from "./activity";
 

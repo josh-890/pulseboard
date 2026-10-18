@@ -39,6 +39,8 @@ import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { LightboxToolbar } from "./lightbox-toolbar";
 import { LightboxShortcutsSheet } from "./lightbox-shortcuts-sheet";
 import { GalleryInfoPanel } from "./gallery-info-panel";
+import { useMediaOrigin } from "./use-media-origin";
+import { mediaOriginTarget } from "@/lib/media-origin-href";
 import type { ReferenceContext, ProductionContext, CollectionContext } from "./gallery-info-panel";
 import { useCompareTray } from "@/components/collections/compare-tray-provider";
 
@@ -77,6 +79,10 @@ type GalleryLightboxProps = {
   // When true and no collectionContext is supplied, the lightbox self-fetches the
   // collections list so "Add to collection" works anywhere (e.g. a person gallery).
   enableCollections?: boolean;
+  // Galleries gathered from everywhere (favorites, collections, tags): show where
+  // each photo comes from — a "back to its set" link in the bar (key O) and an
+  // Origin section in the info panel.
+  showOrigin?: boolean;
   // Delete handler — shows inline confirmation, then calls this
   onDelete?: (id: string) => void;
   // Edit handler — opens annotation editor for the current item
@@ -126,6 +132,7 @@ function SimpleLightbox({
   onHiddenPersonsChange,
   onDecodeIssueCleared,
   enableCollections,
+  showOrigin = false,
   onDelete,
   onEdit,
   copyToReferenceTargets,
@@ -208,6 +215,7 @@ function SimpleLightbox({
   );
 
   const item = localItems[currentIndex];
+  const origin = useMediaOrigin(item?.id, showOrigin);
   // One controller for the current image's tags: the info panel lists them,
   // the `T` palette edits them — both see the same optimistic state.
   const tagController = useEntityTags("MEDIA_ITEM", item?.id ?? null);
@@ -655,6 +663,17 @@ function SimpleLightbox({
             }
           }
           break;
+        case "o":
+        case "O":
+          // Back to the set the photo comes from, opened on it (2026-10-18)
+          if (item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            if (!showOrigin) toast.message("Back to its set works in favorites, collections and tags");
+            else if (origin === undefined) toast.message("Still looking up where this photo comes from");
+            else if (origin === null) toast.error("Could not tell where this photo comes from");
+            else router.push(mediaOriginTarget(origin).href);
+          }
+          break;
         case "?":
           e.preventDefault();
           setShortcutsOpen(true);
@@ -671,7 +690,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete, onSetCover, coverMediaItemId]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -723,6 +742,8 @@ function SimpleLightbox({
     onCollectionCreated: enableCollections || collectionContext ? handleCollectionCreated : undefined,
     cast,
     onSetHiddenPersons: handleSetHidden,
+    showOrigin,
+    origin,
   };
 
   return createPortal(
@@ -760,6 +781,7 @@ function SimpleLightbox({
       <LightboxToolbar
         position={`${currentIndex + 1} / ${localItems.length}`}
         filename={item.filename}
+        origin={showOrigin ? { value: origin } : undefined}
         zoomed={imgZoomed}
         marks={{
           iconic: markTags && tagController ? tagController.directTagIds.includes(markTags.iconic.id) : false,
