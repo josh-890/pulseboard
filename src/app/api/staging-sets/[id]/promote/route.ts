@@ -3,9 +3,10 @@ import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { prisma } from '@/lib/db'
 import { importSet, promoteManualStagingSet } from '@/lib/services/import/import-executor'
 import { recomputeMatchForStagingSet } from '@/lib/services/import/match-refresh-service'
+import { getUndevelopedParticipantsForStagingSet } from '@/lib/services/import/staging-cast-readiness'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   return withTenantFromHeaders(async () => {
@@ -22,6 +23,26 @@ export async function POST(
           { error: 'Staging set not found' },
           { status: 404 },
         )
+      }
+
+      // The Career tab's safelock: it may promote only when every participant
+      // is already a Person in the app. The staging workspace sends no body
+      // and keeps promoting a set with a new cast (credited as Contacts).
+      const body = (await request.json().catch(() => null)) as { requireDevelopedCast?: boolean } | null
+      if (body?.requireDevelopedCast) {
+        const undeveloped = await getUndevelopedParticipantsForStagingSet(id)
+        if (undeveloped.length > 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Not everyone in this set is in the app yet: ${undeveloped
+                .map((p) => (p.icgId ? `${p.name} (${p.icgId})` : p.name))
+                .join(', ')}`,
+              undevelopedParticipants: undeveloped,
+            },
+            { status: 409 },
+          )
+        }
       }
 
       // Refresh the cached match against current Set table state before the

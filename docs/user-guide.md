@@ -423,6 +423,13 @@ Only photos from the person's reference session can be embedded — external URL
   the set page — or take **Open in staging** to look closer first. The
   button only sits on approved sets; pending and in-review sets still go
   through Staging Sets.
+  - **Safelock — the whole cast must be in the app.** If anyone in the set
+    is not yet a person in the app (no curated person with that ICG-ID),
+    the button turns **amber** with a ⚠, and the popover lists who is
+    missing as *Name (ICG-ID)*. Promote stays off there: add those people
+    first, then promote from the Career tab — or, to promote anyway (they
+    are then only credited, without a career), use Staging Sets, which has
+    no such lock.
 - Promoted photo rows display up to 4 sample thumbnails on the right
   (cover counts as the first frame for videos and staged sets, so
   those rows skip the strip)

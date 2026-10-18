@@ -72,7 +72,7 @@
 ## Career Components (`components/career/`)
 | Component | Type | Props | Description |
 |---|---|---|---|
-| `CareerPromoteButton` | Client | `stagingSetId`, `title`, `stagingHref`, `variant: "tile" \| "row" \| "compact"`, `className?` | Promote badge for an approved staged set in the Career tab; popover fetches the promote preview (new set vs. enrich X), promotes via the staging promote route, then `router.refresh()` |
+| `CareerPromoteButton` | Client | `stagingSetId`, `title`, `stagingHref`, `variant: "tile" \| "row" \| "compact"`, `undevelopedParticipants`, `className?` | Promote badge for an approved staged set in the Career tab; popover fetches the promote preview (new set vs. enrich X), promotes via the staging promote route with `requireDevelopedCast`, then `router.refresh()`. Amber + warning + Promote disabled while anyone in the cast is not yet a Person |
 
 ## Sets Components (`components/sets/`)
 

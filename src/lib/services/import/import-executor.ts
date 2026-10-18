@@ -22,6 +22,7 @@ import type { ParticipantStatus } from './staging-set-service'
 import { parseBreastDescription, extractCupFromMeasurements, chooseNaturalCup, canonicaliseBreastCup } from './import-utils'
 import { parseClaimedStats } from './parse-claimed-stats'
 import { transferStagingCoverToSet } from './cover-transfer'
+import { getUndevelopedParticipantsForStagingSet, type UndevelopedParticipant } from './staging-cast-readiness'
 import { autoClusterDeltaIntoDraftEra, getBaselineEraId } from '@/lib/services/era-service'
 
 /**
@@ -892,8 +893,13 @@ async function resolvePromoteMatch(
 }
 
 export type StagingSetPromotePreview =
-  | { kind: 'create-new' }
-  | { kind: 'enrich'; matchedSetId: string; matchedTitle: string }
+  | (
+      | { kind: 'create-new' }
+      | { kind: 'enrich'; matchedSetId: string; matchedTitle: string }
+    ) & {
+      /** Participants not yet a Person in the app — any locks the Career-tab promote */
+      undevelopedParticipants: UndevelopedParticipant[]
+    }
   | { kind: 'not-promotable'; reason: string }
 
 /**
@@ -919,7 +925,8 @@ export async function previewStagingSetPromote(stagingSetId: string): Promise<St
       reason: `Only approved sets can be promoted (this one is ${stagingSet.status.toLowerCase()})`,
     }
   }
-  if (!stagingSet.matchedSetId) return { kind: 'create-new' }
+  const undevelopedParticipants = await getUndevelopedParticipantsForStagingSet(stagingSetId)
+  if (!stagingSet.matchedSetId) return { kind: 'create-new', undevelopedParticipants }
 
   const { decision, matched } = await resolvePromoteMatch(
     stagingSet.matchedSetId,
@@ -928,9 +935,9 @@ export async function previewStagingSetPromote(stagingSetId: string): Promise<St
     stagingSet.channelId,
   )
   if (decision.kind === 'enrich' && matched) {
-    return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
+    return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title, undevelopedParticipants }
   }
-  return { kind: 'create-new' }
+  return { kind: 'create-new', undevelopedParticipants }
 }
 
 // ─── Import: Set ────────────────────────────────────────────────────────────

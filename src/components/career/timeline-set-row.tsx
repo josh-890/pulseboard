@@ -162,6 +162,7 @@ export function TimelineSetRow({
         title={row.title}
         stagingHref={href}
         variant={variant === "compact" ? "compact" : "row"}
+        undevelopedParticipants={row.undevelopedParticipants}
         className={cn("absolute top-1/2 -translate-y-1/2", variant === "compact" ? "right-1.5" : "right-3")}
       />
     ) : null;

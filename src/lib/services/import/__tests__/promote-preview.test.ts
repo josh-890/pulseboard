@@ -52,12 +52,17 @@ describe("previewStagingSetPromote", () => {
   it("names the set an exact match would enrich", async () => {
     const { staging, matched } = await seed({ name: "Exact" });
     const preview = await previewStagingSetPromote(staging.id);
-    expect(preview).toEqual({ kind: "enrich", matchedSetId: matched!.id, matchedTitle: matched!.title });
+    expect(preview).toEqual({
+      kind: "enrich",
+      matchedSetId: matched!.id,
+      matchedTitle: matched!.title,
+      undevelopedParticipants: [],
+    });
   });
 
   it("creates new on a fuzzy match and keeps the suggestion", async () => {
     const { staging, matched } = await seed({ name: "Fuzzy", confidence: 0.7 });
-    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new" });
+    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new", undevelopedParticipants: [] });
     const after = await prisma.stagingSet.findUniqueOrThrow({ where: { id: staging.id } });
     expect(after.matchedSetId).toBe(matched!.id);
   });
@@ -75,7 +80,7 @@ describe("previewStagingSetPromote", () => {
     await prisma.channel.update({ where: { id: staging.channelId! }, data: { labelId: labelA.id } });
     await prisma.set.update({ where: { id: matched!.id }, data: { channelId: otherChannel.id } });
 
-    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new" });
+    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new", undevelopedParticipants: [] });
     const after = await prisma.stagingSet.findUniqueOrThrow({ where: { id: staging.id } });
     expect(after.matchedSetId).toBe(matched!.id);
     expect(after.matchConfidence).toBe(1.0);
@@ -83,7 +88,30 @@ describe("previewStagingSetPromote", () => {
 
   it("creates new when there is no match at all", async () => {
     const { staging } = await seed({ name: "None", withMatch: false, confidence: null });
-    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new" });
+    expect(await previewStagingSetPromote(staging.id)).toEqual({ kind: "create-new", undevelopedParticipants: [] });
+  });
+
+  it("names the participants who are not yet a Person", async () => {
+    const { staging } = await seed({ name: "Cast", withMatch: false, confidence: null });
+    const known = await prisma.person.findFirstOrThrow({ select: { icgId: true } });
+    await prisma.stagingSet.update({
+      where: { id: staging.id },
+      data: {
+        participants: [
+          { name: "Known One", icgId: known.icgId },
+          { name: `${PREFIX} Newcomer`, icgId: "ZZ-99@PPV" },
+          { name: `${PREFIX} Name Only`, icgId: "" },
+        ],
+      },
+    });
+    const preview = await previewStagingSetPromote(staging.id);
+    expect(preview).toEqual({
+      kind: "create-new",
+      undevelopedParticipants: [
+        { name: `${PREFIX} Newcomer`, icgId: "ZZ-99@PPV" },
+        { name: `${PREFIX} Name Only`, icgId: "" },
+      ],
+    });
   });
 
   it("refuses a set that is not approved", async () => {

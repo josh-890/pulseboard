@@ -18,6 +18,10 @@ import type {
 } from "@/generated/prisma/client";
 import { getCoverPhotosForSets } from "@/lib/services/media-service";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
+import {
+  getUndevelopedParticipants,
+  type UndevelopedParticipant,
+} from "@/lib/services/import/staging-cast-readiness";
 import { buildUrl } from "@/lib/media-url";
 import type { PhotoVariants } from "@/lib/types/photo";
 
@@ -147,6 +151,9 @@ type CareerTimelineRowBase = {
   // promoted videos and staged sets carry an empty array (the row's
   // 60×80 cover already represents the set).
   sampleThumbnails: CareerRowSampleThumbnail[];
+  // Staged rows: the participants not yet a Person in the app — any at all
+  // locks the Career tab's promote. Always empty for promoted rows.
+  undevelopedParticipants: UndevelopedParticipant[];
 };
 
 const MAX_VISIBLE_PARTICIPANTS = 5;
@@ -414,6 +421,7 @@ async function getPromotedRowsForPerson(
       participants: participantInfo.participants,
       extraParticipantCount: participantInfo.extraParticipantCount,
       sampleThumbnails: sampleThumbsBySetId.get(s.id) ?? [],
+      undevelopedParticipants: [],
     };
   });
 }
@@ -582,6 +590,8 @@ async function getStagedRowsForPerson(
       coverImageUrl: true,
       imageCount: true,
       participantIcgIds: true,
+      participants: true,
+      participantStatuses: true,
       archiveLinks: {
         where: { status: "CONFIRMED" },
         select: { archiveStatus: true },
@@ -589,6 +599,7 @@ async function getStagedRowsForPerson(
       },
     },
   });
+  const undevelopedBySetId = await getUndevelopedParticipants(stagingSets);
 
   // Resolve all co-participant ICG IDs (excluding the viewer) to Person
   // rows with their common alias. One batched query covers the whole
@@ -653,6 +664,7 @@ async function getStagedRowsForPerson(
       participants: visible,
       extraParticipantCount: overflow,
       sampleThumbnails: [],
+      undevelopedParticipants: undevelopedBySetId.get(s.id) ?? [],
     };
   });
 }

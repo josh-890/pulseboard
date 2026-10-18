@@ -209,6 +209,7 @@ export function CareerSetTile({ row, jumpPerson }: CareerSetTileProps) {
             title={row.title}
             stagingHref={href}
             variant="tile"
+            undevelopedParticipants={row.undevelopedParticipants}
             className="pointer-events-auto absolute bottom-1.5 left-1.5"
           />
         </div>
