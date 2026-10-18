@@ -414,6 +414,15 @@ Only photos from the person's reference session can be embedded — external URL
   (green `In archive` / slate `Linked` / red specific issue) + rating
   stars. Multi-cast sets show a 3rd line listing the other participants
   (the viewer themselves is omitted)
+- **Promote an approved set right here** — every approved set carries a
+  green **Promote** button (bottom-left on the gallery cover, at the right
+  end of a list row). Clicking it first checks what a promote would do and
+  says so: *Creates a new set* or *Adds to the existing set X* (only an
+  exact match in the same label is ever added to). Confirm with
+  **Promote** — the set turns solid green in place and from then on opens
+  the set page — or take **Open in staging** to look closer first. The
+  button only sits on approved sets; pending and in-review sets still go
+  through Staging Sets.
 - Promoted photo rows display up to 4 sample thumbnails on the right
   (cover counts as the first frame for videos and staged sets, so
   those rows skip the strip)

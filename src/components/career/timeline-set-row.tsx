@@ -12,6 +12,7 @@ import {
 } from "@/components/shared/status-pill";
 import type { CareerTimelineRow } from "@/lib/services/career-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
+import { CareerPromoteButton } from "./career-promote-button";
 
 // One row in the Career timeline. Date-first / title-second anatomy per
 // the grilling outcome (matches archive folder naming convention reading
@@ -151,6 +152,20 @@ export function TimelineSetRow({
         ? stagedSetJumpHref({ stagingSetId: row.stagingSetId, isVideo, person: jumpPerson })
         : `/staging-sets?select=${row.stagingSetId}`;
 
+  // An approved set can be promoted from here. The button sits beside the
+  // link (never inside it) at the row's right end; the row reserves that
+  // space so nothing of its own slides under the button.
+  const promoteButton =
+    row.kind === "staged" && status === "approved" ? (
+      <CareerPromoteButton
+        stagingSetId={row.stagingSetId}
+        title={row.title}
+        stagingHref={href}
+        variant={variant === "compact" ? "compact" : "row"}
+        className={cn("absolute top-1/2 -translate-y-1/2", variant === "compact" ? "right-1.5" : "right-3")}
+      />
+    ) : null;
+
   // Build the metadata Line 1 segments: date · channel · item-count · age
   const segments: string[] = [];
   segments.push(formatIsoDate(row.releaseDate));
@@ -166,43 +181,47 @@ export function TimelineSetRow({
   // on the wrapping container in the timeline.
   if (variant === "compact") {
     return (
-      <Link
-        href={href}
-        className={cn(
-          "group flex min-h-0 items-center gap-2 rounded border border-l-4 border-white/10 px-2 py-1",
-          "text-xs transition-colors hover:bg-white/[0.03]",
-          STATUS_STRIPE_CLASS[status],
-          withTint && STATUS_TINT_CLASS[status],
-        )}
-      >
-        {isVideo ? (
-          <Film size={11} className="shrink-0 text-muted-foreground" />
-        ) : (
-          <Camera size={11} className="shrink-0 text-muted-foreground" />
-        )}
-        <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
-          {formatIsoDate(row.releaseDate)}
-        </span>
-        {row.channelName && (
-          <>
-            <span className="opacity-40">·</span>
-            <span className="shrink-0 max-w-[10rem] truncate text-muted-foreground">
-              {row.channelName}
-            </span>
-          </>
-        )}
-        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
-          {row.title}
-          {row.viewerUsedName && (
-            <span className="ml-1.5 italic text-muted-foreground/70">
-              as {row.viewerUsedName}
-            </span>
+      <div className="relative">
+        <Link
+          href={href}
+          className={cn(
+            "group flex min-h-0 items-center gap-2 rounded border border-l-4 border-white/10 px-2 py-1",
+            promoteButton && "pr-24",
+            "text-xs transition-colors hover:bg-white/[0.03]",
+            STATUS_STRIPE_CLASS[status],
+            withTint && STATUS_TINT_CLASS[status],
           )}
-        </span>
-        <StatusPill status={status} />
-        <ArchivePill archiveStatus={row.archiveStatus} hasArchiveLink={row.hasArchiveLink} />
-        <StarsCompact rating={row.rating} />
-      </Link>
+        >
+          {isVideo ? (
+            <Film size={11} className="shrink-0 text-muted-foreground" />
+          ) : (
+            <Camera size={11} className="shrink-0 text-muted-foreground" />
+          )}
+          <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+            {formatIsoDate(row.releaseDate)}
+          </span>
+          {row.channelName && (
+            <>
+              <span className="opacity-40">·</span>
+              <span className="shrink-0 max-w-[10rem] truncate text-muted-foreground">
+                {row.channelName}
+              </span>
+            </>
+          )}
+          <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+            {row.title}
+            {row.viewerUsedName && (
+              <span className="ml-1.5 italic text-muted-foreground/70">
+                as {row.viewerUsedName}
+              </span>
+            )}
+          </span>
+          <StatusPill status={status} />
+          <ArchivePill archiveStatus={row.archiveStatus} hasArchiveLink={row.hasArchiveLink} />
+          <StarsCompact rating={row.rating} />
+        </Link>
+        {promoteButton}
+      </div>
     );
   }
 
@@ -222,139 +241,143 @@ export function TimelineSetRow({
   const hasSampleStrip = row.sampleThumbnails.length > 0;
 
   return (
-    <Link
-      href={href}
-      className={cn(
-        "group flex items-center gap-3 rounded-md border border-l-4 border-white/10 px-3 py-2",
-        "transition-all duration-150",
-        "hover:-translate-y-px hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.25)] hover:bg-white/[0.03]",
-        STATUS_STRIPE_CLASS[status],
-        withTint && STATUS_TINT_CLASS[status],
-      )}
-      // Row height:
-      //   - Photo: 90px always (the 60×80 portrait cover requires it).
-      //   - Video, solo set:    60px (compact, 2-line content fits).
-      //   - Video, multi-cast:  90px (3rd line for participants).
-      style={{ minHeight: !isVideo ? 90 : hasParticipantLine ? 90 : 60 }}
-    >
-      {/* Cover — its OWN hover surface for the enlarged-cover popover.
-          The popover is purely visual (no link pill, no extra info);
-          clicking anywhere on the row navigates instead. */}
-      <div
-        className="relative shrink-0 overflow-hidden rounded bg-muted/40"
-        style={{ width: coverW, height: coverH }}
-        onMouseEnter={(e) => onCoverEnter?.(e.currentTarget.getBoundingClientRect())}
-        onMouseLeave={() => onCoverLeave?.()}
-      >
-        {row.coverUrl ? (
-          <Image
-            src={row.coverUrl}
-            alt=""
-            style={focalStyle(row.coverFocalX, row.coverFocalY)}
-            fill
-            className="object-cover"
-            unoptimized
-            sizes={`${coverW}px`}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
-            {isVideo ? <Film size={20} /> : <Camera size={20} />}
-          </div>
+    <div className="relative">
+      <Link
+        href={href}
+        className={cn(
+          "group flex items-center gap-3 rounded-md border border-l-4 border-white/10 px-3 py-2",
+          promoteButton && "pr-28",
+          "transition-all duration-150",
+          "hover:-translate-y-px hover:shadow-[0_4px_14px_-6px_rgba(0,0,0,0.25)] hover:bg-white/[0.03]",
+          STATUS_STRIPE_CLASS[status],
+          withTint && STATUS_TINT_CLASS[status],
         )}
-      </div>
-
-      {/* Meta column */}
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        {/* Line 1: scan column — muted weight, date-first */}
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          {isVideo ? (
-            <Film size={11} className="shrink-0" />
+        // Row height:
+        //   - Photo: 90px always (the 60×80 portrait cover requires it).
+        //   - Video, solo set:    60px (compact, 2-line content fits).
+        //   - Video, multi-cast:  90px (3rd line for participants).
+        style={{ minHeight: !isVideo ? 90 : hasParticipantLine ? 90 : 60 }}
+      >
+        {/* Cover — its OWN hover surface for the enlarged-cover popover.
+            The popover is purely visual (no link pill, no extra info);
+            clicking anywhere on the row navigates instead. */}
+        <div
+          className="relative shrink-0 overflow-hidden rounded bg-muted/40"
+          style={{ width: coverW, height: coverH }}
+          onMouseEnter={(e) => onCoverEnter?.(e.currentTarget.getBoundingClientRect())}
+          onMouseLeave={() => onCoverLeave?.()}
+        >
+          {row.coverUrl ? (
+            <Image
+              src={row.coverUrl}
+              alt=""
+              style={focalStyle(row.coverFocalX, row.coverFocalY)}
+              fill
+              className="object-cover"
+              unoptimized
+              sizes={`${coverW}px`}
+            />
           ) : (
-            <Camera size={11} className="shrink-0" />
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
+              {isVideo ? <Film size={20} /> : <Camera size={20} />}
+            </div>
           )}
-          <span className="truncate">
-            {segments.map((s, i) => (
-              <span key={i}>
-                {i > 0 && <span className="mx-1.5 opacity-50">·</span>}
-                {s}
-              </span>
-            ))}
-          </span>
         </div>
-        {/* Line 2: title (bold) + status pill + rating, clustered on the
-            left next to the cover. No flex-1 on the title — we don't want
-            to push the pill/stars to the far right of the row (the
-            "1012px void" that Phase 1 of the row-layout refinement fixed). */}
-        <div className="flex items-center gap-2">
-          <span className="min-w-0 truncate text-sm font-semibold text-foreground">
-            {row.title}
-          </span>
-          {row.viewerUsedName && (
-            <span
-              className="shrink-0 text-xs italic text-muted-foreground/70"
-              title="The name this person was credited under in this set"
-            >
-              as {row.viewerUsedName}
-            </span>
-          )}
-          <StatusPill status={status} />
-          <ArchivePill
-            archiveStatus={row.archiveStatus}
-            hasArchiveLink={row.hasArchiveLink}
-          />
-          <StarsCompact rating={row.rating} />
-        </div>
-        {/* Line 3: co-participants (hidden for solo sets). The viewer is
-            never listed here — the surrounding page already names them. */}
-        {hasParticipantLine && (
+
+        {/* Meta column */}
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {/* Line 1: scan column — muted weight, date-first */}
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Users size={11} className="shrink-0 opacity-60" />
-            <span className="min-w-0 truncate">
-              {row.participants.map((p, i) => (
-                <span key={p.personId}>
-                  {i > 0 && <span className="mx-1 opacity-50">·</span>}
-                  {p.commonAlias}
+            {isVideo ? (
+              <Film size={11} className="shrink-0" />
+            ) : (
+              <Camera size={11} className="shrink-0" />
+            )}
+            <span className="truncate">
+              {segments.map((s, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="mx-1.5 opacity-50">·</span>}
+                  {s}
                 </span>
               ))}
-              {row.extraParticipantCount > 0 && (
-                <span className="ml-1.5 opacity-60">+{row.extraParticipantCount}</span>
-              )}
             </span>
           </div>
-        )}
-      </div>
-
-      {/* Sample thumbnail strip — promoted photo sets only. Inspired by
-          the Production Photos pattern in the Photos tab: each tile is
-          h-16, width by aspect ratio. Hidden below `lg` so narrow
-          viewports keep the cluster legible. */}
-      {hasSampleStrip && (
-        <div className="ml-auto hidden shrink-0 gap-1 lg:flex">
-          {row.sampleThumbnails.map((thumb) => {
-            const w =
-              thumb.height > 0
-                ? Math.round((thumb.width / thumb.height) * 64)
-                : 64;
-            return (
-              <div
-                key={thumb.mediaItemId}
-                className="h-16 overflow-hidden rounded border border-white/10 bg-muted/40"
-                style={{ width: w || 64 }}
+          {/* Line 2: title (bold) + status pill + rating, clustered on the
+              left next to the cover. No flex-1 on the title — we don't want
+              to push the pill/stars to the far right of the row (the
+              "1012px void" that Phase 1 of the row-layout refinement fixed). */}
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              {row.title}
+            </span>
+            {row.viewerUsedName && (
+              <span
+                className="shrink-0 text-xs italic text-muted-foreground/70"
+                title="The name this person was credited under in this set"
               >
-                <Image
-                  src={thumb.url}
-                  alt=""
-                  width={w || 64}
-                  height={64}
-                  className="h-full w-full object-cover"
-                  unoptimized
-                  loading="lazy"
-                />
-              </div>
-            );
-          })}
+                as {row.viewerUsedName}
+              </span>
+            )}
+            <StatusPill status={status} />
+            <ArchivePill
+              archiveStatus={row.archiveStatus}
+              hasArchiveLink={row.hasArchiveLink}
+            />
+            <StarsCompact rating={row.rating} />
+          </div>
+          {/* Line 3: co-participants (hidden for solo sets). The viewer is
+              never listed here — the surrounding page already names them. */}
+          {hasParticipantLine && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Users size={11} className="shrink-0 opacity-60" />
+              <span className="min-w-0 truncate">
+                {row.participants.map((p, i) => (
+                  <span key={p.personId}>
+                    {i > 0 && <span className="mx-1 opacity-50">·</span>}
+                    {p.commonAlias}
+                  </span>
+                ))}
+                {row.extraParticipantCount > 0 && (
+                  <span className="ml-1.5 opacity-60">+{row.extraParticipantCount}</span>
+                )}
+              </span>
+            </div>
+          )}
         </div>
-      )}
-    </Link>
+
+        {/* Sample thumbnail strip — promoted photo sets only. Inspired by
+            the Production Photos pattern in the Photos tab: each tile is
+            h-16, width by aspect ratio. Hidden below `lg` so narrow
+            viewports keep the cluster legible. */}
+        {hasSampleStrip && (
+          <div className="ml-auto hidden shrink-0 gap-1 lg:flex">
+            {row.sampleThumbnails.map((thumb) => {
+              const w =
+                thumb.height > 0
+                  ? Math.round((thumb.width / thumb.height) * 64)
+                  : 64;
+              return (
+                <div
+                  key={thumb.mediaItemId}
+                  className="h-16 overflow-hidden rounded border border-white/10 bg-muted/40"
+                  style={{ width: w || 64 }}
+                >
+                  <Image
+                    src={thumb.url}
+                    alt=""
+                    width={w || 64}
+                    height={64}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                    loading="lazy"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Link>
+      {promoteButton}
+    </div>
   );
 }

@@ -69,6 +69,11 @@
 
 ---
 
+## Career Components (`components/career/`)
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `CareerPromoteButton` | Client | `stagingSetId`, `title`, `stagingHref`, `variant: "tile" \| "row" \| "compact"`, `className?` | Promote badge for an approved staged set in the Career tab; popover fetches the promote preview (new set vs. enrich X), promotes via the staging promote route, then `router.refresh()` |
+
 ## Sets Components (`components/sets/`)
 
 | Component | Type | Props | Description |

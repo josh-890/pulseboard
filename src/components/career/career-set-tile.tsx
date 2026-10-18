@@ -6,6 +6,7 @@ import { Camera, Film, FolderCheck, FolderX, Star } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
 import { stagedSetJumpHref, type StagingJumpPerson } from "@/lib/staging-jump";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
+import { CareerPromoteButton } from "./career-promote-button";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
 // One poster in the Career gallery — the visual counterpart of
@@ -21,6 +22,10 @@ import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-s
 // hairline dotted amber. Line style changes with every step, so the steps
 // read without colour too (WCAG 1.4.1). A set only in the pipeline (pending /
 // in review, no archive folder — "All" scope) has no frame and a dimmed cover.
+//
+// An approved set carries a Promote badge bottom-left on its cover. It sits in
+// an overlay the exact shape of the cover, beside the link rather than inside
+// it, so the tile stays one link and the badge one button.
 
 const STATUS_DOT_CLASS: Record<CareerRowStatus, string> = {
   promoted: "bg-emerald-500",
@@ -98,98 +103,116 @@ export function CareerSetTile({ row, jumpPerson }: CareerSetTileProps) {
     .join(" · ");
 
   return (
-    <Link
-      href={href}
-      title={tooltip}
-      className={cn(
-        "group flex min-w-0 flex-col gap-1.5 rounded-lg p-1 outline-none transition-colors duration-150",
-        "hover:bg-white/[0.04] focus-visible:ring-2 focus-visible:ring-primary/60",
-      )}
-    >
-      <div
+    <div className="relative min-w-0">
+      <Link
+        href={href}
+        title={tooltip}
         className={cn(
-          "relative w-full overflow-hidden rounded-md bg-muted/40",
-          CAREER_TIER_FRAME_CLASS[tier] ? cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[tier]) : "border border-white/10",
-          // Fixed to what the covers are — photo 2:3, video 16:9 — not the
-          // per-browser Sets cover setting, so every gallery looks the same
-          isVideo ? "aspect-video" : "aspect-[2/3]",
+          "group flex min-w-0 flex-col gap-1.5 rounded-lg p-1 outline-none transition-colors duration-150",
+          "hover:bg-white/[0.04] focus-visible:ring-2 focus-visible:ring-primary/60",
         )}
       >
-        {row.coverUrl ? (
-          <Image
-            src={row.coverUrl}
-            alt=""
-            style={focalStyle(row.coverFocalX, row.coverFocalY)}
-            fill
-            unoptimized
-            loading="lazy"
-            decoding="async"
-            className={cn(
-              "object-cover transition duration-200 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100",
-              tier === "pipeline" && "opacity-60 group-hover:opacity-100 group-focus-visible:opacity-100",
-            )}
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
-            {isVideo ? <Film size={24} /> : <Camera size={24} />}
-          </div>
-        )}
+        <div
+          className={cn(
+            "relative w-full overflow-hidden rounded-md bg-muted/40",
+            CAREER_TIER_FRAME_CLASS[tier] ? cn("outline-offset-1", CAREER_TIER_FRAME_CLASS[tier]) : "border border-white/10",
+            // Fixed to what the covers are — photo 2:3, video 16:9 — not the
+            // per-browser Sets cover setting, so every gallery looks the same
+            isVideo ? "aspect-video" : "aspect-[2/3]",
+          )}
+        >
+          {row.coverUrl ? (
+            <Image
+              src={row.coverUrl}
+              alt=""
+              style={focalStyle(row.coverFocalX, row.coverFocalY)}
+              fill
+              unoptimized
+              loading="lazy"
+              decoding="async"
+              className={cn(
+                "object-cover transition duration-200 group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100",
+                tier === "pipeline" && "opacity-60 group-hover:opacity-100 group-focus-visible:opacity-100",
+              )}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground/40">
+              {isVideo ? <Film size={24} /> : <Camera size={24} />}
+            </div>
+          )}
 
-        {/* What is inside — promoted photo sets only */}
-        {samples.length > 0 && (
-          <div className="absolute inset-x-0 bottom-0 grid grid-cols-4 gap-0.5 bg-black/60 p-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
-            {samples.map((t) => (
-              <div key={t.mediaItemId} className="relative aspect-square overflow-hidden rounded-sm">
-                <Image src={t.url} alt="" fill unoptimized loading="lazy" className="object-cover" />
-              </div>
-            ))}
-          </div>
-        )}
+          {/* What is inside — promoted photo sets only */}
+          {samples.length > 0 && (
+            <div className="absolute inset-x-0 bottom-0 grid grid-cols-4 gap-0.5 bg-black/60 p-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none">
+              {samples.map((t) => (
+                <div key={t.mediaItemId} className="relative aspect-square overflow-hidden rounded-sm">
+                  <Image src={t.url} alt="" fill unoptimized loading="lazy" className="object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
 
-        {/* Badges */}
-        <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
-          <span
-            className="inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm"
-            title={STATUS_DISPLAY_LABEL[row.rowStatus]}
-          >
-            <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT_CLASS[row.rowStatus])} aria-hidden />
-            <span className="sr-only">{STATUS_DISPLAY_LABEL[row.rowStatus]}</span>
-            {isVideo && <Film size={10} aria-label="Video" />}
-          </span>
+          {/* Badges */}
+          <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
+            <span
+              className="inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm"
+              title={STATUS_DISPLAY_LABEL[row.rowStatus]}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", STATUS_DOT_CLASS[row.rowStatus])} aria-hidden />
+              <span className="sr-only">{STATUS_DISPLAY_LABEL[row.rowStatus]}</span>
+              {isVideo && <Film size={10} aria-label="Video" />}
+            </span>
+          </div>
+          {archive && (
+            <span
+              className={cn(
+                "absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1 backdrop-blur-sm",
+                archive.ok ? "text-green-400" : "text-red-400",
+              )}
+              title={archive.label}
+              aria-label={archive.label}
+            >
+              {archive.ok ? <FolderCheck size={11} /> : <FolderX size={11} />}
+            </span>
+          )}
+          {rating !== null && rating > 0 && (
+            <span
+              className={cn(
+                "absolute bottom-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 backdrop-blur-sm",
+                samples.length > 0 && "transition-opacity group-hover:opacity-0",
+              )}
+              aria-label={`rated ${rating} of 5`}
+            >
+              <Star size={10} className="fill-amber-300" />
+              {rating}
+            </span>
+          )}
         </div>
-        {archive && (
-          <span
-            className={cn(
-              "absolute right-1.5 top-1.5 rounded-full bg-black/60 p-1 backdrop-blur-sm",
-              archive.ok ? "text-green-400" : "text-red-400",
-            )}
-            title={archive.label}
-            aria-label={archive.label}
-          >
-            {archive.ok ? <FolderCheck size={11} /> : <FolderX size={11} />}
-          </span>
-        )}
-        {rating !== null && rating > 0 && (
-          <span
-            className={cn(
-              "absolute bottom-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 backdrop-blur-sm",
-              samples.length > 0 && "transition-opacity group-hover:opacity-0",
-            )}
-            aria-label={`rated ${rating} of 5`}
-          >
-            <Star size={10} className="fill-amber-300" />
-            {rating}
-          </span>
-        )}
-      </div>
 
-      <div className="min-w-0 px-0.5">
-        <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
-        <p className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">
-          {formatIsoDate(row.releaseDate)}
-          {row.viewerUsedName && <span className="ml-1 font-sans italic">as {row.viewerUsedName}</span>}
-        </p>
-      </div>
-    </Link>
+        <div className="min-w-0 px-0.5">
+          <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
+          <p className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">
+            {formatIsoDate(row.releaseDate)}
+            {row.viewerUsedName && <span className="ml-1 font-sans italic">as {row.viewerUsedName}</span>}
+          </p>
+        </div>
+      </Link>
+      {tier === "approved" && row.kind === "staged" && (
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-1 top-1",
+            isVideo ? "aspect-video" : "aspect-[2/3]",
+          )}
+        >
+          <CareerPromoteButton
+            stagingSetId={row.stagingSetId}
+            title={row.title}
+            stagingHref={href}
+            variant="tile"
+            className="pointer-events-auto absolute bottom-1.5 left-1.5"
+          />
+        </div>
+      )}
+    </div>
   );
 }

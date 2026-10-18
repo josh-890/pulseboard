@@ -827,6 +827,37 @@ async function validateCachedMatchForPromote(
   stagingExternalId: string | null,
   stagingChannelId: string | null,
 ): Promise<MatchValidationOutcome> {
+  const { decision, matched } = await resolvePromoteMatch(
+    cachedMatchId,
+    cachedConfidence,
+    stagingExternalId,
+    stagingChannelId,
+  )
+
+  if (decision.kind === 'enrich' && matched) {
+    return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
+  }
+
+  if (decision.kind === 'create-new' && decision.clearCache) {
+    await prisma.stagingSet.update({
+      where: { id: stagingSetId },
+      data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
+    })
+  }
+  return { kind: 'create-new' }
+}
+
+/**
+ * The read half of validateCachedMatchForPromote: fetches the guard inputs and
+ * runs decidePromoteMatch, writing nothing. Shared with the promote preview so
+ * the preview can never disagree with the real promote.
+ */
+async function resolvePromoteMatch(
+  cachedMatchId: string,
+  cachedConfidence: number | null,
+  stagingExternalId: string | null,
+  stagingChannelId: string | null,
+): Promise<{ decision: PromoteMatchDecision; matched: { id: string; title: string } | null }> {
   const matched = await prisma.set.findUnique({
     where: { id: cachedMatchId },
     select: {
@@ -857,15 +888,47 @@ async function validateCachedMatchForPromote(
     cachedConfidence,
   })
 
+  return { decision, matched: matched ? { id: matched.id, title: matched.title } : null }
+}
+
+export type StagingSetPromotePreview =
+  | { kind: 'create-new' }
+  | { kind: 'enrich'; matchedSetId: string; matchedTitle: string }
+  | { kind: 'not-promotable'; reason: string }
+
+/**
+ * What promoting this staging set would do right now — create a new Set or
+ * enrich an existing one — without promoting or clearing any cache. The caller
+ * runs recomputeMatchForStagingSet first, exactly as the promote route does.
+ */
+export async function previewStagingSetPromote(stagingSetId: string): Promise<StagingSetPromotePreview> {
+  const stagingSet = await prisma.stagingSet.findUnique({
+    where: { id: stagingSetId },
+    select: {
+      status: true,
+      matchedSetId: true,
+      matchConfidence: true,
+      externalId: true,
+      channelId: true,
+    },
+  })
+  if (!stagingSet) return { kind: 'not-promotable', reason: 'Staging set not found' }
+  if (stagingSet.status !== 'APPROVED') {
+    return {
+      kind: 'not-promotable',
+      reason: `Only approved sets can be promoted (this one is ${stagingSet.status.toLowerCase()})`,
+    }
+  }
+  if (!stagingSet.matchedSetId) return { kind: 'create-new' }
+
+  const { decision, matched } = await resolvePromoteMatch(
+    stagingSet.matchedSetId,
+    stagingSet.matchConfidence,
+    stagingSet.externalId,
+    stagingSet.channelId,
+  )
   if (decision.kind === 'enrich' && matched) {
     return { kind: 'enrich', matchedSetId: matched.id, matchedTitle: matched.title }
-  }
-
-  if (decision.kind === 'create-new' && decision.clearCache) {
-    await prisma.stagingSet.update({
-      where: { id: stagingSetId },
-      data: { matchedSetId: null, matchConfidence: null, matchDetails: null },
-    })
   }
   return { kind: 'create-new' }
 }
