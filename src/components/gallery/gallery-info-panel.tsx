@@ -594,6 +594,7 @@ export function GalleryInfoPanel({
               <button
                 type="button"
                 onClick={() => onSetCover(isCover ? null : item.id)}
+                title={isCover ? "The cover — click to remove it" : "Set as cover (#)"}
                 className={cn(
                   "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",

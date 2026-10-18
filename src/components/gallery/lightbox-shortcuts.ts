@@ -19,6 +19,7 @@ export type ShortcutId =
   | "slots"
   | "category"
   | "compare"
+  | "cover"
   | "focal"
   | "filmstrip"
   | "info"
@@ -58,6 +59,7 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "slots", label: "Toggle a quick-tag slot", keys: ["1", "…", "9"] },
       { id: "category", label: "Assign to a detail category", keys: ["D"] },
       { id: "compare", label: "Compare tray — add / remove", keys: ["X"] },
+      { id: "cover", label: "Set as cover", keys: ["#"] },
     ],
   },
   {

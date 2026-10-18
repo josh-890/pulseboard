@@ -672,7 +672,10 @@ Inline editable text fields. Click to edit, changes auto-save.
 - **Cover selection** — hover over a thumbnail to see the cover icon; click to set as the set's cover image
 - **Upload zone** — drag-and-drop or click to upload new media (anchored to the primary session)
 - **Browse & Add** — opens a sheet to search and add existing media from other sessions. Selected media creates SetMediaItem links without changing media ownership. Source sessions auto-link via SetSession.
-- **Lightbox** — click any thumbnail to open the full-screen viewer with cover selection and Find Similar
+- **Lightbox** — click any thumbnail to open the full-screen viewer with cover selection and Find Similar.
+  Press <kbd>#</kbd> in the viewer to make the current photo the cover (the # is the shape of the
+  cover badge). It only sets: on the cover already, it just says so — to remove a cover, use the
+  info panel's *Cover* button. Works in set and session galleries and for body-feature photos.
 
 #### Archive
 
@@ -736,11 +739,12 @@ person's **Showcase**:
 
 | Mark | Icon | Key in the viewer | What it is |
 |---|---|---|---|
-| **Iconic** | amber crown | <kbd>,</kbd> | the person's signature photos — they lead the showcase |
+| **Iconic** | amber crown | <kbd>-</kbd> | the person's signature photos — they lead the showcase |
 | **Favorite** | red heart | <kbd>.</kbd> | the global favorite (see above) |
-| **Outtake** | violet bookmark | <kbd>-</kbd> | photos you like and want to keep in view |
+| **Outtake** | violet bookmark | <kbd>,</kbd> | photos you like and want to keep in view |
 
-The three keys sit side by side on a German keyboard. Iconic and Outtake are the tags `iconic` and
+The three keys sit side by side on a German keyboard and rise to the right like the ladder on screen:
+<kbd>,</kbd> Outtake ▸ <kbd>.</kbd> Favorite ▸ <kbd>-</kbd> Iconic. Iconic and Outtake are the tags `iconic` and
 `outtake` in the **Judgment** group — so the tag filter (`iconic`, `-outtake`), smart collections and
 bulk tagging work with them as with any tag; they just get their own icons instead of a tag dot.
 (The `outtake` tag is created the first time the marks are used, if it doesn't exist yet.)
@@ -1246,6 +1250,7 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
   on the left, so climbing fills it from the left — see *Photo marks*), then **organize**:
   add to a collection (<kbd>B</kbd>), tag (<kbd>T</kbd>) with the **painter segment** beside it,
   assign to a detail category (<kbd>D</kbd>) and the compare tray (<kbd>X</kbd>).
+  <kbd>#</kbd> sets the current photo as the cover (no button — the key and the info panel).
   The painter segment shows **P** and the armed tag (dimmed when nothing is armed); click it for the
   painter and the quick-tag slots 1–9.
 - **Right:** the view toggles — focal point (<kbd>F</kbd>), filmstrip (<kbd>S</kbd>), info panel

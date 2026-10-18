@@ -13,7 +13,7 @@ import { useEntityTags } from "@/hooks/use-entity-tags";
 import { useArmedTag } from "@/hooks/use-armed-tag";
 import { useTagSlots } from "@/hooks/use-tag-slots";
 import { useMarkTags } from "@/hooks/use-mark-tags";
-import { markCascade, type MarkKey } from "./media-marks";
+import { MARK_BY_KEY, markCascade, type MarkKey } from "./media-marks";
 import type { PaletteTag } from "@/lib/services/tag-service";
 import { tagFitsEntity } from "@/lib/tag-domains";
 import { DetailAssignSheet, type AssignPerson } from "@/components/people/detail-assign-sheet";
@@ -610,10 +610,11 @@ function SimpleLightbox({
           break;
         case ",":
         case "-":
-          // The iconic / outtake marks, either side of ★ on the keyboard
+          // The outtake / iconic marks, either side of ★ on the keyboard —
+          // lowest on the left, like the ladder on screen (2026-10-18)
           if (item && !e.metaKey && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
-            toggleTagMark(e.key === "," ? "iconic" : "outtake");
+            toggleTagMark(e.key === MARK_BY_KEY.iconic.hotkey ? "iconic" : "outtake");
           }
           break;
         case "b":
@@ -640,6 +641,20 @@ function SimpleLightbox({
             toggleTray();
           }
           break;
+        case "#":
+          // Set the current photo as the cover — the # is the cover badge's
+          // shape. Sets only: on the cover already it says so rather than
+          // taking the cover away (2026-10-18).
+          if (item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            if (!onSetCover) toast.message("This view has no cover to set");
+            else if (coverMediaItemId === item.id) toast.message("Already the cover");
+            else {
+              onSetCover(item.id);
+              toast.success("Cover set");
+            }
+          }
+          break;
         case "?":
           e.preventDefault();
           setShortcutsOpen(true);
@@ -656,7 +671,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete, onSetCover, coverMediaItemId]);
 
   useEffect(() => {
     const original = document.body.style.overflow;

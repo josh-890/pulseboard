@@ -44,6 +44,7 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.afterAll(async () => {
+  await db.query(`UPDATE "Set" SET "coverMediaItemId" = NULL WHERE id = $1`, [setId]);
   await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" = ANY($1::text[])`, [media]);
   await db.query(`DELETE FROM "SetMediaItem" WHERE "setId" = $1`, [setId]);
   await db.query(`DELETE FROM "MediaItem" WHERE id = ANY($1::text[])`, [media]);
@@ -94,8 +95,8 @@ test.describe.serial("Photo marks", () => {
       [await iconic.getAttribute("aria-pressed"), await favorite.getAttribute("aria-pressed"), await outtake.getAttribute("aria-pressed")].join();
     await expect.poll(pressed).toBe("false,false,false");
 
-    // Iconic sets everything below it
-    await page.keyboard.press(",");
+    // Iconic (-) sets everything below it
+    await page.keyboard.press("-");
     await expect.poll(pressed).toBe("true,true,true");
     // Un-★ clears iconic too, outtake stays
     await page.keyboard.press(".");
@@ -105,6 +106,11 @@ test.describe.serial("Photo marks", () => {
     await expect.poll(pressed).toBe("false,true,true");
     // Un-outtake clears everything above it — by click this time
     await outtake.click();
+    await expect.poll(pressed).toBe("false,false,false");
+    // Outtake (,) is the lowest key, on the left — on and off again
+    await page.keyboard.press(",");
+    await expect.poll(pressed).toBe("false,false,true");
+    await page.keyboard.press(",");
     await expect.poll(pressed).toBe("false,false,false");
 
     const shown = page.getByText(/^\d+ \/ 2$/);
@@ -139,4 +145,34 @@ test.describe.serial("Photo marks", () => {
     await expect.poll(async () => [await marksOf(media[0]), await marksOf(media[1])]).toEqual([all(false), all(false)]);
     await expect(favBadges).toHaveCount(0);
   });
+});
+
+// # sets the current photo as the cover (2026-10-18) — set-only: pressed on the
+// cover again it says so and keeps it.
+test("# in the viewer sets the cover, and only sets it", async ({ page }) => {
+  await db.query(`UPDATE "Set" SET "coverMediaItemId" = NULL WHERE id = $1`, [setId]);
+  const coverOf = async () =>
+    (await db.query<{ c: string | null }>(`SELECT "coverMediaItemId" AS c FROM "Set" WHERE id = $1`, [setId])).rows[0]?.c ?? null;
+
+  await page.goto(`/sets/${setId}`);
+  await page.getByRole("button", { name: "Gallery image" }).first().click();
+  await expect(page.getByText(/^1 \/ 2$/)).toBeVisible();
+
+  // The photo on screen becomes the cover
+  await page.keyboard.press("#");
+  await expect(page.getByText("Cover set")).toBeVisible();
+  await expect.poll(coverOf).not.toBeNull();
+  const first = await coverOf();
+  expect(media).toContain(first);
+
+  // The next photo takes it over
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByText(/^2 \/ 2$/)).toBeVisible();
+  await page.keyboard.press("#");
+  await expect.poll(coverOf).toBe(media.find((m) => m !== first));
+
+  // Pressed on the cover again: it says so and keeps it
+  await page.keyboard.press("#");
+  await expect(page.getByText("Already the cover")).toBeVisible();
+  await expect.poll(coverOf).toBe(media.find((m) => m !== first));
 });
