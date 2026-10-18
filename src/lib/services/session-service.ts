@@ -281,8 +281,9 @@ export async function getSessionById(id: string) {
   });
 }
 
+/** Production sessions — the reference session each person has is not a shoot */
 export async function countSessions(): Promise<number> {
-  return prisma.session.count();
+  return prisma.session.count({ where: { type: "PRODUCTION" } });
 }
 
 export type SessionFacetCounts = {

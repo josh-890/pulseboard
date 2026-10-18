@@ -29,7 +29,8 @@ export async function getDashboardKpis(): Promise<DashboardKpis> {
   const [persons, sets, sessions, images, staged, orphanFolders, labels, channels, projects] = await Promise.all([
     prisma.person.count(),
     prisma.set.count(),
-    prisma.session.count(),
+    // Shoots only, like /sessions — not the one reference session every person has
+    prisma.session.count({ where: { type: "PRODUCTION" } }),
     prisma.mediaItem.count({ where: { isAnnotation: false } }),
     prisma.stagingSet.count({ where: { status: { in: ["PENDING", "REVIEWING", "APPROVED"] } } }),
     prisma.archiveFolder.count({

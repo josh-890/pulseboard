@@ -82,6 +82,18 @@ describe("needs you + numbers", () => {
     expect((await getDashboardKpis()).sets).toBe(before + 1);
     await prisma.set.delete({ where: { id: s.id } });
   });
+
+  // 2026-10-19: the reference session every person has made Sessions outnumber Sets
+  it("counts shoots as sessions, not the reference sessions", async () => {
+    const before = (await getDashboardKpis()).sessions;
+    const prod = await prisma.session.create({ data: { name: `${RUN} shoot` } });
+    const ref = await prisma.session.create({ data: { name: `${RUN} reference`, type: "REFERENCE" } });
+    try {
+      expect((await getDashboardKpis()).sessions).toBe(before + 1);
+    } finally {
+      await prisma.session.deleteMany({ where: { id: { in: [prod.id, ref.id] } } });
+    }
+  });
 });
 
 // 2026-10-14: the hourly upload agent filled the feed with "nothing waiting"
