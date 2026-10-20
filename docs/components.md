@@ -233,6 +233,17 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 
 ---
 
+### Disclosure matrix (`components/settings/disclosure/`, ADR-0035)
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `DisclosureMatrixEditor` | Client | `matrix` (`DisclosureMatrix`) | Settings → Catalogs → Disclosure: situation columns left→right + "add situation", then the settings list |
+| `DisclosureSituationColumn` | Client | `situation`, `isFirst`, `isLast` | One column: inline rename, ‹ › move, score weight, its ladder (first step top), add step, delete (blocked while in use) |
+| `DisclosureLevelRow` | Client | `level`, `isFirst`, `isLast` | One step: rank number, inline name + description, ↑ ↓ lower/higher, delete (blocked while in use) |
+| `DisclosureSettingsList` | Client | `settings` | Private → public settings: inline rename, ↑ ↓, delete, add |
+| `DisclosureAddInput` | Client | `placeholder`, `label`, `onAdd` | One-line add field; Enter adds and keeps the field ready |
+
+`useCatalogCall()` runs a matrix action, refreshes, toasts a failure and throws so `InlineEditable` stays open.
+
 ## Shared Components (`components/shared/`)
 
 | Component | Type | Props | Description |

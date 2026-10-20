@@ -214,7 +214,13 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - **MediaCategoryGroup** / **MediaCategory** — admin-configurable in Settings.
 - **color_catalog** — hair/eye/skin lookup tables for normalized search;
   `lookup_hair_hue()`, `lookup_eye_shade()`, etc. SQL helpers.
-- **SkillGroup** / **SkillDefinition** — typed skill catalog.
+- **SkillGroup** / **SkillDefinition** — typed skill catalog (being retired — ADR-0035).
+- **DisclosureSituation** / **DisclosureLevel** / **DisclosureSetting** (ADR-0035) — the disclosure matrix:
+  ordered situations (columns, with a score `weight`), each with its own ladder of levels (`rank` within the
+  situation), and the settings an entry may carry (private → public, `rank`).
+- **DisclosureEntry** — "this person, in this session, showed this level (in this setting)": FK to
+  `SessionContribution` (cascade), level, optional setting; unique per (contribution, level, setting) with
+  NULLS NOT DISTINCT. **DisclosureEntryMedia** — optional evidence images. Crossings and the score are computed.
 
 ---
 

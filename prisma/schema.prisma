@@ -1217,6 +1217,7 @@ model MediaItem {
   collectionItems  MediaCollectionItem[]
   comparisonItems  ComparisonItem[]
   skillEventMedia  SkillEventMedia[]
+  disclosureEntryMedia DisclosureEntryMedia[]
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
 
@@ -1292,7 +1293,8 @@ model SessionContribution {
   eraId              String?
   era                Era?                       @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
-  skills ContributionSkill[]
+  skills            ContributionSkill[]
+  disclosureEntries DisclosureEntry[]
 
   @@unique([sessionId, personId, roleDefinitionId])
   @@index([resolvedAliasId])
@@ -1847,6 +1849,71 @@ model ContributionSkill {
   @@unique([contributionId, skillDefinitionId])
   @@index([contributionId])
   @@index([skillDefinitionId])
+}
+
+// ─── Disclosure (ADR-0035) ───────────────────────────────────────────────────
+// What a person reveals, per session contribution. The matrix: situations
+// (columns, ordered) each with their own ladder of levels; a setting is
+// recorded on each entry but does not (yet) shift a level. Crossings and the
+// score are computed from entries, never stored.
+
+model DisclosureSituation {
+  id        String            @id @default(cuid())
+  name      String            @unique
+  sortOrder Int               @default(0)
+  weight    Float             @default(1)
+  levels    DisclosureLevel[]
+  createdAt DateTime          @default(now())
+}
+
+model DisclosureLevel {
+  id          String              @id @default(cuid())
+  situationId String
+  situation   DisclosureSituation @relation(fields: [situationId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  rank        Int
+  entries     DisclosureEntry[]
+  createdAt   DateTime            @default(now())
+
+  @@unique([situationId, name])
+  @@index([situationId])
+}
+
+model DisclosureSetting {
+  id        String            @id @default(cuid())
+  name      String            @unique
+  rank      Int               @default(0)
+  entries   DisclosureEntry[]
+  createdAt DateTime          @default(now())
+}
+
+model DisclosureEntry {
+  id             String                 @id @default(cuid())
+  contributionId String
+  contribution   SessionContribution    @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  levelId        String
+  level          DisclosureLevel        @relation(fields: [levelId], references: [id])
+  settingId      String?
+  setting        DisclosureSetting?     @relation(fields: [settingId], references: [id], onDelete: SetNull)
+  notes          String?
+  media          DisclosureEntryMedia[]
+  createdAt      DateTime               @default(now())
+
+  // Unique per (contribution, level, setting) with NULLS NOT DISTINCT — see migration
+  @@unique([contributionId, levelId, settingId])
+  @@index([levelId])
+}
+
+model DisclosureEntryMedia {
+  entryId     String
+  entry       DisclosureEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  mediaItemId String
+  mediaItem   MediaItem       @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  sortOrder   Int             @default(0)
+
+  @@id([entryId, mediaItemId])
+  @@index([mediaItemId])
 }
 
 // ─── Tagging System ──────────────────────────────────────────────────────────

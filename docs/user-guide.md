@@ -2470,6 +2470,17 @@ Whatever else is recorded for the attribute shows again; a draft Era left empty 
 
 **Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
 
+### Disclosure matrix
+
+**Settings → Catalogs → Disclosure** (ADR-0035). *Disclosure* is what a person reveals in front of the camera — step by step, and depending on the situation. It replaces the old *Skills* (being retired).
+
+- **Situations** are the columns, ordered left to right: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Rename one by clicking its name, move it with ‹ ›, add one in the dashed box at the end. A situation whose steps are in use cannot be deleted.
+- Each situation has **its own ladder** of steps (levels), the first at the top and the highest at the bottom. Type a step into *Next step…* and press Enter; click a name or *Add a description* to edit; ↑ ↓ move a step lower or higher. A step in use shows its entry count and cannot be deleted.
+- **Weight in the score** sets how much the situation counts in a person's disclosure score.
+- **Settings** list where something happened, from *Private / studio* to *Public*. Each entry records one, but a setting does not change a level yet — that rule is still open.
+
+Entries on sessions and the Disclosure tab on a person follow in the next steps.
+
 ### Tag Catalog
 
 **Settings → Catalogs → Tags.** Tags are organised in **groups**; each group has a colour.

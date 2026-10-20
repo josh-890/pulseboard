@@ -10,6 +10,7 @@ const CATALOG_ITEMS = [
   { href: "/settings/catalogs/motif-templates", label: "Motif Templates" },
   { href: "/settings/catalogs/attributes", label: "Attributes" },
   { href: "/settings/catalogs/colors", label: "Colors" },
+  { href: "/settings/catalogs/disclosure", label: "Disclosure" },
   { href: "/settings/catalogs/skills", label: "Skills" },
   { href: "/settings/catalogs/tags", label: "Tags" },
 ];

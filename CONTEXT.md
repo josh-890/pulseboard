@@ -47,7 +47,7 @@ Three levels, attached to each scalar attribute definition. Drives UI affordance
 
 **Changing attribute**:
 A Person attribute that develops over time. Two kinds:
-- **Identity-bearing** — a specific object you edit over its lifetime (a particular tattoo, piercing, skill). Modelled as a persistent parent record plus an **Event** log.
+- **Identity-bearing** — a specific object you edit over its lifetime (a particular tattoo, piercing). Modelled as a persistent parent record plus an **Event** log.
 - **Identity-less (scalar)** — a value that simply differs over time, with no object identity of its own (weight, hair color, build). Modelled as **scalar deltas**, each targeting an **Attribute definition**.
 
 **Delta**:
@@ -334,6 +334,30 @@ A tag in a `WORKFLOW` group: a to-do marker (needs-crop, check-cast) that is rem
 
 **Smart collection**:
 A saved media filter, shown next to the static **Collections**: live, never hand-maintained. It can be **frozen** into a static collection. Distinct from a **Collection** (hand-curated membership) and from **Favorites** (a flag, ADR-0019).
+
+### Disclosure (added 2026-10-20, ADR-0035)
+
+**Disclosure**:
+What a person reveals in front of the camera — a gradation that is physical and above all emotional: what they allow, how far they go. Recorded per **session contribution**, never as a self-declared profile field.
+_Avoid_: "skill" (retired — it named an ability, this is an expression); "exposure" (a photo's exposure in this app); "grit" (perseverance, not revealing).
+
+**Disclosure level** (code model & DB table: `DisclosureLevel`):
+One step on a situation's ladder (e.g. Solo: partial → fullbody → …). Levels are ordered by `rank` within their situation only; the same action may sit in two situations at different steps.
+
+**Situation** (code model & DB table: `DisclosureSituation`):
+A column of the **disclosure matrix**, ordered by how much interaction it asks: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Each has its own ladder and a weight for the score. Suggested from a session's cast; the user decides.
+
+**Setting** (code model & DB table: `DisclosureSetting`):
+Where an entry happened — private/studio … public. Recorded on each entry; the same action in public is a bigger step, but **how far a setting shifts a level is not yet decided** — it has no effect on levels or score yet.
+
+**Disclosure entry** (code model & DB table: `DisclosureEntry`):
+"This person, in this session, showed this level (in this setting)." Hangs off a `SessionContribution` by foreign key; a contribution may carry several (a mixed shoot fills several cells).
+
+**Boundary / boundary crossed**:
+A boundary is the line between two levels. A person **crosses** it the first time an entry reaches the higher level — date and session from that entry's session. Crossings are **computed, never stored**: correct a session and the history follows.
+
+**Disclosure score**:
+Per situation, the highest level reached as a share of its ladder (0–10); overall, the mean weighted by situation weight. Replaces the retired CP/WCP. Distinct from the manual **PGRADE** on `Person`.
 
 ## Flagged ambiguities
 
