@@ -4,15 +4,10 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle, Copy, Star, Link2Off, ChevronDown } from "lucide-react";
-import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
+import { cn, focalStyle, formatPartialDateISO, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { PivotDate, PivotPersonAvatar, PivotValue } from "@/components/shared/pivot";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { getSets } from "@/lib/services/set-service";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
@@ -53,7 +48,6 @@ function getPersonName(
   return common?.name ?? person.icgId;
 }
 
-const HOVER_SIZE = 64;
 
 // Top-level extraction of the cover-image badge overlay. Previously
 // defined inside SetCard which made React Compiler treat it as a fresh
@@ -160,11 +154,12 @@ function AvatarRow({
 }) {
   if (avatarParticipants.length === 0) return null;
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="mt-2 flex items-start gap-1">
+    <div className="mt-2 flex items-start gap-1">
         {avatarParticipants.map((p) => (
-          <ParticipantAvatar
+          <PivotPersonAvatar
             key={`${p.setId}-${p.personId}`}
+            personId={p.personId}
+            icgId={p.person.icgId}
             name={getPersonName(p.person)}
             headshot={headshotMap[p.personId]}
             size={avatarSize}
@@ -189,94 +184,7 @@ function AvatarRow({
             </div>
           </div>
         )}
-      </div>
-    </TooltipProvider>
-  );
-}
-
-function ParticipantAvatar({
-  name,
-  headshot,
-  size,
-  age,
-}: {
-  name: string;
-  headshot?: HeadshotData;
-  size: number;
-  age?: string;
-}) {
-  const initials = getInitialsFromName(name);
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          className="flex cursor-default flex-col items-center gap-0.5"
-          style={{ width: size + 8 }}
-        >
-          <div
-            className="relative shrink-0 overflow-hidden rounded-full border border-white/20 bg-muted/60"
-            style={{ width: size, height: size }}
-          >
-            {headshot ? (
-              <Image
-                src={headshot.url}
-                alt={name}
-                fill
-                className="object-cover"
-                style={focalStyle(headshot.focalX, headshot.focalY)}
-                unoptimized
-                sizes={`${size}px`}
-              />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center text-[9px] font-medium text-muted-foreground">
-                {initials}
-              </span>
-            )}
-          </div>
-          <span
-            className="w-full truncate text-center text-[8px] leading-tight text-muted-foreground"
-            title={name}
-          >
-            {name.split(" ")[0]}
-          </span>
-          {age && (
-            <span className="text-[8px] leading-none text-muted-foreground/60">
-              {age}
-            </span>
-          )}
-        </div>
-      </TooltipTrigger>
-
-      <TooltipContent
-        side="top"
-        sideOffset={6}
-        className="flex flex-col items-center gap-2 rounded-xl border border-white/15 bg-card/90 p-2.5 shadow-xl backdrop-blur-md [&>svg]:fill-primary/35"
-      >
-        <div
-          className="relative overflow-hidden rounded-full border-2 border-white/20"
-          style={{ width: HOVER_SIZE, height: HOVER_SIZE }}
-        >
-          {headshot ? (
-            <Image
-              src={headshot.url}
-              alt={name}
-              fill
-              className="object-cover"
-              style={focalStyle(headshot.focalX, headshot.focalY)}
-              unoptimized
-              sizes={`${HOVER_SIZE}px`}
-            />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-xl font-medium text-muted-foreground">
-              {initials}
-            </span>
-          )}
-        </div>
-        <span className="text-xs font-medium text-popover-foreground">{name}</span>
-        {age && <span className="text-xs text-muted-foreground">{age}</span>}
-      </TooltipContent>
-    </Tooltip>
+    </div>
   );
 }
 
@@ -399,9 +307,13 @@ export function SetCard({
           <div className="px-2.5 pt-2 pb-2.5">
             <h3 className="text-sm font-semibold line-clamp-2 leading-snug mb-0.5">{set.title}</h3>
             <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
-              {channelDisplay && <span className="truncate">{channelDisplay}</span>}
+              {channelDisplay && (
+                <PivotValue value={set.channel?.id} name={channelDisplay} className="truncate">
+                  {channelDisplay}
+                </PivotValue>
+              )}
               {channelDisplay && dateStr && <span className="shrink-0 text-muted-foreground/30">·</span>}
-              {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
+              {dateStr && <PivotDate date={set.releaseDate} precision={set.releaseDatePrecision} className="shrink-0 tabular-nums" />}
               {mediaCount > 0 && (
                 <>
                   <span className="ml-auto shrink-0 text-muted-foreground/30">·</span>
@@ -488,9 +400,13 @@ export function SetCard({
         >
           {/* Line 1: date · channel · type icon */}
           <div className={cn("flex items-center gap-1.5 text-muted-foreground/70", isCompact ? "text-[10px]" : "text-xs")}>
-            {dateStr && <span className="shrink-0 tabular-nums">{dateStr}</span>}
+            {dateStr && <PivotDate date={set.releaseDate} precision={set.releaseDatePrecision} className="shrink-0 tabular-nums" />}
             {dateStr && channelDisplay && <span className="text-muted-foreground/40">·</span>}
-            {channelDisplay && <span className="truncate">{channelDisplay}</span>}
+            {channelDisplay && (
+              <PivotValue value={set.channel?.id} name={channelDisplay} className="truncate">
+                {channelDisplay}
+              </PivotValue>
+            )}
             <span className="ml-auto shrink-0 text-muted-foreground/30">
               {isPhoto ? <Camera size={11} /> : <Film size={11} />}
             </span>

@@ -14,6 +14,8 @@ import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/brow
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSessionSheet } from "@/components/sessions/add-session-sheet";
 import type { SessionStatus } from "@/lib/types";
+import { PivotScopeProvider } from "@/components/shared/pivot";
+import { parsePartialDateBound } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -60,12 +62,6 @@ const SORT_OPTIONS = [
   { value: "sets-desc", label: "Most sets" },
 ];
 
-function parseDate(value: string | undefined): Date | undefined {
-  if (!value) return undefined;
-  const d = new Date(value);
-  return isNaN(d.getTime()) ? undefined : d;
-}
-
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
   return withTenantFromHeaders(async () => {
     const {
@@ -85,10 +81,12 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
 
   const resolvedStatus = status && VALID_STATUSES.has(status) ? (status as SessionStatus) : undefined;
   const resolvedSort = sortParam && isSessionSort(sortParam) ? sortParam : undefined;
-  const dateFrom = parseDate(dateFromParam);
-  const dateTo = parseDate(dateToParam);
-  const createdFrom = parseDate(createdFromParam);
-  const createdTo = parseDate(createdToParam);
+  // yyyy / yyyy-mm / yyyy-mm-dd, the "to" bound to the period's last instant —
+  // so a card's month (dateFrom = dateTo = 2016-08) covers all of August
+  const dateFrom = parsePartialDateBound(dateFromParam, "start");
+  const dateTo = parsePartialDateBound(dateToParam, "end");
+  const createdFrom = parsePartialDateBound(createdFromParam, "start");
+  const createdTo = parsePartialDateBound(createdToParam, "end");
 
   // ADR-0033: tag filter → matching session ids, ANDed with the other filters
   const tagFilter = await resolveTagFilterParam(tagsParam, "SESSION");
@@ -242,15 +240,18 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       </Suspense>
 
       {/* Grid */}
-      <SessionGrid
-        key={JSON.stringify(filters)}
-        sessions={paginated.items}
-        photoMap={photoMap}
-        headshotMap={headshotMap}
-        nextCursor={paginated.nextCursor}
-        totalCount={paginated.totalCount}
-        filters={filters}
-      />
+      {/* A card's label, date parts and people filter the grid (pivots) */}
+      <PivotScopeProvider dateFrom="dateFrom" dateTo="dateTo" valueParam="label" datePhrase="Sessions from">
+        <SessionGrid
+          key={JSON.stringify(filters)}
+          sessions={paginated.items}
+          photoMap={photoMap}
+          headshotMap={headshotMap}
+          nextCursor={paginated.nextCursor}
+          totalCount={paginated.totalCount}
+          filters={filters}
+        />
+      </PivotScopeProvider>
     </div>
     );
   });

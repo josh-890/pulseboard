@@ -17,6 +17,7 @@ import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSetSheet } from "@/components/sets/add-set-sheet";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
 import { parsePartialDateBound } from "@/lib/utils";
+import { PivotScopeProvider } from "@/components/shared/pivot";
 
 export const dynamic = "force-dynamic";
 
@@ -394,19 +395,21 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         <BrowserToolbar config={toolbarConfig} />
       </Suspense>
 
-      {/* Grid */}
-      <SetGrid
-        key={JSON.stringify(filters) + groupBy}
-        sets={paginated.items}
-        photoMap={photoMap}
-        headshotMap={headshotMap}
-        suggestionsMap={suggestionsMap}
-        nextCursor={paginated.nextCursor}
-        totalCount={paginated.totalCount}
-        filters={filters}
-        groupBy={groupBy}
-        duplicatePairMap={duplicatesOnly ? Object.fromEntries(duplicatePairMap) : undefined}
-      />
+      {/* Grid — a card's channel, date parts and people filter it (pivots) */}
+      <PivotScopeProvider dateFrom="releaseDateFrom" dateTo="releaseDateTo" valueParam="channel" datePhrase="Sets released in">
+        <SetGrid
+          key={JSON.stringify(filters) + groupBy}
+          sets={paginated.items}
+          photoMap={photoMap}
+          headshotMap={headshotMap}
+          suggestionsMap={suggestionsMap}
+          nextCursor={paginated.nextCursor}
+          totalCount={paginated.totalCount}
+          filters={filters}
+          groupBy={groupBy}
+          duplicatePairMap={duplicatesOnly ? Object.fromEntries(duplicatePairMap) : undefined}
+        />
+      </PivotScopeProvider>
     </div>
     );
   });

@@ -15,6 +15,7 @@ import {
 import { loadMoreSessions } from "@/lib/actions/session-actions";
 import type { SessionFilters } from "@/lib/services/session-service";
 import type { BrowseNav } from "@/lib/browse-context";
+import { parsePartialDateBound } from "@/lib/utils";
 
 type SessionBrowseNavBarProps = {
   sessionId: string;
@@ -51,10 +52,11 @@ export function SessionBrowseNavBar({ sessionId }: SessionBrowseNavBarProps) {
         personId: s.personId,
         sort: s.sort as SessionFilters["sort"],
         type: "PRODUCTION",
-        dateFrom: s.dateFrom ? new Date(s.dateFrom) : undefined,
-        dateTo: s.dateTo ? new Date(s.dateTo) : undefined,
-        createdFrom: s.createdFrom ? new Date(s.createdFrom) : undefined,
-        createdTo: s.createdTo ? new Date(s.createdTo) : undefined,
+        // As the page reads them: the "to" day counts to its last instant
+        dateFrom: parsePartialDateBound(s.dateFrom, "start"),
+        dateTo: parsePartialDateBound(s.dateTo, "end"),
+        createdFrom: parsePartialDateBound(s.createdFrom, "start"),
+        createdTo: parsePartialDateBound(s.createdTo, "end"),
       };
       const result = await loadMoreSessions(filters, ctx.nextCursor!);
       const newIds = result.items.map((s) => s.id);

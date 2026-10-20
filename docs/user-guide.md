@@ -538,6 +538,12 @@ that person.
 
 Session cards show: name, type badge (User icon for Reference, Clapperboard for Production), status badge, date, and counts for participants/media/linked sets.
 
+**Filter from a card (2026-10-20)** works as on the Sets gallery: a session's **label**, a
+**person's avatar** and the parts of its **date** (year · month · day) filter `/sessions`; a
+click refines, replaces the same kind, or takes the active value off, and Back undoes it. A
+session-date range now always covers its last day or month whole (`dateTo=2016-08` reaches
+31 August; the *Added* range likewise includes its end day).
+
 ### Create Session
 
 Click **"Add Session"** to create a production session:
@@ -655,6 +661,19 @@ Hover the dot for a tooltip with folder path and file count.
 - **Archive** — No archive, Verified, Changed, Missing, Not imported
 
 **Sorting:** Newest/Oldest release, Title A→Z/Z→A, Recently added, Recently updated, Most media.
+
+**Filter from a card (2026-10-20).** What a card shows filters the gallery when you click it:
+- the **channel** → only that channel;
+- a **person's avatar** → only sets with them (the filter field then reads *Name (ICG-ID)*);
+  hovering the avatar shows the big headshot and **Open profile →**;
+- the **release date**, part by part: in `2016-08-15` click **2016** for the year, **08** for
+  August 2016, **15** for that very day. A set dated only to the year or month offers just those
+  parts. With a finger, tapping the date opens a small menu of the three instead.
+
+A click **refines**: it joins the filters already on, replaces a value of the same kind (another
+channel, another date, another person), and clicking the value that is already on — shown in
+the accent colour — takes it off. Every click is a step in the browser history: **Back** returns
+to the view before, at the same scroll position. Elsewhere on the card a click opens the set.
 
 **Grouping:** Click the **"Group by"** button to organize sets into sections:
 | Option | Description |

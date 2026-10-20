@@ -450,7 +450,8 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
       const from = searchParams.get(group.paramFrom);
       const to = searchParams.get(group.paramTo);
       if (from || to) {
-        const range = from && to ? `${from} – ${to}` : from ? `from ${from}` : `to ${to}`;
+        // One year, month or day (a card pivot sets from = to) reads as itself
+        const range = from && to ? (from === to ? from : `${from} – ${to}`) : from ? `from ${from}` : `to ${to}`;
         activeChips.push({
           key: `${group.paramFrom}:${group.paramTo}`,
           label: `${group.label}: ${range}`,
