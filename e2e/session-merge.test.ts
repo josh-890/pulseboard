@@ -113,6 +113,30 @@ test.describe.serial("Session merge", () => {
     await expect(page.getByRole("link", { name: "Back" })).toHaveAttribute("href", `/sets/${ids.setNew}`);
   });
 
+  test("the merge basket gathers two sessions from different pages, then opens the compare page", async ({ page }) => {
+    // One from a set page …
+    await page.goto(`/sets/${ids.setOld}`);
+    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("menuitem", { name: "Add its session to merge basket" }).click();
+    const tray = page.getByRole("complementary", { name: "Merge basket" });
+    await expect(tray).toContainText(NAME);
+    await expect(tray.getByText("Add one more session to compare")).toBeVisible();
+    await expect(tray.getByRole("button", { name: "Compare & merge" })).toBeDisabled();
+
+    // … the other from the /sessions grid; the first is still marked there
+    await page.goto(`/sessions?q=${encodeURIComponent(NAME)}`);
+    const grid = page.getByRole("main");
+    await expect(grid.getByRole("button", { name: `Merge basket: take out “${NAME}”` })).toHaveCount(1);
+    await grid.getByRole("button", { name: `Merge basket: put in “${NAME}”` }).click({ force: true });
+    await expect(grid.getByRole("button", { name: `Merge basket: take out “${NAME}”` })).toHaveCount(2);
+
+    await tray.getByRole("button", { name: "Compare & merge" }).click();
+    await expect(page).toHaveURL(/\/sessions\/merge\?/, { timeout: 20_000 });
+    await expect(page.locator('[data-merge-role="survivor"]')).toContainText(titleOld);
+    await expect(page.locator('[data-merge-role="absorbed"]')).toContainText(titleNew);
+    await expect(tray).toHaveCount(0); // the compare page has its own bar
+  });
+
   test("started from the newer session, the older one is suggested, compared and stays", async ({ page }) => {
     await page.goto(`/sessions/${ids.newer}`);
     await page.getByRole("button", { name: "More actions" }).click();

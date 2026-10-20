@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Clapperboard, ImageIcon, Camera, Film, Star } from "lucide-react";
+import { Clapperboard, ImageIcon, Camera, Film, ShoppingBasket, Star } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
@@ -35,6 +35,9 @@ type SessionCardProps = {
   headshotMap?: Record<string, HeadshotData>;
   isStarred?: boolean;
   onToggleStar?: (id: string) => void;
+  /** In the merge basket (2026-10-20) — the toggle sits bottom-left of the cover */
+  inBasket?: boolean;
+  onToggleBasket?: (id: string) => void;
 };
 
 function getContributorName(
@@ -193,6 +196,8 @@ export function SessionCard({
   headshotMap = {},
   isStarred = false,
   onToggleStar,
+  inBasket = false,
+  onToggleBasket,
 }: SessionCardProps) {
   const { density } = useDensity();
   const { sessionsLayout, sessionsCoverAspect } = useBrowserLayout();
@@ -215,6 +220,31 @@ export function SessionCard({
     e.stopPropagation();
     onToggleStar?.(session.id);
   }
+
+  function handleBasketClick(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleBasket?.(session.id);
+  }
+
+  const basketButton = (className: string) =>
+    onToggleBasket && (
+      <button
+        type="button"
+        onClick={handleBasketClick}
+        aria-pressed={inBasket}
+        className={cn(
+          "absolute size-5 flex items-center justify-center rounded-full transition-all duration-150",
+          "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          inBasket ? "bg-primary text-primary-foreground opacity-100" : "bg-black/40 text-white/70 opacity-0 group-hover:opacity-100 hover:bg-black/60",
+          className,
+        )}
+        aria-label={inBasket ? `Merge basket: take out “${session.name}”` : `Merge basket: put in “${session.name}”`}
+        title={inBasket ? "In the merge basket — click to take it out" : "Add to the merge basket"}
+      >
+        <ShoppingBasket size={10} aria-hidden="true" />
+      </button>
+    );
 
   const avatarRowProps = {
     avatarContributors,
@@ -264,6 +294,7 @@ export function SessionCard({
               </div>
             )}
 
+            {basketButton("bottom-1.5 left-1.5")}
             {onToggleStar && (
               <button
                 type="button"
@@ -353,6 +384,7 @@ export function SessionCard({
             </div>
           )}
 
+          {basketButton("bottom-1 left-1")}
           {onToggleStar && (
             <button
               type="button"

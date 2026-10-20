@@ -19,6 +19,7 @@ import { mergeSessionsOldestSurvives } from "@/lib/actions/session-actions";
 import { afterwards } from "@/lib/session-merge-text";
 import type { GalleryItem, SessionMergeCard } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { mergeBasketStore } from "@/components/sessions/merge-basket";
 
 // The foot of the compare page (2026-10-20): the photos pinned for the loupe,
 // what the merged session will hold, and the merge itself — confirmed once more,
@@ -81,6 +82,8 @@ export function MergeConfirmBar({ survivor, absorbed, pinned, onUnpin, onCompare
       return;
     }
     toast.success("Sessions merged");
+    // The pair is done — the basket lets go of both
+    mergeBasketStore.remove(survivor.id, absorbed.id);
     router.push(`/sessions/${result.survivorId}`);
   }
 

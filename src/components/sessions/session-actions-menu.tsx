@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Merge, Trash2 } from "lucide-react";
+import { MoreHorizontal, Merge, ShoppingBasket, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,16 +23,22 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { useMergeBasket } from "@/components/sessions/merge-basket";
 
 type SessionActionsMenuProps = {
   sessionId: string;
+  /** Name and cover for the merge basket */
+  sessionName: string;
+  thumbUrl: string | null;
   onDelete: () => Promise<{ success: boolean; error?: string }>;
   redirectTo?: string;
 };
 
-export function SessionActionsMenu({ sessionId, onDelete, redirectTo }: SessionActionsMenuProps) {
+export function SessionActionsMenu({ sessionId, sessionName, thumbUrl, onDelete, redirectTo }: SessionActionsMenuProps) {
   const router = useRouter();
   const [mergeOpen, setMergeOpen] = useState(false);
+  const basket = useMergeBasket();
+  const inBasket = basket.has(sessionId);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -41,6 +47,7 @@ export function SessionActionsMenu({ sessionId, onDelete, redirectTo }: SessionA
     const result = await onDelete();
     setPending(false);
     if (result.success) {
+      basket.remove(sessionId);
       toast.success("Deleted successfully");
       if (redirectTo) router.push(redirectTo);
       else router.refresh();
@@ -61,6 +68,10 @@ export function SessionActionsMenu({ sessionId, onDelete, redirectTo }: SessionA
           <DropdownMenuItem onSelect={() => setMergeOpen(true)}>
             <Merge size={14} className="mr-2 shrink-0" />
             Same shoot as…
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => basket.toggle({ id: sessionId, name: sessionName, thumbUrl })}>
+            <ShoppingBasket size={14} className="mr-2 shrink-0" />
+            {inBasket ? "Take out of merge basket" : "Add to merge basket"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

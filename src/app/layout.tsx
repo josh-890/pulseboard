@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { MergeBasketTray } from "@/components/sessions/merge-basket";
 import { PaletteProvider } from "@/components/layout/palette-provider";
 import { DensityProvider } from "@/components/layout/density-provider";
 import { BrowserLayoutProvider } from "@/components/layout/browser-layout-provider";
@@ -63,6 +64,7 @@ export default async function RootLayout({
                   <CompareTrayProvider>
                     <AppShell>{children}</AppShell>
                     <CompareTrayBar />
+                    <MergeBasketTray />
                   </CompareTrayProvider>
                   <Toaster richColors />
                   <StaleDeploymentGuard />

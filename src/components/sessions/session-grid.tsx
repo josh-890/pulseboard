@@ -15,6 +15,7 @@ import type { getSessions } from "@/lib/services/session-service";
 import type { SessionFilters } from "@/lib/services/session-service";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
+import { useMergeBasket } from "@/components/sessions/merge-basket";
 import {
   saveBrowseContext,
   loadBrowseContext,
@@ -101,6 +102,7 @@ export function SessionGrid({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
+  const basket = useMergeBasket();
   const router = useRouter();
 
   useEffect(() => { setSessions(initialSessions); }, [initialSessions]);
@@ -302,6 +304,10 @@ export function SessionGrid({
                   headshotMap={headshotMap}
                   isStarred={starredIds.includes(session.id)}
                   onToggleStar={handleToggleStar}
+                  inBasket={basket.has(session.id)}
+                  onToggleBasket={() =>
+                    basket.toggle({ id: session.id, name: session.name, thumbUrl: photoMap[session.id]?.url ?? null })
+                  }
                 />
               </div>
             </div>

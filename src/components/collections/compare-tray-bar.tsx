@@ -29,7 +29,7 @@ export function CompareTrayBar() {
   return (
     <>
       {createPortal(
-        <div className="fixed bottom-4 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-card/95 p-2 pl-3 shadow-xl backdrop-blur-md">
+        <div data-compare-tray="" className="fixed bottom-4 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-3 rounded-2xl border border-white/15 bg-card/95 p-2 pl-3 shadow-xl backdrop-blur-md">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Columns2 size={14} className="text-amber-500" /> Compare tray
         </span>

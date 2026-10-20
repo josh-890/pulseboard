@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Copy, Merge, Trash2 } from "lucide-react";
+import { MoreHorizontal, Copy, Merge, ShoppingBasket, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { MergeSetSheet } from "@/components/sets/merge-set-sheet";
 import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+import { useMergeBasket, type MergeBasketItem } from "@/components/sessions/merge-basket";
 
 // Two different merges, named by intent (2026-10-20): "Same shoot as…" joins this
 // set's session with another (the sets stay); "Same release imported twice…"
@@ -33,16 +34,17 @@ type SetActionsMenuProps = {
   setId: string;
   setTitle: string;
   setType: string;
-  /** The set's primary session — offers "Same shoot as…" */
-  sessionId?: string;
+  /** The set's primary session — offers "Same shoot as…" and the merge basket */
+  session?: MergeBasketItem;
   onDelete: () => Promise<{ success: boolean; error?: string }>;
   redirectTo?: string;
 };
 
-export function SetActionsMenu({ setId, setTitle, setType, sessionId, onDelete, redirectTo }: SetActionsMenuProps) {
+export function SetActionsMenu({ setId, setTitle, setType, session, onDelete, redirectTo }: SetActionsMenuProps) {
   const router = useRouter();
   const [mergeOpen, setMergeOpen] = useState(false);
   const [sameShootOpen, setSameShootOpen] = useState(false);
+  const basket = useMergeBasket();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -68,11 +70,17 @@ export function SetActionsMenu({ setId, setTitle, setType, sessionId, onDelete, 
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
-          {sessionId && (
-            <DropdownMenuItem onSelect={() => setSameShootOpen(true)}>
-              <Merge size={14} className="mr-2 shrink-0" />
-              Same shoot as…
-            </DropdownMenuItem>
+          {session && (
+            <>
+              <DropdownMenuItem onSelect={() => setSameShootOpen(true)}>
+                <Merge size={14} className="mr-2 shrink-0" />
+                Same shoot as…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => basket.toggle(session)}>
+                <ShoppingBasket size={14} className="mr-2 shrink-0" />
+                {basket.has(session.id) ? "Take its session out of merge basket" : "Add its session to merge basket"}
+              </DropdownMenuItem>
+            </>
           )}
           <DropdownMenuItem onSelect={() => setMergeOpen(true)}>
             <Copy size={14} className="mr-2 shrink-0" />
@@ -97,7 +105,7 @@ export function SetActionsMenu({ setId, setTitle, setType, sessionId, onDelete, 
         onOpenChange={setMergeOpen}
       />
 
-      {sessionId && <SessionMergeDialog sessionId={sessionId} open={sameShootOpen} onOpenChange={setSameShootOpen} />}
+      {session && <SessionMergeDialog sessionId={session.id} open={sameShootOpen} onOpenChange={setSameShootOpen} />}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

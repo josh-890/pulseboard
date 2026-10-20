@@ -585,6 +585,14 @@ Two ways in, one compare page:
   then pick the other one. The compare page's Back leads to where you started.
 - **From `/sessions`:** **Select**, tick exactly **two** sessions, then **Compare & merge** in the
   selection bar. With one or three ticked, the button stays off and says why.
+- **The merge basket (2026-10-20)** — for two sessions you won't find in one view. Put a session
+  in from anywhere: the 🧺 button bottom-left on a card in `/sessions` (on hover; it stays lit
+  while the session is in), a session's ⋯ → **Add to merge basket**, or a set's ⋯ → **Add its
+  session to merge basket**. The basket floats bottom-right on every page and survives filters,
+  searches, pages and reload in this browser tab (closing the tab empties it). It holds **two** —
+  a third makes room by dropping the first (a note says which). With two in it, **Compare &
+  merge** opens the compare page; Back leads to where you were. After the merge — or when one of
+  them is deleted — the basket lets go of them. × takes one out, the last × empties it.
 
 - **Suggestions first.** Without typing, the dialog lists the sessions that share **people on
   camera**, the **label** (the session's own or its sets' channel label) or the **project** with this

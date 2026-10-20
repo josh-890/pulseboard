@@ -169,7 +169,10 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
               setId={id}
               setTitle={setData.title}
               setType={setData.type}
-              sessionId={(setData.sessionLinks?.find((l) => l.isPrimary) ?? setData.sessionLinks?.[0])?.sessionId}
+              session={(() => {
+                const link = setData.sessionLinks?.find((l) => l.isPrimary) ?? setData.sessionLinks?.[0];
+                return link ? { id: link.sessionId, name: link.session.name, thumbUrl: coverPhoto?.url ?? null } : undefined;
+              })()}
               onDelete={deleteSet.bind(null, id)}
               redirectTo="/sets"
             />

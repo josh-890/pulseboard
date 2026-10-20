@@ -324,6 +324,8 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             />
             <SessionActionsMenu
               sessionId={id}
+              sessionName={session.name}
+              thumbUrl={coverPhoto?.url ?? null}
               onDelete={deleteSession.bind(null, id)}
               redirectTo="/sessions"
             />
