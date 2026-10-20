@@ -574,14 +574,15 @@ Click **"Add Session"** to create a production session:
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Actions:**
   - **Edit** — modify session fields
-  - **Merge with…** (⋯ menu) — two sessions that were really one shoot become one (each set used to get its own session). See *Merging sessions* below.
+  - **Same shoot as…** (⋯ menu) — two sessions that were really one shoot become one (each set used to get its own session). See *Merging sessions* below. Not to be confused with a set's **Same release imported twice…**, which folds a duplicate set away.
   - **Delete** — permanently delete the session and cascade
 
 ### Merging sessions (2026-10-18, compare page 2026-10-20)
 
 Two ways in, one compare page:
 
-- **From a session:** open either of the two → ⋯ → **Merge with…**, then pick the other one.
+- **From a session or a set:** open either session (or one of its sets) → ⋯ → **Same shoot as…**,
+  then pick the other one. The compare page's Back leads to where you started.
 - **From `/sessions`:** **Select**, tick exactly **two** sessions, then **Compare & merge** in the
   selection bar. With one or three ticked, the button stays off and says why.
 
@@ -747,9 +748,15 @@ The set's tags, edited right here with **+ Tag** (a palette — type to find or 
 the set inherits from its **sessions** show dashed and dimmed; remove those on the session.
 Everything shown here also applies to the set's images.
 
-#### Edit & Delete
+#### Edit, merge & delete
 
 - **Edit** — modify all set fields in a sheet
+- Two different merges in the ⋯ menu, named by what you mean (2026-10-20):
+  - **Same shoot as…** — this set and another **different** set come from one shoot. The sets
+    stay; their **sessions** become one. Opens the session finder for this set's session, then the
+    compare page, which leads back here. See *Merging sessions*.
+  - **Same release imported twice…** — the **same** release exists as two sets (a duplicate).
+    The duplicate is folded into this one; the set with more data survives.
 - **Delete** — permanently delete the set and all associated data
 
 ---

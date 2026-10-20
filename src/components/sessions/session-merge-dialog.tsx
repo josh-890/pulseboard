@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -18,7 +18,9 @@ import { MergeSessionCard } from "./merge-session-card";
 // dialog suggests sessions that share people, label or project (with the reasons)
 // and shows each by its sets; the search also finds set titles, people and labels.
 // Picking one opens the compare page (2026-10-20), where both sessions are seen
-// in full before anything is merged.
+// in full before anything is merged. Named by intent — "Same shoot as…" — since
+// a set's "Same release imported twice…" merges something else (2026-10-20);
+// opened from a set page too, and the compare page leads back there.
 
 type SessionMergeDialogProps = {
   sessionId: string;
@@ -35,6 +37,7 @@ type Loaded = {
 
 export function SessionMergeDialog({ sessionId, open, onOpenChange }: SessionMergeDialogProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
   const [searchKey, setSearchKey] = useState("");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
@@ -92,18 +95,21 @@ export function SessionMergeDialog({ sessionId, open, onOpenChange }: SessionMer
 
   function compare(other: SessionMergeCandidate) {
     handleOpenChange(false);
-    router.push(sessionMergeHref(sessionId, other.id, `/sessions/${sessionId}`));
+    router.push(sessionMergeHref(sessionId, other.id, pathname));
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Merge with another session</DialogTitle>
+          <DialogTitle>Same shoot as…</DialogTitle>
           <DialogDescription>
-            Pick the session these sets were really shot in — you then compare the two side by side. The older one
-            stays; the other is merged into it.
+            Different sets, one shoot? Pick the session they were really shot in — you then compare the two side by
+            side. The older one stays; the other is merged into it.
           </DialogDescription>
+          <p className="text-xs text-muted-foreground">
+            The same release imported twice is something else: open the set → ⋯ → Same release imported twice…
+          </p>
         </DialogHeader>
 
         {self ? (

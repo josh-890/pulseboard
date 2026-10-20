@@ -57,10 +57,10 @@ export function SessionActionsMenu({ sessionId, onDelete, redirectTo }: SessionA
             <MoreHorizontal size={18} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onSelect={() => setMergeOpen(true)}>
             <Merge size={14} className="mr-2 shrink-0" />
-            Merge with…
+            Same shoot as…
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

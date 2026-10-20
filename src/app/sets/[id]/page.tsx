@@ -169,6 +169,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
               setId={id}
               setTitle={setData.title}
               setType={setData.type}
+              sessionId={(setData.sessionLinks?.find((l) => l.isPrimary) ?? setData.sessionLinks?.[0])?.sessionId}
               onDelete={deleteSet.bind(null, id)}
               redirectTo="/sets"
             />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Archive, Trash2 } from "lucide-react";
+import { MoreHorizontal, Copy, Merge, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,18 +23,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MergeSetSheet } from "@/components/sets/merge-set-sheet";
+import { SessionMergeDialog } from "@/components/sessions/session-merge-dialog";
+
+// Two different merges, named by intent (2026-10-20): "Same shoot as…" joins this
+// set's session with another (the sets stay); "Same release imported twice…"
+// folds a duplicate set into this one.
 
 type SetActionsMenuProps = {
   setId: string;
   setTitle: string;
   setType: string;
+  /** The set's primary session — offers "Same shoot as…" */
+  sessionId?: string;
   onDelete: () => Promise<{ success: boolean; error?: string }>;
   redirectTo?: string;
 };
 
-export function SetActionsMenu({ setId, setTitle, setType, onDelete, redirectTo }: SetActionsMenuProps) {
+export function SetActionsMenu({ setId, setTitle, setType, sessionId, onDelete, redirectTo }: SetActionsMenuProps) {
   const router = useRouter();
   const [mergeOpen, setMergeOpen] = useState(false);
+  const [sameShootOpen, setSameShootOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -59,10 +67,16 @@ export function SetActionsMenu({ setId, setTitle, setType, onDelete, redirectTo 
             <MoreHorizontal size={18} />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent align="end" className="w-60">
+          {sessionId && (
+            <DropdownMenuItem onSelect={() => setSameShootOpen(true)}>
+              <Merge size={14} className="mr-2 shrink-0" />
+              Same shoot as…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => setMergeOpen(true)}>
-            <Archive size={14} className="mr-2 shrink-0" />
-            Merge duplicate…
+            <Copy size={14} className="mr-2 shrink-0" />
+            Same release imported twice…
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -82,6 +96,8 @@ export function SetActionsMenu({ setId, setTitle, setType, onDelete, redirectTo 
         open={mergeOpen}
         onOpenChange={setMergeOpen}
       />
+
+      {sessionId && <SessionMergeDialog sessionId={sessionId} open={sameShootOpen} onOpenChange={setSameShootOpen} />}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Film, Merge, AlertTriangle, CheckCircle, Loader2, Archive } from "lucide-react";
+import { Camera, Film, Copy, AlertTriangle, CheckCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,13 +85,16 @@ export function MergeSetSheet({ setId, setTitle, setType, open, onOpenChange }: 
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
         <SheetHeader className="pb-4">
           <SheetTitle className="flex items-center gap-2">
-            <Merge size={18} />
-            Merge Duplicate Set
+            <Copy size={18} />
+            Same release imported twice
           </SheetTitle>
           <SheetDescription>
             Select the duplicate to merge into this set. The set with more data (media, confirmed
             archive, complete status) will automatically survive.
           </SheetDescription>
+          <p className="text-xs text-muted-foreground">
+            Different sets from one shoot? That&apos;s ⋯ → Same shoot as… — the sets stay and share a session.
+          </p>
         </SheetHeader>
 
         {/* Info banner */}
@@ -255,8 +258,8 @@ export function MergeSetButton({ setId, setTitle, setType }: MergeSetButtonProps
         className="gap-1.5 text-muted-foreground"
         onClick={() => setOpen(true)}
       >
-        <Archive size={14} />
-        Merge duplicate…
+        <Copy size={14} />
+        Same release imported twice…
       </Button>
       <MergeSetSheet
         setId={setId}

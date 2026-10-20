@@ -416,7 +416,7 @@ test.describe("Sessions CRUD", () => {
     await expect(page.getByRole("button", { name: /^edit$/i })).toBeVisible();
     // Delete + Merge live in the "More actions" dropdown menu
     await page.getByRole("button", { name: "More actions" }).click();
-    await expect(page.getByRole("menuitem", { name: /merge with/i })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: /same shoot as/i })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: /delete session/i })).toBeVisible();
   });
 

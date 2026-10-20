@@ -78,7 +78,7 @@
 
 | Component | Type | Props | Description |
 |---|---|---|---|
-| `SessionMergeDialog` | Client | `sessionId`, `open`, `onOpenChange` | ⋯ → Merge with… (2026-10-18) — the finder: this session's card, a search combobox (↑/↓/Enter over a listbox) and the candidates — suggestions on open, search results after 300 ms (`getSessionMergeCandidatesAction`, newest answer wins). A pick (click/Enter) closes it and pushes the compare page (`sessionMergeHref`, 2026-10-20) |
+| `SessionMergeDialog` | Client | `sessionId`, `open`, `onOpenChange` | ⋯ → Same shoot as… on a session or a set (2026-10-18; renamed 2026-10-20 — the set's duplicate merge is "Same release imported twice…") — the finder: this session's card, a search combobox (↑/↓/Enter over a listbox) and the candidates — suggestions on open, search results after 300 ms (`getSessionMergeCandidatesAction`, newest answer wins). A pick (click/Enter) closes it and pushes the compare page (`sessionMergeHref`, 2026-10-20; `from` = the current path) |
 | `MergeRoleBadge` | Server-safe | `role: "stays" \| "goes"` | **Stays** (green) / **Merged in** (amber) |
 | `SessionMergeWorkspace` | Client | `comparison` | `/sessions/merge` (2026-10-20): `MergeFactsBar`, phone tabs, two `MergeSessionColumn`s (older left), `MergeConfirmBar`; owns the person filter, the pins (one per side), the lightbox (`GalleryLightbox` over the side's shown photos) and `MergeCompareLoupe` |
 | `MergeFactsBar` | Server-safe | `survivor`, `absorbed`, `reason`, `sharedPersonIds`, `personFilter`, `onPersonFilter` | Date (with why older) / label / project / channel / content rows, differences amber; on-camera chips — green in both, else left/right only — toggle the person filter |
@@ -99,6 +99,8 @@
 | `SetHeader` | Server | `set` | Title, type badge, release date, channel name |
 | `CastSection` | Server | `contributions` | People in the set with role badges |
 | `SetMeta` | Server | `set` | Description, notes, tags, session/project links |
+| `SetActionsMenu` | Client | `setId`, `setTitle`, `setType`, `sessionId?`, `onDelete`, `redirectTo?` | Set detail ⋯ menu: **Same shoot as…** (opens `SessionMergeDialog` for the set's primary session; only with `sessionId`), **Same release imported twice…** (`MergeSetSheet`), Delete — the two merges named by intent (2026-10-20) |
+| `MergeSetSheet` / `MergeSetButton` | Client | `setId`, `setTitle`, `setType` (+ `open`, `onOpenChange`) | "Same release imported twice" — folds a duplicate set into this one; the set with more data survives. Points to "Same shoot as…" for different sets from one shoot |
 | `EmptyState` | Server | `message?` | No results placeholder |
 
 ---

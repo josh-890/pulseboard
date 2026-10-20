@@ -98,10 +98,25 @@ test.describe.serial("Session merge", () => {
     await expect(page.locator('[data-merge-role="absorbed"]')).toContainText(titleNew);
   });
 
+  test("from a set page, Same shoot as… opens the same finder — and the compare page leads back to the set", async ({ page }) => {
+    await page.goto(`/sets/${ids.setNew}`);
+    await page.getByRole("button", { name: "More actions" }).click();
+    // Two merges, named apart
+    await expect(page.getByRole("menuitem", { name: /Same release imported twice/ })).toBeVisible();
+    await page.getByRole("menuitem", { name: /Same shoot as/ }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "Same shoot as…" })).toBeVisible();
+    const suggestion = dialog.getByRole("option").filter({ hasText: titleOld });
+    await expect(suggestion).toBeVisible({ timeout: 20_000 });
+    await suggestion.click();
+    await expect(page).toHaveURL(new RegExp(`/sessions/merge\\?a=${ids.newer}&b=${ids.older}`), { timeout: 20_000 });
+    await expect(page.getByRole("link", { name: "Back" })).toHaveAttribute("href", `/sets/${ids.setNew}`);
+  });
+
   test("started from the newer session, the older one is suggested, compared and stays", async ({ page }) => {
     await page.goto(`/sessions/${ids.newer}`);
     await page.getByRole("button", { name: "More actions" }).click();
-    await page.getByRole("menuitem", { name: /Merge with/ }).click();
+    await page.getByRole("menuitem", { name: /Same shoot as/ }).click();
     const dialog = page.getByRole("dialog");
 
     // Suggested without typing, with why
