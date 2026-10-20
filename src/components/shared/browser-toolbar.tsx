@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -215,6 +216,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
     searchParams.get("q") ?? "",
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipSearchSyncRef = useRef(false);
 
   // Current sort
   const currentSort = searchParams.get("sort") ?? defaultSort;
@@ -257,6 +259,12 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    // A reset just emptied the field and navigates on its own: writing the
+    // (still old) params minus q would undo it before the new page arrives
+    if (skipSearchSyncRef.current) {
+      skipSearchSyncRef.current = false;
+      return;
+    }
 
     debounceRef.current = setTimeout(() => {
       const currentQ = searchParams.get("q") ?? "";
@@ -498,10 +506,48 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   }
 
   function handleClearAll() {
+    skipSearchSyncRef.current = searchValue !== "";
     setSearchValue("");
     clearBrowseContext(browseContextKey);
     router.replace(basePath);
   }
+
+  // Esc, last in line (2026-10-20): once nothing else takes it — no dialog,
+  // lightbox, menu or popover open, no selection bar, no field focused — it
+  // clears the filters. As a history step, so Back brings them back, and the
+  // toast offers Undo.
+  const escResetRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    escResetRef.current = () => {
+      if (!hasActiveFilters) return;
+      const before = `${basePath}?${searchParams.toString()}`;
+      skipSearchSyncRef.current = searchValue !== "";
+      setSearchValue("");
+      clearBrowseContext(browseContextKey);
+      router.push(basePath);
+      toast("Filters cleared", {
+        action: { label: "Undo", onClick: () => router.push(before) },
+      });
+    };
+  });
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape" || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const target = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable) return;
+      // Something else is open and Esc is its to close (it may still be in the DOM this tick)
+      if (
+        document.querySelector(
+          '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-tag-selection-active]',
+        )
+      ) {
+        return;
+      }
+      escResetRef.current();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   function handleRemoveChip(params: string[], replacementValue?: string) {
     updateParams((p) => {

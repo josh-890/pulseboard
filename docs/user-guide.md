@@ -675,6 +675,12 @@ channel, another date, another person), and clicking the value that is already o
 the accent colour — takes it off. Every click is a step in the browser history: **Back** returns
 to the view before, at the same scroll position. Elsewhere on the card a click opens the set.
 
+**Esc clears the filters (2026-10-20)** — on every gallery with the filter bar, but only as the
+last thing Esc does: an open popover, menu, dialog or lightbox closes first, a focused field
+handles its own Esc (the search box empties the search), and with a selection bar showing
+nothing happens. Then Esc clears all filters, search, sort and grouping. A toast offers
+**Undo**, and **Back** brings the filters back too.
+
 **Grouping:** Click the **"Group by"** button to organize sets into sections:
 | Option | Description |
 |--------|-------------|

@@ -120,6 +120,43 @@ test.describe("Card pivots on /sets", () => {
   });
 });
 
+test.describe("Esc clears the filters — last in line", () => {
+  test("Esc closes an open popover first, then clears; Back and Undo bring the filters back", async ({ page }) => {
+    const filtered = `/sets?type=all&q=${RUN}&channel=${ids.ch1}`;
+    await page.goto(filtered);
+    await expect(setCard(page, "alpha")).toBeVisible();
+
+    // A hover card is open: Esc closes it, the filters stay
+    await setCard(page, "alpha").getByRole("button", { name: `Show only ${PERSON} (${ICG})` }).hover();
+    await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("link", { name: "Open profile" })).toHaveCount(0);
+    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+
+    // Nothing open: Esc clears them, as a history step
+    await page.mouse.move(5, 5);
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/sets$/);
+    await expect(page.getByText("Filters cleared")).toBeVisible();
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(/\/sets$/);
+    await page.goBack();
+    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+  });
+
+  test("in the search field Esc only clears the search", async ({ page }) => {
+    await page.goto(`/sets?type=all&channel=${ids.ch1}&q=${RUN}`);
+    const search = page.getByPlaceholder(/search sets/i);
+    await search.click();
+    await page.keyboard.press("Escape");
+    await expect(page).not.toHaveURL(/q=/);
+    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+  });
+});
+
 test.describe("Card pivots with a finger", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
 
