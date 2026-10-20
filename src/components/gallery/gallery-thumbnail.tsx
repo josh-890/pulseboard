@@ -2,6 +2,7 @@
 
 import { TagDotStrip } from "@/components/tags";
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { AlertTriangle, Check, Frame, Maximize2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
@@ -33,6 +34,8 @@ type GalleryThumbnailProps = {
   showOpenButton?: boolean;
   /** Iconic / ★ / outtake toggle on hover (badges only when off) */
   markControls?: boolean;
+  /** A tile's own button, top-left (e.g. "pin to compare") — the cover badge moves aside */
+  tileAction?: ReactNode;
 };
 
 export function GalleryThumbnail({
@@ -49,6 +52,7 @@ export function GalleryThumbnail({
   showFavoriteBadge = true,
   showOpenButton = false,
   markControls = true,
+  tileAction,
 }: GalleryThumbnailProps) {
   const markTags = useMarkTags();
   const imgSrc = item.urls.gallery_512 ?? item.urls.original;
@@ -167,13 +171,15 @@ export function GalleryThumbnail({
         <span
           className={cn(
             "absolute top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-white pointer-events-none",
-            selectable ? "left-8" : "left-1.5",
+            selectable || tileAction ? "left-8" : "left-1.5",
           )}
           aria-label="Cover image"
         >
           <Frame size={10} />
         </span>
       )}
+
+      {tileAction && <div className="absolute left-1.5 top-1.5">{tileAction}</div>}
 
       {/* Open in lightbox — the click itself may be busy selecting */}
       {showOpenButton && (

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { getSessionMergeCandidates, getSessionMergeDirection } from "@/lib/services/session-merge-candidates";
+import { getSessionMergeCandidates, getSessionMergeComparison, getSessionMergeDirection } from "@/lib/services/session-merge-candidates";
 import { mergeSessionsRecord } from "@/lib/services/session-service";
 import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
 
@@ -93,6 +93,26 @@ describe("getSessionMergeCandidates", () => {
 
     const byAnna = await getSessionMergeCandidates(ids.self, `${RUN} Anna`);
     expect(byAnna.candidates.map((c) => c.id)).not.toContain(ids.refSession);
+  });
+});
+
+describe("getSessionMergeComparison", () => {
+  it("puts the older session first whatever the order asked, with the people both share", async () => {
+    for (const [a, b] of [[ids.twin, ids.self], [ids.self, ids.twin]]) {
+      const c = await getSessionMergeComparison(a, b);
+      expect(c?.survivor.card.id).toBe(ids.self);
+      expect(c?.absorbed.card.id).toBe(ids.twin);
+      expect(c?.reason).toBe("date");
+      expect(c?.sharedPersonIds).toEqual([ids.anna]);
+      expect(c?.absorbed.card.sets.map((s) => s.title)).toEqual([`${RUN} Summer Beach`]);
+      expect(c?.survivor.photos).toEqual([]);
+    }
+  });
+
+  it("refuses a reference session, the same session twice and an unknown one", async () => {
+    expect(await getSessionMergeComparison(ids.self, ids.refSession)).toBeNull();
+    expect(await getSessionMergeComparison(ids.self, ids.self)).toBeNull();
+    expect(await getSessionMergeComparison(ids.self, `${RUN}-missing`)).toBeNull();
   });
 });
 

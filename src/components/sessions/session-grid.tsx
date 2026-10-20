@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Clapperboard, Loader2, CheckSquare } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Clapperboard, Loader2, CheckSquare, GitMerge } from "lucide-react";
 import { SessionCard } from "./session-card";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
@@ -23,6 +24,7 @@ import {
   SESSION_BROWSE_KEY,
 } from "@/lib/browse-context";
 import { getAppScrollEl } from "@/lib/scroll-container";
+import { sessionMergeHref } from "@/lib/session-merge-href";
 
 type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
 
@@ -99,6 +101,7 @@ export function SessionGrid({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadMoreFnRef = useRef<() => void>(() => {});
   const bulk = useBulkSelection();
+  const router = useRouter();
 
   useEffect(() => { setSessions(initialSessions); }, [initialSessions]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
@@ -156,6 +159,14 @@ export function SessionGrid({
   }
 
   const filtersActive = hasActiveFilters(filters);
+
+  // Two sessions of one shoot → the compare page; it decides which one stays
+  function compareSelected() {
+    const [a, b] = [...bulk.selectedIds];
+    if (!a || !b || bulk.selectedIds.size !== 2) return;
+    router.push(sessionMergeHref(a, b, `${window.location.pathname}${window.location.search}`));
+  }
+  const canCompare = bulk.selectedIds.size === 2;
 
   const starredItems = useMemo(
     () =>
@@ -269,6 +280,8 @@ export function SessionGrid({
                 <button
                   type="button"
                   onClick={() => bulk.toggle(session.id)}
+                  aria-pressed={isSelected}
+                  aria-label={`${isSelected ? "Deselect" : "Select"} ${session.name}`}
                   className={cn(
                     "absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border-2 transition-colors",
                     isSelected
@@ -314,6 +327,23 @@ export function SessionGrid({
           onClear={bulk.clear}
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(sessions.map((s) => s.id))}
+          actions={
+            <span title={canCompare ? "Compare the two side by side, then merge" : "Select exactly 2 sessions to merge"}>
+              <button
+                type="button"
+                onClick={compareSelected}
+                disabled={!canCompare}
+                className={cn(
+                  "flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors",
+                  "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+                )}
+              >
+                <GitMerge className="h-3 w-3" aria-hidden="true" />
+                Compare &amp; merge
+              </button>
+            </span>
+          }
         />
       )}
     </div>

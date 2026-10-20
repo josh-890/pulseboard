@@ -1,3 +1,6 @@
+import type { MergeDirectionReason } from "@/lib/session-merge-direction";
+import type { GalleryItem } from "./gallery";
+
 /**
  * Session merge (2026-10-18): what the merge dialog shows of a session — its
  * sets above all, since a session is known by what was published from it — and
@@ -39,3 +42,21 @@ export type SessionMergeReason =
   | { kind: "close"; days: number };
 
 export type SessionMergeCandidate = SessionMergeCard & { score: number; reasons: SessionMergeReason[] };
+
+export type SessionMergeSide = {
+  card: SessionMergeCard;
+  /** All its photos, in the session gallery's order (with setLinks and appearance) */
+  photos: GalleryItem[];
+};
+
+/**
+ * The compare page (2026-10-20): both sessions in full, the older one first —
+ * it is the one that stays, whichever order the page was opened in.
+ */
+export type SessionMergeComparison = {
+  survivor: SessionMergeSide;
+  absorbed: SessionMergeSide;
+  reason: MergeDirectionReason;
+  /** People on camera in both, as ids */
+  sharedPersonIds: string[];
+};

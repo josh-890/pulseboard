@@ -8,6 +8,11 @@ import { cn } from "@/lib/utils";
 
 type ImageRect = { x: number; y: number; w: number; h: number; cw: number; ch: number };
 
+/** Zoom + pan, in px of the container — lift it out to couple two images (2-up compare) */
+export type ZoomView = { zoomed: boolean; scale: number; tx: number; ty: number };
+
+export const ZOOM_FIT: ZoomView = { zoomed: false, scale: 1, tx: 0, ty: 0 };
+
 export type ZoomableImageProps = {
   /** Image shown at fit (object-contain). */
   fitUrl: string;
@@ -24,6 +29,13 @@ export type ZoomableImageProps = {
   className?: string;
   /** Notifies the parent when the zoom state flips (so it can suppress swipe-nav). */
   onZoomChange?: (zoomed: boolean) => void;
+  /**
+   * Controlled zoom (2026-10-20): with both set, the parent owns zoom and pan —
+   * two images given the same view move together. The parent resets it when the
+   * image changes. Without them the image keeps its own.
+   */
+  view?: ZoomView;
+  onViewChange?: (view: ZoomView) => void;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -45,12 +57,16 @@ export function ZoomableImage({
   showFocalOverlay = false,
   className,
   onZoomChange,
+  view: controlledView,
+  onViewChange,
 }: ZoomableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [zoomState, setZoomState] = useState<"fit" | "zoomed">("fit");
-  const [zoomTx, setZoomTx] = useState(0);
-  const [zoomTy, setZoomTy] = useState(0);
-  const [zoomScale, setZoomScale] = useState(1);
+  const [ownView, setOwnView] = useState<ZoomView>(ZOOM_FIT);
+  const controlled = controlledView !== undefined && onViewChange !== undefined;
+  const view = controlled ? controlledView : ownView;
+  const setView = (next: ZoomView) => (controlled ? onViewChange(next) : setOwnView(next));
+  const zoomState = view.zoomed ? "zoomed" : "fit";
+  const { tx: zoomTx, ty: zoomTy, scale: zoomScale } = view;
   const [zoomedSrc, setZoomedSrc] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [isPinching, setIsPinching] = useState(false);
@@ -66,10 +82,7 @@ export function ZoomableImage({
   // "adjust state when a prop changes" pattern), not in an effect.
   if (prevFit !== fitUrl) {
     setPrevFit(fitUrl);
-    setZoomState("fit");
-    setZoomTx(0);
-    setZoomTy(0);
-    setZoomScale(1);
+    if (!controlled) setOwnView(ZOOM_FIT);
     setZoomedSrc(null);
     setIsPanning(false);
     setIsPinching(false);
@@ -78,6 +91,17 @@ export function ZoomableImage({
   useEffect(() => {
     onZoomChange?.(zoomState === "zoomed");
   }, [zoomState, onZoomChange]);
+
+  // The sharper source loads once zoomed — also when the zoom came from a coupled image
+  useEffect(() => {
+    if (zoomState !== "zoomed" || !zoomUrl || zoomUrl === fitUrl || zoomedSrc === zoomUrl) return;
+    const preload = new window.Image();
+    preload.onload = () => setZoomedSrc(zoomUrl);
+    preload.src = zoomUrl;
+    return () => {
+      preload.onload = null;
+    };
+  }, [zoomState, zoomUrl, fitUrl, zoomedSrc]);
 
   const computeRect = useCallback(() => {
     const container = containerRef.current;
@@ -115,8 +139,7 @@ export function ZoomableImage({
   function handleMouseMove(e: React.MouseEvent) {
     if (!isPanning) return;
     const { mouseX, mouseY, baseTx, baseTy } = panStartRef.current;
-    setZoomTx(baseTx + (e.clientX - mouseX));
-    setZoomTy(baseTy + (e.clientY - mouseY));
+    setView({ ...view, tx: baseTx + (e.clientX - mouseX), ty: baseTy + (e.clientY - mouseY) });
   }
   function handleMouseUp() {
     setIsPanning(false);
@@ -127,11 +150,7 @@ export function ZoomableImage({
     e.stopPropagation();
     if (!imageRect || !containerRef.current) return;
     if (zoomState === "zoomed") {
-      setZoomState("fit");
-      setZoomTx(0);
-      setZoomTy(0);
-      setZoomScale(1);
-      setZoomedSrc(null);
+      setView(ZOOM_FIT);
       return;
     }
     const containerEl = containerRef.current.getBoundingClientRect();
@@ -140,15 +159,7 @@ export function ZoomableImage({
     const relX = clickX - (imageRect.x + imageRect.w / 2);
     const relY = clickY - (imageRect.y + imageRect.h / 2);
     const S = fillScale;
-    setZoomTx(relX * (1 - S));
-    setZoomTy(relY * (1 - S));
-    setZoomScale(S);
-    setZoomState("zoomed");
-    if (zoomUrl && zoomUrl !== fitUrl) {
-      const preload = new window.Image();
-      preload.onload = () => setZoomedSrc(zoomUrl);
-      preload.src = zoomUrl;
-    }
+    setView({ zoomed: true, scale: S, tx: relX * (1 - S), ty: relY * (1 - S) });
   }
 
   // ── Touch pinch + pan ──
@@ -170,12 +181,7 @@ export function ZoomableImage({
         startDist: dist, startScale: zoomScale, startTx: zoomTx, startTy: zoomTy,
         startMidX: midX, startMidY: midY, containerLeft: el.left, containerTop: el.top, cw: el.width, ch: el.height,
       };
-      if (zoomState === "fit") setZoomState("zoomed");
-      if (zoomUrl && zoomUrl !== fitUrl && !zoomedSrc) {
-        const preload = new window.Image();
-        preload.onload = () => setZoomedSrc(zoomUrl);
-        preload.src = zoomUrl;
-      }
+      if (zoomState === "fit") setView({ ...view, zoomed: true });
     } else if (e.touches.length === 1 && zoomState === "zoomed") {
       touchPanRef.current = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, baseTx: zoomTx, baseTy: zoomTy };
     }
@@ -190,32 +196,26 @@ export function ZoomableImage({
       const currentMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       const originX = startMidX - containerLeft - cw / 2;
       const originY = startMidY - containerTop - ch / 2;
-      setZoomTx(startTx + originX * (startScale - newScale) + (currentMidX - startMidX));
-      setZoomTy(startTy + originY * (startScale - newScale) + (currentMidY - startMidY));
-      setZoomScale(newScale);
       if (newScale <= 1) {
-        setZoomState("fit");
-        setZoomTx(0);
-        setZoomTy(0);
-      } else if (zoomState !== "zoomed") {
-        setZoomState("zoomed");
+        setView({ zoomed: false, scale: newScale, tx: 0, ty: 0 });
+      } else {
+        setView({
+          zoomed: true,
+          scale: newScale,
+          tx: startTx + originX * (startScale - newScale) + (currentMidX - startMidX),
+          ty: startTy + originY * (startScale - newScale) + (currentMidY - startMidY),
+        });
       }
     } else if (e.touches.length === 1 && zoomState === "zoomed" && !isPinchingRef.current) {
       const { startX, startY, baseTx, baseTy } = touchPanRef.current;
-      setZoomTx(baseTx + (e.touches[0].clientX - startX));
-      setZoomTy(baseTy + (e.touches[0].clientY - startY));
+      setView({ ...view, tx: baseTx + (e.touches[0].clientX - startX), ty: baseTy + (e.touches[0].clientY - startY) });
     }
   }
   function handleTouchEnd(e: React.TouchEvent) {
     if (e.touches.length < 2 && isPinchingRef.current) {
       isPinchingRef.current = false;
       setIsPinching(false);
-      if (zoomScale <= 1.05) {
-        setZoomState("fit");
-        setZoomTx(0);
-        setZoomTy(0);
-        setZoomScale(1);
-      }
+      if (zoomScale <= 1.05) setView(ZOOM_FIT);
     }
   }
 
@@ -244,7 +244,7 @@ export function ZoomableImage({
         }}
       >
         <Image
-          src={zoomedSrc ?? fitUrl}
+          src={zoomState === "zoomed" && zoomedSrc ? zoomedSrc : fitUrl}
           alt={alt}
           width={width || 1200}
           height={height || 1200}

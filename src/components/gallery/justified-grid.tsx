@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { GalleryItem } from "@/lib/types";
 import {
   computeRows,
@@ -27,6 +27,8 @@ type JustifiedGridProps = {
   showOpenButton?: boolean;
   /** Iconic / ★ / outtake buttons on hover (default true) */
   markControls?: boolean;
+  /** A button of the tile's own, top-left — see GalleryThumbnail */
+  tileAction?: (item: GalleryItem) => ReactNode;
 };
 
 export function JustifiedGrid({
@@ -40,6 +42,7 @@ export function JustifiedGrid({
   showFavoriteBadge = true,
   showOpenButton = false,
   markControls = true,
+  tileAction,
 }: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -95,6 +98,7 @@ export function JustifiedGrid({
                 showFavoriteBadge={showFavoriteBadge}
                 showOpenButton={showOpenButton}
                 markControls={markControls}
+                tileAction={tileAction?.(item)}
               />
             );
           })}

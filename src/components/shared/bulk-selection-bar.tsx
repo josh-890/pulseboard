@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CheckSquare, X } from "lucide-react";
 import { BulkTagControls } from "@/components/tags";
 import type { TaggableEntity } from "@/lib/tag-domains";
@@ -11,6 +12,8 @@ type BulkSelectionBarProps = {
   onClear: () => void;
   totalCount: number;
   onSelectAll?: () => void;
+  /** Actions of this grid's own, before the tag controls (e.g. sessions: compare & merge) */
+  actions?: ReactNode;
 };
 
 // Selection bar for the person, set and session grids. Tagging is the shared
@@ -23,6 +26,7 @@ export function BulkSelectionBar({
   onClear,
   totalCount,
   onSelectAll,
+  actions,
 }: BulkSelectionBarProps) {
   if (selectedIds.size === 0) return null;
 
@@ -50,6 +54,13 @@ export function BulkSelectionBar({
         )}
 
         <div className="h-4 w-px bg-border" />
+
+        {actions && (
+          <>
+            {actions}
+            <div className="h-4 w-px bg-border" />
+          </>
+        )}
 
         <BulkTagControls entityType={entityType} entityIds={[...selectedIds]} />
 

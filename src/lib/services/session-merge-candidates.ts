@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
 import { buildPhotoUrls } from "@/lib/media-url";
 import { resolveMergeDirection, type MergeDirection } from "@/lib/session-merge-direction";
-import type { SessionMergeCandidate, SessionMergeCard, SessionMergeReason } from "@/lib/types";
+import type { GalleryItem, SessionMergeCandidate, SessionMergeCard, SessionMergeComparison, SessionMergeReason } from "@/lib/types";
 import { parsePhotoVariants } from "@/lib/types";
 import { getDisplayName } from "@/lib/utils";
+import { getSessionMediaGallery } from "./media-service";
 import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // Session merge suggestions (2026-10-18). Each set used to get its own session;
@@ -255,4 +256,39 @@ export async function getSessionMergeDirection(aId: string, bId: string): Promis
   const [a, b] = await getSessionMergeCards([aId, bId]);
   if (!a || !b) throw new Error("Session not found");
   return resolveMergeDirection(a, b);
+}
+
+/**
+ * What the compare page needs of a photo — the manager-only fields stay behind
+ * (RSC payload), and the set count too: the page already groups by set.
+ */
+function forCompare({ links: _links, collectionIds: _collections, skillEventIds: _skills, setCount: _setCount, ...rest }: GalleryItem): GalleryItem {
+  return rest;
+}
+
+/**
+ * The compare page (2026-10-20): both sessions with all their photos, the older
+ * one as `survivor` whatever the order asked. Null unless both are distinct
+ * production sessions.
+ */
+export async function getSessionMergeComparison(aId: string, bId: string): Promise<SessionMergeComparison | null> {
+  if (!aId || !bId || aId === bId) return null;
+  const production = await prisma.session.count({ where: { id: { in: [aId, bId] }, type: "PRODUCTION" } });
+  if (production !== 2) return null;
+  const [cards, photosA, photosB] = await Promise.all([
+    getSessionMergeCards([aId, bId]),
+    getSessionMediaGallery(aId),
+    getSessionMediaGallery(bId),
+  ]);
+  const [a, b] = cards;
+  if (!a || !b) return null;
+  const direction = resolveMergeDirection(a, b);
+  const sides = { [aId]: { card: a, photos: photosA.map(forCompare) }, [bId]: { card: b, photos: photosB.map(forCompare) } };
+  const absorbedPeople = new Set(sides[direction.absorbedId].card.people.map((p) => p.id));
+  return {
+    survivor: sides[direction.survivorId],
+    absorbed: sides[direction.absorbedId],
+    reason: direction.reason,
+    sharedPersonIds: sides[direction.survivorId].card.people.filter((p) => absorbedPeople.has(p.id)).map((p) => p.id),
+  };
 }

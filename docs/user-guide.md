@@ -577,9 +577,13 @@ Click **"Add Session"** to create a production session:
   - **Merge with…** (⋯ menu) — two sessions that were really one shoot become one (each set used to get its own session). See *Merging sessions* below.
   - **Delete** — permanently delete the session and cascade
 
-### Merging sessions (2026-10-18)
+### Merging sessions (2026-10-18, compare page 2026-10-20)
 
-Open either of the two sessions → ⋯ → **Merge with…**.
+Two ways in, one compare page:
+
+- **From a session:** open either of the two → ⋯ → **Merge with…**, then pick the other one.
+- **From `/sessions`:** **Select**, tick exactly **two** sessions, then **Compare & merge** in the
+  selection bar. With one or three ticked, the button stays off and says why.
 
 - **Suggestions first.** Without typing, the dialog lists the sessions that share **people on
   camera**, the **label** (the session's own or its sets' channel label) or the **project** with this
@@ -589,14 +593,29 @@ Open either of the two sessions → ⋯ → **Merge with…**.
   published from the session — cover, title, channel, release date — then the people on camera,
   the label and the counts. A session without sets shows a few of its photos.
 - **Search everything.** The search finds sessions by name, **set title**, channel, **person**
-  (name or ICG-ID) or **label**. <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Enter</kbd> picks.
-- **The older session stays — always.** Picking a candidate shows both side by side: **Stays**
-  (green) and **Merged in** (amber), with the reason — the older session date; without a date (or
-  the same one) the earliest set release; failing that, the one created first. It doesn't matter
-  which of the two you started from: started from the newer one, the dialog says so and you land
-  on the older one afterwards.
-- **What you get.** "Afterwards: N photos · M people · K sets"; name, label and description stay
-  those of the surviving session. The other session is **deleted** — this can't be undone.
+  (name or ICG-ID) or **label**. <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Enter</kbd> picks — and
+  opens the compare page.
+
+**The compare page** (`/sessions/merge`) shows both sessions in full, so you can tell whether
+they really are one shoot — outfit, location, light — before anything changes:
+
+- **The older session stays — always — and is on the left** (**Stays**, green); the other is on
+  the right (**Merged in**, amber). Older means the session date; without a date (or the same one)
+  the earliest set release; failing that, the one created first. It doesn't matter which of the two
+  you started from.
+- **Facts side by side:** date, label, project, channel and content; what differs is amber.
+  **On camera** lists the people — green when in both, otherwise *left only* / *right only*.
+  Click a person to see only the photos showing them, in both columns; **Show everyone** undoes it.
+- **Every photo, set by set.** Each column lists its sets (cover, title, channel, release) with all
+  their photos; photos in no set come last under *Not in a set*. Click a photo for the lightbox.
+  ↗ opens the session (or a set title, the set) in a new tab. On a phone the two sessions are tabs.
+- **2-up loupe.** Hover a photo and click its pin (⫼) — one on each side — then **Compare** in the
+  bar at the bottom. The two are shown large side by side; double-click zooms **both** to the same
+  spot (**Sync zoom**, key <kbd>S</kbd>, turns the coupling off). <kbd>←</kbd>/<kbd>→</kbd> step to
+  the next photo on the side you last clicked; <kbd>Esc</kbd> closes.
+- **Merge.** The bar says "Afterwards: N photos · M people · K sets"; name, label and description
+  stay those of the surviving session. **Merge sessions** asks once more — the other session is
+  **deleted**, this can't be undone — and then opens the surviving session.
 
 ---
 
