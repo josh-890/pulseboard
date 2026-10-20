@@ -29,6 +29,11 @@ type JustifiedGridProps = {
   markControls?: boolean;
   /** A button of the tile's own, top-left — see GalleryThumbnail */
   tileAction?: (item: GalleryItem) => ReactNode;
+  /**
+   * Rows out of view skip layout and paint (content-visibility), for grids of
+   * hundreds of photos side by side — the compare page (2026-10-20)
+   */
+  deferOffscreenRows?: boolean;
 };
 
 export function JustifiedGrid({
@@ -43,6 +48,7 @@ export function JustifiedGrid({
   showOpenButton = false,
   markControls = true,
   tileAction,
+  deferOffscreenRows = false,
 }: JustifiedGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -76,7 +82,11 @@ export function JustifiedGrid({
         <div
           key={rowIdx}
           className="flex"
-          style={{ gap: GALLERY_GAP, marginBottom: GALLERY_GAP }}
+          style={{
+            gap: GALLERY_GAP,
+            marginBottom: GALLERY_GAP,
+            ...(deferOffscreenRows && { contentVisibility: "auto", containIntrinsicSize: `auto ${Math.round(row.height)}px` }),
+          }}
         >
           {row.items.map((item) => {
             const aspect = item.originalWidth / (item.originalHeight || 1);

@@ -89,6 +89,8 @@ export function MergeCompareLoupe({ left, right, onChange, onClose }: MergeCompa
         {(["stays", "goes"] as const).map((side) => {
           const { photos, id, name } = sides[side];
           const photo = photos.find((p) => p.id === id);
+          // The set title only when it says more than the session name ("Sunset" twice says nothing)
+          const sets = photo?.setLinks?.map((l) => l.setTitle).join(", ") ?? "";
           const index = photos.findIndex((p) => p.id === id);
           return (
             <div
@@ -136,9 +138,11 @@ export function MergeCompareLoupe({ left, right, onChange, onClose }: MergeCompa
                 <span className="min-w-0 truncate" title={name}>
                   {name}
                 </span>
-                <span className="min-w-0 truncate text-zinc-500" title={photo?.setLinks?.map((l) => l.setTitle).join(", ")}>
-                  {photo?.setLinks?.map((l) => l.setTitle).join(", ")}
-                </span>
+                {sets && sets !== name && (
+                  <span className="min-w-0 truncate text-zinc-500" title={sets}>
+                    {sets}
+                  </span>
+                )}
                 <span className="ml-auto shrink-0 tabular-nums text-zinc-500">
                   {index + 1} / {photos.length}
                 </span>

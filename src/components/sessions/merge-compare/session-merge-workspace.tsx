@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { MergeCompareLoupe } from "./merge-compare-loupe";
 import { MergeConfirmBar } from "./merge-confirm-bar";
 import { MergeFactsBar } from "./merge-facts-bar";
+import { createMergePinStore, MergePinContext, useMergePins } from "./merge-pin-button";
 import { MergeSessionColumn } from "./merge-session-column";
 
 // The compare page (2026-10-20): two sessions in full before they become one.
@@ -24,7 +25,8 @@ export type SessionMergeWorkspaceProps = {
 export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps) {
   const { survivor, absorbed, reason, sharedPersonIds } = comparison;
   const [personFilter, setPersonFilter] = useState<string | null>(null);
-  const [pins, setPins] = useState<Record<Side, string | null>>({ stays: null, goes: null });
+  const [pinStore] = useState(createMergePinStore);
+  const pins = useMergePins(pinStore);
   const [lightbox, setLightbox] = useState<{ side: Side; index: number } | null>(null);
   const [loupeOpen, setLoupeOpen] = useState(false);
   const [mobileSide, setMobileSide] = useState<Side>("stays");
@@ -39,14 +41,15 @@ export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps
 
   const pinnedPhoto = (side: Side) => sides[side].photos.find((p) => p.id === pins[side]) ?? null;
 
-  function togglePin(side: Side, id: string) {
-    setPins((p) => ({ ...p, [side]: p[side] === id ? null : id }));
-  }
 
-  function openPhoto(side: Side, id: string) {
-    const index = sides[side].ordered.findIndex((p) => p.id === id);
-    if (index >= 0) setLightbox({ side, index });
-  }
+  // Stable per side, so the set grids skip redrawing on a pin or the lightbox
+  const open = useMemo(() => {
+    const at = (side: Side) => (id: string) => {
+      const index = sides[side].ordered.findIndex((p) => p.id === id);
+      if (index >= 0) setLightbox({ side, index });
+    };
+    return { stays: at("stays"), goes: at("goes") };
+  }, [sides]);
 
   // The loupe steps through what the columns show; a pinned photo outside the filter still counts
   const loupeList = (side: Side) => {
@@ -56,6 +59,7 @@ export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps
   };
 
   return (
+    <MergePinContext.Provider value={pinStore}>
     <div className="space-y-4">
       <MergeFactsBar
         survivor={survivor.card}
@@ -92,9 +96,7 @@ export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps
             role={side}
             card={sides[side].card}
             groups={sides[side].groups}
-            pinnedId={pins[side]}
-            onPin={(id) => togglePin(side, id)}
-            onOpen={(id) => openPhoto(side, id)}
+            onOpen={open[side]}
             filtered={!!personFilter}
             className={cn(
               "lg:max-h-[calc(100dvh-16rem)] lg:overflow-y-auto",
@@ -108,7 +110,7 @@ export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps
         survivor={survivor.card}
         absorbed={absorbed.card}
         pinned={{ stays: pinnedPhoto("stays"), goes: pinnedPhoto("goes") }}
-        onUnpin={(side) => setPins((p) => ({ ...p, [side]: null }))}
+        onUnpin={(side) => pinStore.set({ ...pinStore.get(), [side]: null })}
         onCompare={() => setLoupeOpen(true)}
       />
 
@@ -125,10 +127,11 @@ export function SessionMergeWorkspace({ comparison }: SessionMergeWorkspaceProps
         <MergeCompareLoupe
           left={{ photos: loupeList("stays"), id: pins.stays, name: survivor.card.name }}
           right={{ photos: loupeList("goes"), id: pins.goes, name: absorbed.card.name }}
-          onChange={(side, id) => setPins((p) => ({ ...p, [side]: id }))}
+          onChange={(side, id) => pinStore.set({ ...pinStore.get(), [side]: id })}
           onClose={() => setLoupeOpen(false)}
         />
       )}
     </div>
+    </MergePinContext.Provider>
   );
 }

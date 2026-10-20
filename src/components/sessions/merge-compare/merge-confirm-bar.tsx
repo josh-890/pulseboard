@@ -130,7 +130,7 @@ export function MergeConfirmBar({ survivor, absorbed, pinned, onUnpin, onCompare
                 void handleMerge();
               }}
               disabled={merging}
-              className="bg-destructive text-white hover:bg-destructive/90"
+              variant="destructive"
             >
               {merging && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
               {merging ? "Merging…" : "Merge sessions"}

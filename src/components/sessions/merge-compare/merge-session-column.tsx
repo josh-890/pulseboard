@@ -1,29 +1,53 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
-import { Camera, Columns2, ExternalLink, Film, ImageOff } from "lucide-react";
+import { Camera, ExternalLink, Film, ImageOff } from "lucide-react";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import type { SessionPhotoGroup } from "@/lib/session-merge-groups";
 import { plural } from "@/lib/session-merge-text";
-import type { SessionMergeCard } from "@/lib/types";
+import type { GalleryItem, SessionMergeCard } from "@/lib/types";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import { MergeRoleBadge } from "../merge-role-badge";
+import { MergePinButton } from "./merge-pin-button";
 
 // One session on the compare page (2026-10-20): its photos set by set, each
 // opens the lightbox; the pin button puts a photo into the 2-up loupe, one per side.
+// A session can hold 400 photos, so a set's grid redraws only when its photos
+// change (the person filter) — a pin redraws just the pin buttons — and rows out
+// of view skip layout and paint.
+
+/** `onOpen` must keep its identity, or every grid redraws on each render */
+const SetGroupGrid = memo(function SetGroupGrid({
+  photos,
+  side,
+  onOpen,
+}: {
+  photos: GalleryItem[];
+  side: "stays" | "goes";
+  onOpen: (photoId: string) => void;
+}) {
+  return (
+    <JustifiedGrid
+      items={photos}
+      onOpen={onOpen}
+      markControls={false}
+      deferOffscreenRows
+      tileAction={(item) => <MergePinButton side={side} photoId={item.id} />}
+    />
+  );
+});
 
 export type MergeSessionColumnProps = {
   role: "stays" | "goes";
   card: SessionMergeCard;
   groups: SessionPhotoGroup[];
-  pinnedId: string | null;
-  onPin: (photoId: string) => void;
   onOpen: (photoId: string) => void;
   filtered: boolean;
   className?: string;
 };
 
-export function MergeSessionColumn({ role, card, groups, pinnedId, onPin, onOpen, filtered, className }: MergeSessionColumnProps) {
+export function MergeSessionColumn({ role, card, groups, onOpen, filtered, className }: MergeSessionColumnProps) {
   const shown = groups.reduce((n, g) => n + g.photos.length, 0);
   return (
     <section
@@ -103,33 +127,7 @@ export function MergeSessionColumn({ role, card, groups, pinnedId, onPin, onOpen
                     {filtered ? "None with this person" : "No photos"}
                   </p>
                 ) : (
-                  <JustifiedGrid
-                    items={g.photos}
-                    onOpen={onOpen}
-                    markControls={false}
-                    tileAction={(item) => {
-                      const pinned = item.id === pinnedId;
-                      return (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPin(item.id);
-                          }}
-                          aria-pressed={pinned}
-                          aria-label={pinned ? "Pinned to compare" : "Pin to compare"}
-                          title={pinned ? "Pinned to compare — click to unpin" : "Pin to compare side by side"}
-                          className={cn(
-                            "flex h-6 w-6 items-center justify-center rounded text-white transition-opacity duration-150",
-                            "focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                            pinned ? "bg-indigo-500 opacity-100" : "bg-black/55 opacity-0 hover:bg-black/75 group-hover:opacity-100",
-                          )}
-                        >
-                          <Columns2 size={12} aria-hidden="true" />
-                        </button>
-                      );
-                    }}
-                  />
+                  <SetGroupGrid photos={g.photos} side={role} onOpen={onOpen} />
                 )}
               </div>
             );
