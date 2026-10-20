@@ -146,7 +146,7 @@ async function cleanupTestData() {
 
     // --- Persons (matched by alias) ---
     const testPersonIds = await tx.$queryRaw<{ personId: string }[]>`
-      SELECT DISTINCT "personId" FROM "PersonAlias" WHERE name LIKE 'Test Person %'`;
+      SELECT DISTINCT "personId" FROM "PersonAlias" WHERE name LIKE 'Test Person %' OR name LIKE 'Test External %'`;
 
     if (testPersonIds.length > 0) {
       const ids = testPersonIds.map((r) => r.personId);
