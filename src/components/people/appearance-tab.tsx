@@ -10,6 +10,7 @@ import type {
 } from "@/lib/types";
 import type { BodyMarkType, BodyModificationType, DeltaCause } from "@/generated/prisma/client";
 import { MutabilityPrimitive } from "@/components/people/mutability-primitive";
+import type { StaticAttributeEditData } from "@/components/people/static-attribute-editor";
 import { AttributeStatusProgression } from "@/components/people/attribute-status-progression";
 import { AddAttributePicker } from "@/components/people/add-attribute-picker";
 import { BodyMarkRow } from "@/components/people/body-mark-row";
@@ -295,6 +296,7 @@ export function AppearanceTab({
         mutability: import("@/generated/prisma/client").Mutability;
         baselineValue: string | null;
         statusBearing: boolean;
+        definitionId: string;
       }[]
     > = {};
     for (const [defId, attr] of Object.entries(currentState.extensibleAttributes)) {
@@ -313,10 +315,34 @@ export function AppearanceTab({
         mutability: attr.mutability,
         baselineValue: attr.baselineValue,
         statusBearing: attr.statusBearing,
+        definitionId: defId,
       });
     }
     return groups;
   }, [currentState.extensibleAttributes]);
+
+  // ADR-0005 (built 2026-10-20): what an ALWAYS_STATIC row needs to edit its
+  // baseline in place — the definition, the baseline value, and any later
+  // change that overrides it.
+  const staticEditFor = useCallback((definitionId: string): StaticAttributeEditData | undefined => {
+    const definition = attributeGroups?.flatMap((g) => g.definitions).find((d) => d.id === definitionId);
+    if (!definition) return undefined;
+    const baseline = person.eras.find((e) => e.isBaseline)?.scalarDeltas.find((d) => d.attributeDefinitionId === definitionId);
+    const overrides = person.eras
+      .filter((e) => !e.isBaseline)
+      .flatMap((e) =>
+        e.scalarDeltas
+          .filter((d) => d.attributeDefinitionId === definitionId && d.value.trim() !== "")
+          .map((d) => ({ deltaId: d.id, value: d.value, where: e.label })),
+      );
+    return {
+      personId: person.id,
+      definition,
+      baselineValue: baseline?.value ?? "",
+      baselineUnknown: baseline?.isVerifiedUnknown ?? false,
+      overrides,
+    };
+  }, [attributeGroups, person.eras, person.id]);
 
   // Build physical-change history from each era's scalar deltas.
   const physicalChanges = useMemo<PhysicalChangeItem[]>(() => {
@@ -740,6 +766,7 @@ export function AppearanceTab({
                               baselineValue={attr.baselineValue}
                               statusBearing={attr.statusBearing}
                               onRecordChange={() => setOpenState("physicalChange")}
+                              staticEdit={attr.mutability === "ALWAYS_STATIC" ? staticEditFor(attr.definitionId) : undefined}
                             />
                           ))}
                         </dl>

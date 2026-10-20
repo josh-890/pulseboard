@@ -3,6 +3,8 @@
 import { useCallback, useState, useTransition } from "react";
 import { PartialDateInput } from "@/components/shared/partial-date-input";
 import { TypedAttributeInput } from "@/components/people/typed-attribute-input";
+import { RemoveValueButton } from "@/components/people/remove-value-button";
+import { splitOptionLabel } from "@/lib/utils";
 import { editScalarDeltaAction } from "@/lib/actions/appearance-actions";
 import { CHANGE_KIND_OPTIONS, type ChangeKind } from "@/lib/constants/appearance";
 import type { DeltaCause } from "@/generated/prisma/client";
@@ -56,7 +58,11 @@ export function ScalarDeltaInlineEditor({ delta, personId, initialIntent, onClos
 
   const handleSave = useCallback(() => {
     if (!value.trim()) {
-      setError("Value can't be empty. Delete the row to remove it.");
+      setError("Value can't be empty — use Remove to take it back.");
+      return;
+    }
+    if (intent === "on-date" && !date) {
+      setError("Pick a date, or choose “I don't know when yet”.");
       return;
     }
     startTransition(async () => {
@@ -173,6 +179,15 @@ export function ScalarDeltaInlineEditor({ delta, personId, initialIntent, onClos
         >
           Cancel
         </button>
+        <RemoveValueButton
+          deltaId={delta.id}
+          personId={personId}
+          what={`${delta.attributeDefinition.name}: ${splitOptionLabel(delta.value).label}`}
+          where="this change"
+          label="Remove"
+          className="ml-auto px-2 py-1.5"
+          onRemoved={onClose}
+        />
       </div>
     </div>
   );

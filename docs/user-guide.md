@@ -2446,9 +2446,17 @@ These definitions are used in **Recording physical changes** — extensible attr
 - **I don't know when yet** — files the delta into your *Undated changes* drawer (a dedicated dateless draft Era — distinct from baseline). Set the date later and it re-clusters into the right draft.
 - **Actually, this was always true (baseline)** — adds the value to baseline. Use this when you're filling in measurements that were always true but weren't captured at import.
 
-The default reflects history: a fresh person opens with **baseline** preselected; a person with existing measurements opens with **On this date**. Once a draft Era reaches a meaningful size, the Overview History panel will nudge you to name it (curation nudge — coming in Slice 9). Naming an Era promotes it from draft → curated and locks its membership.
+The default reflects history: a fresh person opens with **baseline** preselected; a person with existing measurements opens with **On this date**. **On this date needs a date** — Record stays disabled until you pick one (or choose *I don't know when yet*); nothing lands in Undated by accident. When every field you changed is one that **never changes** (e.g. Eye Pattern), a note offers **Use baseline**. Once a draft Era reaches a meaningful size, the Overview History panel will nudge you to name it (curation nudge — coming in Slice 9). Naming an Era promotes it from draft → curated and locks its membership.
 
 **Editing a recorded change.** Open the Edit sheet on any History row to change values, the date, or the intent. While the containing Era is still a **draft** (unnamed), editing the date freely re-clusters the change into a better-fitting draft — and a now-empty source draft cleans itself up automatically. Once you name (curate) the Era, membership becomes sticky: you can still edit the date itself, but the change stays in the curated Era.
+
+**Traits that never change** (attributes marked *Always static* in the catalog, e.g. Eye Pattern, Height). Their row in Physical Stats has a **pencil**: edit the value in place and it is saved as always true (baseline). Empty it to clear it; *Don't know* is offered for Tier-1 attributes. If a change recorded later still overrides it (e.g. one filed under *Undated changes*), the editor shows it in amber with **Remove**.
+
+**Taking a value back.** A value recorded by mistake can be removed on its own:
+- in the **Undated changes** drawer, each row has a red trash next to *Set date* (also inside its mini-form: **Remove**);
+- in the **Edit** sheet of a Change History row, empty the field (select fields have a **×**) — it leaves that change on Update;
+- from a never-changing trait's pencil editor, for a change that overrides it.
+Whatever else is recorded for the attribute shows again; a draft Era left empty disappears.
 
 **Undated changes drawer.** Changes saved with "I don't know when yet" land in a per-person drawer surfaced on the Overview History panel as **Undated changes** (soft-amber styling). Each row has a `Set date` affordance opening an inline mini-form: edit the value, pick a date + precision (or change intent), and Save. The change re-clusters into a dated draft Era of its own (or joins one nearby per the ±6-month rule). When the drawer empties, it disappears.
 

@@ -916,6 +916,9 @@ type PhysicalChangeData = {
   //  - 'baseline' → land on Baseline ("this was always true")
   // Default 'on-date' if `date` is set, else 'baseline' (back-compat).
   intent?: "on-date" | "dateless" | "baseline";
+  // Edit only (2026-10-20): attributes emptied in the edit sheet — their value
+  // leaves the edited change (its source Era), nothing else is touched.
+  removeAttributeIds?: string[];
 };
 
 type ScalarDeltaItem = {
@@ -1024,6 +1027,10 @@ export async function recordPhysicalChangeAction(
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
       const intent: "on-date" | "dateless" | "baseline" =
         data.intent ?? (date ? "on-date" : "baseline");
+      // 2026-10-20: "on this date" needs one — Undated is its own intent.
+      if (intent === "on-date" && !date) {
+        return { success: false, error: "Pick a date, or choose “I don't know when yet”." };
+      }
 
       await ensureCatalogEntry("hair", data.currentHairColor);
 
@@ -1077,6 +1084,10 @@ export async function updatePhysicalChangeAction(
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
       const newIntent: "on-date" | "dateless" | "baseline" =
         data.intent ?? (date ? "on-date" : "baseline");
+      // 2026-10-20: "on this date" needs one — Undated is its own intent.
+      if (newIntent === "on-date" && !date) {
+        return { success: false, error: "Pick a date, or choose “I don't know when yet”." };
+      }
 
       await ensureCatalogEntry("hair", data.currentHairColor);
 
@@ -1136,8 +1147,14 @@ export async function updatePhysicalChangeAction(
           deltaPrecision as DatePrecision,
         );
 
+        if (data.removeAttributeIds && data.removeAttributeIds.length > 0) {
+          await tx.scalarDelta.deleteMany({
+            where: { eraId: source.id, attributeDefinitionId: { in: data.removeAttributeIds } },
+          });
+        }
+
         // If we just emptied the source draft Era, garbage-collect it.
-        if (canMove && effectiveEraId !== source.id) {
+        if (effectiveEraId !== source.id || data.removeAttributeIds?.length) {
           await deleteDraftEraIfEmpty(tx, source.id);
         }
 
@@ -1179,6 +1196,10 @@ export async function editScalarDeltaAction(
       const precision = (data.datePrecision ?? "UNKNOWN") as DatePrecision;
       const newIntent: "on-date" | "dateless" | "baseline" =
         data.intent ?? (date ? "on-date" : "baseline");
+      // 2026-10-20: "on this date" needs one — Undated is its own intent.
+      if (newIntent === "on-date" && !date) {
+        return { success: false, error: "Pick a date, or choose “I don't know when yet”." };
+      }
 
       await prisma.$transaction(async (tx) => {
         const delta = await tx.scalarDelta.findUniqueOrThrow({
@@ -1253,6 +1274,38 @@ export async function editScalarDeltaAction(
       revalidatePath(`/people/${personId}`);
       return { success: true };
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Take one value back (2026-10-20): deletes a single ScalarDelta — wherever it
+// sits, baseline included. A draft Era left empty goes with it; baseline and
+// curated Eras stay. The fold falls back to whatever value is left.
+export async function deleteScalarDeltaAction(
+  deltaId: string,
+  personId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const delta = await tx.scalarDelta.findUniqueOrThrow({
+          where: { id: deltaId },
+          select: { eraId: true, era: { select: { personId: true } } },
+        });
+        if (delta.era.personId !== personId) {
+          throw new Error("Delta does not belong to this person.");
+        }
+        await tx.scalarDelta.delete({ where: { id: deltaId } });
+        await deleteDraftEraIfEmpty(tx, delta.eraId);
+        await recomputePersonCurrentState(tx, personId);
+      });
+
+      revalidatePath(`/people/${personId}`);
+      return { success: true };
+    } catch (err) {
+      console.error("deleteScalarDeltaAction", err);
       const message = err instanceof Error ? err.message : "Unexpected error";
       return { success: false, error: message };
     }

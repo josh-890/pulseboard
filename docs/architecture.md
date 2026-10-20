@@ -700,6 +700,8 @@ All searchable entities have `nameNorm`/`titleNorm` fields with `pg_trgm` trigra
 
 21. **A folder carries claims, a set has a cast (ADR-0028)** — `ArchiveFolderAttribution` is *your* assertion about an archive folder; `StagingSet.participants` (→ `SetParticipant`, a cache rebuilt from `SessionContribution`) is who the publisher credited. Linking places them side by side and **never merges them**. A person may be written into a cast only when that cast is **empty** (pure enrichment) or already names them; where it names a different cast, the contradiction stands and is decided per folder with the cover in view. No state records it: every answer mutates data, so `getAttributionLinkAudit()` — computed, not stored — *is* the queue, and it reports `checked`/`comparable` so a 0 can be told from "nothing was comparable". When an import collides with an already-linked staging set it runs into it rather than creating a twin; the cast then comes from the import, and whoever falls out survives as a claim on the folder.
 
+22. **Taking a value back / never-changing traits (2026-10-20)** — `deleteScalarDeltaAction(deltaId, personId)` deletes one ScalarDelta (any Era), GCs an emptied draft via `deleteDraftEraIfEmpty`, recomputes `PersonCurrentState`. `updatePhysicalChangeAction` takes `removeAttributeIds` (fields emptied in the Edit sheet; deleted from the source Era only). `recordPhysicalChangeAction` / `updatePhysicalChangeAction` / `editScalarDeltaAction` refuse intent `on-date` without a date (no silent fallback to Undated). ALWAYS_STATIC rows edit the baseline in place (`StaticAttributeEditor` → `recordPhysicalChangeAction` intent `baseline`) and list non-baseline deltas that override it (ADR-0005).
+
 ---
 
 ## 10. Data Flow Examples

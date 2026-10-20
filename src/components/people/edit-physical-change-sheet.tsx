@@ -159,9 +159,28 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
     return null;
   }, [attributeGroups]);
 
+  // 2026-10-20: a field that had a value and is now empty leaves this change.
+  const removeAttributeIds = useMemo(() => {
+    const ids: string[] = [];
+    const emptied = (had: unknown, now: string, unknown: boolean) => had != null && had !== "" && !now.trim() && !unknown;
+    if (emptied(item.currentHairColor, currentHairColor, hairColorUnknown)) ids.push("cattr-hair-color");
+    if (emptied(item.weight, weight, weightUnknown)) ids.push("cattr-weight");
+    if (emptied(item.build, build, buildUnknown)) ids.push("cattr-build");
+    if (emptied(item.breastSize, breastSize, breastSizeUnknown)) ids.push("cattr-breast-size");
+    for (const attr of item.attributes) {
+      const had = attr.value.trim() !== "" || attr.isVerifiedUnknown;
+      if (had && !(attrValues[attr.definitionId] ?? "").trim() && !attrUnknown[attr.definitionId]) ids.push(attr.definitionId);
+    }
+    return ids;
+  }, [item, currentHairColor, weight, build, breastSize, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, attrValues, attrUnknown]);
+
   const handleSubmit = useCallback(() => {
-    if (!hasAnyField) {
+    if (!hasAnyField && removeAttributeIds.length === 0) {
       setError("At least one physical field is required.");
+      return;
+    }
+    if (intent === "on-date" && !date) {
+      setError("Pick a date, or choose “I don't know when yet”.");
       return;
     }
     startTransition(async () => {
@@ -190,6 +209,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
         breastDescription: breastDescription.trim() || undefined,
         attributes: attributes.length > 0 ? attributes : undefined,
         breastKind,
+        removeAttributeIds: removeAttributeIds.length > 0 ? removeAttributeIds : undefined,
         coreAttrUnknown:
           hairColorUnknown || weightUnknown || buildUnknown || breastSizeUnknown
             ? {
@@ -206,7 +226,7 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
       }
       onClose();
     });
-  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, hasAnyField, breastKind, onClose]);
+  }, [item.eraId, personId, date, datePrecision, intent, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, hasAnyField, removeAttributeIds, breastKind, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -423,12 +443,19 @@ export function EditPhysicalChangeSheet({ personId, item, attributeGroups, onClo
             );
           })()}
 
+          <p className="text-xs text-muted-foreground">Empty a field to take its value out of this change.</p>
+          {removeAttributeIds.length > 0 && (
+            <p className="text-xs text-destructive">
+              {removeAttributeIds.length === 1 ? "1 value leaves" : `${removeAttributeIds.length} values leave`} this change on Update.
+            </p>
+          )}
+
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !hasAnyField}
+            disabled={isPending || (!hasAnyField && removeAttributeIds.length === 0)}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {isPending ? "Saving..." : "Update"}

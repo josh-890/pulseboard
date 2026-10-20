@@ -119,6 +119,21 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       ([id, u]) => u !== (initialAttrUnknown[id] ?? false),
     );
   const hasAnyChange = hairChanged || weightChanged || buildChanged || breastSizeChanged || breastDescChanged || attrChanged;
+  // 2026-10-20: "On this date" needs the date — no silent fallback to Undated.
+  const needsDate = intent === "on-date" && !date;
+
+  // 2026-10-20: when every changed field is one that never changes
+  // (ALWAYS_STATIC), suggest the baseline — the user still decides.
+  const staticOnlyNames = useMemo(() => {
+    if (hairChanged || weightChanged || buildChanged || breastSizeChanged || breastDescChanged) return [];
+    const changed = new Set<string>();
+    for (const [id, v] of Object.entries(attrValues)) if (v.trim() !== (initialAttrValues[id] ?? "")) changed.add(id);
+    for (const [id, u] of Object.entries(attrUnknown)) if (u !== (initialAttrUnknown[id] ?? false)) changed.add(id);
+    if (changed.size === 0) return [];
+    const defs = (attributeGroups ?? []).flatMap((g) => g.definitions).filter((d) => changed.has(d.id));
+    if (defs.length !== changed.size || defs.some((d) => d.mutability !== "ALWAYS_STATIC")) return [];
+    return defs.map((d) => d.name);
+  }, [hairChanged, weightChanged, buildChanged, breastSizeChanged, breastDescChanged, attrValues, attrUnknown, initialAttrValues, initialAttrUnknown, attributeGroups]);
 
   // ADR-0018: breast_size carries an inline change-kind picker iff it's flagged
   // status-bearing in the catalog (the only such core attr today).
@@ -134,6 +149,10 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
   const handleSubmit = useCallback(() => {
     if (!hasAnyChange) {
       setError("Change at least one field before recording.");
+      return;
+    }
+    if (needsDate) {
+      setError("Pick a date, or choose “I don't know when yet”.");
       return;
     }
     startTransition(async () => {
@@ -186,7 +205,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
       }
       onClose();
     });
-  }, [personId, date, datePrecision, intent, breastKind, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hasAnyChange, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastDescChanged, initialAttrValues, initialAttrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, onClose]);
+  }, [personId, date, datePrecision, intent, breastKind, currentHairColor, weight, build, breastSize, breastDescription, attrValues, attrUnknown, hasAnyChange, needsDate, hairChanged, weightChanged, buildChanged, breastSizeChanged, breastDescChanged, initialAttrValues, initialAttrUnknown, hairColorUnknown, weightUnknown, buildUnknown, breastSizeUnknown, onClose]);
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex justify-end">
@@ -262,6 +281,27 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
               ? "Filed into your Undated changes drawer until you fix the date."
               : "Added to baseline — applies as far back as records go."}
           </p>
+
+          {needsDate && hasAnyChange && (
+            <p className="-mt-3 text-xs text-amber-700 dark:text-amber-300">
+              Pick a date, or choose &ldquo;I don&apos;t know when yet&rdquo;.
+            </p>
+          )}
+
+          {staticOnlyNames.length > 0 && intent !== "baseline" && (
+            <div role="note" className="-mt-2 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+              <span className="text-amber-700 dark:text-amber-300">
+                {staticOnlyNames.join(", ")} never {staticOnlyNames.length === 1 ? "changes" : "change"} — save as always true?
+              </span>
+              <button
+                type="button"
+                onClick={() => setIntent("baseline")}
+                className="shrink-0 rounded-md border border-amber-500/40 px-2 py-1 font-medium text-foreground hover:bg-amber-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Use baseline
+              </button>
+            </div>
+          )}
 
           <CoreFieldRow label="Hair Color" unknown={hairColorUnknown} onUnknownChange={(v) => { setHairColorUnknown(v); if (v) setCurrentHairColor(""); }}>
             {hairColorDef && (
@@ -415,7 +455,7 @@ export function RecordPhysicalChangeSheet({ personId, currentState, attributeGro
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !hasAnyChange}
+            disabled={isPending || !hasAnyChange || needsDate}
             className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {isPending ? "Saving..." : "Record Change"}

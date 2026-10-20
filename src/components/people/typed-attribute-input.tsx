@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -176,6 +176,17 @@ function renderInputBody({
               ))}
             </SelectContent>
           </Select>
+          {value !== "" && (
+            <button
+              type="button"
+              onClick={() => onChange("")}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              aria-label={`Clear ${definition.name}`}
+              title="Clear"
+            >
+              <X size={14} />
+            </button>
+          )}
           {anyHelper && (
             <Popover>
               <PopoverTrigger asChild>

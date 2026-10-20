@@ -3,6 +3,7 @@
 import type { Mutability } from "@/generated/prisma/client";
 import type { AttributeStatus } from "@/lib/types";
 import { StaticLabelRow } from "@/components/people/static-label-row";
+import type { StaticAttributeEditData } from "@/components/people/static-attribute-editor";
 import { ValueWithChangeRow } from "@/components/people/value-with-change-row";
 import { ValueWithSparklineRow } from "@/components/people/value-with-sparkline-row";
 
@@ -15,6 +16,8 @@ type MutabilityPrimitiveProps = {
   baselineValue?: string | null;  // Phase G Slice 4 / ADR-0007: Pattern Y progression
   statusBearing?: boolean;        // Phase G Slice 6½ / ADR-0007 amendment: gates Pattern Y
   onRecordChange?: () => void;
+  /** ALWAYS_STATIC only: in-place edit of the baseline */
+  staticEdit?: StaticAttributeEditData;
 };
 
 // Deterministic switcher from mutability policy → visual primitive (ADR-0005).
@@ -29,10 +32,11 @@ export function MutabilityPrimitive({
   baselineValue,
   statusBearing,
   onRecordChange,
+  staticEdit,
 }: MutabilityPrimitiveProps) {
   switch (mutability) {
     case "ALWAYS_STATIC":
-      return <StaticLabelRow name={name} value={value} unit={unit} status={status} baselineValue={baselineValue} statusBearing={statusBearing} />;
+      return <StaticLabelRow name={name} value={value} unit={unit} status={status} baselineValue={baselineValue} statusBearing={statusBearing} edit={staticEdit} />;
     case "RARELY_CHANGES":
       return (
         <ValueWithChangeRow

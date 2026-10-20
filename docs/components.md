@@ -58,6 +58,10 @@
 | `AffiliationsSection` | Server | `labels` | Labels derived from set contributions |
 | `ConnectionsSection` | Server | `relationships` | Co-workers with shared set count |
 | `NotesSection` | Client | `person` | Editable rating, notes, and tags |
+| `StaticLabelRow` | Client | `name`, `value`, `unit?`, `status?`, `baselineValue?`, `statusBearing?`, `edit?` | ALWAYS_STATIC row (ADR-0005); with `edit` a pencil opens `StaticAttributeEditor` in place |
+| `StaticAttributeEditor` | Client | `personId`, `definition`, `baselineValue`, `baselineUnknown`, `overrides`, `currentValue`, `onClose` | Edits a never-changing trait as baseline (`recordPhysicalChangeAction` intent `baseline`; empty = clear); lists later changes that override it, each with `RemoveValueButton` (2026-10-20) |
+| `RemoveValueButton` | Client | `deltaId`, `personId`, `what`, `where`, `label?`, `className?`, `onRemoved?` | Removes one ScalarDelta after a red confirm (`deleteScalarDeltaAction`); Undated drawer rows, `ScalarDeltaInlineEditor`, static editor |
+| `TypedAttributeInput` | Client | `definition`, `value`, `onChange`, `isVerifiedUnknown?`, `onVerifiedUnknownChange?` | Catalog-typed input; SINGLE_SELECT has a **×** to clear (2026-10-20) |
 
 ### Overview (`components/people/overview/`)
 | Component | Type | Props | Description |

@@ -3,12 +3,13 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Pencil, X } from "lucide-react";
-import { cn, formatPartialDate } from "@/lib/utils";
+import { cn, formatPartialDate, splitOptionLabel } from "@/lib/utils";
 import { DeleteButton } from "@/components/shared/delete-button";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type { EraContributionInfo } from "@/lib/services/era-service";
 import { deleteEraAction, updateEraAction, promoteEraAction } from "@/lib/actions/appearance-actions";
 import { ScalarDeltaInlineEditor } from "@/components/people/scalar-delta-inline-editor";
+import { RemoveValueButton } from "@/components/people/remove-value-button";
 import { useNudgeDismissal, NUDGE_THRESHOLD_DELTAS } from "@/lib/hooks/use-nudge-dismissal";
 
 type EraItem = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>["eras"][number];
@@ -314,13 +315,21 @@ export function EraTimelineEntry({ era, personId, connectAbove, connectBelow, co
                       <span className="text-foreground/80">
                         <span className="text-muted-foreground">{d.attributeDefinition.name}:</span> {d.value}{unit}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setEditingDeltaId(d.id)}
-                        className="opacity-0 transition-opacity group-hover:opacity-100 text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        <Pencil size={12} /> Set date
-                      </button>
+                      <span className="inline-flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => setEditingDeltaId(d.id)}
+                          className="inline-flex items-center gap-1 rounded-md p-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil size={12} /> Set date
+                        </button>
+                        <RemoveValueButton
+                          deltaId={d.id}
+                          personId={personId}
+                          what={`${d.attributeDefinition.name}: ${splitOptionLabel(d.value).label}${unit}`}
+                          where={savedLabel}
+                        />
+                      </span>
                     </div>
                   );
                 })}

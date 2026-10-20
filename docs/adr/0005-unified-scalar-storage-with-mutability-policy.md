@@ -46,3 +46,7 @@ The only fields exempt are **core identity fields on `Person`** — values struc
 - `PhysicalAttributeDefinition` gains a `mutability` enum column with default `RARELY_CHANGES` (the safe middle).
 - `record-physical-change-sheet.tsx` and the catalog manager UI (`/settings/catalogs/attributes`) need updating to expose and use the policy.
 - The data-quality cleanup (BMI / Waist-to-Hip Ratio removal; text→single-select tightening; group hygiene) is tracked separately and is a good co-deploy partner with this change.
+
+## Amendment (2026-10-20)
+
+The `ALWAYS_STATIC` row is now edited in place: a pencil writes the baseline (`StaticAttributeEditor`). The "soft warning" for a second, non-baseline delta takes the form of the editor listing every later change that overrides the baseline, each with Remove. The Record Change sheet suggests the baseline (it does not force it) when every changed field is ALWAYS_STATIC.
