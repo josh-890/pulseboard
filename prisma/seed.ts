@@ -242,7 +242,7 @@ async function main() {
 
   const network = await prisma.network.upsert({
     where: { id: "seed-network-1" },
-    update: { nameNorm: "sample network" },
+    update: { name: "Sample Network", nameNorm: "sample network" },
     create: {
       id: "seed-network-1",
       name: "Sample Network",
@@ -253,7 +253,7 @@ async function main() {
 
   const label = await prisma.label.upsert({
     where: { id: "seed-label-1" },
-    update: { nameNorm: "sample studio" },
+    update: { name: "Sample Studio", nameNorm: "sample studio" },
     create: {
       id: "seed-label-1",
       name: "Sample Studio",
@@ -349,7 +349,7 @@ async function main() {
 
   const project = await prisma.project.upsert({
     where: { id: "seed-project-1" },
-    update: { nameNorm: "sample project", labelId: label.id },
+    update: { name: "Sample Project", nameNorm: "sample project", labelId: label.id },
     create: {
       id: "seed-project-1",
       name: "Sample Project",
@@ -377,7 +377,7 @@ async function main() {
 
   const session = await prisma.session.upsert({
     where: { id: "seed-session-1" },
-    update: { status: "CONFIRMED", labelId: label.id, nameNorm: "session 1" },
+    update: { status: "CONFIRMED", labelId: label.id, name: "Session 1", nameNorm: "session 1" },
     create: {
       id: "seed-session-1",
       projectId: project.id,
@@ -515,7 +515,8 @@ async function main() {
   const set = await prisma.set.upsert({
     where: { id: "seed-set-1" },
     update: {
-
+      // The CRUD tests rename it; each re-seed puts the name back
+      title: "Sample Photoset",
       titleNorm: "sample photoset",
       coverMediaItemId: media1.id,
     },
