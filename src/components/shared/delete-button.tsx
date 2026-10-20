@@ -68,7 +68,7 @@ export function DeleteButton({
           <AlertDialogAction
             onClick={handleDelete}
             disabled={pending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
           >
             {pending ? "Deleting…" : "Delete"}
           </AlertDialogAction>

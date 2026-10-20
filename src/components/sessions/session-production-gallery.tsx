@@ -490,7 +490,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               Delete permanently
             </AlertDialogAction>

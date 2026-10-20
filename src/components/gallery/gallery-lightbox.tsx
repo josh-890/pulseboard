@@ -968,7 +968,7 @@ function SimpleLightbox({
                   onClose();
                 }
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              variant="destructive"
             >
               Delete permanently
               <kbd className="ml-2 rounded border border-white/30 px-1 text-[10px] opacity-80">Enter</kbd>
