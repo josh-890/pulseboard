@@ -218,6 +218,19 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const skipSearchSyncRef = useRef(false);
 
+  // The address can change the search from outside — Undo, Back, a pivot. The
+  // field follows it then; otherwise the debounced sync below would see "field
+  // empty, URL has q", delete q again, and — firing late with the old params —
+  // write the old filters back over a reset (2026-10-21). Adjusted during
+  // render, so the field never shows a stale term; a typed trailing space, which
+  // the URL drops, is not a change.
+  const urlQ = searchParams.get("q") ?? "";
+  const [seenUrlQ, setSeenUrlQ] = useState(urlQ);
+  if (urlQ !== seenUrlQ) {
+    setSeenUrlQ(urlQ);
+    if (searchValue.trim() !== urlQ) setSearchValue(urlQ);
+  }
+
   // Current sort
   const currentSort = searchParams.get("sort") ?? defaultSort;
 

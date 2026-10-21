@@ -140,6 +140,11 @@ test.describe("Esc clears the filters — last in line", () => {
     await expect(page.getByText("Filters cleared")).toBeVisible();
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+    // The search comes back too — in the URL and in the field — and stays
+    await expect(page).toHaveURL(new RegExp(`q=${RUN}`));
+    await expect(page.getByPlaceholder(/search sets/i)).toHaveValue(RUN);
+    await page.waitForTimeout(500);
+    await expect(page).toHaveURL(new RegExp(`q=${RUN}`));
 
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/\/sets$/);
