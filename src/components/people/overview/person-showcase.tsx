@@ -112,8 +112,11 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
 
   return (
     <section aria-labelledby="showcase-title" className="space-y-3 md:col-span-2">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
+      {/* Text and controls never trade lines: on a phone the controls always sit
+          below, from sm up beside the heading (top-aligned) — the text wraps, so a longer line in one mode
+          can't push Random · Shuffle · Best down and make them jump */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="sm:min-w-0 sm:flex-1">
           <h2 id="showcase-title" className="flex items-center gap-2 text-lg font-semibold">
             <Sparkles size={18} className="text-amber-400" aria-hidden="true" />
             Showcase
@@ -126,7 +129,7 @@ export function PersonShowcase({ showcase, personName, person }: PersonShowcaseP
                 : "Picked at random from their sets — mark photos iconic, ★ or outtake to lead here · changes daily"}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
           {/* Random · Best as one pill group; Shuffle is a segment of the Random pill
               (like "only" on a person pill), always there so nothing shifts — in
               Best it switches to Random with a fresh deal */}
