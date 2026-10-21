@@ -29,7 +29,8 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
    Private +0 · Secluded outdoors +0.5 · Semi-public +1 · Public +2). "First time" is an extra ticked by hand,
    not computed.
 4. **Cap and Max.** An act's value never exceeds **9.5**. One special extra, **Max** (renamable, never deleted),
-   sets the value to **10** whatever the sum.
+   sets the value to **10** whatever the sum. Set for a person in a session (not just one act), it makes that
+   session 10 even before any act is ticked (2026-10-21).
 5. **Assignment at the session**, per on-camera person (on the `SessionContribution`, by foreign key — merge
    moves it, delete removes it): extras set once for the person in that session; acts ticked by checkbox; each
    act **inherits** those extras and may **add** one (a grouped one replaces the inherited choice in its group)

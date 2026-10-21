@@ -7,18 +7,20 @@ export type IntensityHoverTextProps = {
   text: string | null;
   /** Where it opens — away from controls beside the title */
   side?: "top" | "right" | "bottom" | "left";
+  /** The trigger wrapper — by default it takes the free width of a flex row */
+  className?: string;
   children: React.ReactNode;
 };
 
 // A title's description, on hover — how the compact catalog (and later the
 // act picker on a session) shows what a title means.
-export function IntensityHoverText({ text, side = "right", children }: IntensityHoverTextProps) {
+export function IntensityHoverText({ text, side = "right", className = "min-w-0 flex-1", children }: IntensityHoverTextProps) {
   if (!text) return <>{children}</>;
   return (
     <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="min-w-0 flex-1">{children}</div>
+          <div className={className}>{children}</div>
         </TooltipTrigger>
         <TooltipContent side={side} className="max-w-xs whitespace-pre-line text-xs">
           {text}

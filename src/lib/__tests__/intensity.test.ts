@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { actValue, effectiveExtras, formatIntensity, intensityRows, isIntensityStep, sessionIntensity } from "@/lib/intensity";
+import { actValue, applySharedExtras, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds } from "@/lib/intensity";
 
 const semi = { id: "semi", points: 1, groupId: "loc", isMax: false };
 const pub = { id: "pub", points: 2, groupId: "loc", isMax: false };
@@ -62,5 +62,71 @@ describe("intensityRows", () => {
   });
   it("all half steps when asked", () => {
     expect(intensityRows([], [], true)).toHaveLength(21);
+  });
+});
+
+describe("suggestScenarioIds", () => {
+  it("alone → Glamour and Solo", () => {
+    expect(suggestScenarioIds("female", [])).toEqual(["dsit-glamour", "dsit-solo"]);
+  });
+  it("one other → G-G or G-B", () => {
+    expect(suggestScenarioIds("female", ["female"])).toEqual(["dsit-gg"]);
+    expect(suggestScenarioIds("female", ["male"])).toEqual(["dsit-gb"]);
+    expect(suggestScenarioIds("male", ["female"])).toEqual(["dsit-gb"]);
+  });
+  it("two or more others → Group", () => {
+    expect(suggestScenarioIds("female", ["female", null])).toEqual(["dsit-group"]);
+  });
+  it("an unknown sex suggests nothing", () => {
+    expect(suggestScenarioIds("female", [null])).toEqual([]);
+    expect(suggestScenarioIds("male", ["male"])).toEqual([]);
+  });
+});
+
+describe("overridesFor", () => {
+  it("adds what the act wants beyond the session, drops what it does without", () => {
+    expect(overridesFor(["semi", "first"], ["pub"])).toEqual([
+      { extraId: "pub", mode: "ADD" },
+      { extraId: "semi", mode: "DROP" },
+      { extraId: "first", mode: "DROP" },
+    ]);
+    expect(overridesFor(["semi"], ["semi"])).toEqual([]);
+  });
+});
+
+describe("sessionIntensity with Max", () => {
+  const max = { id: "max", points: 0, groupId: null, isMax: true };
+  it("Max among the session extras makes the session 10, even without acts", () => {
+    expect(sessionIntensity([], [max])).toBe(10);
+    expect(sessionIntensity([4], [max])).toBe(10);
+    expect(sessionIntensity([4], [])).toBe(4);
+  });
+});
+
+describe("explainActValue", () => {
+  const semi = { id: "semi", name: "Semi-public", points: 1, groupId: "loc", isMax: false };
+  const priv = { id: "priv", name: "Private", points: 0, groupId: "loc", isMax: false };
+  const pub = { id: "pub", name: "Public", points: 2, groupId: "loc", isMax: false };
+  const max = { id: "max", name: "Max", points: 0, groupId: null, isMax: true };
+  it("sums the level and the extras that add points", () => {
+    expect(explainActValue("Topless", 5, [semi, priv])).toBe("Topless 5 + Semi-public 1 = 6");
+    expect(explainActValue("Topless", 5, [])).toBe("Topless 5");
+  });
+  it("says when the cap bites, and when Max decides", () => {
+    expect(explainActValue("Spreads", 8.5, [pub])).toBe("Spreads 8.5 + Public 2 = 10.5 → capped at 9.5");
+    expect(explainActValue("Spreads", 8.5, [pub, max])).toBe("Max → 10");
+  });
+});
+
+describe("applySharedExtras", () => {
+  const groups: Record<string, string | null> = { semi: "loc", pub: "loc", priv: "loc", first: null, max: null };
+  const groupOf = (id: string) => groups[id] ?? null;
+  it("adds what joined the common set to everyone, replacing their choice in its group", () => {
+    // Anna had semi, Bea priv; nothing common in Location; Public chosen for both
+    expect(applySharedExtras(["semi"], [], ["pub"], groupOf)).toEqual(["pub"]);
+    expect(applySharedExtras(["priv", "first"], [], ["pub"], groupOf).sort()).toEqual(["first", "pub"]);
+  });
+  it("removes only what was common and left; leaves the rest as each had it", () => {
+    expect(applySharedExtras(["semi", "first"], ["first"], [], groupOf)).toEqual(["semi"]);
   });
 });

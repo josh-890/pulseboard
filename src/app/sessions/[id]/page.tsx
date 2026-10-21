@@ -2,7 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Users, ImageIcon, Camera, Film, User, Sparkles } from "lucide-react";
+import { Users, ImageIcon, Camera, Film, User, Sparkles, Gauge } from "lucide-react";
 import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/sessions/session-browse-nav-bar";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
@@ -35,6 +35,18 @@ import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
+import {
+  IntensityPanelProvider,
+  IntensityPanelToggle,
+  IntensitySummary,
+  SessionIntensityPanel,
+  SessionWorkspace,
+  INTENSITY_PANEL_COOKIE,
+  type SessionIntensityCatalog,
+} from "@/components/sessions/intensity";
+import { cookies } from "next/headers";
+import { getSessionIntensity } from "@/lib/services/intensity-service";
+import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
 import { AddContributorSheet } from "@/components/sessions/add-contributor-sheet";
 import { SessionAboutCard } from "@/components/sessions/session-about-card";
@@ -258,6 +270,30 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   // ADR-0021: behind-camera Artist credits from this session's sets, deduped, shown
   // read-only alongside the Person contributions.
   const behindCameraCredits = !isReference ? await getSessionBehindCameraCredits(id) : [];
+
+  // Intensity (ADR-0036) — shown once the catalog has acts; the panel opens as it was left
+  const intensityPanelOpen = (await cookies()).get(INTENSITY_PANEL_COOKIE)?.value === "1";
+  const [intensityRows, intensityCatalogFull] = !isReference
+    ? await Promise.all([getSessionIntensity(id), getIntensityCatalog()])
+    : [[], null];
+  const intensityCatalog: SessionIntensityCatalog | null =
+    intensityCatalogFull && intensityCatalogFull.scenarios.some((s) => s.acts.length > 0)
+      ? {
+          scenarios: intensityCatalogFull.scenarios.map((s) => ({
+            id: s.id,
+            name: s.name,
+            acts: s.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
+          })),
+          groups: intensityCatalogFull.groups.map((g) => ({ id: g.id, name: g.name })),
+          extras: intensityCatalogFull.extras.map((e) => ({
+            id: e.id,
+            name: e.name,
+            points: e.points,
+            groupId: e.groupId,
+            isMax: e.isMax,
+          })),
+        }
+      : null;
   const behindCameraContributors = mergeSessionContributors([], behindCameraCredits).filter(
     (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
   );
@@ -363,15 +399,22 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         />
       )}
 
-      {/* 2-column layout for production sessions */}
+      {/* 2-column layout for production sessions: gallery + skills left; sidebar
+          (contributors, sets, tags) right — or the intensity panel, beside the photos */}
       {!isReference && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] items-start">
-          {/* Left column: gallery + contribution skills */}
-          <div className="space-y-6">
+        <IntensityPanelProvider initialOpen={intensityPanelOpen}>
+        <SessionWorkspace
+          panel={intensityCatalog ? <SessionIntensityPanel contributions={intensityRows} catalog={intensityCatalog} /> : null}
+          main={<>
             <SectionCard
               title={`Media (${mediaCount})`}
               icon={<ImageIcon size={18} />}
-              action={<SessionUploadButton />}
+              action={
+                <div className="flex items-center gap-2">
+                  {intensityCatalog && <IntensityPanelToggle />}
+                  <SessionUploadButton />
+                </div>
+              }
             >
               <SessionProductionGallery
                 items={mediaItems.map((item) => ({
@@ -408,10 +451,15 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 skillMedia={Object.fromEntries(contributionSkillMedia)}
               />
             </SectionCard>
-          </div>
+          </>}
 
-          {/* Right sidebar: contributors + linked sets + tags */}
-          <div className="space-y-6">
+          sidebar={<>
+            {intensityCatalog && (
+              <SectionCard title="Intensity" icon={<Gauge size={18} />}>
+                <IntensitySummary contributions={intensityRows} catalog={intensityCatalog} />
+              </SectionCard>
+            )}
+
             <SectionCard
               title={`Contributors (${contributionCount + behindCameraContributors.length})`}
               icon={<Users size={18} />}
@@ -499,8 +547,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             </SectionCard>
 
             <SessionTagSection sessionId={id} initialTags={sessionTags} />
-          </div>
-        </div>
+          </>}
+        />
+        </IntensityPanelProvider>
       )}
     </div>
     );

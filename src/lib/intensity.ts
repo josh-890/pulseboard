@@ -55,8 +55,12 @@ export function actValue(level: number, extras: IntensityExtraRef[]): number {
   return Math.min(INTENSITY_CAP, sum);
 }
 
-/** A session's intensity for a person: their highest act, or null without acts */
-export function sessionIntensity(actValues: number[]): number | null {
+/**
+ * A session's intensity for a person: their highest act, or null without acts.
+ * Max among their session extras makes the whole session 10 — acts or not.
+ */
+export function sessionIntensity(actValues: number[], sessionExtras: IntensityExtraRef[] = []): number | null {
+  if (sessionExtras.some((e) => e.isMax)) return INTENSITY_MAX;
   return actValues.length ? Math.max(...actValues) : null;
 }
 
@@ -76,4 +80,71 @@ export function intensityRows(described: number[], actLevels: number[], showHalf
     if (showHalfSteps || Number.isInteger(v)) rows.add(v);
   }
   return [...rows].sort((a, b) => a - b);
+}
+
+/** The seeded scenarios the cast suggests (ADR-0036) — by id, so renaming keeps the rule */
+export const SCENARIO_IDS = {
+  glamour: "dsit-glamour",
+  solo: "dsit-solo",
+  gg: "dsit-gg",
+  gb: "dsit-gb",
+  group: "dsit-group",
+} as const;
+
+/**
+ * Which scenarios a person's cast suggests: alone → Glamour and Solo; with one
+ * other → G-G (two women) or G-B (a woman and a man); with two or more others →
+ * Group. Unknown sexes suggest nothing — every scenario stays one click away.
+ */
+export function suggestScenarioIds(self: string | null, others: (string | null)[]): string[] {
+  if (others.length === 0) return [SCENARIO_IDS.glamour, SCENARIO_IDS.solo];
+  if (others.length >= 2) return [SCENARIO_IDS.group];
+  const pair = [self, others[0]];
+  if (pair.some((s) => s !== "female" && s !== "male")) return [];
+  if (pair.every((s) => s === "female")) return [SCENARIO_IDS.gg];
+  if (pair.includes("female") && pair.includes("male")) return [SCENARIO_IDS.gb];
+  return [];
+}
+
+/** An act's departures from the inherited extras, so that it carries exactly `wanted` */
+export function overridesFor(inherited: string[], wanted: string[]): ActExtraOverride[] {
+  const has = new Set(inherited);
+  const want = new Set(wanted);
+  return [
+    ...[...want].filter((id) => !has.has(id)).map((extraId) => ({ extraId, mode: "ADD" as const })),
+    ...[...has].filter((id) => !want.has(id)).map((extraId) => ({ extraId, mode: "DROP" as const })),
+  ];
+}
+
+/**
+ * How an act's value comes about, for a tooltip: "Topless 5 + Semi-public 1 = 6",
+ * "… = 10.5 → capped at 9.5", or "Max → 10".
+ */
+export function explainActValue(actName: string, level: number, extras: (IntensityExtraRef & { name: string })[]): string {
+  const max = extras.find((e) => e.isMax);
+  if (max) return `${max.name} → ${INTENSITY_MAX}`;
+  const added = extras.filter((e) => e.points > 0);
+  const sum = level + added.reduce((acc, e) => acc + e.points, 0);
+  const parts = [`${actName} ${formatIntensity(level)}`, ...added.map((e) => `${e.name} ${formatIntensity(e.points)}`)];
+  const shown = parts.length === 1 ? `${parts[0]}` : `${parts.join(" + ")} = ${formatIntensity(sum)}`;
+  return sum > INTENSITY_CAP ? `${shown} → capped at ${formatIntensity(INTENSITY_CAP)}` : shown;
+}
+
+/**
+ * Applies one change made to several people at once to one person's extras.
+ * `common` is what all of them had, `next` what the controls now show: what
+ * left `common` goes, what joined it comes — and a grouped extra that comes
+ * replaces the person's other choice in its group.
+ */
+export function applySharedExtras(
+  personExtras: string[],
+  common: string[],
+  next: string[],
+  groupOf: (extraId: string) => string | null,
+): string[] {
+  const removed = new Set(common.filter((id) => !next.includes(id)));
+  const added = next.filter((id) => !common.includes(id));
+  const addedGroups = new Set(added.map(groupOf).filter((g): g is string => g !== null));
+  const kept = personExtras.filter((id) => !removed.has(id) && !(groupOf(id) !== null && addedGroups.has(groupOf(id)!)));
+  return [...new Set([...kept, ...added])];
 }

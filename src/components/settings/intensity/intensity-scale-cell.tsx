@@ -5,7 +5,7 @@ import { InlineEditable } from "@/components/shared/inline-editable";
 import { updateIntensityScaleStepAction } from "@/lib/actions/intensity-catalog-actions";
 import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
-import { IntensityHoverText } from "./intensity-hover-text";
+import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
 import { useCatalogCall } from "./use-catalog-call";
 
 export type IntensityScaleCellProps = {

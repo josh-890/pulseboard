@@ -345,7 +345,7 @@ _Avoid_: "skill" (retired — it named an ability); "disclosure" (the first draf
 A **title** and a **description** for each intensity value (0–10 in 0.5 steps), in the user's words — the first column of the catalog matrix. Acts line up on the row of their level.
 
 **Scenario** (code model & DB table: `IntensityScenario`):
-A column of the catalog — the constellation an act happens in: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Ordered. Suggested from a session's cast; the user decides.
+A column of the catalog — the constellation an act happens in: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Ordered. Suggested from a session's on-camera cast (alone → Glamour + Solo, one other woman → G-G, a man → G-B, two or more → Group; an unknown sex suggests nothing) — by the seeded scenario ids, so renaming keeps the rule; the user decides.
 _Avoid_: "situation" (ADR-0035's word), "setup".
 
 **Act** (code model & DB table: `IntensityAct`):
@@ -360,10 +360,10 @@ _Avoid_: "modifier" (date modifiers), "mod" (body mods), "special" (a scenario),
 Extras that exclude each other — at most one per act (e.g. Location: Private / Secluded outdoors / Semi-public / Public). An act choosing a grouped extra replaces the inherited choice in that group.
 
 **Max**:
-The one extra (`isMax`) that sets an act's value to **10** whatever the sum. Renamable, never deleted.
+The one extra (`isMax`) that sets an act's value to **10** whatever the sum. Among a person's session extras it makes their whole session 10, even without ticked acts. Renamable, never deleted.
 
 **Act value / session intensity / peak intensity**:
-An act's value = Max ? 10 : min(9.5, level + extras' points). A person's **session intensity** = their highest act value in that session; **peak intensity** = their highest overall (also per scenario). Computed on read, never stored. Peak replaces the retired CP/WCP; distinct from the manual **PGRADE** on `Person`.
+An act's value = Max ? 10 : min(9.5, level + extras' points). A person's **session intensity** = their highest act value in that session — or 10 when **Max** is among their session extras, acts or not; **peak intensity** = their highest overall (also per scenario). Computed on read, never stored. Peak replaces the retired CP/WCP; distinct from the manual **PGRADE** on `Person`.
 
 ## Flagged ambiguities
 

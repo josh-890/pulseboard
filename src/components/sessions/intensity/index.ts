@@ -1,0 +1,6 @@
+export { SessionIntensityPanel } from "./session-intensity-panel";
+export { IntensityPanelProvider, useIntensityPanel } from "./intensity-panel-provider";
+export { IntensityPanelToggle } from "./intensity-panel-toggle";
+export { IntensitySummary } from "./intensity-summary";
+export { SessionWorkspace } from "./session-workspace";
+export { INTENSITY_PANEL_COOKIE, type SessionIntensityCatalog } from "./types";

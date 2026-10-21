@@ -78,6 +78,23 @@
 |---|---|---|---|
 | `CareerPromoteButton` | Client | `stagingSetId`, `title`, `stagingHref`, `variant: "tile" \| "row" \| "compact"`, `undevelopedParticipants`, `className?` | Promote badge for an approved staged set in the Career tab; popover fetches the promote preview (new set vs. enrich X), promotes via the staging promote route with `requireDevelopedCast`, then `router.refresh()`. Amber + warning + Promote disabled while anyone in the cast is not yet a Person |
 
+## Intensity components (`components/intensity/`, ADR-0036) — shared by Settings and sessions
+
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `IntensityHoverText` | Client | `text`, `side?`, `className?` (trigger wrapper, default `min-w-0 flex-1`), `children` | Radix tooltip with a description; renders the children alone when there is none |
+| `IntensityExtrasPicker` | Client | `extras`, `groups`, `selected`, `onChange(ids)`, `inherited?`, `mixed?`, `disabled?`, `context` | Extras as controls: each group a `radiogroup` (— + its extras, +points), ungrouped as toggles, Max (amber, 10) apart; with `inherited`, a departure is ringed amber; `mixed` (several people, only some have it) dashed, `aria-pressed="mixed"` |
+
+### Session intensity (`components/sessions/intensity/`)
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `IntensityPanelProvider` / `useIntensityPanel` | Client | `initialOpen` | Panel open/closed; remembered in the `pulseboard-intensity-panel` cookie (`INTENSITY_PANEL_COOKIE` in `types.ts`), read by the page so it renders as left — no jump after load |
+| `SessionWorkspace` | Client | `main`, `sidebar`, `panel` | The production session's two columns; with the panel open it replaces the sidebar (`lg:grid-cols-[1fr_440px]`), sticky and scrolling on its own |
+| `IntensityPanelToggle` | Client | `className?` | "Intensity" button (Media header, sidebar box) — `aria-pressed` |
+| `IntensitySummary` | Client | `contributions`, `catalog` | Sidebar box while the panel is closed: each person's session value + the toggle |
+| `SessionIntensityPanel` | Client | `contributions` (`SessionIntensity`), `catalog` (`SessionIntensityCatalog`) | `region` "Intensity panel": person chips (toggle, **only**, **All**; value with explanation), "Same as…", shared extras (`common`/`mixed` → `applySharedExtras`), act search (Enter ticks the first), scenario accordions (suggested ∪ ticked open; all while searching). `useOptimistic` over `panel-state.ts` (`reducePanel`, `personView`); unticking an act with a note or own extras toasts **Undo** (`restoreContributionActsAction`) |
+| `IntensityActCheck` | Client | `act`, `state` (all/some/none), `holders`, `value` (min–max), `explain`, `single`, `effective`, `inherited`, `saved`, `note`, `extras`, `groups`, `onTick`, `onExtras`, `onNote` | One act, one compact line: checkbox (indeterminate for some), level, title (hover description), value badge (hover: explanation; amber at 10), "only …", note + sliders buttons (need one person) → note field / its own extras (`overridesFor`) |
+
 ## Session Components (`components/sessions/`)
 
 | Component | Type | Props | Description |
@@ -248,7 +265,6 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `IntensityScenarioHeader` | Client | `scenario`, `isFirst`, `isLast`, `focused`, `onFocusChange` | Column header ‹ ⋯ name ⤢ ›: inline rename, move, focus toggle (this scenario alone at full width); delete in the ⋯ menu with a confirmation (blocked while ticked) |
 | `IntensityActCell` | Client | `scenario`, `level`, `acts` | One cell: the scenario's acts on that level + "+ Act" (hover) to add one there |
 | `IntensityActRow` | Client | `act`, `showDescription` | One act: inline title at full cell width (description as hover text when folded, inline textarea when unfolded); level field (moves it to another row) and delete (blocked while ticked) float right of the card on hover/focus; description tooltip opens above |
-| `IntensityHoverText` | Client | `text`, `side?`, `children` | Radix tooltip with a description; renders the children alone when there is none |
 | `IntensityExtrasPanel` | Client | `groups`, `extras` | One card per extra group ("pick one"), one for ungrouped extras, Max (rename only), new group |
 | `IntensityExtraRow` | Client | `extra`, `groups` | One extra: inline name, points field, group menu, delete (blocked while used) |
 | `IntensityStepInput` | Client | `value`, `label`, `prefix?`, `onCommit`, `autoFocus?` | Number in 0.5 steps; saves 0.7 s after the last change, on Enter or blur (once); Esc or an invalid value restores; never disables itself, so arrow-stepping keeps focus |

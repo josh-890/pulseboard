@@ -9,7 +9,7 @@ import {
 } from "@/lib/actions/intensity-catalog-actions";
 import type { IntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { cn } from "@/lib/utils";
-import { IntensityHoverText } from "./intensity-hover-text";
+import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
 import { IntensityStepInput } from "./intensity-step-input";
 import { useCatalogCall } from "./use-catalog-call";
 

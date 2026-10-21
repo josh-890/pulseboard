@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { mergeContributionIntensityInTx } from "@/lib/services/intensity-service";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSession, type TxClient } from "./cascade-helpers";
@@ -477,6 +478,8 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
           update: {},
         });
       }
+      // Intensity (ADR-0036): acts and extras the surviving one lacks come over
+      await mergeContributionIntensityInTx(tx, c.id, existing.id);
       // Keep higher confidence from absorbed contribution
       const absorbedRank = CONFIDENCE_RANK[c.confidence];
       const existingRank = CONFIDENCE_RANK[existing.confidence];
@@ -491,34 +494,10 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
         });
       }
     } else {
-      // Move contribution to surviving session
-      await tx.contributionSkill.deleteMany({
-        where: { contributionId: c.id },
-      });
-      await tx.sessionContribution.delete({ where: { id: c.id } });
-      const newContrib = await tx.sessionContribution.create({
-        data: {
-          sessionId: survivingId,
-          personId: c.personId,
-          roleDefinitionId: c.roleDefinitionId,
-          creditNameOverride: c.creditNameOverride,
-          notes: c.notes,
-          confidence: c.confidence,
-          confidenceSource: c.confidenceSource,
-          confirmedAt: c.confirmedAt,
-        },
-      });
-      // Re-create skills on the new contribution
-      for (const skill of c.skills) {
-        await tx.contributionSkill.create({
-          data: {
-            contributionId: newContrib.id,
-            skillDefinitionId: skill.skillDefinitionId,
-            level: skill.level,
-            notes: skill.notes,
-          },
-        });
-      }
+      // Move the contribution to the surviving session as it is — re-pointed,
+      // not re-created, so everything hanging off it comes along: skills,
+      // intensity acts and extras, its Era and resolved alias
+      await tx.sessionContribution.update({ where: { id: c.id }, data: { sessionId: survivingId } });
     }
   }
 
