@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { SimpleActionResult } from "@/lib/types";
 
-/** Runs a matrix action, refreshes the page, toasts a failure; throws on failure so inline editors stay open */
+/** Runs a catalog action, refreshes the page, toasts a failure; throws on failure so inline editors stay open */
 export function useCatalogCall() {
   const router = useRouter();
   const [pending, startTransition] = useTransition();

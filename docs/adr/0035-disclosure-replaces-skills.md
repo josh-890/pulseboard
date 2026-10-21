@@ -1,6 +1,6 @@
 # ADR-0035: Disclosure replaces Skills — levels × situations, evidenced by sessions
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR-0036 (2026-10-21)
 - **Date:** 2026-10-20
 
 ## Context

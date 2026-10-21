@@ -4,15 +4,18 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type DisclosureAddInputProps = {
+export type IntensityAddInputProps = {
   placeholder: string;
   label: string;
   onAdd: (name: string) => Promise<void>;
+  /** Escape, or leaving the field empty, closes it */
+  onClose?: () => void;
+  autoFocus?: boolean;
   className?: string;
 };
 
 // A one-line "add" field: Enter adds and keeps the field ready for the next one.
-export function DisclosureAddInput({ placeholder, label, onAdd, className }: DisclosureAddInputProps) {
+export function IntensityAddInput({ placeholder, label, onAdd, onClose, autoFocus, className }: IntensityAddInputProps) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +43,15 @@ export function DisclosureAddInput({ placeholder, label, onAdd, className }: Dis
             e.preventDefault();
             submit();
           }
+          if (e.key === "Escape" && onClose) {
+            e.preventDefault();
+            onClose();
+          }
         }}
+        onBlur={() => {
+          if (onClose && !value.trim() && !busy) onClose();
+        }}
+        autoFocus={autoFocus}
         placeholder={placeholder}
         aria-label={label}
         disabled={busy}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useSettingsNav } from "./settings-nav-provider";
 
 const CATALOG_ITEMS = [
   { href: "/settings/catalogs/media", label: "Media Categories" },
@@ -10,17 +11,21 @@ const CATALOG_ITEMS = [
   { href: "/settings/catalogs/motif-templates", label: "Motif Templates" },
   { href: "/settings/catalogs/attributes", label: "Attributes" },
   { href: "/settings/catalogs/colors", label: "Colors" },
-  { href: "/settings/catalogs/disclosure", label: "Disclosure" },
+  { href: "/settings/catalogs/intensity", label: "Intensity" },
   { href: "/settings/catalogs/skills", label: "Skills" },
   { href: "/settings/catalogs/tags", label: "Tags" },
 ];
 
 export function CatalogsSidebar() {
   const pathname = usePathname();
+  const { collapsed } = useSettingsNav();
+
+  // Folded away with the settings navigation; its toggle brings both back
+  if (collapsed) return null;
 
   return (
     <aside className="w-40 shrink-0 border-r border-white/10 pr-2">
-      <nav className="flex flex-col gap-0.5">
+      <nav className="flex flex-col gap-0.5" aria-label="Catalogs">
         {CATALOG_ITEMS.map(({ href, label }) => {
           const isActive = pathname === href;
           return (

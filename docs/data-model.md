@@ -214,13 +214,15 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - **MediaCategoryGroup** / **MediaCategory** — admin-configurable in Settings.
 - **color_catalog** — hair/eye/skin lookup tables for normalized search;
   `lookup_hair_hue()`, `lookup_eye_shade()`, etc. SQL helpers.
-- **SkillGroup** / **SkillDefinition** — typed skill catalog (being retired — ADR-0035).
-- **DisclosureSituation** / **DisclosureLevel** / **DisclosureSetting** (ADR-0035) — the disclosure matrix:
-  ordered situations (columns, with a score `weight`), each with its own ladder of levels (`rank` within the
-  situation), and the settings an entry may carry (private → public, `rank`).
-- **DisclosureEntry** — "this person, in this session, showed this level (in this setting)": FK to
-  `SessionContribution` (cascade), level, optional setting; unique per (contribution, level, setting) with
-  NULLS NOT DISTINCT. **DisclosureEntryMedia** — optional evidence images. Crossings and the score are computed.
+- **SkillGroup** / **SkillDefinition** — typed skill catalog (being retired — ADR-0036).
+- **IntensityScaleStep** (ADR-0036) — what an intensity value means: `value` (0–10 in 0.5 steps, unique), optional `title` + `description` (a row with neither is deleted).
+- **IntensityScenario** / **IntensityAct** (ADR-0036) — the intensity catalog: ordered scenarios (columns), each with
+  its own acts carrying a `level` (Float, 0–9.5 in 0.5 steps).
+- **IntensityExtraGroup** / **IntensityExtra** — extras add `points` to an act's level; at most one per group;
+  exactly one `isMax` extra (partial unique index) sets 10.
+- **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).
+  **ContributionAct** — an act ticked for a person in a session, unique per (contribution, act).
+  **ContributionActExtra** — an act's departure from the inherited extras (`mode` ADD | DROP). Values are computed.
 
 ---
 

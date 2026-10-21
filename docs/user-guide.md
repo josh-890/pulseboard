@@ -2388,6 +2388,8 @@ This works transparently across drive letters (e.g. `D:\` → `E:\`) and across 
 
 **Route:** `/settings`
 
+The **panel button** at the top of the settings navigation folds it into an icon rail and hides the catalogs list — more room for wide editors like the intensity catalog. The button brings both back; the browser remembers the choice.
+
 ### Appearance
 
 - **Theme** — toggle between dark and light mode
@@ -2470,16 +2472,21 @@ Whatever else is recorded for the attribute shows again; a draft Era left empty 
 
 **Operations:** Add group, add definition to group, edit definition, delete definition (blocked if in use), reorder.
 
-### Disclosure matrix
+### Intensity catalog
 
-**Settings → Catalogs → Disclosure** (ADR-0035). *Disclosure* is what a person reveals in front of the camera — step by step, and depending on the situation. It replaces the old *Skills* (being retired).
+**Settings → Catalogs → Intensity** (ADR-0036). *Intensity* is how intense it is for a person, mentally, to do an act in a scenario. It replaces the old *Skills* (being retired).
 
-- **Situations** are the columns, ordered left to right: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Rename one by clicking its name, move it with ‹ ›, add one in the dashed box at the end. A situation whose steps are in use cannot be deleted.
-- Each situation has **its own ladder** of steps (levels), the first at the top and the highest at the bottom. Type a step into *Next step…* and press Enter; click a name or *Add a description* to edit; ↑ ↓ move a step lower or higher. A step in use shows its entry count and cannot be deleted.
-- **Weight in the score** sets how much the situation counts in a person's disclosure score.
-- **Settings** list where something happened, from *Private / studio* to *Public*. Each entry records one, but a setting does not change a level yet — that rule is still open.
+The catalog is a **matrix**: rows are intensity values, lowest at the top; the first column, **Intensity**, holds the **scale** — each value gets a **title** (click *Title for 2*) and a **description** of what it means, so it stays clear later. Acts work the same way: the **title** is what a session will offer to tick, the **description** explains it.
 
-Entries on sessions and the Disclosure tab on a person follow in the next steps.
+The matrix is **compact** by default: only titles show, and a dotted underline marks one with a description — hover it to read it. Tick **Descriptions** to unfold them all and edit them (Ctrl/Cmd+Enter saves; emptying a text removes it). Whole values 0–9, 9.5 and Max (10) are always shown; a half step appears when it is described or an act sits on it — tick **Half steps** to show all of them.
+
+- **Work in one scenario:** the ⤢ button in a scenario's head shows only that scenario, at full width beside the scale — room for long titles and descriptions. ⤡ brings all scenarios back.
+- **Scenarios** are the columns, ordered left to right: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Rename one by clicking its name, move it with ‹ ›, add one in the dashed box at the end. To delete one, open its **⋯** menu (left of the name) and confirm — its acts go with it; a scenario whose acts are ticked in sessions cannot be deleted.
+- Each scenario has **its own acts**, each with an **intensity level** from 0 to 9.5 in half steps, sitting on the row of that level. Hover a cell and click **+ Act** to add one there (Enter adds, Esc closes); hovering an act shows a small bar right beside it with its level and delete (its description opens above). Step the level with ↑ ↓ or type it: it saves after a short pause (or on Enter; Esc undoes), the act moves to its new row and the cursor stays in its level field, so you can keep stepping; the title keeps the whole width. Click a name or *Add a description* to edit. An act ticked in sessions shows the count and cannot be deleted.
+- **Extras** add points to an act's level — e.g. *Public +2*, *First time +1*. Extras in a **group** exclude each other (the *Location* group: Private / studio +0, Secluded outdoors +0.5, Semi-public +1, Public +2); extras without a group combine freely. Change the points in place; move an extra between groups with its group menu; add a group in *New group*. Deleting a group keeps its extras, ungrouped.
+- The sum never goes above **9.5**. Only **Max** reaches **10** — it sets 10 whatever the act and the other extras add up to. Max can be renamed but not deleted.
+
+Ticking acts on sessions and the Intensity tab on a person follow in the next steps.
 
 ### Tag Catalog
 

@@ -335,29 +335,35 @@ A tag in a `WORKFLOW` group: a to-do marker (needs-crop, check-cast) that is rem
 **Smart collection**:
 A saved media filter, shown next to the static **Collections**: live, never hand-maintained. It can be **frozen** into a static collection. Distinct from a **Collection** (hand-curated membership) and from **Favorites** (a flag, ADR-0019).
 
-### Disclosure (added 2026-10-20, ADR-0035)
+### Intensity (added 2026-10-21, ADR-0036)
 
-**Disclosure**:
-What a person reveals in front of the camera — a gradation that is physical and above all emotional: what they allow, how far they go. Recorded per **session contribution**, never as a self-declared profile field.
-_Avoid_: "skill" (retired — it named an ability, this is an expression); "exposure" (a photo's exposure in this app); "grit" (perseverance, not revealing).
+**Intensity**:
+How intense it is for a person, **mentally**, to do an act in a scenario. Valued by the user in a catalog, ticked per **session contribution**, never a self-declared profile field.
+_Avoid_: "skill" (retired — it named an ability); "disclosure" (the first draft of this, ADR-0035, superseded — and it means *progressive disclosure* in our UX docs).
 
-**Disclosure level** (code model & DB table: `DisclosureLevel`):
-One step on a situation's ladder (e.g. Solo: partial → fullbody → …). Levels are ordered by `rank` within their situation only; the same action may sit in two situations at different steps.
+**Intensity scale** (code model & DB table: `IntensityScaleStep`):
+A **title** and a **description** for each intensity value (0–10 in 0.5 steps), in the user's words — the first column of the catalog matrix. Acts line up on the row of their level.
 
-**Situation** (code model & DB table: `DisclosureSituation`):
-A column of the **disclosure matrix**, ordered by how much interaction it asks: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Each has its own ladder and a weight for the score. Suggested from a session's cast; the user decides.
+**Scenario** (code model & DB table: `IntensityScenario`):
+A column of the catalog — the constellation an act happens in: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Ordered. Suggested from a session's cast; the user decides.
+_Avoid_: "situation" (ADR-0035's word), "setup".
 
-**Setting** (code model & DB table: `DisclosureSetting`):
-Where an entry happened — private/studio … public. Recorded on each entry; the same action in public is a bigger step, but **how far a setting shifts a level is not yet decided** — it has no effect on levels or score yet.
+**Act** (code model & DB table: `IntensityAct`):
+One thing a person does in a scenario, with its **intensity level** (0–9.5 in 0.5 steps). Each scenario has its own acts; the same action may sit in two scenarios at different levels.
+_Avoid_: "activity" (the dashboard's `Activity` feed), "action" (server actions), "step" (there is no ladder).
 
-**Disclosure entry** (code model & DB table: `DisclosureEntry`):
-"This person, in this session, showed this level (in this setting)." Hangs off a `SessionContribution` by foreign key; a contribution may carry several (a mixed shoot fills several cells).
+**Extra** (code model & DB table: `IntensityExtra`):
+A circumstance that adds fixed points to an act's level — e.g. Public +2, First time +1 (ticked by hand, not computed). Set once per person in a session (`ContributionExtra`); every act there inherits them and may **add** or **drop** some (`ContributionActExtra`).
+_Avoid_: "modifier" (date modifiers), "mod" (body mods), "special" (a scenario), "factor" (it is added, not multiplied).
 
-**Boundary / boundary crossed**:
-A boundary is the line between two levels. A person **crosses** it the first time an entry reaches the higher level — date and session from that entry's session. Crossings are **computed, never stored**: correct a session and the history follows.
+**Extra group** (code model & DB table: `IntensityExtraGroup`):
+Extras that exclude each other — at most one per act (e.g. Location: Private / Secluded outdoors / Semi-public / Public). An act choosing a grouped extra replaces the inherited choice in that group.
 
-**Disclosure score**:
-Per situation, the highest level reached as a share of its ladder (0–10); overall, the mean weighted by situation weight. Replaces the retired CP/WCP. Distinct from the manual **PGRADE** on `Person`.
+**Max**:
+The one extra (`isMax`) that sets an act's value to **10** whatever the sum. Renamable, never deleted.
+
+**Act value / session intensity / peak intensity**:
+An act's value = Max ? 10 : min(9.5, level + extras' points). A person's **session intensity** = their highest act value in that session; **peak intensity** = their highest overall (also per scenario). Computed on read, never stored. Peak replaces the retired CP/WCP; distinct from the manual **PGRADE** on `Person`.
 
 ## Flagged ambiguities
 

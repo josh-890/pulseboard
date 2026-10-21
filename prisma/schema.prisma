@@ -1166,11 +1166,11 @@ model MediaItem {
 
   caption      String?
   notes        String?
-  isAnnotation Boolean  @default(false) // Derived/edited photos — hidden from main gallery
+  isAnnotation Boolean @default(false) // Derived/edited photos — hidden from main gallery
   // Global per-image favorite (ADR-0019). One app-wide flag feeding /favorites;
   // toggled by the heart everywhere. Supersedes the per-person
   // PersonMediaLink.isFavorite (migrated up; that column is now deprecated).
-  isFavorite   Boolean  @default(false)
+  isFavorite   Boolean @default(false)
 
   // Motif normalization: when set, this MediaItem is a baked, template-aligned
   // "standardized motif" image (e.g. a headshot). The headshot/card path displays
@@ -1201,7 +1201,7 @@ model MediaItem {
   // and was decoded leniently, the way a browser shows it — missing parts come out
   // grey. Holds Sharp's strict-decode message; null = clean. Shown as a red frame
   // until "Looks fine" clears it or a replacement file is uploaded.
-  decodeIssue String?
+  decodeIssue  String?
   // The archive upload agent's copy arrived incomplete (a cut-off transfer, not a
   // damaged original): every agent run sends the archive file again and replaces
   // this one, until a complete copy is in. Cleared by "Looks fine" or a replacement.
@@ -1217,7 +1217,6 @@ model MediaItem {
   collectionItems  MediaCollectionItem[]
   comparisonItems  ComparisonItem[]
   skillEventMedia  SkillEventMedia[]
-  disclosureEntryMedia DisclosureEntryMedia[]
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
 
@@ -1293,8 +1292,9 @@ model SessionContribution {
   eraId              String?
   era                Era?                       @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
-  skills            ContributionSkill[]
-  disclosureEntries DisclosureEntry[]
+  skills          ContributionSkill[]
+  intensityExtras ContributionExtra[]
+  intensityActs   ContributionAct[]
 
   @@unique([sessionId, personId, roleDefinitionId])
   @@index([resolvedAliasId])
@@ -1851,69 +1851,110 @@ model ContributionSkill {
   @@index([skillDefinitionId])
 }
 
-// ─── Disclosure (ADR-0035) ───────────────────────────────────────────────────
-// What a person reveals, per session contribution. The matrix: situations
-// (columns, ordered) each with their own ladder of levels; a setting is
-// recorded on each entry but does not (yet) shift a level. Crossings and the
-// score are computed from entries, never stored.
+// ─── Intensity (ADR-0036) ────────────────────────────────────────────────────
+// The mental intensity a person reaches in a scenario through an act, ticked
+// per session contribution. Catalog: scenarios (columns, ordered), each with
+// its own acts carrying an intensity level; extras add fixed points (at most
+// one per group); Max sets 10. Values are computed on read, never stored.
 
-model DisclosureSituation {
-  id        String            @id @default(cuid())
-  name      String            @unique
-  sortOrder Int               @default(0)
-  weight    Float             @default(1)
-  levels    DisclosureLevel[]
-  createdAt DateTime          @default(now())
-}
-
-model DisclosureLevel {
-  id          String              @id @default(cuid())
-  situationId String
-  situation   DisclosureSituation @relation(fields: [situationId], references: [id], onDelete: Cascade)
-  name        String
+/// What an intensity value means — the first column of the catalog
+model IntensityScaleStep {
+  id          String   @id @default(cuid())
+  /// 0–10 in 0.5 steps; 10 is Max
+  value       Float    @unique
+  title       String?
   description String?
-  rank        Int
-  entries     DisclosureEntry[]
-  createdAt   DateTime            @default(now())
-
-  @@unique([situationId, name])
-  @@index([situationId])
+  createdAt   DateTime @default(now())
 }
 
-model DisclosureSetting {
-  id        String            @id @default(cuid())
-  name      String            @unique
-  rank      Int               @default(0)
-  entries   DisclosureEntry[]
-  createdAt DateTime          @default(now())
+model IntensityScenario {
+  id        String         @id @default(cuid())
+  name      String         @unique
+  sortOrder Int            @default(0)
+  acts      IntensityAct[]
+  createdAt DateTime       @default(now())
 }
 
-model DisclosureEntry {
+model IntensityAct {
+  id            String            @id @default(cuid())
+  scenarioId    String
+  scenario      IntensityScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  /// In 0.5 steps
+  level         Float
+  contributions ContributionAct[]
+  createdAt     DateTime          @default(now())
+
+  @@unique([scenarioId, name])
+  @@index([scenarioId])
+}
+
+model IntensityExtraGroup {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  sortOrder Int              @default(0)
+  extras    IntensityExtra[]
+  createdAt DateTime         @default(now())
+}
+
+model IntensityExtra {
+  id            String                 @id @default(cuid())
+  name          String                 @unique
+  /// Added to the act's level, in 0.5 steps
+  points        Float                  @default(0)
+  groupId       String?
+  group         IntensityExtraGroup?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  /// The one extra that sets the value to 10 — renamable, never deleted
+  isMax         Boolean                @default(false)
+  sortOrder     Int                    @default(0)
+  contributions ContributionExtra[]
+  actOverrides  ContributionActExtra[]
+  createdAt     DateTime               @default(now())
+}
+
+/// An extra set for a person in a session — every act of theirs there inherits it
+model ContributionExtra {
+  contributionId String
+  contribution   SessionContribution @relation(fields: [contributionId], references: [id], onDelete: Cascade)
+  extraId        String
+  extra          IntensityExtra      @relation(fields: [extraId], references: [id], onDelete: Cascade)
+
+  @@id([contributionId, extraId])
+  @@index([extraId])
+}
+
+/// An act a person did in a session
+model ContributionAct {
   id             String                 @id @default(cuid())
   contributionId String
   contribution   SessionContribution    @relation(fields: [contributionId], references: [id], onDelete: Cascade)
-  levelId        String
-  level          DisclosureLevel        @relation(fields: [levelId], references: [id])
-  settingId      String?
-  setting        DisclosureSetting?     @relation(fields: [settingId], references: [id], onDelete: SetNull)
+  actId          String
+  act            IntensityAct           @relation(fields: [actId], references: [id])
   notes          String?
-  media          DisclosureEntryMedia[]
+  extras         ContributionActExtra[]
   createdAt      DateTime               @default(now())
 
-  // Unique per (contribution, level, setting) with NULLS NOT DISTINCT — see migration
-  @@unique([contributionId, levelId, settingId])
-  @@index([levelId])
+  @@unique([contributionId, actId])
+  @@index([actId])
 }
 
-model DisclosureEntryMedia {
-  entryId     String
-  entry       DisclosureEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-  mediaItemId String
-  mediaItem   MediaItem       @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
-  sortOrder   Int             @default(0)
+enum ActExtraMode {
+  ADD
+  DROP
+}
 
-  @@id([entryId, mediaItemId])
-  @@index([mediaItemId])
+/// An act's departure from the inherited extras: ADD one (a grouped one replaces
+/// the session's choice in its group) or DROP an inherited one
+model ContributionActExtra {
+  contributionActId String
+  contributionAct   ContributionAct @relation(fields: [contributionActId], references: [id], onDelete: Cascade)
+  extraId           String
+  extra             IntensityExtra  @relation(fields: [extraId], references: [id], onDelete: Cascade)
+  mode              ActExtraMode
+
+  @@id([contributionActId, extraId])
+  @@index([extraId])
 }
 
 // ─── Tagging System ──────────────────────────────────────────────────────────
@@ -1962,26 +2003,26 @@ model TagGroup {
 // `parentId` is implication: a tag counts as its parent when filtering
 // (swimwear finds bikini). One parent, acyclic — enforced in tag-service.
 model TagDefinition {
-  id            String          @id @default(cuid())
-  groupId       String
-  group         TagGroup        @relation(fields: [groupId], references: [id])
-  parentId      String?
-  parent        TagDefinition?  @relation("TagHierarchy", fields: [parentId], references: [id])
-  children      TagDefinition[] @relation("TagHierarchy")
-  name          String
-  slug          String
-  nameNorm      String?
-  description   String?
-  typicalLevel  TagLevel?
-  sortOrder     Int             @default(0)
-  createdAt     DateTime        @default(now())
-  personTags    PersonTag[]
-  sessionTags   SessionTag[]
-  mediaItemTags MediaItemTag[]
-  setTags       SetTag[]
-  projectTags   ProjectTag[]
-  aliases       TagAlias[]
-  slots         TagSlot[]
+  id                String             @id @default(cuid())
+  groupId           String
+  group             TagGroup           @relation(fields: [groupId], references: [id])
+  parentId          String?
+  parent            TagDefinition?     @relation("TagHierarchy", fields: [parentId], references: [id])
+  children          TagDefinition[]    @relation("TagHierarchy")
+  name              String
+  slug              String
+  nameNorm          String?
+  description       String?
+  typicalLevel      TagLevel?
+  sortOrder         Int                @default(0)
+  createdAt         DateTime           @default(now())
+  personTags        PersonTag[]
+  sessionTags       SessionTag[]
+  mediaItemTags     MediaItemTag[]
+  setTags           SetTag[]
+  projectTags       ProjectTag[]
+  aliases           TagAlias[]
+  slots             TagSlot[]
   archiveFolderTags ArchiveFolderTag[]
 
   @@unique([groupId, name])
@@ -2455,7 +2496,7 @@ model ArchiveFolder {
   scannedAt       DateTime
   /// When a scan first found this folder (dashboard activity, 2026-10-11). Null for
   /// folders found before the field existed.
-  discoveredAt    DateTime? @default(now())
+  discoveredAt    DateTime?    @default(now())
   missingOnDisk   Boolean      @default(false) // true = last full scan did not find this path on disk
   tenant          String // which tenant DB this record belongs to
 
@@ -2495,14 +2536,14 @@ model ArchiveFolder {
   // united, nothing is removed). Unknown marker names and exclusive-group conflicts
   // are kept as warnings until resolved.
   tags                ArchiveFolderTag[]
-  tagsDiskSeen        Boolean  @default(false)
-  tagsDiskState       String[] @default([])
+  tagsDiskSeen        Boolean            @default(false)
+  tagsDiskState       String[]           @default([])
   // Whose tags tagsDiskState was reconciled against: "folder" or a Set id. When the
   // owner changes (link removed, set deleted) the remembered state no longer
   // describes it, so the next reconciliation unites instead of deleting markers.
   tagsSyncedOwner     String?
-  tagMarkersUnknown   String[] @default([])
-  tagMarkersConflicts String[] @default([])
+  tagMarkersUnknown   String[]           @default([])
+  tagMarkersConflicts String[]           @default([])
 
   coverKey       String? // MinIO key, archive/{archiveKey}/cover-{ts}.jpg
   coverError     String? // last failure reason; null once a cover succeeds
