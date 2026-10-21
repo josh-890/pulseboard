@@ -10,7 +10,9 @@ import {
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
-import { getSkillLevelConfigs } from "@/lib/services/setting-service";
+import { getPersonIntensity } from "@/lib/services/intensity-service";
+import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import type { PersonIntensityData } from "@/components/people/intensity";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
@@ -133,7 +135,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, skillLevelConfigs, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -143,7 +145,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
       getAllSkillGroups(),
-      getSkillLevelConfigs(),
       getPersonAliases(id),
       getPersonSessionWorkHistory(id),
       getPersonProductionSessions(id),
@@ -163,6 +164,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getAliasPromotionQueue(id),
       getPersonOverviewShowcase(id),
       getPersonKnownFor(id),
+      getPersonIntensity(id),
+      getIntensityCatalog(),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -198,25 +201,18 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
     })),
   });
 
-  // Compute Calculated PGRADE (CP) = max skill definition pgrade across active skills
-  // pgrade 0 = excluded from CP calculation
-  const calculatedPgrade = currentState.activeSkills.reduce((max, skill) => {
-    const pg = skill.definitionPgrade;
-    return pg !== null && pg > 0 && pg > max ? pg : max;
-  }, 0) || null;
-
-  // Compute Mean Weighted CP (WCP) = mean of (pgrade + delta) for active skills with pgrade > 0
-  const deltaMap = new Map(skillLevelConfigs.map((c) => [c.enumKey, c.delta]));
-  const wcpSkills = currentState.activeSkills
-    .filter((s) => s.definitionPgrade !== null && s.definitionPgrade > 0)
-    .map((s) => {
-      const delta = s.level ? (deltaMap.get(s.level) ?? 0) : 0;
-      return Math.min(s.definitionPgrade! + delta, 10);
-    });
-  const meanWcp =
-    wcpSkills.length > 0
-      ? wcpSkills.reduce((sum, v) => sum + v, 0) / wcpSkills.length
-      : null;
+  // Intensity (ADR-0036): the header gauge and the tab — once the catalog has acts
+  const intensity: PersonIntensityData | null = intensityCatalog.scenarios.some((sc) => sc.acts.length > 0)
+    ? {
+        summary: personIntensity,
+        scale: intensityCatalog.scale,
+        scenarios: intensityCatalog.scenarios.map((sc) => ({
+          id: sc.id,
+          name: sc.name,
+          acts: sc.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
+        })),
+      }
+    : null;
 
   // Load MediaItems from reference session (authoritative source)
   const galleryItems = refSession
@@ -286,8 +282,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         categoryCounts={categoryCounts}
         skillGroups={skillGroups}
         physicalAttributeGroups={physicalAttributeGroups}
-        calculatedPgrade={calculatedPgrade}
-        meanWcp={meanWcp}
+        intensity={intensity}
         aliasesWithChannels={aliasesWithChannels}
         aliasPromotionQueue={aliasPromotionQueue}
         sessionWorkHistory={sessionWorkHistory}

@@ -282,7 +282,23 @@ Whenever you pick a photo for a task — a source to standardize a slot, a photo
 
 (The collection picker also keeps its **desktop drag-to-add panel** beside the gallery for quick bulk adds.)
 
+#### Intensity gauge (header)
+
+In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-21) shows the person's **peak** — the highest intensity across their sessions — as a number and a bar of ten segments (a half step fills half a segment). The red dot and **ø** are the **mean** of their sessions' intensities. "—" while nothing is recorded.
+
 #### Tabs
+
+**Intensity** (once the intensity catalog has acts; the badge counts their sessions with intensity)
+- **Peaks** — tiles: the peak overall, then per scenario, each with the session it came from (click to open it).
+  A person's *Max* in a session counts for the overall peak, not for a scenario.
+- **Acts** — the catalog as they filled it: rows are the levels that hold acts (with the scale's title; hover
+  for its description), a column per scenario. An act they reached is filled and shows **the date it first came**
+  and **in how many sessions** — click it to open that first session; hover for its description. One reached only
+  in undated sessions says *date unknown*. Acts not reached are outlined.
+- **Course** — a bar per session, oldest first, to its intensity; **★** where an act came for the first time.
+  Hover a bar for its acts, click to open the session. Sessions without a date (or with an unknown one) follow at
+  the end under *undated* and never count as a first time; partial dates show as recorded (2020-03, 2019).
+- Recording happens on the session, in the Intensity panel beside the photos.
 
 **Overview**
 - **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,

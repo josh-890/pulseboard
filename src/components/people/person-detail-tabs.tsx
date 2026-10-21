@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn, computeAge, splitOptionLabel } from "@/lib/utils";
+import { formatIntensity } from "@/lib/intensity";
+import { PersonIntensityTab, type PersonIntensityData } from "@/components/people/intensity";
 import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
@@ -50,6 +52,7 @@ import {
   ArrowUpDown,
   Upload,
   ScrollText,
+  Gauge,
 } from "lucide-react";
 import NextImage from "next/image";
 import Link from "next/link";
@@ -88,7 +91,7 @@ import { EditAppearanceSheet } from "@/components/people/edit-appearance-sheet";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "aliases" | "appearance" | "details" | "skills" | "career" | "network" | "photos" | "research";
+type TabId = "overview" | "aliases" | "appearance" | "details" | "intensity" | "skills" | "career" | "network" | "photos" | "research";
 
 
 /** Canonical headshot for the hero lead slide (★ slot, else lowest slot). */
@@ -108,8 +111,8 @@ type PersonDetailTabsProps = {
   categoryCounts?: { categoryId: string; count: number }[];
   skillGroups?: SkillGroupWithDefinitions[];
   physicalAttributeGroups?: PhysicalAttributeGroupWithDefinitions[];
-  calculatedPgrade?: number | null;
-  meanWcp?: number | null;
+  /** Intensity (ADR-0036) — null while the catalog has no acts: no gauge values, no tab */
+  intensity?: PersonIntensityData | null;
   aliasesWithChannels?: PersonAliasWithChannels[];
   aliasPromotionQueue?: AliasPromotionCandidate[];
   sessionWorkHistory?: PersonSessionWorkEntry[];
@@ -190,9 +193,9 @@ const PGRADE_COLORS = [
   "rgb(128,96,176)",
 ];
 
-// ── CP (Calculated PGRADE) Colors ────────────────────────────────────────────
+// ── Intensity gauge colors (ADR-0036; were CP's) ────────────────────────────────────────────
 
-const CP_COLORS = [
+const INTENSITY_COLORS = [
   "rgb(150,200,230)",
   "rgb(130,185,220)",
   "rgb(110,170,210)",
@@ -460,13 +463,13 @@ type KpiCounts = {
 function KpiStatsPanel({
   person,
   kpiCounts,
-  calculatedPgrade,
-  meanWcp,
+  intensityPeak,
+  intensityMean,
 }: {
   person: PersonData;
   kpiCounts: KpiCounts;
-  calculatedPgrade?: number | null;
-  meanWcp?: number | null;
+  intensityPeak?: number | null;
+  intensityMean?: number | null;
 }) {
   const [localPgrade, setLocalPgrade] = useState(person.pgrade);
   const [localRating, setLocalRating] = useState(person.rating);
@@ -480,8 +483,8 @@ function KpiStatsPanel({
   ];
 
   const hasPgrade = localPgrade !== null && localPgrade !== undefined;
-  const hasCp = calculatedPgrade !== null && calculatedPgrade !== undefined;
-  const hasWcp = meanWcp !== null && meanWcp !== undefined;
+  const hasPeak = intensityPeak !== null && intensityPeak !== undefined;
+  const hasMean = intensityMean !== null && intensityMean !== undefined;
 
   const handlePgradeClick = (segment: number) => {
     const newValue = segment + 1;
@@ -522,7 +525,7 @@ function KpiStatsPanel({
       <div className="space-y-2">
         <div title="Performance Grade — overall subjective rating (1-10 scale). Click to set.">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">PGRADE</span>
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-16">PGRADE</span>
             <span className={cn("font-semibold tabular-nums", hasPgrade ? "" : "text-muted-foreground/40")}>
               {hasPgrade ? localPgrade : "\u2014"}
             </span>
@@ -541,34 +544,39 @@ function KpiStatsPanel({
           </div>
         </div>
 
-        {/* CP gauge — read-only */}
-        <div title="Cumulative Points — weighted aggregate of set participation scores">
+        {/* Intensity gauge — read-only (ADR-0036): the peak across sessions, the dot their mean */}
+        <div title="Intensity — the highest across their sessions; the dot is their mean">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">CP</span>
-            <span className={cn("font-semibold tabular-nums", hasCp ? "" : "text-muted-foreground/40")}>
-              {hasCp ? calculatedPgrade : "\u2014"}
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-16">INTENSITY</span>
+            <span className={cn("font-semibold tabular-nums", hasPeak ? "" : "text-muted-foreground/40")}>
+              {hasPeak ? formatIntensity(intensityPeak!) : "\u2014"}
             </span>
-            {hasWcp && (
-              <span className="text-xs font-semibold text-red-400" title="Weighted Cumulative Points — mean of all weighted set scores">
-                W{meanWcp.toFixed(1)}
+            {hasMean && (
+              <span className="text-xs font-semibold text-red-400" title="Mean intensity of their sessions">
+                ø {intensityMean.toFixed(1)}
               </span>
             )}
           </div>
           <div className="relative mt-1 w-full">
             <div className="flex w-full gap-0.5">
-              {CP_COLORS.map((color, i) => (
-                <div
-                  key={i}
-                  className="h-2.5 flex-1 first:rounded-l-md last:rounded-r-md"
-                  style={{ backgroundColor: color, opacity: hasCp && i < calculatedPgrade! ? 1 : 0.15 }}
-                />
-              ))}
+              {INTENSITY_COLORS.map((color, i) => {
+                // Whole, half (x.5) or empty segment
+                const fill = hasPeak ? Math.max(0, Math.min(1, intensityPeak! - i)) : 0;
+                return (
+                  <div key={i} className="relative h-2.5 flex-1 overflow-hidden first:rounded-l-md last:rounded-r-md">
+                    <div className="absolute inset-0 opacity-15" style={{ backgroundColor: color }} />
+                    {fill > 0 && (
+                      <div className={cn("absolute inset-y-0 left-0", fill === 1 ? "w-full" : "w-1/2")} style={{ backgroundColor: color }} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            {hasWcp && (
+            {hasMean && (
               <div
                 className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-red-500 ring-1 ring-black/40"
-                style={{ left: `${(meanWcp / 10) * 100}%` }}
-                title={`Mean WCP: ${meanWcp.toFixed(1)}`}
+                style={{ left: `${(intensityMean / 10) * 100}%` }}
+                title={`Mean intensity: ${intensityMean.toFixed(1)}`}
               />
             )}
           </div>
@@ -577,7 +585,7 @@ function KpiStatsPanel({
         {/* Star Rating — clickable */}
         <div>
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-12">RATING</span>
+            <span className="text-[10px] font-semibold tracking-wide text-muted-foreground w-16">RATING</span>
             <span className={cn("font-semibold tabular-nums", localRating ? "" : "text-muted-foreground/40")}>
               {localRating ?? "\u2014"}
             </span>
@@ -757,8 +765,8 @@ type HeroSharedProps = {
   currentState: PersonCurrentState;
   photos: GalleryItem[];
   kpiCounts: KpiCounts;
-  calculatedPgrade?: number | null;
-  meanWcp?: number | null;
+  intensityPeak?: number | null;
+  intensityMean?: number | null;
   displayName: string;
   initials: string;
   age: number | null;
@@ -992,7 +1000,7 @@ function KpiStatsStrip({ kpiCounts }: { kpiCounts: KpiCounts }) {
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, kpiCounts, calculatedPgrade, meanWcp, displayName, initials, age, heroAliases, referenceSessionId, plausibilityCount, onFavoriteToggle, heroLead } = props;
+  const { person, currentState, photos, kpiCounts, intensityPeak, intensityMean, displayName, initials, age, heroAliases, referenceSessionId, plausibilityCount, onFavoriteToggle, heroLead } = props;
 
   // Drives the EntityPills strip. Phase G Slice 15: the hero now shows
   // one chip per BODY FEATURE TYPE the person currently has (Tattoo /
@@ -1126,7 +1134,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
 
         {/* Zone 4: KPI Panel — full version at lg:+ only */}
         <div className={cn("hidden lg:flex lg:shrink-0 flex-col px-2", cfg.kpiWidth)}>
-          <KpiStatsPanel person={person} kpiCounts={kpiCounts} calculatedPgrade={calculatedPgrade} meanWcp={meanWcp} />
+          <KpiStatsPanel person={person} kpiCounts={kpiCounts} intensityPeak={intensityPeak} intensityMean={intensityMean} />
         </div>
       </div>
 
@@ -1152,8 +1160,8 @@ function HeroCard({
   currentState,
   photos,
   kpiCounts,
-  calculatedPgrade,
-  meanWcp,
+  intensityPeak,
+  intensityMean,
   referenceSessionId,
   refMediaCount,
   earliestSessionYear,
@@ -1169,8 +1177,8 @@ function HeroCard({
   currentState: PersonCurrentState;
   photos: GalleryItem[];
   kpiCounts: KpiCounts;
-  calculatedPgrade?: number | null;
-  meanWcp?: number | null;
+  intensityPeak?: number | null;
+  intensityMean?: number | null;
   referenceSessionId?: string;
   refMediaCount?: number;
   earliestSessionYear?: number | null;
@@ -1226,8 +1234,8 @@ function HeroCard({
     currentState,
     photos,
     kpiCounts,
-    calculatedPgrade,
-    meanWcp,
+    intensityPeak,
+    intensityMean,
     displayName,
     initials,
     age,
@@ -1734,8 +1742,7 @@ export function PersonDetailTabs({
   categoryCounts,
   skillGroups,
   physicalAttributeGroups,
-  calculatedPgrade,
-  meanWcp,
+  intensity,
   aliasesWithChannels,
   aliasPromotionQueue,
   sessionWorkHistory,
@@ -1773,7 +1780,7 @@ export function PersonDetailTabs({
   knownFor,
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
-    () => new Set<string>(["overview", "aliases", "appearance", "details", "skills", "career", "network", "photos", "research"]),
+    () => new Set<string>(["overview", "aliases", "appearance", "details", "intensity", "skills", "career", "network", "photos", "research"]),
     [],
   );
   const resolvedInitialTab: TabId = initialTab && VALID_TABS.has(initialTab)
@@ -1843,6 +1850,8 @@ export function PersonDetailTabs({
   }, [sessionWorkHistory]);
 
   const draftErasReady = useDraftErasReadyCount(person.eras);
+  const intensityPeak = intensity?.summary.peak?.value ?? null;
+  const intensityMean = intensity?.summary.mean ?? null;
 
   const tabs: { id: TabId; label: string; badge?: number; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", badge: draftErasReady || undefined, icon: <LayoutDashboard size={14} /> },
@@ -1850,6 +1859,9 @@ export function PersonDetailTabs({
     { id: "appearance", label: "Appearance", badge: (currentState.activeBodyMarks.length + currentState.activeBodyModifications.length + currentState.activeCosmeticProcedures.length) || undefined, icon: <Sparkles size={14} /> },
     ...(categories && categories.length > 0
       ? [{ id: "details" as TabId, label: "Details", badge: (categoryCounts?.filter((c) => c.count > 0).length) || undefined, icon: <FileImage size={14} /> }]
+      : []),
+    ...(intensity
+      ? [{ id: "intensity" as TabId, label: "Intensity", badge: intensity.summary.sessions.length || undefined, icon: <Gauge size={14} /> }]
       : []),
     { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined, icon: <Zap size={14} /> },
     { id: "career", label: "Career", badge: ((sessionWorkHistory?.length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
@@ -1867,8 +1879,8 @@ export function PersonDetailTabs({
         photos={localPhotos}
         referenceSessionId={referenceSessionId}
         refMediaCount={refMediaCount}
-        calculatedPgrade={calculatedPgrade}
-        meanWcp={meanWcp}
+        intensityPeak={intensityPeak}
+        intensityMean={intensityMean}
         kpiCounts={{
           sets: sessionWorkHistory?.length ?? workHistory.length,
           labels: affiliations.length,
@@ -1995,6 +2007,11 @@ export function PersonDetailTabs({
               currentState={currentState}
             />
           )}
+        </div>
+      )}
+      {intensity && (
+        <div id="tabpanel-intensity" role="tabpanel" aria-labelledby="tab-intensity" hidden={activeTab !== "intensity"}>
+          {activeTab === "intensity" && <PersonIntensityTab data={intensity} />}
         </div>
       )}
       <div

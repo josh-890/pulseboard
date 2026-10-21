@@ -39,6 +39,16 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
    the person's highest act there; **peak intensity** = their highest overall and per scenario. Peak replaces
    CP/WCP; `Person.pgrade` stays. ADR-0035's scenario weights and settings-as-entries go.
 7. **Real skills become person tags** (unchanged from ADR-0035).
+8. **Person tab (grilled 2026-10-21).** Top: peak overall and per scenario. Then the catalog as a matrix — acts
+   on the row of their level, reached ones filled with the first date and the number of sessions. Then the
+   course, session by session, first times starred. Undated sessions come last, marked; an act reached only in
+   undated sessions has "date unknown"; partial dates show their precision. The person header's CP/WCP row
+   becomes **Intensity**: peak, bar, and a dot for the mean session intensity (as WCP's dot was).
+9. **Photos as evidence (slice 3b).** A photo is linked to a **ticked act of one person in a session**
+   (`ContributionAct`) — the person is exact and there is no evidence without a tick. It behaves like a tag: a
+   lightbox pill, "assign to act…" for a gallery selection, a picker from the panel, and an `act:` filter in the
+   shared query. Acts do not become tags: a second, person-less store of the same fact would drift from the
+   ticks. Purpose: evidence on the act, gallery filtering, a showcase per act on the person page.
 
 ## Consequences
 

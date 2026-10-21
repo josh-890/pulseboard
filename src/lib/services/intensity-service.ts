@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { overridesFor, suggestScenarioIds } from "@/lib/intensity";
+import { summarizePersonIntensity } from "@/lib/intensity-person";
 import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
 
 // Intensity on sessions (ADR-0036, slice 2): per on-camera contribution, the
@@ -243,4 +244,36 @@ export async function getContributionActSessionId(contributionActId: string): Pr
     select: { contribution: { select: { sessionId: true } } },
   });
   return a.contribution.sessionId;
+}
+
+/** A person's intensity across their sessions — peaks, mean, first times, the course (slice 3) */
+export async function getPersonIntensity(personId: string) {
+  const [contributions, acts, extras] = await Promise.all([
+    prisma.sessionContribution.findMany({
+      where: { personId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
+      select: {
+        session: { select: { id: true, name: true, date: true, datePrecision: true } },
+        intensityExtras: { select: { extraId: true } },
+        intensityActs: { select: { actId: true, extras: { select: { extraId: true, mode: true } } } },
+      },
+    }),
+    prisma.intensityAct.findMany({ select: { id: true, level: true, scenarioId: true } }),
+    prisma.intensityExtra.findMany({ select: { id: true, points: true, groupId: true, isMax: true } }),
+  ]);
+  return summarizePersonIntensity(
+    contributions
+      .filter((c) => c.intensityActs.length > 0 || c.intensityExtras.length > 0)
+      .map((c) => ({
+        sessionId: c.session.id,
+        sessionName: c.session.name,
+        date: c.session.date,
+        precision: c.session.datePrecision,
+        extraIds: c.intensityExtras.map((e) => e.extraId),
+        acts: c.intensityActs.map((a) => ({ actId: a.actId, overrides: a.extras })),
+      })),
+    {
+      acts: new Map(acts.map((a) => [a.id, { level: a.level, scenarioId: a.scenarioId }])),
+      extras: new Map(extras.map((e) => [e.id, e])),
+    },
+  );
 }

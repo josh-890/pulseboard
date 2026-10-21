@@ -85,6 +85,16 @@
 | `IntensityHoverText` | Client | `text`, `side?`, `className?` (trigger wrapper, default `min-w-0 flex-1`), `children` | Radix tooltip with a description; renders the children alone when there is none |
 | `IntensityExtrasPicker` | Client | `extras`, `groups`, `selected`, `onChange(ids)`, `inherited?`, `mixed?`, `disabled?`, `context` | Extras as controls: each group a `radiogroup` (— + its extras, +points), ungrouped as toggles, Max (amber, 10) apart; with `inherited`, a departure is ringed amber; `mixed` (several people, only some have it) dashed, `aria-pressed="mixed"` |
 
+### Person intensity (`components/people/intensity/`, ADR-0036 slice 3)
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `PersonIntensityTab` | Client | `data` (`PersonIntensityData`: `summary` from `summarizePersonIntensity`, `scale`, `scenarios`) | The person's Intensity tab: peak tiles, matrix, course; an empty hint without sessions |
+| `IntensityPeakTiles` | Server-safe | `data` | Peak overall + per scenario (with acts), each linking its session (date with precision · name) |
+| `IntensityMatrixView` | Client | `data` | `role="table"`: rows = levels holding acts (scale title, hover description), a column per scenario; reached acts filled with first date (precision) · count, linking the first session; hover: description, first session, count |
+| `IntensityCourse` | Client | `data` | A bar per session (oldest first, undated after a divider), ★ for first times, value + two-line date; each bar links its session, hover lists its acts |
+
+The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTENSITY** — peak as a 10-segment bar (half steps half-filled) and the mean as a red dot / `ø` — fed by `intensity.summary` (it replaced CP/WCP).
+
 ### Session intensity (`components/sessions/intensity/`)
 | Component | Type | Props | Description |
 |---|---|---|---|
