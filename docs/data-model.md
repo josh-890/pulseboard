@@ -223,6 +223,7 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).
   **ContributionAct** — an act ticked for a person in a session, unique per (contribution, act).
   **ContributionActExtra** — an act's departure from the inherited extras (`mode` ADD | DROP). Values are computed.
+  **ContributionActMedia** (slice 3b) — a photo as evidence for a ticked act: PK (contributionActId, mediaItemId), both FKs cascade; only photos of the act's session (checked in the service).
 
 ---
 

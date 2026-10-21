@@ -83,6 +83,9 @@
 | Component | Type | Props | Description |
 |---|---|---|---|
 | `IntensityHoverText` | Client | `text`, `side?`, `className?` (trigger wrapper, default `min-w-0 flex-1`), `children` | Radix tooltip with a description; renders the children alone when there is none |
+| `ActEvidenceList` | Client | `acts` (`EvidenceAct[]`), `stateOf(id)` (all/some/none), `onToggle(id, linked)`, `dark?` | Ticked acts grouped by person (`Name (ICG-ID)`), each a `role="checkbox"` (`aria-checked` mixed for some) with level, name, scenario; an empty hint without ticks (3b) |
+| `BulkActEvidence` | Client | `acts`, `selectedIds`, `stateOf(id, mediaIds)`, `onToggle(id, mediaIds, linked)` | Selection bar "Act…": popover with `ActEvidenceList` over the selected photos |
+| `useActEvidence(intensity)` | Hook | `GalleryIntensity` (`acts`, `evidence`: photo → act rows) | The gallery's evidence links, optimistic, re-synced when the server's copy changes; `stateOf`, `toggle` → `setActsEvidenceAction` |
 | `IntensityExtrasPicker` | Client | `extras`, `groups`, `selected`, `onChange(ids)`, `inherited?`, `mixed?`, `disabled?`, `context` | Extras as controls: each group a `radiogroup` (— + its extras, +points), ungrouped as toggles, Max (amber, 10) apart; with `inherited`, a departure is ringed amber; `mixed` (several people, only some have it) dashed, `aria-pressed="mixed"` |
 
 ### Person intensity (`components/people/intensity/`, ADR-0036 slice 3)
@@ -91,6 +94,7 @@
 | `PersonIntensityTab` | Client | `data` (`PersonIntensityData`: `summary` from `summarizePersonIntensity`, `scale`, `scenarios`) | The person's Intensity tab: peak tiles, matrix, course; an empty hint without sessions |
 | `IntensityPeakTiles` | Server-safe | `data` | Peak overall + per scenario (with acts), each linking its session (date with precision · name) |
 | `IntensityMatrixView` | Client | `data` | `role="table"`: rows = levels holding acts (scale title, hover description), a column per scenario; reached acts filled with first date (precision) · count, linking the first session; hover: description, first session, count |
+| `IntensityEvidence` | Client | `data` (`evidence`: act id → photos) | "In pictures": per act with evidence, up to 8 thumbs (+N), each linking its session gallery filtered `act:"Scenario/Act"` |
 | `IntensityCourse` | Client | `data` | A bar per session (oldest first, undated after a divider), ★ for first times, value + two-line date; each bar links its session, hover lists its acts |
 
 The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTENSITY** — peak as a 10-segment bar (half steps half-filled) and the mean as a red dot / `ø` — fed by `intensity.summary` (it replaced CP/WCP).
@@ -102,8 +106,9 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 | `SessionWorkspace` | Client | `main`, `sidebar`, `panel` | The production session's two columns; with the panel open it replaces the sidebar (`lg:grid-cols-[1fr_440px]`), sticky and scrolling on its own |
 | `IntensityPanelToggle` | Client | `className?` | "Intensity" button (Media header, sidebar box) — `aria-pressed` |
 | `IntensitySummary` | Client | `contributions`, `catalog` | Sidebar box while the panel is closed: each person's session value + the toggle |
-| `SessionIntensityPanel` | Client | `contributions` (`SessionIntensity`), `catalog` (`SessionIntensityCatalog`) | `region` "Intensity panel": person chips (toggle, **only**, **All**; value with explanation), "Same as…", shared extras (`common`/`mixed` → `applySharedExtras`), act search (Enter ticks the first), scenario accordions (suggested ∪ ticked open; all while searching). `useOptimistic` over `panel-state.ts` (`reducePanel`, `personView`); unticking an act with a note or own extras toasts **Undo** (`restoreContributionActsAction`) |
-| `IntensityActCheck` | Client | `act`, `state` (all/some/none), `holders`, `value` (min–max), `explain`, `single`, `effective`, `inherited`, `saved`, `note`, `extras`, `groups`, `onTick`, `onExtras`, `onNote` | One act, one compact line: checkbox (indeterminate for some), level, title (hover description), value badge (hover: explanation; amber at 10), "only …", note + sliders buttons (need one person) → note field / its own extras (`overridesFor`) |
+| `SessionIntensityPanel` | Client | `contributions` (`SessionIntensity`), `catalog` (`SessionIntensityCatalog`) | `region` "Intensity panel": person chips (toggle, **only**, **All**; value with explanation), "Same as…", shared extras (`common`/`mixed` → `applySharedExtras`), act search (Enter ticks the first), scenario accordions (suggested ∪ ticked open; all while searching). `useOptimistic` over `panel-state.ts` (`reducePanel`, `personView`); unticking an act with a note, own extras or photos toasts **Undo** (`restoreContributionActsAction`); `sessionId` for the photo picker |
+| `ActEvidencePicker` | Client | `sessionId`, `title`, `initialIds`, `onClose`, `onSave(ids)` | The panel's evidence picker: `MediaPickerShell` (multi, controlled) over `/api/media/search?sessionId=&galleryOnly=1`, paged; Save disabled while unchanged |
+| `IntensityActCheck` | Client | `act`, `state` (all/some/none), `holders`, `value` (min–max), `explain`, `single`, `effective`, `inherited`, `saved`, `note`, `photos`, `onPhotos`, `extras`, `groups`, `onTick`, `onExtras`, `onNote` | One act, one compact line (+ photos button with count): checkbox (indeterminate for some), level, title (hover description), value badge (hover: explanation; amber at 10), "only …", note + sliders buttons (need one person) → note field / its own extras (`overridesFor`) |
 
 ## Session Components (`components/sessions/`)
 
@@ -211,6 +216,7 @@ filter live in shared hooks (`lib/hooks/use-gallery-selection.ts`,
 | `PeopleFilterBar` | Client | `cast`, `items`, `visibleItems`, `filter`, `onChange` | ADR-0023 filter: a **Groups** row of the people combinations that occur (with counts; one click = exactly that group) and **Shows** chips cycling off → must show → must not show, combined with AND |
 | `GroupSelectToggle` | Client | `state` (`all`/`some`/`none`), `label`, `onToggle` | Tri-state checkbox on a gallery group header (session, clip, set, "Session only") |
 | `BulkPeopleShownControl` | Client | `cast`, `selectedIds`, `onApplied` | Selection-bar popover: show / hide a person across the selected images |
+| `LightboxActPill` | Client | `acts`, `linked`, `onToggle`, `open`, `onOpenChange` | Viewer toolbar (Organize), only with `GalleryLightbox`'s `actEvidence`: gauge + count of acts this photo is evidence for; popover `ActEvidenceList` (dark); key **A** (ADR-0036, 3b) |
 | `LightboxOriginLink` | Client | `origin` (`MediaItemOrigin \| null \| undefined`) | The viewer bar's "back" chip (2026-10-18), left zone, only with `showOrigin`: ↶ + the first set's title (+N for more sets), tooltip with key `O` and the people shown; links `mediaOriginTarget(origin)` (set opened on the photo / reference person / session). Pulsing placeholder while loading, nothing when unknown |
 | `LightboxOriginSection` | Client | `origin` | The info panel's **Origin** section: every set (each `?photo=`), the people shown (or the reference person) as `Name (ICG-ID)` links, and the session |
 

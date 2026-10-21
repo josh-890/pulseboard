@@ -50,4 +50,5 @@ export type ResolvedPredicate =
   | { kind: "person"; personIds: string[] }
   | { kind: "persontag"; tagIds: string[] }
   | { kind: "label"; labelIds: string[] }
-  | { kind: "type"; value: "photo" | "video" };
+  | { kind: "type"; value: "photo" | "video" }
+  | { kind: "act"; actIds: string[] };

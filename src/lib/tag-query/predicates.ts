@@ -14,6 +14,7 @@ export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity
   persontag: ["MEDIA_ITEM", "SET", "SESSION"],
   label: ["MEDIA_ITEM", "SET", "SESSION"],
   type: ["MEDIA_ITEM", "SET"],
+  act: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
 };
 
 /** Completions the query box offers for predicates, per browser */
@@ -28,6 +29,7 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
     { kind: "label", insert: "label:", hint: "label name" },
     { kind: "type", insert: "type:photo", hint: "photos" },
     { kind: "type", insert: "type:video", hint: "videos" },
+    { kind: "act", insert: "act:", hint: entity === "MEDIA_ITEM" ? "evidence for an act — name or scenario/name" : "someone did an act — name or scenario/name" },
   ];
   return all.filter((s) => PREDICATE_SUPPORT[s.kind].includes(entity)).map(({ insert, hint }) => ({ insert, hint }));
 }
@@ -52,6 +54,8 @@ export function predicateLabel(p: QueryPredicate): string {
       return `Label ${v}`;
     case "type":
       return v.toLowerCase() === "video" ? "Videos" : v.toLowerCase() === "photo" ? "Photos" : `type ${v}`;
+    case "act":
+      return `Act ${v}`;
     default:
       return `${p.key}${p.op}${v}`;
   }

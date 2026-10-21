@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SlidersHorizontal, StickyNote } from "lucide-react";
+import { Images, SlidersHorizontal, StickyNote } from "lucide-react";
 import { IntensityExtrasPicker, type PickerExtra, type PickerGroup } from "@/components/intensity/intensity-extras-picker";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
 import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
@@ -23,6 +23,9 @@ export type IntensityActCheckProps = {
   inherited: string[];
   saved: boolean;
   note: string | null;
+  /** How many photos of the session are evidence for it (single person) */
+  photos: number;
+  onPhotos: () => void;
   extras: PickerExtra[];
   groups: PickerGroup[];
   onTick: (ticked: boolean) => void;
@@ -31,11 +34,11 @@ export type IntensityActCheckProps = {
 };
 
 // One act to tick, read left to right in one glance: ☐ level · title · value ·
-// note · extras — all close together. With several people selected it shows
+// note · photos · extras — all close together. With several people selected it shows
 // whether all, some (− and who) or none have it; ticking sets it for all. Notes
 // and an act's own extras belong to one person, so they need one selected.
 export function IntensityActCheck(props: IntensityActCheckProps) {
-  const { act, state, holders, value, explain, single, effective, inherited, saved, note, extras, groups, onTick, onExtras, onNote } = props;
+  const { act, state, holders, value, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote } = props;
   const [open, setOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
@@ -116,6 +119,20 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
               )}
             >
               <StickyNote size={13} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={onPhotos}
+              disabled={!editable}
+              aria-label={photos ? `Photos of ${act.name}: ${photos} — change` : `Photos as evidence for ${act.name}`}
+              title={single ? (photos ? `${photos} photo${photos === 1 ? "" : "s"} as evidence` : "Pick photos as evidence") : needOne}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-0.5 rounded p-1 text-[11px] tabular-nums transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent",
+                editable && photos ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              <Images size={13} aria-hidden="true" />
+              {editable && photos > 0 && photos}
             </button>
             <button
               type="button"

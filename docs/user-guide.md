@@ -298,6 +298,8 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
 - **Course** — a bar per session, oldest first, to its intensity; **★** where an act came for the first time.
   Hover a bar for its acts, click to open the session. Sessions without a date (or with an unknown one) follow at
   the end under *undated* and never count as a first time; partial dates show as recorded (2020-03, 2019).
+- **In pictures** — every act with photos linked to it as evidence, oldest session first (up to eight, then
+  *+N*). Click a photo to open its session's gallery filtered to that act (`act:`).
 - Recording happens on the session, in the Intensity panel beside the photos.
 
 **Overview**
@@ -603,7 +605,9 @@ Click **"Add Session"** to create a production session:
   - **Each act** reads in one line: ☐ · level · title · value · note · extras. The value is level + extras, at most 9.5; Max 10 — **hover it** to see how: *Topless 5 + Semi-public 1 = 6*, *… → capped at 9.5*, *Max → 10*. Hover a title for its description. Acts are not a ladder — each is ticked on its own.
   - **A note** (one person selected): the note button opens a one-line field (Enter or leaving saves, Esc cancels, empty removes); the note shows under the act — click to edit.
   - **Extras of one act** (one person selected): the sliders button — starts from the session's extras, can add or leave out any; departures are ringed amber, the button turns amber.
-  - **Unticking an act that has a note or its own extras** takes them along — a message offers **Undo**, which puts all of it back.
+  - **Photos** (one person selected, the photos button on a ticked act, with the count): the session's photos in the big picker, those already linked marked — mark the ones that show this person doing this act and **Save**.
+  - **Unticking an act that has a note, its own extras or photos** takes them along — a message offers **Undo**, which puts all of it back.
+  - **Photos as evidence** (ADR-0036): a photo is linked to a *ticked* act of *one* person — there is no evidence without a tick. Three ways: the panel's photos button (above); in the gallery, select photos and choose **Act…** in the selection bar (tick an act to link all selected, − means only some are, a click links the rest; untick to unlink); in the viewer, the gauge pill (**A**) — its count says how many acts this photo shows. The query `act:` filters the gallery to the evidence. A photo moved to another session leaves its evidence behind; a deleted one takes it along.
   - Changes show at once and save behind them. Merging sessions keeps all of it (the same person and role in both: acts and extras the surviving one lacks come over, and a note where the surviving act has none).
 - **Actions:**
   - **Edit** — modify session fields
@@ -970,6 +974,7 @@ In the image viewer:
 | `persontag:fitness` | images, sets or sessions whose cast carries a person tag |
 | `label:Nubiles` | by label (sessions: producer; sets: the channel's owning label; images: either) |
 | `type:video` | videos (images, sets) |
+| `act:Topless`, `act:"G-G/Kiss on the lips"` | an intensity act by name, or scenario/name: images linked to it as evidence; sessions, sets and people where it was ticked |
 
 A condition that does not apply to the page (`type:video` on /people) shows as a warning chip and is ignored. So does an unknown ICG-ID, tag or label.
 

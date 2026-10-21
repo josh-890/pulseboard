@@ -3,6 +3,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { overridesFor, suggestScenarioIds } from "@/lib/intensity";
 import { summarizePersonIntensity } from "@/lib/intensity-person";
 import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { buildPhotoUrls } from "@/lib/media-url";
+import type { PhotoVariants } from "@/lib/types";
 
 // Intensity on sessions (ADR-0036, slice 2): per on-camera contribution, the
 // extras set for the person in that session and the acts ticked, each act with
@@ -29,7 +31,13 @@ export async function getSessionIntensity(sessionId: string) {
       intensityExtras: { select: { extraId: true } },
       intensityActs: {
         orderBy: { createdAt: "asc" },
-        select: { id: true, actId: true, notes: true, extras: { select: { extraId: true, mode: true } } },
+        select: {
+          id: true,
+          actId: true,
+          notes: true,
+          extras: { select: { extraId: true, mode: true } },
+          media: { orderBy: { createdAt: "asc" }, select: { mediaItemId: true } },
+        },
       },
     },
   });
@@ -48,7 +56,13 @@ export async function getSessionIntensity(sessionId: string) {
       },
       suggestedScenarioIds: suggestScenarioIds(c.person.sexAtBirth, [...others.values()]),
       extraIds: c.intensityExtras.map((e) => e.extraId),
-      acts: c.intensityActs.map((a) => ({ id: a.id, actId: a.actId, notes: a.notes, overrides: a.extras })),
+      acts: c.intensityActs.map((a) => ({
+        id: a.id,
+        actId: a.actId,
+        notes: a.notes,
+        overrides: a.extras,
+        mediaIds: a.media.map((m) => m.mediaItemId),
+      })),
     };
   });
 }
@@ -96,9 +110,15 @@ export async function setContributionsAct(contributionIds: string[], actId: stri
   });
 }
 
-/** Puts unticked acts back as they were — note and own extras included (undo) */
+/** Puts unticked acts back as they were — note, own extras and photos included (undo) */
 export async function restoreContributionActs(
-  items: { contributionId: string; actId: string; notes: string | null; overrides: { extraId: string; mode: "ADD" | "DROP" }[] }[],
+  items: {
+    contributionId: string;
+    actId: string;
+    notes: string | null;
+    overrides: { extraId: string; mode: "ADD" | "DROP" }[];
+    mediaIds?: string[];
+  }[],
 ) {
   await prisma.$transaction(async (tx) => {
     for (const it of items) {
@@ -111,8 +131,61 @@ export async function restoreContributionActs(
       if (it.overrides.length) {
         await tx.contributionActExtra.createMany({ data: it.overrides.map((o) => ({ contributionActId: row.id, ...o })) });
       }
+      if (it.mediaIds?.length) await linkEvidence(tx, [row.id], it.mediaIds);
     }
   });
+}
+
+// ─── Photos as evidence (slice 3b) ───────────────────────────────────────────
+
+/** Links photos to acts, each photo only where it belongs to the act's session; returns how many were new */
+async function linkEvidence(tx: TxClient, contributionActIds: string[], mediaItemIds: string[]) {
+  const [acts, media] = await Promise.all([
+    tx.contributionAct.findMany({
+      where: { id: { in: contributionActIds } },
+      select: { id: true, contribution: { select: { sessionId: true } } },
+    }),
+    tx.mediaItem.findMany({ where: { id: { in: mediaItemIds } }, select: { id: true, sessionId: true } }),
+  ]);
+  if (acts.length !== new Set(contributionActIds).size) throw new Error("That act is no longer ticked.");
+  const data = acts.flatMap((a) =>
+    media.filter((m) => m.sessionId === a.contribution.sessionId).map((m) => ({ contributionActId: a.id, mediaItemId: m.id })),
+  );
+  if (data.length === 0) return 0;
+  return (await tx.contributionActMedia.createMany({ data, skipDuplicates: true })).count;
+}
+
+/** Links or unlinks photos as evidence for acts — a gallery selection, or one photo in the lightbox */
+export async function setActsEvidence(contributionActIds: string[], mediaItemIds: string[], linked: boolean) {
+  await prisma.$transaction(async (tx) => {
+    if (linked) await linkEvidence(tx, contributionActIds, mediaItemIds);
+    else {
+      await tx.contributionActMedia.deleteMany({
+        where: { contributionActId: { in: contributionActIds }, mediaItemId: { in: mediaItemIds } },
+      });
+    }
+  });
+}
+
+/** The photos that show one act as this person did it — replaces what was there (the panel's picker) */
+export async function setActEvidence(contributionActId: string, mediaItemIds: string[]) {
+  await prisma.$transaction(async (tx) => {
+    await tx.contributionActMedia.deleteMany({
+      where: { contributionActId, mediaItemId: { notIn: mediaItemIds } },
+    });
+    if (mediaItemIds.length) await linkEvidence(tx, [contributionActId], mediaItemIds);
+  });
+}
+
+/** The one session these ticked acts share — refuses a mix */
+export async function getContributionActsSessionId(contributionActIds: string[]): Promise<string> {
+  const rows = await prisma.contributionAct.findMany({
+    where: { id: { in: contributionActIds } },
+    select: { contribution: { select: { sessionId: true } } },
+  });
+  const sessions = new Set(rows.map((r) => r.contribution.sessionId));
+  if (rows.length !== new Set(contributionActIds).size || sessions.size !== 1) throw new Error("Acts must share one session.");
+  return [...sessions][0]!;
 }
 
 /**
@@ -198,9 +271,9 @@ export async function setContributionActExtras(contributionActId: string, extraI
 
 /**
  * Session merge: carries one contribution's intensity onto another for the same
- * person and role. Acts the target lacks move over with their departures and
- * notes; where both ticked an act, the target's stays (taking the other's note
- * if it has none). Extras the target lacks are added
+ * person and role. Acts the target lacks move over with their departures,
+ * notes and photos; where both ticked an act, the target's stays (taking the
+ * other's note if it has none, and its photos). Extras the target lacks are added
  * unless the target already chose one in that group.
  */
 export async function mergeContributionIntensityInTx(tx: TxClient, fromId: string, toId: string) {
@@ -224,8 +297,19 @@ export async function mergeContributionIntensityInTx(tx: TxClient, fromId: strin
   const toActs = new Map(to.intensityActs.map((a) => [a.actId, a]));
   for (const a of from.intensityActs) {
     const there = toActs.get(a.actId);
-    if (!there) await tx.contributionAct.update({ where: { id: a.id }, data: { contributionId: toId } });
-    else if (!there.notes && a.notes) await tx.contributionAct.update({ where: { id: there.id }, data: { notes: a.notes } });
+    if (!there) {
+      await tx.contributionAct.update({ where: { id: a.id }, data: { contributionId: toId } });
+      continue;
+    }
+    if (!there.notes && a.notes) await tx.contributionAct.update({ where: { id: there.id }, data: { notes: a.notes } });
+    // Its photos join the act that stays
+    const photos = await tx.contributionActMedia.findMany({ where: { contributionActId: a.id }, select: { mediaItemId: true } });
+    if (photos.length) {
+      await tx.contributionActMedia.createMany({
+        data: photos.map((p) => ({ contributionActId: there.id, mediaItemId: p.mediaItemId })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   const toExtras = new Set(to.intensityExtras.map((e) => e.extraId));
@@ -277,3 +361,38 @@ export async function getPersonIntensity(personId: string) {
     },
   );
 }
+
+/** A person's evidence photos per act, oldest session first — the showcase on their Intensity tab (3b) */
+export async function getPersonActEvidence(personId: string) {
+  const rows = await prisma.contributionActMedia.findMany({
+    where: { contributionAct: { contribution: { personId } } },
+    select: {
+      contributionAct: { select: { actId: true } },
+      mediaItem: {
+        select: {
+          id: true,
+          variants: true,
+          fileRef: true,
+          focalX: true,
+          focalY: true,
+          session: { select: { id: true, date: true } },
+        },
+      },
+    },
+    orderBy: [{ mediaItem: { session: { date: { sort: "asc", nulls: "last" } } } }, { createdAt: "asc" }],
+  });
+  const byAct: Record<string, { id: string; thumbUrl: string; focalX: number | null; focalY: number | null; sessionId: string }[]> = {};
+  for (const r of rows) {
+    const urls = buildPhotoUrls((r.mediaItem.variants ?? {}) as PhotoVariants, r.mediaItem.fileRef);
+    (byAct[r.contributionAct.actId] ??= []).push({
+      id: r.mediaItem.id,
+      thumbUrl: urls.gallery_512 ?? urls.profile_256 ?? urls.original,
+      focalX: r.mediaItem.focalX,
+      focalY: r.mediaItem.focalY,
+      sessionId: r.mediaItem.session.id,
+    });
+  }
+  return byAct;
+}
+
+export type PersonActEvidence = Awaited<ReturnType<typeof getPersonActEvidence>>;

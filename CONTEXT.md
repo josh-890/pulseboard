@@ -365,6 +365,9 @@ The one extra (`isMax`) that sets an act's value to **10** whatever the sum. Amo
 **Act value / session intensity / peak intensity**:
 An act's value = Max ? 10 : min(9.5, level + extras' points). A person's **session intensity** = their highest act value in that session — or 10 when **Max** is among their session extras, acts or not; **peak intensity** = their highest overall (also per scenario). Computed on read, never stored. Peak replaces the retired CP/WCP; distinct from the manual **PGRADE** on `Person`.
 
+**Evidence** (code model & DB table: `ContributionActMedia`):
+A photo of the session linked to a *ticked* act of one person there (ADR-0036, slice 3b). No evidence without a tick; it is not a tag (a person-less tag would drift from the ticks). Filtered with `act:` in the tag query.
+
 ## Flagged ambiguities
 
 - **"Persona"** — In the wider domain a "persona" usually means a stage identity / working name. In Pulseboard it does **not**: stage names are **Aliases** (`PersonAlias`). The concept is an **Era** — a phase on the Person's development timeline. The legacy `Persona` Prisma model + DB table were renamed to `Era` in May 2026 — no Persona references remain in current code or docs. If you find one, it's either inside `prisma/migrations/` (historical) or it's drift worth fixing.

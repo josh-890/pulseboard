@@ -19,6 +19,7 @@ export type ShortcutId =
   | "unpaint"
   | "slots"
   | "category"
+  | "acts"
   | "compare"
   | "cover"
   | "focal"
@@ -60,6 +61,7 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "unpaint", label: "Take the armed tag off", keys: ["⇧P"] },
       { id: "slots", label: "Toggle a quick-tag slot", keys: ["1", "…", "9"] },
       { id: "category", label: "Assign to a detail category", keys: ["D"] },
+      { id: "acts", label: "Evidence for an act (sessions with intensity)", keys: ["A"] },
       { id: "compare", label: "Compare tray — add / remove", keys: ["X"] },
       { id: "cover", label: "Set as cover", keys: ["#"] },
     ],

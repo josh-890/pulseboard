@@ -13,7 +13,7 @@ import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // Non-tag conditions of the query language (ADR-0033, S5): is:fav,
 // is:untagged, has:workflow, rating>=N, person:ICG-ID, persontag:tag,
-// label:name, type:photo|video. Resolved against the DB once, then turned into
+// label:name, type:photo|video, act:name|scenario/name. Resolved against the DB once, then turned into
 // SQL per entity. A predicate a browser cannot answer is reported, never
 // silently dropped into a different meaning.
 
@@ -92,6 +92,29 @@ export async function resolvePredicates(
         r = { kind: "label", labelIds: labels.map((x) => x.id) };
         break;
       }
+      case "act": {
+        // An act's name, or scenario/name where several scenarios have one by that name (ADR-0036)
+        const slash = value.indexOf("/");
+        const scenario = slash > 0 ? value.slice(0, slash).trim() : null;
+        const name = slash > 0 ? value.slice(slash + 1).trim() : value;
+        let acts = await prisma.intensityAct.findMany({
+          where: {
+            name: { equals: name, mode: "insensitive" },
+            ...(scenario ? { scenario: { name: { equals: scenario, mode: "insensitive" } } } : {}),
+          },
+          select: { id: true },
+        });
+        // A "/" may belong to the act's own name
+        if (acts.length === 0 && scenario) {
+          acts = await prisma.intensityAct.findMany({ where: { name: { equals: value, mode: "insensitive" } }, select: { id: true } });
+        }
+        if (acts.length === 0) {
+          problems.push(`No act “${value}”`);
+          continue;
+        }
+        r = { kind: "act", actIds: acts.map((x) => x.id) };
+        break;
+      }
     }
     if (!r) {
       problems.push(`Cannot read “${text(p)}”`);
@@ -158,6 +181,27 @@ function ownTagIds(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
   return Prisma.sql`SELECT "tagDefinitionId" AS tid FROM ${Prisma.raw(`"${own.table}"`)} WHERE ${Prisma.raw(`"${own.column}"`)} = ${x}`;
 }
 
+/** An image is evidence for the act; a session, set or person has it ticked (ADR-0036) */
+function actSql(entity: TaggableEntity, acts: Prisma.Sql, x: Prisma.Sql): Prisma.Sql {
+  switch (entity) {
+    case "MEDIA_ITEM":
+      return Prisma.sql`EXISTS (SELECT 1 FROM "ContributionActMedia" cam JOIN "ContributionAct" ca ON ca.id = cam."contributionActId"
+        WHERE cam."mediaItemId" = ${x} AND ca."actId" IN (${acts}))`;
+    case "SESSION":
+      return Prisma.sql`EXISTS (SELECT 1 FROM "ContributionAct" ca JOIN "SessionContribution" sc ON sc.id = ca."contributionId"
+        WHERE sc."sessionId" = ${x} AND ca."actId" IN (${acts}))`;
+    case "SET":
+      return Prisma.sql`EXISTS (SELECT 1 FROM "SetSession" ss JOIN "SessionContribution" sc ON sc."sessionId" = ss."sessionId"
+        JOIN "ContributionAct" ca ON ca."contributionId" = sc.id WHERE ss."setId" = ${x} AND ca."actId" IN (${acts}))`;
+    case "PERSON":
+      return Prisma.sql`EXISTS (SELECT 1 FROM "ContributionAct" ca JOIN "SessionContribution" sc ON sc.id = ca."contributionId"
+        WHERE sc."personId" = ${x} AND ca."actId" IN (${acts}))`;
+    case "PROJECT":
+    case "ARCHIVE_FOLDER":
+      return Prisma.sql`FALSE`;
+  }
+}
+
 /** SQL for one resolved predicate on row `x` of the entity */
 export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Prisma.Sql): Prisma.Sql {
   switch (p.kind) {
@@ -197,5 +241,7 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
       return entity === "SET"
         ? Prisma.sql`EXISTS (SELECT 1 FROM "Set" st WHERE st.id = ${x} AND st.type::text = ${p.value})`
         : Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" mi WHERE mi.id = ${x} AND mi."mediaType"::text = ${p.value.toUpperCase()})`;
+    case "act":
+      return actSql(entity, Prisma.join(p.actIds), x);
   }
 }

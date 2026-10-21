@@ -1421,6 +1421,10 @@ export async function splitMediaToSession(
       where: { id: { in: mediaItemIds } },
       data: { sessionId: targetSessionId },
     });
+    // Evidence for an act is evidence within its session — it does not travel (ADR-0036)
+    await tx.contributionActMedia.deleteMany({
+      where: { mediaItemId: { in: mediaItemIds }, contributionAct: { contribution: { sessionId: { not: targetSessionId } } } },
+    });
     await syncSetSessionLinks(tx, setId);
   });
 }

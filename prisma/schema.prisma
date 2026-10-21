@@ -1219,6 +1219,7 @@ model MediaItem {
   skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
+  actEvidence      ContributionActMedia[]
 
   @@index([sessionId])
   @@index([hash])
@@ -1933,6 +1934,7 @@ model ContributionAct {
   act            IntensityAct           @relation(fields: [actId], references: [id])
   notes          String?
   extras         ContributionActExtra[]
+  media          ContributionActMedia[]
   createdAt      DateTime               @default(now())
 
   @@unique([contributionId, actId])
@@ -1955,6 +1957,18 @@ model ContributionActExtra {
 
   @@id([contributionActId, extraId])
   @@index([extraId])
+}
+
+/// A photo of the session as evidence for a ticked act of one person (slice 3b)
+model ContributionActMedia {
+  contributionActId String
+  contributionAct   ContributionAct @relation(fields: [contributionActId], references: [id], onDelete: Cascade)
+  mediaItemId       String
+  mediaItem         MediaItem       @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@id([contributionActId, mediaItemId])
+  @@index([mediaItemId])
 }
 
 // ─── Tagging System ──────────────────────────────────────────────────────────

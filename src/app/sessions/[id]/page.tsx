@@ -46,6 +46,7 @@ import {
 } from "@/components/sessions/intensity";
 import { cookies } from "next/headers";
 import { getSessionIntensity } from "@/lib/services/intensity-service";
+import type { GalleryIntensity } from "@/components/intensity";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
 import { AddContributorSheet } from "@/components/sessions/add-contributor-sheet";
@@ -294,6 +295,33 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           })),
         }
       : null;
+  // ADR-0036, 3b: the gallery's acts to link photos to, and which photos already are evidence
+  const galleryIntensity: GalleryIntensity | undefined = intensityCatalog
+    ? (() => {
+        const actInfo = new Map(
+          intensityCatalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { ...a, scenarioName: s.name }] as const)),
+        );
+        const evidence: Record<string, string[]> = {};
+        const acts = intensityRows.flatMap((c) =>
+          c.acts
+            .filter((a) => actInfo.has(a.actId))
+            .map((a) => {
+              for (const m of a.mediaIds) (evidence[m] ??= []).push(a.id);
+              const info = actInfo.get(a.actId)!;
+              return {
+                id: a.id,
+                contributionId: c.id,
+                personLabel: `${c.person.name} (${c.person.icgId})`,
+                actName: info.name,
+                scenarioName: info.scenarioName,
+                level: info.level,
+              };
+            })
+            .sort((x, y) => x.level - y.level || x.actName.localeCompare(y.actName)),
+        );
+        return { acts, evidence };
+      })()
+    : undefined;
   const behindCameraContributors = mergeSessionContributors([], behindCameraCredits).filter(
     (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
   );
@@ -404,7 +432,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       {!isReference && (
         <IntensityPanelProvider initialOpen={intensityPanelOpen}>
         <SessionWorkspace
-          panel={intensityCatalog ? <SessionIntensityPanel contributions={intensityRows} catalog={intensityCatalog} /> : null}
+          panel={intensityCatalog ? <SessionIntensityPanel sessionId={id} contributions={intensityRows} catalog={intensityCatalog} /> : null}
           main={<>
             <SectionCard
               title={`Media (${mediaCount})`}
@@ -426,6 +454,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 productionContext={productionContext}
                 cast={castDirectory}
                 tagFilter={galleryTagFilter}
+                intensity={galleryIntensity}
               />
             </SectionCard>
 

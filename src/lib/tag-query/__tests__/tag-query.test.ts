@@ -55,6 +55,12 @@ describe("parseTagQuery", () => {
     expect(q.all).toHaveLength(1);
   });
 
+  it("reads act: with a scenario, quoted for spaces, and writes it back the same", () => {
+    const q = parse('act:"G-G/Kiss on the lips"');
+    expect(q.predicates).toEqual([{ key: "act", op: ":", value: "G-G/Kiss on the lips" }]);
+    expect(serializeTagQuery(q)).toBe('act:"G-G/Kiss on the lips"');
+  });
+
   it("reports what it cannot read instead of guessing", () => {
     const { query, errors } = parseTagQuery("@shelf:beach outfit:");
     expect(query.all).toEqual([]);

@@ -10,7 +10,7 @@ import {
   deriveCurrentState,
   deriveAffiliations,
 } from "@/lib/services/person-service";
-import { getPersonIntensity } from "@/lib/services/intensity-service";
+import { getPersonActEvidence, getPersonIntensity } from "@/lib/services/intensity-service";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import type { PersonIntensityData } from "@/components/people/intensity";
 import { getPersonReferenceSession } from "@/lib/services/session-service";
@@ -135,7 +135,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog, personActEvidence] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -166,6 +166,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonKnownFor(id),
       getPersonIntensity(id),
       getIntensityCatalog(),
+      getPersonActEvidence(id),
     ]);
 
   // Flatten Map → Record for client-component serialization.
@@ -211,6 +212,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
           name: sc.name,
           acts: sc.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
         })),
+        evidence: personActEvidence,
       }
     : null;
 

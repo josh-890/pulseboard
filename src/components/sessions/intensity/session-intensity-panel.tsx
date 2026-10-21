@@ -16,6 +16,7 @@ import {
   copyContributionIntensityAction,
   restoreContributionActsAction,
   setContributionActExtrasAction,
+  setActEvidenceAction,
   setContributionActNoteAction,
   setContributionsActAction,
   setContributionsExtrasAction,
@@ -24,12 +25,14 @@ import { applySharedExtras, formatIntensity, INTENSITY_MAX, overridesFor } from 
 import type { SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { ActEvidencePicker } from "./act-evidence-picker";
 import { IntensityActCheck } from "./intensity-act-check";
 import { initialPanelState, personView, reducePanel, type PanelChange, type RestoreItem } from "./panel-state";
 import { useIntensityPanel } from "./intensity-panel-provider";
 import type { SessionIntensityCatalog } from "./types";
 
 export type SessionIntensityPanelProps = {
+  sessionId: string;
   contributions: SessionIntensity;
   catalog: SessionIntensityCatalog;
 };
@@ -38,13 +41,14 @@ export type SessionIntensityPanelProps = {
 // camera as chips — one or several selected — over a single editor. With
 // several selected, every change applies to all of them; a half tick (−) says
 // only some have an act, and names them. Changes show at once and save behind.
-export function SessionIntensityPanel({ contributions, catalog }: SessionIntensityPanelProps) {
+export function SessionIntensityPanel({ sessionId, contributions, catalog }: SessionIntensityPanelProps) {
   const { setOpen } = useIntensityPanel();
   const [state, apply] = useOptimistic(initialPanelState(contributions), reducePanel);
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<string[]>(() => (contributions[0] ? [contributions[0].id] : []));
   const [query, setQuery] = useState("");
   const [openScenarios, setOpenScenarios] = useState<Set<string> | null>(null);
+  const [picking, setPicking] = useState<{ contributionId: string; actId: string; contributionActId: string; title: string; mediaIds: string[] } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const acts = useMemo(
@@ -102,16 +106,24 @@ export function SessionIntensityPanel({ contributions, catalog }: SessionIntensi
       send({ kind: "tick", contributionIds: ids, actId, ticked: true }, () => setContributionsActAction(ids, actId, true));
       return;
     }
-    // Unticking drops a note and own extras with the act — offer them back
+    // Unticking drops a note, own extras and photos with the act — offer them back
     const lost: RestoreItem[] = [];
     for (const c of chosen) {
       const a = state[c.id]!.acts.find((x) => x.actId === actId);
-      if (a && (a.notes || a.overrides.length > 0)) lost.push({ contributionId: c.id, actId, notes: a.notes, overrides: a.overrides });
+      if (a && (a.notes || a.overrides.length > 0 || a.mediaIds.length > 0)) {
+        lost.push({ contributionId: c.id, actId, notes: a.notes, overrides: a.overrides, mediaIds: a.mediaIds });
+      }
     }
     const name = acts.get(actId)?.name ?? "Act";
+    const went = [
+      lost.some((l) => l.notes) && "note",
+      lost.some((l) => l.overrides.length) && "own extras",
+      lost.some((l) => l.mediaIds.length) && "photos",
+    ].filter(Boolean) as string[];
     send({ kind: "tick", contributionIds: ids, actId, ticked: false }, () => setContributionsActAction(ids, actId, false), () => {
       if (lost.length === 0) return;
-      toast(`${name} unticked — its note and own extras went with it`, {
+      const what = went.length > 1 ? `${went.slice(0, -1).join(", ")} and ${went.at(-1)}` : went[0];
+      toast(`${name} unticked — its ${what} went with it`, {
         action: {
           label: "Undo",
           onClick: () => send({ kind: "restore", items: lost }, () => restoreContributionActsAction(lost)),
@@ -309,6 +321,17 @@ export function SessionIntensityPanel({ contributions, catalog }: SessionIntensi
                         inherited={single ? state[single.id]!.extraIds : []}
                         saved={!!mine?.id}
                         note={mine?.notes ?? null}
+                        photos={mine?.mediaIds.length ?? 0}
+                        onPhotos={() => {
+                          if (!single || !mine?.id) return;
+                          setPicking({
+                            contributionId: single.id,
+                            actId: a.id,
+                            contributionActId: mine.id,
+                            title: `${a.name} — ${single.label}: photos as evidence`,
+                            mediaIds: mine.mediaIds,
+                          });
+                        }}
                         extras={catalog.extras}
                         groups={catalog.groups}
                         onTick={(on) => tick(a.id, on)}
@@ -334,6 +357,19 @@ export function SessionIntensityPanel({ contributions, catalog }: SessionIntensi
           );
         })}
       </ul>
+      {picking && (
+        <ActEvidencePicker
+          sessionId={sessionId}
+          title={picking.title}
+          initialIds={picking.mediaIds}
+          onClose={() => setPicking(null)}
+          onSave={(mediaIds) =>
+            send({ kind: "evidence", contributionId: picking.contributionId, actId: picking.actId, mediaIds }, () =>
+              setActEvidenceAction(picking.contributionActId, mediaIds),
+            )
+          }
+        />
+      )}
     </PanelFrame>
   );
 }

@@ -54,5 +54,7 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
 
 - The disclosure tables are converted in place (situations → scenarios, levels → acts with proposed levels,
   settings → the Location group) and dropped; "First time" and Max are seeded.
-- Ticking happens on sessions (slice 2), the person tab and peak follow (slice 3), then filters (4) and retiring
-  Skills (5, destructive — backup and an explicit go per step).
+- Ticking happens on sessions (slice 2), the person tab and peak follow (slice 3), photos as evidence (3b:
+  `ContributionActMedia`, cascading with the tick and the photo; a photo split to another session drops its
+  links; a session merge carries them to the act that stays), then filters (4) and retiring Skills (5,
+  destructive — backup and an explicit go per step).

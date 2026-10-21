@@ -1,6 +1,7 @@
 "use client";
 
 import { IntensityCourse } from "./intensity-course";
+import { IntensityEvidence } from "./intensity-evidence";
 import { IntensityMatrixView } from "./intensity-matrix-view";
 import { IntensityPeakTiles } from "./intensity-peak-tiles";
 import type { PersonIntensityData } from "./types";
@@ -10,7 +11,7 @@ export type PersonIntensityTabProps = {
 };
 
 // The person's Intensity tab (ADR-0036): peaks overall and per scenario, the
-// catalog as they filled it, and the course session by session.
+// catalog as they filled it, each act in pictures, and the course session by session.
 export function PersonIntensityTab({ data }: PersonIntensityTabProps) {
   if (data.summary.sessions.length === 0) {
     return (
@@ -28,6 +29,12 @@ export function PersonIntensityTab({ data }: PersonIntensityTabProps) {
           Acts <span className="font-normal text-muted-foreground">— first time and number of sessions</span>
         </h3>
         <IntensityMatrixView data={data} />
+      </section>
+      <section className="space-y-2" aria-labelledby="intensity-evidence-title">
+        <h3 id="intensity-evidence-title" className="text-sm font-semibold">
+          In pictures <span className="font-normal text-muted-foreground">— photos as evidence, per act</span>
+        </h3>
+        <IntensityEvidence data={data} />
       </section>
       <section className="space-y-2" aria-labelledby="intensity-course-title">
         <h3 id="intensity-course-title" className="text-sm font-semibold">

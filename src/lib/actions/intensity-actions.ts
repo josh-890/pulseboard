@@ -5,17 +5,20 @@ import { revalidatePath } from "next/cache";
 import {
   copyContributionIntensity,
   getContributionActSessionId,
+  getContributionActsSessionId,
   getContributionsSessionId,
   restoreContributionActs,
   setContributionsAct,
   setContributionsExtras,
   setContributionActExtras,
   setContributionActNote,
+  setActEvidence,
+  setActsEvidence,
 } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 // Intensity on a session (ADR-0036, slice 2): extras per person, acts ticked,
-// an act's own extras. Each action revalidates the session page.
+// an act's own extras, photos as evidence (3b). Each action revalidates the session page.
 
 async function run(sessionOf: () => Promise<string>, fn: () => Promise<unknown>): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
@@ -60,7 +63,13 @@ export async function setContributionsActAction(contributionIds: string[], actId
 }
 
 export async function restoreContributionActsAction(
-  items: { contributionId: string; actId: string; notes: string | null; overrides: { extraId: string; mode: "ADD" | "DROP" }[] }[],
+  items: {
+    contributionId: string;
+    actId: string;
+    notes: string | null;
+    overrides: { extraId: string; mode: "ADD" | "DROP" }[];
+    mediaIds?: string[];
+  }[],
 ) {
   return run(
     () => getContributionsSessionId([...new Set(items.map((i) => i.contributionId))]),
@@ -72,5 +81,19 @@ export async function copyContributionIntensityAction(fromId: string, toId: stri
   return run(
     () => getContributionsSessionId([fromId, toId]),
     () => copyContributionIntensity(fromId, toId),
+  );
+}
+
+export async function setActsEvidenceAction(contributionActIds: string[], mediaItemIds: string[], linked: boolean) {
+  return run(
+    () => getContributionActsSessionId(contributionActIds),
+    () => setActsEvidence(contributionActIds, mediaItemIds, linked),
+  );
+}
+
+export async function setActEvidenceAction(contributionActId: string, mediaItemIds: string[]) {
+  return run(
+    () => getContributionActSessionId(contributionActId),
+    () => setActEvidence(contributionActId, mediaItemIds),
   );
 }

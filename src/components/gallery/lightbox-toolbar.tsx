@@ -12,6 +12,8 @@ import { LightboxMarkLadder } from "./lightbox-mark-ladder";
 import { LightboxMoreMenu, type ToolbarToggle } from "./lightbox-more-menu";
 import { LightboxOriginLink } from "./lightbox-origin-link";
 import { LightboxTagPill } from "./lightbox-tag-pill";
+import { LightboxActPill } from "./lightbox-act-pill";
+import type { EvidenceAct } from "@/components/intensity/act-evidence-list";
 import { LightboxToolbarButton } from "./lightbox-toolbar-button";
 
 // The viewer's top bar (2026-10-17), in three zones so nothing covers the photo
@@ -36,6 +38,8 @@ export type LightboxToolbarProps = {
   onTag: () => void;
   onArm: () => void;
   onCategory: () => void;
+  /** ADR-0036, 3b: acts this photo can be evidence for — only in a session gallery with intensity */
+  acts?: { acts: EvidenceAct[]; linked: string[]; onToggle: (contributionActId: string, linked: boolean) => void };
   armedTag: PaletteTag | null;
   onApplySlot: (tag: PaletteTag) => void;
   slotStateOf: (tagId: string) => SlotState;
@@ -50,8 +54,8 @@ export type LightboxToolbarProps = {
   onDelete: (() => void) | null;
   onClose: () => void;
   /** Which of the bar's own menus is open — the viewer leaves the keyboard to it */
-  openMenu: "more" | "slots" | null;
-  onOpenMenuChange: (menu: "more" | "slots" | null) => void;
+  openMenu: "more" | "slots" | "acts" | null;
+  onOpenMenuChange: (menu: "more" | "slots" | "acts" | null) => void;
 };
 
 function Divider({ className }: { className?: string }) {
@@ -107,6 +111,15 @@ export function LightboxToolbar(props: LightboxToolbarProps) {
             <LightboxToolbarButton label="Assign to a detail category" shortcut="category" onClick={props.onCategory} className="bg-white/10">
               <ImagePlus size={16} />
             </LightboxToolbarButton>
+            {props.acts && (
+              <LightboxActPill
+                acts={props.acts.acts}
+                linked={props.acts.linked}
+                onToggle={props.acts.onToggle}
+                open={openMenu === "acts"}
+                onOpenChange={(open) => onOpenMenuChange(open ? "acts" : null)}
+              />
+            )}
             <LightboxToolbarButton
               label="Compare tray"
               shortcut="compare"

@@ -42,6 +42,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const persons = [ids.anna, ids.bea, ids.carl].filter(Boolean) as string[];
   await prisma.sessionContribution.deleteMany({ where: { personId: { in: persons } } });
+  await prisma.mediaItem.deleteMany({ where: { filename: { startsWith: RUN } } });
   await prisma.session.deleteMany({ where: { name: { startsWith: RUN } } });
   await prisma.personAlias.deleteMany({ where: { personId: { in: persons } } });
   await prisma.person.deleteMany({ where: { id: { in: persons } } });
@@ -156,5 +157,54 @@ describe("several people, undo, same as", () => {
     expect(yNow.intensityExtras.map((e) => e.extraId)).toEqual([ids.pub]);
     expect(yNow.intensityActs.map((a) => a.actId).sort()).toEqual([ids.act1, ids.act2].sort());
     expect(yNow.intensityActs.find((a) => a.actId === ids.act1)!.extras).toEqual([]); // not overwritten
+  });
+});
+
+describe("photos as evidence (slice 3b)", () => {
+  const photo = async (session: string, n: string) =>
+    (
+      await prisma.mediaItem.create({
+        data: { sessionId: session, mediaType: "PHOTO", filename: `${RUN}-${n}.jpg`, mimeType: "image/jpeg", size: 1, originalWidth: 1, originalHeight: 1 },
+      })
+    ).id;
+
+  it("links photos of the act's session only; unticking takes them along, undo brings them back; a merge keeps them", async () => {
+    const { setActsEvidence, setActEvidence, setContributionsAct, restoreContributionActs, getContributionActsSessionId } = await import(
+      "@/lib/services/intensity-service"
+    );
+    const s6 = (await prisma.session.create({ data: { name: `${RUN} six` } })).id;
+    const s7 = (await prisma.session.create({ data: { name: `${RUN} seven` } })).id;
+    const c = (await prisma.sessionContribution.create({ data: { sessionId: s6, personId: ids.anna!, roleDefinitionId: "crd_model" } })).id;
+    const [p1, p2, elsewhere] = [await photo(s6, "p1"), await photo(s6, "p2"), await photo(s7, "x")];
+    await setContributionsAct([c], ids.act1!, true);
+    const ca = (await prisma.contributionAct.findFirstOrThrow({ where: { contributionId: c } })).id;
+    expect(await getContributionActsSessionId([ca])).toBe(s6);
+
+    await setActsEvidence([ca], [p1, p2, elsewhere], true);
+    await setActsEvidence([ca], [p1], true); // twice is harmless
+    let rows = await getSessionIntensity(s6);
+    expect(rows[0]!.acts[0]!.mediaIds.sort()).toEqual([p1, p2].sort()); // the other session's photo is not evidence here
+
+    await setActsEvidence([ca], [p2], false);
+    await setActEvidence(ca, [p2]); // the picker replaces
+    rows = await getSessionIntensity(s6);
+    expect(rows[0]!.acts[0]!.mediaIds).toEqual([p2]);
+
+    await setContributionsAct([c], ids.act1!, false);
+    expect(await prisma.contributionActMedia.count({ where: { mediaItemId: p2 } })).toBe(0);
+    await restoreContributionActs([{ contributionId: c, actId: ids.act1!, notes: null, overrides: [], mediaIds: [p2] }]);
+    rows = await getSessionIntensity(s6);
+    expect(rows[0]!.acts[0]!.mediaIds).toEqual([p2]);
+
+    // Merge into a session where Anna ticked the same act: the photo joins the act that stays
+    const target = (await prisma.sessionContribution.create({ data: { sessionId: s7, personId: ids.anna!, roleDefinitionId: "crd_model" } })).id;
+    await setContributionsAct([target], ids.act1!, true);
+    await mergeSessionsRecord(s7, s6);
+    const kept = await prisma.contributionAct.findFirstOrThrow({ where: { contributionId: target, actId: ids.act1 }, include: { media: true } });
+    expect(kept.media.map((m) => m.mediaItemId)).toEqual([p2]);
+
+    // A deleted photo is evidence no more
+    await prisma.mediaItem.delete({ where: { id: p2 } });
+    expect(await prisma.contributionActMedia.count({ where: { contributionActId: kept.id } })).toBe(0);
   });
 });

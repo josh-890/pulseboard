@@ -30,6 +30,7 @@ import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
 import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
+import { BulkActEvidence, useActEvidence, type GalleryIntensity } from "@/components/intensity";
 import { usePeopleFilter } from "@/lib/hooks/use-people-filter";
 import type { PeopleFilter } from "@/lib/gallery-people-filter";
 import type { GallerySortMode } from "@/lib/gallery-sort";
@@ -49,9 +50,12 @@ type SessionProductionGalleryProps = {
   cast?: GalleryCastMember[];
   /** ADR-0033 tag filter: facets for the panel, and the matching image ids (null = no filter) */
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
+  /** ADR-0036, 3b: the ticked acts and which photos are evidence for them — absent without acts in the catalog */
+  intensity?: GalleryIntensity;
 };
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity }: SessionProductionGalleryProps) {
+  const actEvidence = useActEvidence(intensity);
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -248,7 +252,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
       )}
       {/* Toolbar */}
       {localItems.length > 0 && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           {hasSelection ? (
             <>
               <span className="text-sm text-muted-foreground" aria-live="polite">
@@ -274,6 +278,14 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
                 hotkeysEnabled={lightboxIndex === null && !deleteDialogOpen}
               />
+              {intensity && (
+                <BulkActEvidence
+                  acts={actEvidence.acts}
+                  selectedIds={[...selectedIds]}
+                  stateOf={actEvidence.stateOf}
+                  onToggle={actEvidence.toggle}
+                />
+              )}
               {cast && cast.length > 0 && (
                 <BulkPeopleShownControl
                   cast={cast}
@@ -511,6 +523,15 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           productionContext={productionContext}
           collectionContext={collectionContext}
           cast={cast}
+          actEvidence={
+            intensity
+              ? {
+                  acts: actEvidence.acts,
+                  linkedOf: (mediaId) => actEvidence.evidence[mediaId] ?? [],
+                  onToggle: (contributionActId, mediaId, linked) => actEvidence.toggle(contributionActId, [mediaId], linked),
+                }
+              : undefined
+          }
           onHiddenPersonsChange={(id, hidden) =>
             setLocalItems((prev) =>
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),

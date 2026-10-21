@@ -12,17 +12,18 @@ import type { SessionIntensityCatalog } from "./types";
 // acts. Changes apply optimistically and are saved behind them; the same
 // reducer mirrors what the server does, so the screen and the store agree.
 
-export type PanelAct = { id: string | null; actId: string; notes: string | null; overrides: ActExtraOverride[] };
+export type PanelAct = { id: string | null; actId: string; notes: string | null; overrides: ActExtraOverride[]; mediaIds: string[] };
 export type PersonState = { extraIds: string[]; acts: PanelAct[] };
 export type PanelState = Record<string, PersonState>;
 
-export type RestoreItem = { contributionId: string; actId: string; notes: string | null; overrides: ActExtraOverride[] };
+export type RestoreItem = { contributionId: string; actId: string; notes: string | null; overrides: ActExtraOverride[]; mediaIds: string[] };
 
 export type PanelChange =
   | { kind: "extras"; entries: { contributionId: string; extraIds: string[] }[] }
   | { kind: "tick"; contributionIds: string[]; actId: string; ticked: boolean }
   | { kind: "actExtras"; contributionId: string; actId: string; overrides: ActExtraOverride[] }
   | { kind: "note"; contributionId: string; actId: string; notes: string | null }
+  | { kind: "evidence"; contributionId: string; actId: string; mediaIds: string[] }
   | { kind: "restore"; items: RestoreItem[] }
   | { kind: "copy"; fromId: string; toId: string };
 
@@ -46,7 +47,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
         (s, id) =>
           withPerson(s, id, (p) => {
             const has = p.acts.some((a) => a.actId === change.actId);
-            if (change.ticked) return has ? p : { ...p, acts: [...p.acts, { id: null, actId: change.actId, notes: null, overrides: [] }] };
+            if (change.ticked) return has ? p : { ...p, acts: [...p.acts, { id: null, actId: change.actId, notes: null, overrides: [], mediaIds: [] }] };
             return { ...p, acts: p.acts.filter((a) => a.actId !== change.actId) };
           }),
         state,
@@ -61,6 +62,11 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
         ...p,
         acts: p.acts.map((a) => (a.actId === change.actId ? { ...a, notes: change.notes } : a)),
       }));
+    case "evidence":
+      return withPerson(state, change.contributionId, (p) => ({
+        ...p,
+        acts: p.acts.map((a) => (a.actId === change.actId ? { ...a, mediaIds: change.mediaIds } : a)),
+      }));
     case "restore":
       return change.items.reduce(
         (s, it) =>
@@ -68,7 +74,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
             ...p,
             acts: [
               ...p.acts.filter((a) => a.actId !== it.actId),
-              { id: null, actId: it.actId, notes: it.notes, overrides: it.overrides },
+              { id: null, actId: it.actId, notes: it.notes, overrides: it.overrides, mediaIds: it.mediaIds },
             ],
           })),
         state,
@@ -80,7 +86,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
         const has = new Set(p.acts.map((a) => a.actId));
         const added = from.acts
           .filter((a) => !has.has(a.actId))
-          .map((a) => ({ id: null, actId: a.actId, notes: null, overrides: a.overrides }));
+          .map((a) => ({ id: null, actId: a.actId, notes: null, overrides: a.overrides, mediaIds: [] }));
         return { extraIds: from.extraIds, acts: [...p.acts, ...added] };
       });
     }

@@ -28,6 +28,12 @@ export async function GET(request: Request) {
       where.sessionId = sessionId;
     }
 
+    // What a session's gallery shows — no annotations, no baked motif images
+    if (searchParams.get("galleryOnly") === "1") {
+      where.isAnnotation = false;
+      where.motifTemplateId = null;
+    }
+
     if (personId) {
       where.personMediaLinks = {
         some: { personId },

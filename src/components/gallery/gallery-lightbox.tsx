@@ -38,6 +38,7 @@ import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { LightboxToolbar } from "./lightbox-toolbar";
 import { LightboxShortcutsSheet } from "./lightbox-shortcuts-sheet";
+import type { EvidenceAct } from "@/components/intensity/act-evidence-list";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import { useMediaOrigin } from "./use-media-origin";
 import { mediaOriginTarget } from "@/lib/media-origin-href";
@@ -98,6 +99,12 @@ type GalleryLightboxProps = {
     target: ReferenceCopyTarget,
     sourceMediaItemId: string,
   ) => Promise<{ ok: boolean; message: string; refSessionPersonId?: string }>;
+  /** ADR-0036, 3b: a session gallery with intensity — the photo as evidence for ticked acts (A) */
+  actEvidence?: {
+    acts: EvidenceAct[];
+    linkedOf: (mediaItemId: string) => string[];
+    onToggle: (contributionActId: string, mediaItemId: string, linked: boolean) => void;
+  };
 };
 
 export type ReferenceCopyTarget = {
@@ -129,6 +136,7 @@ function SimpleLightbox({
   productionContext,
   collectionContext,
   cast,
+  actEvidence,
   onHiddenPersonsChange,
   onDecodeIssueCleared,
   enableCollections,
@@ -147,7 +155,7 @@ function SimpleLightbox({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   // The `?` cheat sheet and the toolbar's own menus take the keyboard while open
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [toolbarMenu, setToolbarMenu] = useState<"more" | "slots" | null>(null);
+  const [toolbarMenu, setToolbarMenu] = useState<"more" | "slots" | "acts" | null>(null);
   // Del opens the confirmation with "Delete permanently" focused, so Enter confirms
   const deleteActionRef = useRef<HTMLButtonElement>(null);
   // Optimistically hide just-deleted items so the lightbox can advance to the next one
@@ -641,6 +649,14 @@ function SimpleLightbox({
             addToTarget();
           }
           break;
+        case "a":
+        case "A":
+          // ADR-0036, 3b: which ticked acts this photo is evidence for
+          if (actEvidence && item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            setToolbarMenu("acts");
+          }
+          break;
         case "x":
         case "X":
           // The compare tray: add / remove the current image
@@ -690,7 +706,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, actEvidence, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -794,6 +810,15 @@ function SimpleLightbox({
         onTag={() => setTagPaletteOpen(true)}
         onArm={() => setArmPaletteOpen(true)}
         onCategory={() => setAssignOpen(true)}
+        acts={
+          actEvidence && item
+            ? {
+                acts: actEvidence.acts,
+                linked: actEvidence.linkedOf(item.id),
+                onToggle: (contributionActId, linked) => actEvidence.onToggle(contributionActId, item.id, linked),
+              }
+            : undefined
+        }
         armedTag={armedTag}
         onApplySlot={(tag) => applyTagToCurrent(tag)}
         slotStateOf={(tagId) => (tagController?.directTagIds.includes(tagId) ? "all" : "none")}
