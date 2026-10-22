@@ -76,6 +76,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useStoredValue } from "@/lib/hooks/use-stored-value";
 
 type ClipGroup = {
   ref: string | null;
@@ -164,10 +165,7 @@ export function SetDetailGallery({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isReordering, setIsReordering] = useState(false);
   const [isGroupBySession, setIsGroupBySession] = useState(false);
-  const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
-    if (typeof window === "undefined") return "user";
-    return (localStorage.getItem("gallery_sort_set") as GallerySortMode) ?? "user";
-  });
+  const [sortMode, setSortMode] = useStoredValue<GallerySortMode>("gallery_sort_set", "user");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Split-to-Session dialog state
@@ -514,9 +512,8 @@ export function SetDetailGallery({
 
   const handleSortChange = useCallback((mode: GallerySortMode) => {
     setSortMode(mode);
-    localStorage.setItem("gallery_sort_set", mode);
     if (mode !== "user") setIsReordering(false);
-  }, []);
+  }, [setSortMode]);
 
   async function handleSplit() {
     if (!splitSelected) return;

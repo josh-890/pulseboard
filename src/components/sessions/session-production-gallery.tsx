@@ -41,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useStoredValue } from "@/lib/hooks/use-stored-value";
 
 type SessionProductionGalleryProps = {
   items: GalleryItem[];
@@ -61,15 +62,10 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [sortMode, setSortMode] = useState<GallerySortMode>(() => {
-    if (typeof window === "undefined") return "newest";
-    return (localStorage.getItem("gallery_sort_session") as GallerySortMode) ?? "newest";
-  });
+  const [sortMode, setSortMode] = useStoredValue<GallerySortMode>("gallery_sort_session", "newest");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [groupBySet, setGroupBySet] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("gallery_group_session") === "true";
-  });
+  const [groupStored, setGroupStored] = useStoredValue<"true" | "false">("gallery_group_session", "false");
+  const groupBySet = groupStored === "true";
   const [, startTransition] = useTransition();
   const dragCounterRef = useRef(0);
   const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
@@ -329,9 +325,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 <button
                   type="button"
                   onClick={() => {
-                    const next = !groupBySet;
-                    setGroupBySet(next);
-                    localStorage.setItem("gallery_group_session", String(next));
+                    setGroupStored(groupBySet ? "false" : "true");
                   }}
                   title={groupBySet ? "Show flat" : "Group by Set"}
                   className={`flex h-7 w-7 items-center justify-center rounded-md border transition-colors ${
@@ -343,7 +337,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                   <Layers size={14} />
                 </button>
               )}
-              <Select value={sortMode} onValueChange={(v) => { const m = v as GallerySortMode; setSortMode(m); localStorage.setItem("gallery_sort_session", m); }}>
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as GallerySortMode)}>
                 <SelectTrigger className="h-7 w-[130px] text-xs gap-1">
                   <SelectValue />
                 </SelectTrigger>
