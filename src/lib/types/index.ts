@@ -34,14 +34,9 @@ export type {
   CosmeticProcedureEventItem,
   CosmeticProcedureWithEvents,
   PersonDigitalIdentityItem,
-  PersonSkillItem,
-  PersonSkillEventItem,
-  SkillEventMediaThumb,
   PersonCurrentState,
   AttributeStatus,
   ExtensibleAttributeValue,
-  SkillLevel,
-  SkillEventType,
   DigitalIdentityStatus,
   DateModifier,
   ParticipationConfidence,
@@ -87,8 +82,6 @@ export type {
 export type {
   MediaCategoryGroup,
   MediaCategory,
-  SkillGroup,
-  SkillDefinition,
 } from "@/generated/prisma/client";
 
 export type { GalleryItem, PersonMediaLinkSummary, MediaItemOrigin } from "./gallery";

@@ -239,20 +239,7 @@ enum PersonMediaUsage {
   PORTFOLIO
 }
 
-enum SkillLevel {
-  BEGINNER
-  INTERMEDIATE
-  ADVANCED
-  PROFESSIONAL
-  EXPERT
-}
 
-enum SkillEventType {
-  ACQUIRED
-  IMPROVED
-  DEMONSTRATED
-  RETIRED
-}
 
 enum ParticipationConfidence {
   CONFIRMED
@@ -351,7 +338,6 @@ model Person {
   claimsAsCounterpart      ClaimedCollaboration[]     @relation("ClaimCounterpart")
   bodyMarks                BodyMark[]
   digitalIdentities        PersonDigitalIdentity[]
-  skills                   PersonSkill[]
   bodyModifications        BodyModification[]
   cosmeticProcedures       CosmeticProcedure[]
   education                PersonEducation[]
@@ -436,10 +422,8 @@ model Era {
   digitalIdentities       PersonDigitalIdentity[]
   digitalIdentityEvents   DigitalIdentityEvent[]
   interestEvents          InterestEvent[]
-  skills                  PersonSkill[]
   bodyModificationEvents  BodyModificationEvent[]
   cosmeticProcedureEvents CosmeticProcedureEvent[]
-  skillEvents             PersonSkillEvent[]
   mediaLinks              PersonMediaLink[]
   contributions           SessionContribution[]
 
@@ -567,25 +551,6 @@ model ScrapeSource {
   @@index([isScannable])
 }
 
-model PersonSkill {
-  id                String           @id @default(cuid())
-  personId          String
-  person            Person           @relation(fields: [personId], references: [id])
-  eraId             String?
-  era               Era?             @relation(fields: [eraId], references: [id])
-  skillDefinitionId String?
-  skillDefinition   SkillDefinition? @relation(fields: [skillDefinitionId], references: [id])
-  name              String
-  category          String?
-  level             SkillLevel?
-  evidence          String?
-
-  events PersonSkillEvent[]
-
-  @@index([personId])
-  @@index([eraId])
-  @@index([skillDefinitionId])
-}
 
 // Curated, hand-asserted relationship between a Person ("from") and either
 // another Person or a not-yet-curated PersonRef ("to"). Work co-occurrence is
@@ -1216,7 +1181,6 @@ model MediaItem {
   coverForSessions Session[]               @relation("SessionCoverMedia")
   collectionItems  MediaCollectionItem[]
   comparisonItems  ComparisonItem[]
-  skillEventMedia  SkillEventMedia[]
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
   actEvidence      ContributionActMedia[]
@@ -1293,7 +1257,6 @@ model SessionContribution {
   eraId              String?
   era                Era?                       @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
-  skills          ContributionSkill[]
   intensityExtras ContributionExtra[]
   intensityActs   ContributionAct[]
 
@@ -1742,68 +1705,9 @@ model Activity {
   @@index([type])
 }
 
-// ─── Skill Catalog & Tracking ────────────────────────────────────────────────
 
-model SkillGroup {
-  id          String            @id @default(cuid())
-  name        String            @unique
-  sortOrder   Int               @default(0)
-  createdAt   DateTime          @default(now())
-  definitions SkillDefinition[]
 
-  @@index([sortOrder])
-}
 
-model SkillDefinition {
-  id           String      @id @default(cuid())
-  groupId      String
-  group        SkillGroup  @relation(fields: [groupId], references: [id])
-  name         String
-  slug         String      @unique
-  description  String?
-  pgrade       Int         @default(0)
-  defaultLevel SkillLevel?
-  sortOrder    Int         @default(0)
-  createdAt    DateTime    @default(now())
-
-  personSkills       PersonSkill[]
-  contributionSkills ContributionSkill[]
-
-  @@unique([groupId, name])
-  @@index([groupId])
-  @@index([sortOrder])
-}
-
-model PersonSkillEvent {
-  id            String         @id @default(cuid())
-  personSkillId String
-  personSkill   PersonSkill    @relation(fields: [personSkillId], references: [id])
-  eraId         String?
-  era           Era?           @relation(fields: [eraId], references: [id])
-  eventType     SkillEventType
-  level         SkillLevel?
-  date          DateTime?
-  datePrecision DatePrecision  @default(UNKNOWN)
-  notes         String?
-  createdAt     DateTime       @default(now())
-
-  media SkillEventMedia[]
-
-  @@index([personSkillId])
-  @@index([eraId])
-}
-
-model SkillEventMedia {
-  skillEventId String
-  mediaItemId  String
-  sortOrder    Int              @default(0)
-  skillEvent   PersonSkillEvent @relation(fields: [skillEventId], references: [id])
-  mediaItem    MediaItem        @relation(fields: [mediaItemId], references: [id])
-  createdAt    DateTime         @default(now())
-
-  @@id([skillEventId, mediaItemId])
-  @@index([mediaItemId])
-}
 
 // ─── Contribution Role Catalog ───────────────────────────────────────────────
 
@@ -1837,20 +1741,6 @@ model ContributionRoleDefinition {
   @@index([sortOrder])
 }
 
-model ContributionSkill {
-  id                String              @id @default(cuid())
-  contributionId    String
-  contribution      SessionContribution @relation(fields: [contributionId], references: [id])
-  skillDefinitionId String
-  skillDefinition   SkillDefinition     @relation(fields: [skillDefinitionId], references: [id])
-  level             SkillLevel?
-  notes             String?
-  createdAt         DateTime            @default(now())
-
-  @@unique([contributionId, skillDefinitionId])
-  @@index([contributionId])
-  @@index([skillDefinitionId])
-}
 
 // ─── Intensity (ADR-0036) ────────────────────────────────────────────────────
 // The mental intensity a person reaches in a scenario through an act, ticked

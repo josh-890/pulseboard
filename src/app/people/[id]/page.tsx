@@ -17,7 +17,6 @@ import { getPersonReferenceSession } from "@/lib/services/session-service";
 import { getPersonMediaGallery, getPersonEntityMedia, getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
 import { getAllCategoryGroups, getPopulatedCategoriesForPerson, ensureEntityCategories, PROFILE_GROUP_ID } from "@/lib/services/category-service";
-import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllPhysicalAttributeGroups } from "@/lib/services/physical-attribute-catalog-service";
 import { getPersonAliases, getAliasPromotionQueue } from "@/lib/services/alias-service";
 import { getPersonDigitalIdentities } from "@/lib/services/digital-identity-service";
@@ -135,7 +134,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, skillGroups, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog, personActEvidence] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog, personActEvidence] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -144,7 +143,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getPersonReferenceSession(id),
       getAllCategoryGroups(),
       getPopulatedCategoriesForPerson(id),
-      getAllSkillGroups(),
       getPersonAliases(id),
       getPersonSessionWorkHistory(id),
       getPersonProductionSessions(id),
@@ -282,7 +280,6 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         heroLead={heroLead}
         categories={flatCategories}
         categoryCounts={categoryCounts}
-        skillGroups={skillGroups}
         physicalAttributeGroups={physicalAttributeGroups}
         intensity={intensity}
         aliasesWithChannels={aliasesWithChannels}

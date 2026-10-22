@@ -12,7 +12,7 @@ art/creative production. The model is built around two axes:
 
 - **Identity & relationships** — Who someone is, what names they go by, who
   they work with, what organizations and projects they belong to.
-- **Development over time** — Physical attributes, skills, identities, and
+- **Development over time** — Physical attributes, identities, intensity and
   career markers all change. The model captures *deltas* and *events*
   (Phase A–D of the temporal redesign — see `docs/adr/0001`–`0004`).
 
@@ -39,7 +39,7 @@ relevant to the data model:
   attrs — ADR-0007/0018. Replaces the legacy `PersonaPhysical` table.
 - **Event** — A dated, typed log entry on a status-bearing entity
   (`BodyMarkEvent`, `BodyModificationEvent`, `CosmeticProcedureEvent`,
-  `DigitalIdentityEvent`, `InterestEvent`, `PersonSkillEvent`,
+  `DigitalIdentityEvent`, `InterestEvent`,
   `RelationshipEvent`, `BodyMarkEvent`). The entity's `status` column is a
   *projection* of its event log — re-derived in the same tx as every event
   mutation (ADR-0002). Events are linked to the Era that hosts them.
@@ -112,7 +112,6 @@ Person ──┬── PersonAlias ──< PersonAliasChannel >── Channel
          ├── PersonRelationship (× 2 sides) ──< RelationshipEvent
          ├── Era[]  (one isBaseline, others curated/draft)
          ├── PersonDigitalIdentity ──< DigitalIdentityEvent (Era)
-         ├── PersonSkill ──< PersonSkillEvent (Era) ──< SkillEventMedia >── MediaItem
          ├── PersonInterest ──< InterestEvent (Era)
          ├── PersonEducation, PersonAward
          ├── PersonResearch, PersonTag
@@ -149,7 +148,7 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
    │     ──< SetMediaItem      >── Set
    │     ──< MediaCollectionItem >── MediaCollection (user album)
    │     ──< MediaItemTag        >── Tag
-   │     ──< SkillEventMedia     >── PersonSkillEvent
+   │     ──< ContributionActMedia >── ContributionAct (evidence, ADR-0036)
 ```
 
 - `PersonMediaUsage`: PROFILE / HEADSHOT / DETAIL / PORTFOLIO. DETAIL media
@@ -214,7 +213,7 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - **MediaCategoryGroup** / **MediaCategory** — admin-configurable in Settings.
 - **color_catalog** — hair/eye/skin lookup tables for normalized search;
   `lookup_hair_hue()`, `lookup_eye_shade()`, etc. SQL helpers.
-- **SkillGroup** / **SkillDefinition** — typed skill catalog (being retired — ADR-0036).
+- Skills (`SkillGroup`, `SkillDefinition`, `PersonSkill`, `PersonSkillEvent`, `SkillEventMedia`, `ContributionSkill`) were retired 2026-10-22 (ADR-0036, slice 5): abilities became "Person traits" tags, intensity replaced the rest.
 - **IntensityScaleStep** (ADR-0036) — what an intensity value means: `value` (0–10 in 0.5 steps, unique), optional `title` + `description` (a row with neither is deleted).
 - **IntensityScenario** / **IntensityAct** (ADR-0036) — the intensity catalog: ordered scenarios (columns), each with
   its own acts carrying a `level` (Float, 0–9.5 in 0.5 steps).
@@ -256,7 +255,7 @@ Every date field carries a precision and (where applicable) a modifier:
 Fields with both: `birthdate`, `activeFrom`, `retiredAt`, `Era.date`,
 `ScalarDelta.date`, `BodyMarkEvent.date`, `BodyModificationEvent.date`,
 `CosmeticProcedureEvent.date`, `DigitalIdentityEvent.date`,
-`InterestEvent.date`, `PersonSkillEvent.date`, `Session.date`,
+`InterestEvent.date`, `Session.date`,
 `Set.releaseDate`, `PersonAward.date`, `RelationshipEvent.date`,
 `PersonEducation.startDate`/`endDate`.
 
@@ -271,7 +270,7 @@ Quality" card.
 **Hard-delete only.** No `deletedAt` columns anywhere. Cascade helpers in
 `src/lib/services/cascade-helpers.ts` orchestrate the FK chains in a single
 `$transaction` (e.g. `cascadeDeleteSet`, `cascadeDeleteSession`,
-`cascadeDeleteEra`, `cascadeDeletePersonSkills`). Every cascade helper takes a
+`cascadeDeleteEra`). Every cascade helper takes a
 `TxClient` and is composable.
 
 ---

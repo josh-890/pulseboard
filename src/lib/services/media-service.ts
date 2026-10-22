@@ -122,7 +122,6 @@ export type MediaItemForGallery = {
     set: { id: string; title: string };
   }>;
   collectionItems?: Array<{ collectionId: string }>;
-  skillEventMedia?: Array<{ skillEventId: string }>;
   /** Direct tags (join rows) — tile dots + info panel seed (ADR-0033) */
   mediaItemTags?: Parameters<typeof toTagChips>[0];
   session?: { id: string; name: string | null } | null;
@@ -171,7 +170,6 @@ export function mapMediaItemToGalleryItem(
     // usage / body regions / era / notes sections.
     links: item.personMediaLinks,
     collectionIds: item.collectionItems?.map((ci) => ci.collectionId),
-    skillEventIds: item.skillEventMedia?.map((sem) => sem.skillEventId),
     tags: item.mediaItemTags ? toTagChips(item.mediaItemTags) : undefined,
     setCount: item.setMediaItems?.length,
     setLinks: item.setMediaItems?.map((smi) => ({
@@ -814,25 +812,6 @@ export async function getPersonsWithFavoriteMedia(): Promise<{ id: string; name:
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// ─── Skill event media constraint check ──────────────────────────────────────
-
-export async function getSkillEventMediaConstraints(
-  mediaItemIds: string[],
-): Promise<{ mediaItemId: string; skillEventCount: number }[]> {
-  const links = await prisma.skillEventMedia.findMany({
-    where: { mediaItemId: { in: mediaItemIds } },
-    select: { mediaItemId: true },
-  });
-  const counts = new Map<string, number>();
-  for (const l of links) {
-    counts.set(l.mediaItemId, (counts.get(l.mediaItemId) ?? 0) + 1);
-  }
-  return Array.from(counts.entries()).map(([mediaItemId, skillEventCount]) => ({
-    mediaItemId,
-    skillEventCount,
-  }));
-}
-
 // ─── Query functions ─────────────────────────────────────────────────────────
 
 export async function getMediaItemsForSession(
@@ -1150,9 +1129,6 @@ export async function getMediaItemsWithLinks(
       collectionItems: {
         select: { collectionId: true },
       },
-      skillEventMedia: {
-        select: { skillEventId: true },
-      },
       setMediaItems: {
         select: { setId: true },
       },
@@ -1206,7 +1182,6 @@ export async function getMediaItemsWithLinks(
           notes: link.notes,
         })),
         collectionIds: item.collectionItems.map((ci) => ci.collectionId),
-        skillEventIds: item.skillEventMedia.map((sem) => sem.skillEventId),
         tags: toTagChips(item.mediaItemTags),
         setCount: item.setMediaItems.length,
         sourceVideoRef: item.sourceVideoRef,

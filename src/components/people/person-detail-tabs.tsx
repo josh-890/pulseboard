@@ -64,7 +64,6 @@ import { PersonDetailsTab } from "@/components/people/person-details-tab";
 import { SectionCard, EmptyState, InfoRow } from "@/components/people/person-detail-helpers";
 import { KnownForRow, PersonShowcase } from "@/components/people/overview";
 import type { KnownForSet, PersonShowcase as PersonShowcaseData } from "@/lib/services/person-showcase-service";
-import { PersonSkillsTab } from "@/components/people/person-skills-tab";
 import { PersonAliasesTab } from "@/components/people/person-aliases-tab";
 import { PersonResearchTab } from "@/components/people/person-research-tab";
 import type { PersonResearchItem } from "@/lib/services/research-service";
@@ -73,7 +72,6 @@ import { CareerTab } from "@/components/people/career-tab";
 import { ProductionPhotoList } from "@/components/people/production-photo-list";
 import { WatchToggle } from "@/components/people/watch-toggle";
 import { PersonFavoriteStar } from "@/components/people/person-favorite-star";
-import type { SkillGroupWithDefinitions } from "@/lib/services/skill-catalog-service";
 import type { PersonAliasWithChannels, AliasPromotionCandidate } from "@/lib/services/alias-service";
 import type { GalleryItem } from "@/lib/types";
 import type { EntityMediaThumbnail } from "@/lib/services/media-service";
@@ -91,7 +89,7 @@ import { EditAppearanceSheet } from "@/components/people/edit-appearance-sheet";
 
 type PersonData = NonNullable<Awaited<ReturnType<typeof getPersonWithDetails>>>;
 
-type TabId = "overview" | "aliases" | "appearance" | "details" | "intensity" | "skills" | "career" | "network" | "photos" | "research";
+type TabId = "overview" | "aliases" | "appearance" | "details" | "intensity" | "career" | "network" | "photos" | "research";
 
 
 /** Canonical headshot for the hero lead slide (★ slot, else lowest slot). */
@@ -109,7 +107,6 @@ type PersonDetailTabsProps = {
   heroLead?: HeroLead | null;
   categories?: CategoryWithGroup[];
   categoryCounts?: { categoryId: string; count: number }[];
-  skillGroups?: SkillGroupWithDefinitions[];
   physicalAttributeGroups?: PhysicalAttributeGroupWithDefinitions[];
   /** Intensity (ADR-0036) — null while the catalog has no acts: no gauge values, no tab */
   intensity?: PersonIntensityData | null;
@@ -1740,7 +1737,6 @@ export function PersonDetailTabs({
   heroLead,
   categories,
   categoryCounts,
-  skillGroups,
   physicalAttributeGroups,
   intensity,
   aliasesWithChannels,
@@ -1780,7 +1776,7 @@ export function PersonDetailTabs({
   knownFor,
 }: PersonDetailTabsProps) {
   const VALID_TABS: Set<string> = useMemo(
-    () => new Set<string>(["overview", "aliases", "appearance", "details", "intensity", "skills", "career", "network", "photos", "research"]),
+    () => new Set<string>(["overview", "aliases", "appearance", "details", "intensity", "career", "network", "photos", "research"]),
     [],
   );
   const resolvedInitialTab: TabId = initialTab && VALID_TABS.has(initialTab)
@@ -1863,7 +1859,6 @@ export function PersonDetailTabs({
     ...(intensity
       ? [{ id: "intensity" as TabId, label: "Intensity", badge: intensity.summary.sessions.length || undefined, icon: <Gauge size={14} /> }]
       : []),
-    { id: "skills" as TabId, label: "Skills", badge: currentState.activeSkills.length || undefined, icon: <Zap size={14} /> },
     { id: "career", label: "Career", badge: ((sessionWorkHistory?.length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
     { id: "network", label: "Connections", badge: (connections.personal.length + connections.workHeld.length + connections.claimed.length) || undefined, icon: <Users size={14} /> },
     { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
@@ -2014,24 +2009,6 @@ export function PersonDetailTabs({
           {activeTab === "intensity" && <PersonIntensityTab data={intensity} />}
         </div>
       )}
-      <div
-        id="tabpanel-skills"
-        role="tabpanel"
-        aria-labelledby="tab-skills"
-        hidden={activeTab !== "skills"}
-      >
-        {activeTab === "skills" && (
-          <PersonSkillsTab
-            personId={person.id}
-            skills={currentState.activeSkills}
-            skillGroups={skillGroups ?? []}
-            eras={person.eras.map((p) => ({
-              id: p.id,
-              label: p.label,
-            }))}
-          />
-        )}
-      </div>
       <div
         id="tabpanel-career"
         role="tabpanel"

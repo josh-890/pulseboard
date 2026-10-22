@@ -41,7 +41,6 @@ import { MediaMetadataPanel } from "./media-metadata-panel";
 
 type EntityOption = { id: string; name: string };
 type EraOption = { id: string; label: string; date: string | null };
-type SkillEventOption = { id: string; skillName: string; eventType: string; date: string | null };
 
 type MediaManagerProps = {
   items: MediaItemWithLinks[];
@@ -53,7 +52,6 @@ type MediaManagerProps = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   eras: EraOption[];
-  skillEvents: SkillEventOption[];
   anchor?: "reference" | "production";
 };
 
@@ -104,7 +102,6 @@ export function MediaManager({
   bodyModifications,
   cosmeticProcedures,
   eras,
-  skillEvents,
   anchor,
 }: MediaManagerProps) {
   const router = useRouter();
@@ -320,15 +317,6 @@ export function MediaManager({
     [],
   );
 
-  const handleLightboxSkillEventIdsChange = useCallback(
-    (itemId: string, ids: string[]) => {
-      setItems((prev) =>
-        prev.map((it) => (it.id === itemId ? { ...it, skillEventIds: ids } : it)),
-      );
-    },
-    [],
-  );
-
   const handleEntityPhotoDelete = useCallback(
     async (photoId: string) => {
       setEntityPhotoGroups((prev) =>
@@ -373,12 +361,10 @@ export function MediaManager({
       bodyModifications,
       cosmeticProcedures,
       eras,
-      skillEvents,
       onLinksChange: handleLightboxLinksChange,
       onCollectionIdsChange: handleLightboxCollectionIdsChange,
-      onSkillEventIdsChange: handleLightboxSkillEventIdsChange,
     }),
-    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, eras, skillEvents, handleLightboxLinksChange, handleLightboxCollectionIdsChange, handleLightboxSkillEventIdsChange],
+    [personId, sessionId, collections, categories, bodyMarks, bodyModifications, cosmeticProcedures, eras, handleLightboxLinksChange, handleLightboxCollectionIdsChange],
   );
 
   if (items.length === 0) {

@@ -57,33 +57,13 @@ export default function SessionDetailLoading() {
 
       {/* 2-column grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-        {/* Left: gallery + skills */}
+        {/* Left: gallery */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
             <Skeleton className="mb-4 h-5 w-24" />
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="aspect-[4/3] rounded-xl" />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
-            <Skeleton className="mb-4 h-5 w-36" />
-            <div className="space-y-2">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i}>
-                  <div className="flex items-center gap-2 px-2 py-1.5">
-                    <Skeleton className="h-3.5 w-3.5" />
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="ml-auto h-3 w-12" />
-                  </div>
-                  <div className="ml-6 mt-1 flex flex-wrap gap-1.5">
-                    {Array.from({ length: 3 }).map((_, j) => (
-                      <Skeleton key={j} className="h-6 w-24 rounded-full" />
-                    ))}
-                  </div>
-                </div>
               ))}
             </div>
           </div>

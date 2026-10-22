@@ -178,11 +178,6 @@ export async function cascadeHardDeleteMediaItems(
     where: { mediaItemId: { in: mediaItemIds } },
   });
 
-  // 3b. Hard-delete SkillEventMedia
-  await tx.skillEventMedia.deleteMany({
-    where: { mediaItemId: { in: mediaItemIds } },
-  });
-
   // 4. Hard-delete PersonMediaLink
   await tx.personMediaLink.deleteMany({
     where: { mediaItemId: { in: mediaItemIds } },
@@ -216,47 +211,6 @@ export async function cascadeHardDeleteMediaItems(
 }
 
 /**
- * Cascade hard-delete person skills: events + media, then skills, and session participant skills.
- */
-export async function cascadeDeletePersonSkills(
-  tx: TxClient,
-  personId: string,
-) {
-  // Get all person skill IDs first
-  const skills = await tx.personSkill.findMany({
-    where: { personId },
-    select: { id: true },
-  });
-  const skillIds = skills.map((s) => s.id);
-
-  if (skillIds.length > 0) {
-    // Get event IDs to clean up media
-    const events = await tx.personSkillEvent.findMany({
-      where: { personSkillId: { in: skillIds } },
-      select: { id: true },
-    });
-    const eventIds = events.map((e) => e.id);
-    if (eventIds.length > 0) {
-      await tx.skillEventMedia.deleteMany({
-        where: { skillEventId: { in: eventIds } },
-      });
-    }
-    await tx.personSkillEvent.deleteMany({
-      where: { personSkillId: { in: skillIds } },
-    });
-  }
-
-  // Hard-delete skills
-  await tx.personSkill.deleteMany({
-    where: { personId },
-  });
-  // Hard-delete contribution skills
-  await tx.contributionSkill.deleteMany({
-    where: { contribution: { personId } },
-  });
-}
-
-/**
  * Cascade hard-delete aliases for a person: channel links, then aliases.
  */
 export async function cascadeDeletePersonAliases(
@@ -281,7 +235,7 @@ export async function cascadeDeletePersonAliases(
 /**
  * Cascade hard-delete a single era: physical + attributes, body mark events,
  * body modification events, cosmetic procedure events, digital identities,
- * skill event media + skill events, then the era itself.
+ * then the era itself.
  * NOTE: Does NOT clean up orphaned parent entities — that's handled by
  * cascadeDeletePersonEras or the caller should do it separately.
  */
@@ -303,19 +257,6 @@ export async function cascadeDeleteEra(
   await tx.digitalIdentityEvent.deleteMany({ where: { eraId } });
   await tx.interestEvent.deleteMany({ where: { eraId } });
   await tx.personDigitalIdentity.deleteMany({
-    where: { eraId },
-  });
-  // Skill event media, then skill events
-  const skillEvents = await tx.personSkillEvent.findMany({
-    where: { eraId },
-    select: { id: true },
-  });
-  if (skillEvents.length > 0) {
-    await tx.skillEventMedia.deleteMany({
-      where: { skillEventId: { in: skillEvents.map((e) => e.id) } },
-    });
-  }
-  await tx.personSkillEvent.deleteMany({
     where: { eraId },
   });
   await tx.era.delete({
@@ -356,10 +297,7 @@ export async function cascadeDeleteSession(
     where: { sessionId },
   });
 
-  // Hard-delete contribution skills, then contributions
-  await tx.contributionSkill.deleteMany({
-    where: { contribution: { sessionId } },
-  });
+  // Hard-delete contributions
   await tx.sessionContribution.deleteMany({
     where: { sessionId },
   });

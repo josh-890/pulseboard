@@ -262,7 +262,7 @@ export async function getSessionMergeDirection(aId: string, bId: string): Promis
  * What the compare page needs of a photo — the manager-only fields stay behind
  * (RSC payload), and the set count too: the page already groups by set.
  */
-function forCompare({ links: _links, collectionIds: _collections, skillEventIds: _skills, setCount: _setCount, ...rest }: GalleryItem): GalleryItem {
+function forCompare({ links: _links, collectionIds: _collections, setCount: _setCount, ...rest }: GalleryItem): GalleryItem {
   return rest;
 }
 

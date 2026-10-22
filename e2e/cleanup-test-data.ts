@@ -61,14 +61,6 @@ async function cleanupTestData() {
     // --- Sessions created by tests ---
     // Also delete auto-created DRAFT sessions for test sets
     r = await tx.$executeRaw`
-      DELETE FROM "ContributionSkill" WHERE "contributionId" IN (
-        SELECT id FROM "SessionContribution" WHERE "sessionId" IN (
-          SELECT id FROM "Session" WHERE name LIKE 'Test Session %'
-        )
-      )`;
-    if (r) console.log(`  ContributionSkill (test sessions): ${r}`);
-
-    r = await tx.$executeRaw`
       DELETE FROM "SessionContribution" WHERE "sessionId" IN (
         SELECT id FROM "Session" WHERE name LIKE 'Test Session %'
       )`;
@@ -164,7 +156,6 @@ async function cleanupTestData() {
             await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "eraId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
             await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "eraId" = ${pId}`;
-            await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "eraId" = ${pId}`;
           }
           await tx.$executeRaw`DELETE FROM "Era" WHERE "personId" = ${id}`;
         }
@@ -186,19 +177,8 @@ async function cleanupTestData() {
         await tx.$executeRaw`DELETE FROM "PersonAward" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "PersonInterest" WHERE "personId" = ${id}`;
 
-        // Digital identities & skills (person-level, not era-level)
+        // Digital identities (person-level, not era-level)
         await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "personId" = ${id}`;
-        await tx.$executeRaw`
-          DELETE FROM "SkillEventMedia" WHERE "skillEventId" IN (
-            SELECT id FROM "PersonSkillEvent" WHERE "personSkillId" IN (
-              SELECT id FROM "PersonSkill" WHERE "personId" = ${id}
-            )
-          )`;
-        await tx.$executeRaw`
-          DELETE FROM "PersonSkillEvent" WHERE "personSkillId" IN (
-            SELECT id FROM "PersonSkill" WHERE "personId" = ${id}
-          )`;
-        await tx.$executeRaw`DELETE FROM "PersonSkill" WHERE "personId" = ${id}`;
 
         // Media collections
         await tx.$executeRaw`
@@ -210,10 +190,6 @@ async function cleanupTestData() {
         // Participation + media links
         await tx.$executeRaw`DELETE FROM "PersonMediaLink" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "SetCreditRaw" WHERE "resolvedPersonId" = ${id}`;
-        await tx.$executeRaw`
-          DELETE FROM "ContributionSkill" WHERE "contributionId" IN (
-            SELECT id FROM "SessionContribution" WHERE "personId" = ${id}
-          )`;
         await tx.$executeRaw`DELETE FROM "SessionContribution" WHERE "personId" = ${id}`;
         await tx.$executeRaw`DELETE FROM "SetParticipant" WHERE "personId" = ${id}`;
         await tx.$executeRaw`
@@ -280,7 +256,6 @@ async function cleanupTestData() {
       await tx.$executeRaw`DELETE FROM "CosmeticProcedureEvent" WHERE "eraId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "ScalarDelta" WHERE "eraId" = ${pId}`;
       await tx.$executeRaw`DELETE FROM "PersonDigitalIdentity" WHERE "eraId" = ${pId}`;
-      await tx.$executeRaw`DELETE FROM "PersonSkillEvent" WHERE "eraId" = ${pId}`;
     }
     r = await tx.$executeRaw`
       DELETE FROM "Era" WHERE "personId" = 'seed-person-1' AND id NOT LIKE 'seed-%'`;

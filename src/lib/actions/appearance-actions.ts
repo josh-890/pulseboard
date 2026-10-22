@@ -1348,15 +1348,14 @@ export async function promoteEraAction(
         // Allow promoting an Era with zero deltas as long as it has events
         // (body marks / mods / etc.). Block only if ALL members would leave.
         if (remainingCount === 0 && splitIds.length > 0) {
-          const [marks, mods, di, ie, se, contribs] = await Promise.all([
+          const [marks, mods, di, ie, contribs] = await Promise.all([
             tx.bodyMarkEvent.count({ where: { eraId } }),
             tx.bodyModificationEvent.count({ where: { eraId } }),
             tx.digitalIdentityEvent.count({ where: { eraId } }),
             tx.interestEvent.count({ where: { eraId } }),
-            tx.personSkillEvent.count({ where: { eraId } }),
             tx.sessionContribution.count({ where: { eraId } }),
           ]);
-          if (marks + mods + di + ie + se + contribs === 0) {
+          if (marks + mods + di + ie + contribs === 0) {
             throw new Error("Cannot split out every member — at least one must stay in the curated Era.");
           }
         }

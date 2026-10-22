@@ -273,7 +273,7 @@ Refined images carry an **HD** badge (Profile Manager, Details tab). **Maintenan
 
 #### Choosing an image (big-preview picker)
 
-Whenever you pick a photo for a task — a source to standardize a slot, a photo for a tattoo/piercing, or media to add to a set/collection/skill-event — the picker opens as a **full-screen split view**: the thumbnail grid on the left, a **large live preview (loupe)** on the right.
+Whenever you pick a photo for a task — a source to standardize a slot, a photo for a tattoo/piercing, or media to add to a set/collection, or photos as evidence for an act — the picker opens as a **full-screen split view**: the thumbnail grid on the left, a **large live preview (loupe)** on the right.
 
 - **Click** a thumbnail to preview it big; **←/→** to step through; **double-click the preview** (or pinch) to **zoom and pan** for fine detail (sharpness, a small tattoo).
 - **Choose deliberately:** *Select this* for single-pick tasks; a **checkbox** on each tile (and *Select* in the loupe) for multi-pick tasks, then the **Add/Save** button.
@@ -2465,7 +2465,7 @@ Categories with an entity model automatically enable entity linking in the light
 
 ### Physical Attribute Catalog
 
-Define custom physical attributes for tracking measurements over time. An accordion interface (like Media Categories and Skills) allows managing attribute groups and definitions.
+Define custom physical attributes for tracking measurements over time. An accordion interface (like Media Categories) allows managing attribute groups and definitions.
 
 **Default groups:**
 - Body Measurements (Waist, Hips, Bust/Chest, Inseam, Shoe Size)
@@ -2511,7 +2511,7 @@ Whatever else is recorded for the attribute shows again; a draft Era left empty 
 
 ### Intensity catalog
 
-**Settings → Catalogs → Intensity** (ADR-0036). *Intensity* is how intense it is for a person, mentally, to do an act in a scenario. It replaces the old *Skills* (being retired).
+**Settings → Catalogs → Intensity** (ADR-0036). *Intensity* is how intense it is for a person, mentally, to do an act in a scenario. It replaced the old *Skills* (retired 2026-10-22: abilities such as acting or stunts are now tags in the *Person traits* group; there is no Skills tab, catalog or session section any more).
 
 The catalog is a **matrix**: rows are intensity values, lowest at the top; the first column, **Intensity**, holds the **scale** — each value gets a **title** (click *Title for 2*) and a **description** of what it means, so it stays clear later. Acts work the same way: the **title** is what a session will offer to tick, the **description** explains it.
 

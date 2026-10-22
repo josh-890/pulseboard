@@ -58,5 +58,7 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
   `ContributionActMedia`, cascading with the tick and the photo; a photo split to another session drops its
   links; a session merge carries them to the act that stays), filters (4: `intensity>=N` and
   `intensity:scenario>=N` in the shared query, computed in SQL by the same rules as `src/lib/intensity.ts`; an
-  Intensity facet on /people (peak), /sessions and /sets), then retiring Skills (5,
-  destructive — backup and an explicit go per step).
+  Intensity facet on /people (peak), /sessions and /sets), and retiring Skills (5, 2026-10-22: pulse's
+  person skills became "Person traits" tags — acting, stunts, fitness; xpulse's Solo skills were not mapped to
+  acts and nothing there was carried over; then the Skill tables, enums, tab, catalog page, session section,
+  `/api/skill-events` and the skill-level settings were removed). `Person.pgrade` stays.

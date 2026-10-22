@@ -126,7 +126,6 @@ async function cascadeDeleteMediaItems(ids: string[]): Promise<void> {
   await prisma.personMediaLink.deleteMany({ where: { mediaItemId: { in: ids } } });
   await prisma.setMediaItem.deleteMany({ where: { mediaItemId: { in: ids } } });
   await prisma.mediaCollectionItem.deleteMany({ where: { mediaItemId: { in: ids } } });
-  await prisma.skillEventMedia.deleteMany({ where: { mediaItemId: { in: ids } } });
   await prisma.mediaItemTag.deleteMany({ where: { mediaItemId: { in: ids } } });
 
   // Null out cover references

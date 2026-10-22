@@ -18,8 +18,6 @@ export type {
   RelationshipType,
   RelationshipEventType,
   AliasSource,
-  SkillLevel,
-  SkillEventType,
   DateModifier,
   ParticipationConfidence,
   ConfidenceSource,
@@ -229,42 +227,6 @@ export type PersonDigitalIdentityItem = {
   eraLabel: string | null;
 };
 
-export type SkillEventMediaThumb = {
-  id: string;
-  thumbUrl: string;
-  originalWidth: number;
-  originalHeight: number;
-};
-
-export type PersonSkillEventItem = {
-  id: string;
-  eventType: import("@/generated/prisma/client").SkillEventType;
-  level: import("@/generated/prisma/client").SkillLevel | null;
-  notes: string | null;
-  date: Date | null;
-  datePrecision: string;
-  eraLabel: string | null;
-  eraDate: Date | null;
-  media: SkillEventMediaThumb[];
-};
-
-export type PersonSkillItem = {
-  id: string;
-  name: string;
-  category: string | null;
-  level: import("@/generated/prisma/client").SkillLevel | null;
-  evidence: string | null;
-  validFrom: Date | null;
-  validTo: Date | null;
-  eraLabel: string | null;
-  skillDefinitionId: string | null;
-  groupName: string | null;
-  definitionName: string | null;
-  definitionDescription: string | null;
-  definitionPgrade: number | null;
-  events: PersonSkillEventItem[];
-};
-
 export type SessionThumbnail = {
   id: string;
   url: string;
@@ -365,8 +327,6 @@ export type PersonCurrentState = {
   activeCosmeticProcedures: CosmeticProcedureWithEvents[];
   // Active digital identities
   activeDigitalIdentities: PersonDigitalIdentityItem[];
-  // Active skills
-  activeSkills: PersonSkillItem[];
   // Phase G Slice 15: sorted union of distinct mark + modification types for
   // the person's present (non-removed) body features. Drives hero presence
   // chips. Mirrors PersonCurrentState.presentBodyFeatureTypes column.

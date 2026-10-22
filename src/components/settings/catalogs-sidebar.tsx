@@ -12,7 +12,6 @@ const CATALOG_ITEMS = [
   { href: "/settings/catalogs/attributes", label: "Attributes" },
   { href: "/settings/catalogs/colors", label: "Colors" },
   { href: "/settings/catalogs/intensity", label: "Intensity" },
-  { href: "/settings/catalogs/skills", label: "Skills" },
   { href: "/settings/catalogs/tags", label: "Tags" },
 ];
 

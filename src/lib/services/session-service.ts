@@ -447,7 +447,6 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
   // 2. Merge SessionContributions (upsert to avoid dupes)
   const absorbedContributions = await tx.sessionContribution.findMany({
     where: { sessionId: absorbedId },
-    include: { skills: true },
   });
   for (const c of absorbedContributions) {
     const existing = await tx.sessionContribution.findUnique({
@@ -460,24 +459,6 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
       },
     });
     if (existing) {
-      // Merge skills into existing contribution
-      for (const skill of c.skills) {
-        await tx.contributionSkill.upsert({
-          where: {
-            contributionId_skillDefinitionId: {
-              contributionId: existing.id,
-              skillDefinitionId: skill.skillDefinitionId,
-            },
-          },
-          create: {
-            contributionId: existing.id,
-            skillDefinitionId: skill.skillDefinitionId,
-            level: skill.level,
-            notes: skill.notes,
-          },
-          update: {},
-        });
-      }
       // Intensity (ADR-0036): acts and extras the surviving one lacks come over
       await mergeContributionIntensityInTx(tx, c.id, existing.id);
       // Keep higher confidence from absorbed contribution
@@ -495,7 +476,7 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
       }
     } else {
       // Move the contribution to the surviving session as it is — re-pointed,
-      // not re-created, so everything hanging off it comes along: skills,
+      // not re-created, so everything hanging off it comes along:
       // intensity acts and extras, its Era and resolved alias
       await tx.sessionContribution.update({ where: { id: c.id }, data: { sessionId: survivingId } });
     }
@@ -529,10 +510,7 @@ export async function mergeSessionsInTx(tx: TxClient, survivingId: string, absor
     }
   }
 
-  // 4. Hard-delete remaining absorbed contributions (skills already handled)
-  await tx.contributionSkill.deleteMany({
-    where: { contribution: { sessionId: absorbedId } },
-  });
+  // 4. Hard-delete remaining absorbed contributions
   await tx.sessionContribution.deleteMany({ where: { sessionId: absorbedId } });
 
   // 4b. Delete session tags (no Prisma model — use executeRaw)

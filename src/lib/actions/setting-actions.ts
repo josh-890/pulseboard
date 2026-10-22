@@ -3,11 +3,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
-  updateSkillLevelConfig,
   HERO_BACKDROP_KEY,
   setSetting,
 } from "@/lib/services/setting-service";
-import { z } from "zod";
 import type { SimpleActionResult } from "@/lib/types";
 
 export async function updateHeroBackdropAction(
@@ -20,39 +18,6 @@ export async function updateHeroBackdropAction(
       return { success: true };
     } catch {
       return { success: false, error: "Failed to update backdrop setting" };
-    }
-
-  });
-}
-
-const skillLevelConfigSchema = z.object({
-  levels: z.array(
-    z.object({
-      level: z.number().int().min(1).max(5),
-      label: z.string().min(1, "Label is required").max(30, "Label too long"),
-      delta: z.number().min(-5.0, "Min delta is -5.0").max(5.0, "Max delta is 5.0"),
-    }),
-  ).length(5),
-});
-
-export async function updateSkillLevelConfigAction(
-  data: unknown,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    const parsed = skillLevelConfigSchema.safeParse(data);
-    if (!parsed.success) {
-      return { success: false, error: parsed.error.issues[0].message };
-    }
-
-    try {
-      for (const row of parsed.data.levels) {
-        await updateSkillLevelConfig(row.level, row.label, row.delta);
-      }
-      revalidatePath("/settings");
-      revalidatePath("/people");
-      return { success: true };
-    } catch {
-      return { success: false, error: "Failed to update skill level config" };
     }
 
   });

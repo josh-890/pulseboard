@@ -15,10 +15,8 @@ import type {
   PersonConnection,
   BodyMarkWithEvents,
   PersonDigitalIdentityItem,
-  PersonSkillItem,
   PersonCurrentState,
   ExtensibleAttributeValue,
-  SkillEventMediaThumb,
   PhotoVariants,
   PersonSessionWorkEntry,
   PersonProductionSession,
@@ -69,41 +67,12 @@ import {
   cascadeDeleteCosmeticProcedures,
   cascadeDeletePersonExtras,
   cascadeDeleteRelationshipEvents,
-  cascadeDeletePersonSkills,
 } from "@/lib/services/cascade-helpers";
 
 import { buildUrl } from "@/lib/media-url";
 import { computeProductionAge } from "@/lib/utils";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import { buildBaselineLabel } from "@/lib/utils";
-
-function mapSkillEventMedia(
-  media: { mediaItem: { id: string; variants: unknown; fileRef: string | null; originalWidth: number; originalHeight: number } }[],
-): SkillEventMediaThumb[] {
-  return media.map((m) => {
-    const variants = (m.mediaItem.variants as PhotoVariants) ?? {};
-    const thumbUrl = variants.gallery_512
-      ? buildUrl(variants.gallery_512)
-      : m.mediaItem.fileRef
-        ? buildUrl(m.mediaItem.fileRef)
-        : "";
-    return {
-      id: m.mediaItem.id,
-      thumbUrl,
-      originalWidth: m.mediaItem.originalWidth,
-      originalHeight: m.mediaItem.originalHeight,
-    };
-  });
-}
-
-/** Shared Prisma include fragment for skill events with media */
-const skillEventInclude = {
-  era: { select: { label: true, date: true } },
-  media: {
-    include: { mediaItem: { select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true } } },
-    orderBy: { sortOrder: "asc" as const },
-  },
-};
 
 export type PersonSort =
   | "name-asc"
@@ -538,18 +507,6 @@ export async function getPersonWithDetails(id: string) {
           attributeDefinition: { select: { id: true, name: true, slug: true, unit: true, mutability: true, statusBearing: true, tier: true, group: { select: { name: true } } } },
         },
       },
-      skills: {
-        include: {
-          era: { select: { label: true } },
-          skillDefinition: {
-            include: { group: { select: { name: true } } },
-          },
-          events: {
-            include: skillEventInclude,
-            orderBy: { createdAt: "asc" },
-          },
-        },
-      },
     },
   });
 }
@@ -630,53 +587,6 @@ export async function deleteBodyMarkEventRecord(id: string) {
 // Re-export from dedicated service for backward compatibility
 import { getPersonDigitalIdentities } from "./digital-identity-service";
 export { getPersonDigitalIdentities };
-
-export async function getPersonSkills(personId: string): Promise<PersonSkillItem[]> {
-  const skills = await prisma.personSkill.findMany({
-    where: { personId },
-    include: {
-      era: { select: { label: true } },
-      skillDefinition: {
-        include: { group: { select: { name: true } } },
-      },
-      events: {
-        include: skillEventInclude,
-        orderBy: { createdAt: "asc" },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  return skills.map((s) => {
-    const { validFrom, validTo } = deriveInterval(s.events);
-    return {
-    id: s.id,
-    name: s.name,
-    category: s.category,
-    level: s.level,
-    evidence: s.evidence,
-    validFrom,
-    validTo,
-    eraLabel: s.era?.label ?? null,
-    skillDefinitionId: s.skillDefinitionId,
-    groupName: s.skillDefinition?.group.name ?? null,
-    definitionName: s.skillDefinition?.name ?? null,
-    definitionDescription: s.skillDefinition?.description ?? null,
-    definitionPgrade: s.skillDefinition?.pgrade ?? null,
-    events: s.events.map((e) => ({
-      id: e.id,
-      eventType: e.eventType,
-      level: e.level,
-      notes: e.notes,
-      date: e.date,
-      datePrecision: e.datePrecision,
-      eraLabel: e.era?.label ?? null,
-      eraDate: e.era?.date ?? null,
-      media: mapSkillEventMedia(e.media),
-    })),
-  };
-  });
-}
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
   const participants = await prisma.setParticipant.findMany({
@@ -1343,38 +1253,6 @@ export function deriveCurrentState(
     }
   }
 
-  const activeSkills: PersonSkillItem[] = [];
-  for (const s of person.skills) {
-    const { validFrom: skillFrom, validTo: skillTo, active: skillActive } = deriveInterval(s.events);
-    if (!skillActive) continue;
-    activeSkills.push({
-      id: s.id,
-      name: s.name,
-      category: s.category,
-      level: s.level,
-      evidence: s.evidence,
-      validFrom: skillFrom,
-      validTo: skillTo,
-      eraLabel: s.era?.label ?? null,
-      skillDefinitionId: s.skillDefinitionId,
-      groupName: s.skillDefinition?.group.name ?? null,
-      definitionName: s.skillDefinition?.name ?? null,
-      definitionDescription: s.skillDefinition?.description ?? null,
-      definitionPgrade: s.skillDefinition?.pgrade ?? null,
-      events: s.events.map((e) => ({
-        id: e.id,
-        eventType: e.eventType,
-        level: e.level,
-        notes: e.notes,
-        date: e.date,
-        datePrecision: e.datePrecision,
-        eraLabel: e.era?.label ?? null,
-        eraDate: e.era?.date ?? null,
-        media: "media" in e ? mapSkillEventMedia(e.media as Parameters<typeof mapSkillEventMedia>[0]) : [],
-      })),
-    });
-  }
-
   // Derive AttributeStatus from the delta's change-kind `cause`
   // (ADR-0007, refined by ADR-0018). Kept in lockstep with the SQL fold in
   // app_recompute_person_current_state.
@@ -1454,7 +1332,6 @@ export function deriveCurrentState(
     activeBodyModifications,
     activeCosmeticProcedures,
     activeDigitalIdentities,
-    activeSkills,
     presentBodyFeatureTypes,
   };
 }
@@ -2021,10 +1898,7 @@ export async function deletePersonRecord(id: string): Promise<PhotoVariants[]> {
       where: { personId: id },
     });
 
-    // Delete skills + events, contribution skills
-    await cascadeDeletePersonSkills(tx, id);
-
-    // Delete session contributions (skills already cascaded above)
+    // Delete session contributions
     await tx.sessionContribution.deleteMany({
       where: { personId: id },
     });

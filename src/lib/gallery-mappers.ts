@@ -55,7 +55,6 @@ export type MediaItemWithLinks = {
     notes: string | null;
   }[];
   collectionIds: string[];
-  skillEventIds: string[];
   /** Direct tags (ADR-0033) */
   tags: import("@/lib/types/tag").TagChipData[];
   setCount: number;
@@ -99,7 +98,6 @@ export function toGalleryItem(
     links: item.links,
     collectionIds: item.collectionIds,
     tags: item.tags,
-    skillEventIds: item.skillEventIds,
     setCount: item.setCount,
     sourceVideoRef: item.sourceVideoRef,
     sourceTimecodeMs: item.sourceTimecodeMs,

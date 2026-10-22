@@ -51,7 +51,6 @@ import {
 import { MediaUsageBadge } from "@/components/media/media-badge";
 import { EntityCombobox } from "@/components/shared/entity-combobox";
 import { BodyRegionCompact } from "@/components/shared/body-region-picker";
-import { SKILL_EVENT_STYLES } from "@/lib/constants/skill";
 
 function formatTimecode(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -101,13 +100,6 @@ export type CollectionContext = {
 
 export type EraOption = { id: string; label: string; date: string | null };
 
-export type SkillEventOption = {
-  id: string;
-  skillName: string;
-  eventType: string;
-  date: string | null;
-};
-
 export type ReferenceContext = {
   personId: string;
   sessionId: string;
@@ -117,10 +109,8 @@ export type ReferenceContext = {
   cosmeticProcedures: EntityOption[];
   categories: CategoryWithGroup[];
   eras: EraOption[];
-  skillEvents: SkillEventOption[];
   onLinksChange?: (itemId: string, links: PersonMediaLinkSummary[]) => void;
   onCollectionIdsChange?: (itemId: string, collectionIds: string[]) => void;
-  onSkillEventIdsChange?: (itemId: string, skillEventIds: string[]) => void;
 };
 
 export type ProductionContributor = {
@@ -355,39 +345,6 @@ export function GalleryInfoPanel({
     [referenceContext, links, item.id],
   );
 
-  // Skill event linking
-  const skillEventIds = useMemo(() => item.skillEventIds ?? [], [item.skillEventIds]);
-
-  const handleSkillEventToggle = useCallback(
-    (eventId: string) => {
-      if (!referenceContext) return;
-      const isLinked = skillEventIds.includes(eventId);
-      const newIds = isLinked
-        ? skillEventIds.filter((id) => id !== eventId)
-        : [...skillEventIds, eventId];
-
-      // Optimistic
-      referenceContext.onSkillEventIdsChange?.(item.id, newIds);
-
-      startTransition(async () => {
-        if (isLinked) {
-          await fetch(`/api/skill-events/${eventId}/media`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mediaItemId: item.id }),
-          });
-        } else {
-          await fetch(`/api/skill-events/${eventId}/media`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mediaItemId: item.id }),
-          });
-        }
-      });
-    },
-    [referenceContext, skillEventIds, item.id],
-  );
-
   // Merge collections from referenceContext and standalone collectionContext
   const mergedCollections = useMemo(() => {
     const refColls = referenceContext?.collections ?? [];
@@ -559,7 +516,6 @@ export function GalleryInfoPanel({
       prodEntityCategories.length > 0 &&
       productionContext.contributors.length > 0) ||
     (referenceContext != null && links.length > 0) ||
-    (referenceContext != null && referenceContext.skillEvents.length > 0) ||
     mergedCollections.length > 0 ||
     onCollectionCreated != null ||
     item.copiedFrom != null;
@@ -757,7 +713,7 @@ export function GalleryInfoPanel({
 
       {/* ── Linked context group ──
           Visual divider for the sections below: entity links, body
-          regions, era, skill events, collections, notes, source. Each
+          regions, era, collections, notes, source. Each
           renders only when its specific context data is present (so the
           divider only appears alongside real content), but together
           they share a "this image is linked to other entities" theme
@@ -1048,45 +1004,6 @@ export function GalleryInfoPanel({
           </>
         );
       })()}
-
-      {/* Skill Events (reference context only, when skill events exist) */}
-      {referenceContext && referenceContext.skillEvents.length > 0 && (
-        <>
-          <SectionHeader
-            title="Skill Events"
-            icon={<Tag size={14} />}
-            section="skill-events"
-            expanded={expandedSections.has("skill-events")}
-            onToggle={toggleSection}
-          />
-          {expandedSections.has("skill-events") && (
-            <div className="flex flex-wrap gap-1 pb-2">
-              {referenceContext.skillEvents.map((evt) => {
-                const isLinked = skillEventIds.includes(evt.id);
-                const styles = SKILL_EVENT_STYLES[evt.eventType as keyof typeof SKILL_EVENT_STYLES];
-                return (
-                  <button
-                    key={evt.id}
-                    type="button"
-                    disabled={isPending}
-                    onClick={() => handleSkillEventToggle(evt.id)}
-                    className={cn(
-                      "rounded-md border px-2 py-1 text-xs font-medium transition-all",
-                      "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                      isLinked && styles
-                        ? `${styles} border-current/30`
-                        : "border-transparent bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
-                    )}
-                    aria-pressed={isLinked}
-                  >
-                    {evt.skillName} ({evt.eventType})
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
 
       {/* Collections (reference context or standalone collection context) */}
       {(mergedCollections.length > 0 || onCollectionCreated) && (

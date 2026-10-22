@@ -125,7 +125,7 @@ export default function PersonDetailLoading() {
 
       {/* Tab bar with icon placeholders */}
       <div className="flex gap-1 rounded-xl border border-white/15 bg-card/50 p-1">
-        {["Overview", "Aliases", "Appearance", "Details", "Skills", "Career", "Network", "Photos"].map((tab) => (
+        {["Overview", "Aliases", "Appearance", "Details", "Career", "Network", "Photos"].map((tab) => (
           <div key={tab} className="flex items-center gap-1.5 px-4 py-2">
             <Skeleton className="h-3.5 w-3.5 rounded" />
             <Skeleton className="h-4 w-16 rounded" />

@@ -2,7 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Users, ImageIcon, Camera, Film, User, Sparkles, Gauge } from "lucide-react";
+import { Users, ImageIcon, Camera, Film, User, Gauge } from "lucide-react";
 import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/sessions/session-browse-nav-bar";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
@@ -12,9 +12,8 @@ import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
-import { getSessionContributions, getContributionSkillMediaMap, getContributorsWithEntities, getSessionBehindCameraCredits } from "@/lib/services/contribution-service";
+import { getContributorsWithEntities, getSessionBehindCameraCredits } from "@/lib/services/contribution-service";
 import { mergeSessionContributors, type SessionContributor } from "@/lib/services/session-contributors";
-import { getAllSkillGroups } from "@/lib/services/skill-catalog-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import {
@@ -34,7 +33,6 @@ import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
-import { SessionContributionSkills } from "@/components/sessions/session-contribution-skills";
 import {
   IntensityPanelProvider,
   IntensityPanelToggle,
@@ -137,13 +135,12 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     bodyModifications: { id: string; name: string }[];
     cosmeticProcedures: { id: string; name: string }[];
     eras: { id: string; label: string; date: string | null }[];
-    skillEvents: { id: string; skillName: string; eventType: string; date: string | null }[];
     profileFramings: Awaited<ReturnType<typeof getPersonProfileFramings>>;
   } | null = null;
 
   if (isReference && session.personId) {
     const personId = session.personId;
-    const [itemsWithLinks, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras, skillEventsRaw] =
+    const [itemsWithLinks, collections, categoryGroups, bodyMarks, bodyMods, cosmetics, eras] =
       await Promise.all([
         getMediaItemsWithLinks(id, personId),
         getCollectionsForPerson(personId),
@@ -167,18 +164,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           where: { personId },
           select: { id: true, label: true, date: true },
           orderBy: { date: "asc" },
-        }),
-        prisma.personSkillEvent.findMany({
-          where: { personSkill: { personId }, eventType: "DEMONSTRATED" },
-          select: {
-            id: true,
-            eventType: true,
-            date: true,
-            personSkill: {
-              select: { skillDefinition: { select: { name: true } } },
-            },
-          },
-          orderBy: { date: "desc" },
         }),
       ]);
     const profileFramings = await getPersonProfileFramings(personId);
@@ -204,14 +189,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         label: p.label,
         date: p.date ? p.date.toISOString().split("T")[0] : null,
       })),
-      skillEvents: skillEventsRaw
-        .filter((e) => e.personSkill.skillDefinition != null)
-        .map((e) => ({
-          id: e.id,
-          skillName: e.personSkill.skillDefinition!.name,
-          eventType: e.eventType,
-          date: e.date ? e.date.toISOString().split("T")[0] : null,
-        })),
     };
   } else {
     mediaItems = await getSessionMediaGallery(id);
@@ -257,16 +234,15 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         bodyModifications={mediaManagerData.bodyModifications}
         cosmeticProcedures={mediaManagerData.cosmeticProcedures}
         eras={mediaManagerData.eras}
-        skillEvents={mediaManagerData.skillEvents}
         initialTab={resolvedSearchParams.tab}
       />
     );
   }
 
-  // Load contributions + skill groups + skill media + entity data + role groups for production sessions
-  const [sessionContributions, skillGroups, contributionSkillMedia, contributorsWithEntities, prodCategoryGroups, contributionRoleGroups] = !isReference
-    ? await Promise.all([getSessionContributions(id), getAllSkillGroups(), getContributionSkillMediaMap(id), getContributorsWithEntities(id), getAllCategoryGroups(), getAllContributionRoleGroups()])
-    : [[], [], new Map<string, { id: string; thumbUrl: string }[]>(), [], [], []];
+  // Load entity data + role groups for production sessions
+  const [contributorsWithEntities, prodCategoryGroups, contributionRoleGroups] = !isReference
+    ? await Promise.all([getContributorsWithEntities(id), getAllCategoryGroups(), getAllContributionRoleGroups()])
+    : [[], [], []];
 
   // ADR-0021: behind-camera Artist credits from this session's sets, deduped, shown
   // read-only alongside the Person contributions.
@@ -353,8 +329,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         }
       : undefined;
 
-  const skillCount = sessionContributions.reduce((acc, c) => acc + c.skills.length, 0);
-
   return (
     <div className="space-y-6">
       {/* Back link + browse nav + actions row */}
@@ -427,7 +401,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         />
       )}
 
-      {/* 2-column layout for production sessions: gallery + skills left; sidebar
+      {/* 2-column layout for production sessions: gallery left; sidebar
           (contributors, sets, tags) right — or the intensity panel, beside the photos */}
       {!isReference && (
         <IntensityPanelProvider initialOpen={intensityPanelOpen}>
@@ -455,29 +429,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 cast={castDirectory}
                 tagFilter={galleryTagFilter}
                 intensity={galleryIntensity}
-              />
-            </SectionCard>
-
-            <SectionCard
-              title={`Contribution Skills (${skillCount})`}
-              icon={<Sparkles size={18} />}
-            >
-              <SessionContributionSkills
-                sessionId={id}
-                contributions={sessionContributions}
-                skillGroups={skillGroups.map((g) => ({
-                  id: g.id,
-                  name: g.name,
-                  definitions: g.definitions.map((d) => ({
-                    id: d.id,
-                    name: d.name,
-                    slug: d.slug,
-                    description: d.description,
-                    pgrade: d.pgrade,
-                    defaultLevel: d.defaultLevel,
-                  })),
-                }))}
-                skillMedia={Object.fromEntries(contributionSkillMedia)}
               />
             </SectionCard>
           </>}

@@ -2,17 +2,12 @@
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
-import type { SkillLevel, ParticipationConfidence } from "@/generated/prisma/client";
+import type { ParticipationConfidence } from "@/generated/prisma/client";
 import {
   addSessionContribution,
   removeSessionContribution,
   updateSessionContribution,
   updateSessionContributionConfidence,
-  addContributionSkill,
-  removeContributionSkill,
-  updateContributionSkillLevel,
-  addMediaToContributionSkill,
-  removeMediaFromContributionSkill,
 } from "@/lib/services/contribution-service";
 import { getPersonEras } from "@/lib/services/era-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -80,97 +75,6 @@ export async function updateSessionContributionAction(
   return withTenantFromHeaders(async () => {
     try {
       await updateSessionContribution(contributionId, data);
-      revalidatePath(`/sessions/${sessionId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function addContributionSkillAction(
-  contributionId: string,
-  skillDefinitionId: string,
-  sessionId: string,
-  level?: SkillLevel | null,
-  notes?: string | null,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await addContributionSkill(contributionId, skillDefinitionId, level, notes);
-      revalidatePath(`/sessions/${sessionId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function removeContributionSkillAction(
-  contributionSkillId: string,
-  sessionId: string,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await removeContributionSkill(contributionSkillId);
-      revalidatePath(`/sessions/${sessionId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function updateContributionSkillLevelAction(
-  contributionSkillId: string,
-  sessionId: string,
-  level: SkillLevel | null,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await updateContributionSkillLevel(contributionSkillId, level);
-      revalidatePath(`/sessions/${sessionId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function addMediaToContributionSkillAction(
-  contributionSkillId: string,
-  mediaItemIds: string[],
-  sessionId: string,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await addMediaToContributionSkill(contributionSkillId, mediaItemIds);
-      revalidatePath(`/sessions/${sessionId}`);
-      return { success: true };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Unexpected error";
-      return { success: false, error: message };
-    }
-
-  });
-}
-
-export async function removeMediaFromContributionSkillAction(
-  contributionSkillId: string,
-  mediaItemId: string,
-  sessionId: string,
-): Promise<SimpleActionResult> {
-  return withTenantFromHeaders(async () => {
-    try {
-      await removeMediaFromContributionSkill(contributionSkillId, mediaItemId);
       revalidatePath(`/sessions/${sessionId}`);
       return { success: true };
     } catch (err) {

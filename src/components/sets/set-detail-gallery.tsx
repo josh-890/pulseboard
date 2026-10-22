@@ -110,12 +110,6 @@ type SplitSearchResult = {
   };
 };
 
-type BlockedItem = {
-  mediaItemId: string;
-  filename: string;
-  skillEventCount: number;
-};
-
 type SetDetailGalleryProps = {
   items: GalleryItem[];
   entityId: string;
@@ -182,7 +176,6 @@ export function SetDetailGallery({
   const [splitResults, setSplitResults] = useState<SplitSearchResult[]>([]);
   const [splitSearching, setSplitSearching] = useState(false);
   const [splitSelected, setSplitSelected] = useState<SplitSearchResult | null>(null);
-  const [splitBlocked, setSplitBlocked] = useState<BlockedItem[]>([]);
   const [splitExecuting, setSplitExecuting] = useState(false);
 
   // Split dialog: "create new" mode
@@ -271,7 +264,6 @@ export function SetDetailGallery({
       setSplitQuery("");
       setSplitResults([]);
       setSplitSelected(null);
-      setSplitBlocked([]);
       setSplitMode("search");
       setNewSessionName("");
     }
@@ -543,9 +535,6 @@ export function SetDetailGallery({
       );
       setSplitDialogOpen(false);
       clearSelection();
-    } else if ("blockedItems" in result && result.blockedItems && result.blockedItems.length > 0) {
-      setSplitBlocked(result.blockedItems);
-      setSplitSelected(null);
     } else {
       toast.error(result.error ?? "Failed to move photos");
     }
@@ -919,42 +908,7 @@ export function SetDetailGallery({
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            {splitBlocked.length > 0 ? (
-              /* Blocked items error */
-              <div className="space-y-3">
-                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
-                  <p className="font-medium text-destructive">
-                    Cannot move {splitBlocked.length}{" "}
-                    {splitBlocked.length === 1 ? "photo" : "photos"}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
-                    These photos are linked to skill events. Remove the skill event links first, then
-                    retry.
-                  </p>
-                </div>
-                <ul className="max-h-48 overflow-y-auto space-y-1">
-                  {splitBlocked.map((b) => (
-                    <li
-                      key={b.mediaItemId}
-                      className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-sm"
-                    >
-                      <span className="truncate font-medium">{b.filename}</span>
-                      <span className="ml-2 shrink-0 text-xs text-muted-foreground">
-                        {b.skillEventCount} skill event{b.skillEventCount !== 1 ? "s" : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => setSplitBlocked([])}
-                >
-                  Back to session search
-                </Button>
-              </div>
-            ) : !splitSelected ? (
+            {!splitSelected ? (
               /* Session pick or create */
               <>
                 {/* Mode toggle */}
@@ -1066,9 +1020,6 @@ export function SetDetailGallery({
                           );
                           setSplitDialogOpen(false);
                           clearSelection();
-                        } else if ("blockedItems" in result && result.blockedItems && result.blockedItems.length > 0) {
-                          setSplitBlocked(result.blockedItems);
-                          setSplitMode("search");
                         } else {
                           toast.error(result.error ?? "Failed to move photos");
                         }

@@ -62,7 +62,7 @@ psql "$TENANT_URL" -c "CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION 
 echo "Step 3: Running Prisma migrations..."
 DATABASE_URL="$TENANT_URL" npx prisma migrate deploy
 
-echo "Step 4: Seeding default data (skill catalog, categories)..."
+echo "Step 4: Seeding default data (categories, tags)..."
 TENANT_ID="$TENANT_ID" DATABASE_URL="$TENANT_URL" npx tsx prisma/seed.ts
 
 if [ -n "$TENANT_BUCKET" ]; then

@@ -47,8 +47,6 @@ export type GalleryItem = {
   links?: PersonMediaLinkSummary[];
   /** Present only in MediaManager contexts */
   collectionIds?: string[];
-  /** Skill event IDs linked via SkillEventMedia */
-  skillEventIds?: string[];
   /** Number of sets this media item is linked to */
   setCount?: number;
   /** Free-text source clip name for video frames (e.g. "interview_take3.mp4") */

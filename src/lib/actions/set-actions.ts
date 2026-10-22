@@ -35,7 +35,7 @@ import {
 } from "@/lib/services/set-service";
 import { mergeSetRecords, getSetMergeCandidates, dismissSetDuplicate, undismissSetDuplicate, MergeConfirmationRequiredError } from "@/lib/services/set-merge-service";
 import type { SetFilters } from "@/lib/services/set-service";
-import { getCoverPhotosForSets, getSkillEventMediaConstraints, getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { cascadeHardDeleteMediaItems } from "@/lib/services/cascade-helpers";
 import { searchArtists, getSuggestedArtists } from "@/lib/services/artist-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
@@ -580,38 +580,14 @@ export async function reorderSetMediaAction(
   });
 }
 
-type SplitMediaResult =
-  | { success: true }
-  | { success: false; error: string; blockedItems?: { mediaItemId: string; filename: string; skillEventCount: number }[] };
-
 export async function splitMediaToSessionAction(
   setId: string,
   sourceSessionId: string,
   mediaItemIds: string[],
   targetSessionId: string,
-): Promise<SplitMediaResult> {
+): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      // Pre-flight: block photos linked to skill events
-      const constraints = await getSkillEventMediaConstraints(mediaItemIds);
-      if (constraints.length > 0) {
-        // Fetch filenames for the blocked items to show in the error
-        const blockedMediaItems = await prisma.mediaItem.findMany({
-          where: { id: { in: constraints.map((c) => c.mediaItemId) } },
-          select: { id: true, filename: true },
-        });
-        const filenameMap = new Map(blockedMediaItems.map((m) => [m.id, m.filename]));
-        return {
-          success: false,
-          error: "Some photos are linked to skill events and cannot be moved.",
-          blockedItems: constraints.map((c) => ({
-            mediaItemId: c.mediaItemId,
-            filename: filenameMap.get(c.mediaItemId) ?? c.mediaItemId,
-            skillEventCount: c.skillEventCount,
-          })),
-        };
-      }
-
       await splitMediaToSession(setId, mediaItemIds, targetSessionId);
 
       revalidatePath(`/sets/${setId}`);

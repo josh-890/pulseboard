@@ -15,7 +15,6 @@ import type { ProfileFraming } from "@/lib/services/profile-service";
 
 type EntityOption = { id: string; name: string };
 type EraOption = { id: string; label: string; date: string | null };
-type SkillEventOption = { id: string; skillName: string; eventType: string; date: string | null };
 
 type TabId = "media" | "biographies";
 
@@ -35,7 +34,6 @@ type ReferenceSessionPageProps = {
   bodyModifications: EntityOption[];
   cosmeticProcedures: EntityOption[];
   eras: EraOption[];
-  skillEvents: SkillEventOption[];
   initialTab?: string;
 };
 
@@ -55,7 +53,6 @@ export function ReferenceSessionPage({
   bodyModifications,
   cosmeticProcedures,
   eras,
-  skillEvents,
   initialTab,
 }: ReferenceSessionPageProps) {
   const [activeTab, setActiveTabRaw] = useState<TabId>(
@@ -269,7 +266,6 @@ export function ReferenceSessionPage({
               bodyModifications={bodyModifications}
               cosmeticProcedures={cosmeticProcedures}
               eras={eras}
-              skillEvents={skillEvents}
               anchor="reference"
             />
             {/* Headless upload engine — no visible dropzone */}

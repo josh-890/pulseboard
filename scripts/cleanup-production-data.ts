@@ -124,13 +124,6 @@ async function executeCleanup() {
     `;
     console.log(`   MediaCollectionItem: ${rci} row(s)`);
 
-    // Delete SkillEventMedia before MediaItem
-    const rse = await tx.$executeRaw`
-      DELETE FROM "SkillEventMedia"
-      WHERE "mediaItemId" IN (SELECT id FROM "MediaItem" WHERE "sessionId" != ${KEEP_SESSION_ID})
-    `;
-    console.log(`   SkillEventMedia: ${rse} row(s)`);
-
     const r8 = await tx.$executeRaw`DELETE FROM "Session" WHERE id != ${KEEP_SESSION_ID}`;
     console.log(`   Session: ${r8} row(s)`);
 

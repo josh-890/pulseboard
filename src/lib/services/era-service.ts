@@ -177,7 +177,6 @@ export async function deleteDraftEraIfEmpty(
     bodyModEvents,
     digitalIdEvents,
     interestEvents,
-    skillEvents,
     contributions,
     digitalIds,
   ] = await Promise.all([
@@ -186,14 +185,13 @@ export async function deleteDraftEraIfEmpty(
     tx.bodyModificationEvent.count({ where: { eraId } }),
     tx.digitalIdentityEvent.count({ where: { eraId } }),
     tx.interestEvent.count({ where: { eraId } }),
-    tx.personSkillEvent.count({ where: { eraId } }),
     tx.sessionContribution.count({ where: { eraId } }),
     tx.personDigitalIdentity.count({ where: { eraId } }),
   ]);
 
   const totalMembers =
     deltas + bodyMarkEvents + bodyModEvents + digitalIdEvents +
-    interestEvents + skillEvents + contributions + digitalIds;
+    interestEvents + contributions + digitalIds;
   if (totalMembers > 0) return false;
 
   await tx.era.delete({ where: { id: eraId } });
@@ -461,7 +459,7 @@ export async function updateEra(id: string, data: UpdateEraInput) {
 
 /**
  * Delete a era and all linked events. After deleting events, auto-deletes
- * any parent entities (BodyMark, BodyModification, CosmeticProcedure, PersonSkill)
+ * any parent entities (BodyMark, BodyModification, CosmeticProcedure)
  * that are left with zero remaining events. Prevents deleting baseline eras.
  */
 export async function deleteEra(id: string) {
@@ -474,22 +472,12 @@ export async function deleteEra(id: string) {
 
     const personId = era.personId;
 
-    // Delete linked events (skill event media first, then events)
+    // Delete linked events
     await tx.bodyMarkEvent.deleteMany({ where: { eraId: id } });
     await tx.bodyModificationEvent.deleteMany({ where: { eraId: id } });
     await tx.cosmeticProcedureEvent.deleteMany({ where: { eraId: id } });
     await tx.digitalIdentityEvent.deleteMany({ where: { eraId: id } });
     await tx.interestEvent.deleteMany({ where: { eraId: id } });
-    const skillEvents = await tx.personSkillEvent.findMany({
-      where: { eraId: id },
-      select: { id: true },
-    });
-    if (skillEvents.length > 0) {
-      await tx.skillEventMedia.deleteMany({
-        where: { skillEventId: { in: skillEvents.map((e) => e.id) } },
-      });
-    }
-    await tx.personSkillEvent.deleteMany({ where: { eraId: id } });
     // Delete this era's scalar deltas
     await tx.scalarDelta.deleteMany({ where: { eraId: id } });
     // Delete digital identities linked to this era
@@ -507,7 +495,7 @@ export async function deleteEra(id: string) {
 
 /**
  * After deleting events for a era, find and remove parent entities
- * (BodyMark, BodyModification, CosmeticProcedure, PersonSkill) that have
+ * (BodyMark, BodyModification, CosmeticProcedure) that have
  * zero remaining events. Also cleans up PersonMediaLink references.
  */
 async function cleanupOrphanedEntities(tx: TxClient, personId: string) {
@@ -542,15 +530,5 @@ async function cleanupOrphanedEntities(tx: TxClient, personId: string) {
     const ids = orphanedProcs.map((e) => e.id);
     await tx.personMediaLink.deleteMany({ where: { cosmeticProcedureId: { in: ids } } });
     await tx.cosmeticProcedure.deleteMany({ where: { id: { in: ids } } });
-  }
-
-  // --- PersonSkills with zero events ---
-  const orphanedSkills = await tx.personSkill.findMany({
-    where: { personId, events: { none: {} } },
-    select: { id: true },
-  });
-  if (orphanedSkills.length > 0) {
-    const ids = orphanedSkills.map((e) => e.id);
-    await tx.personSkill.deleteMany({ where: { id: { in: ids } } });
   }
 }

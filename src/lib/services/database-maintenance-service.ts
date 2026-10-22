@@ -51,7 +51,7 @@ export async function findAndFixOrphanedMedia(): Promise<MaintenanceResult> {
 
     const ids = orphans.map((o) => o.id);
 
-    // Cascade hard-delete: cleans up SetMediaItem, SkillEventMedia,
+    // Cascade hard-delete: cleans up SetMediaItem,
     // MediaCollectionItem, PersonMediaLink, and the MediaItems themselves
     await cascadeHardDeleteMediaItems(tx, ids);
 

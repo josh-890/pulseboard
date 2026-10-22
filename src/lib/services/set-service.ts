@@ -1087,16 +1087,6 @@ export async function unresolveCreditRaw(creditId: string) {
             },
           });
           if (otherSetContrib === 0) {
-            // Cascade delete contribution skills first
-            await tx.contributionSkill.deleteMany({
-              where: {
-                contribution: {
-                  sessionId: link.sessionId,
-                  personId: credit.resolvedPersonId!,
-                  roleDefinitionId: credit.roleDefinitionId!,
-                },
-              },
-            });
             await tx.sessionContribution.deleteMany({
               where: {
                 sessionId: link.sessionId,
