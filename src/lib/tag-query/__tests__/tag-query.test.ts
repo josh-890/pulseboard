@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTagQuery, serializeTagQuery } from "@/lib/tag-query";
+import { parseTagQuery, predicateLabel, serializeTagQuery } from "@/lib/tag-query";
 
 const parse = (s: string) => parseTagQuery(s).query;
 
@@ -59,6 +59,17 @@ describe("parseTagQuery", () => {
     const q = parse('act:"G-G/Kiss on the lips"');
     expect(q.predicates).toEqual([{ key: "act", op: ":", value: "G-G/Kiss on the lips" }]);
     expect(serializeTagQuery(q)).toBe('act:"G-G/Kiss on the lips"');
+  });
+
+  it("reads intensity overall and within a scenario, writes it back, and labels the chip", () => {
+    const q = parse('intensity>=6.5 intensity:G-G>=5 intensity:"Special one<3"');
+    expect(q.predicates).toEqual([
+      { key: "intensity", op: ">=", value: "6.5" },
+      { key: "intensity", op: ":", value: "G-G>=5" },
+      { key: "intensity", op: ":", value: "Special one<3" },
+    ]);
+    expect(serializeTagQuery(q)).toBe('intensity>=6.5 intensity:G-G>=5 intensity:"Special one<3"');
+    expect(q.predicates.map(predicateLabel)).toEqual(["Intensity ≥ 6.5", "G-G intensity ≥ 5", "Special one intensity < 3"]);
   });
 
   it("reports what it cannot read instead of guessing", () => {

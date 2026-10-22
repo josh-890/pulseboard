@@ -148,3 +148,19 @@ export function applySharedExtras(
   const kept = personExtras.filter((id) => !removed.has(id) && !(groupOf(id) !== null && addedGroups.has(groupOf(id)!)));
   return [...new Set([...kept, ...added])];
 }
+
+/** The browsers' Intensity filter (slice 4): at least this value — 0 = anything recorded */
+export const INTENSITY_FILTER_OPTIONS = [
+  { value: "0", label: "Anything recorded" },
+  { value: "3", label: "≥ 3" },
+  { value: "5", label: "≥ 5" },
+  { value: "7", label: "≥ 7" },
+  { value: "9", label: "≥ 9" },
+  { value: "10", label: "10 · Max" },
+];
+
+/** The `intensity=` URL parameter added to the `tags=` query text — one query answers both */
+export function withIntensityFilter(tags: string | undefined, intensity: string | undefined): string | undefined {
+  if (!intensity || !INTENSITY_FILTER_OPTIONS.some((o) => o.value === intensity)) return tags;
+  return [tags?.trim(), `intensity>=${intensity}`].filter(Boolean).join(" ");
+}

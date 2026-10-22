@@ -19,6 +19,8 @@ import type { PersonStatus } from "@/lib/types";
 import { ICG_ID_ORIGINS, type IcgIdOrigin } from "@/lib/icg-id";
 import { PersonList } from "@/components/people/person-list";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
+import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -66,6 +68,7 @@ type PeoplePageProps = {
     rating?: string;
     groupBy?: string;
     tags?: string;
+    intensity?: string;
   }>;
 };
 
@@ -138,6 +141,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       rating: ratingParam,
       groupBy: groupByParam,
       tags: tagsParam,
+      intensity: intensityParam,
     } = raw;
 
   const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
@@ -170,7 +174,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     : undefined;
 
   // ADR-0033: tag filter → the matching person ids, ANDed with every other filter
-  const tagFilter = await resolveTagFilterParam(tagsParam, "PERSON");
+  // The Intensity filter rides on the same query (ADR-0036, slice 4)
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "PERSON");
   const tagMatchIds = tagFilter ? await findTagMatchIds("PERSON", tagFilter.resolved) : undefined;
 
   const filters = {
@@ -197,7 +202,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
   const parsedSlot = slotParam ? parseInt(slotParam, 10) : undefined;
 
-  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups, contactCount, tagFacets] = await Promise.all([
+  const [paginated, hairColors, bodyTypes, ethnicities, profileFramings, facetCounts, attributeGroups, contactCount, tagFacets, hasIntensity] = await Promise.all([
     getPersonsPaginated(filters, undefined, limit),
     getDistinctNaturalHairColors(),
     getDistinctBodyTypes(),
@@ -207,6 +212,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     getAllPhysicalAttributeGroups(),
     countActiveContacts(),
     getTagFacets("PERSON"),
+    hasIntensityCatalog(),
   ]);
 
   // A non-default (non-avatar-source) Profile framing selected for the card photos;
@@ -253,6 +259,15 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
     param: "favorite",
     label: "Favorite",
   });
+
+  if (hasIntensity) {
+    filterGroups.push({
+      type: "facet",
+      param: "intensity",
+      label: "Peak intensity",
+      options: INTENSITY_FILTER_OPTIONS,
+    });
+  }
 
   filterGroups.push({
     type: "tags",

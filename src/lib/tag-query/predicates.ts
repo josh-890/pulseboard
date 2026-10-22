@@ -15,6 +15,7 @@ export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity
   label: ["MEDIA_ITEM", "SET", "SESSION"],
   type: ["MEDIA_ITEM", "SET"],
   act: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
+  intensity: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
 };
 
 /** Completions the query box offers for predicates, per browser */
@@ -30,6 +31,12 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
     { kind: "type", insert: "type:photo", hint: "photos" },
     { kind: "type", insert: "type:video", hint: "videos" },
     { kind: "act", insert: "act:", hint: entity === "MEDIA_ITEM" ? "evidence for an act — name or scenario/name" : "someone did an act — name or scenario/name" },
+    {
+      kind: "intensity",
+      insert: "intensity>=",
+      hint: entity === "PERSON" ? "peak intensity ≥ N (also > < <= =)" : entity === "MEDIA_ITEM" ? "evidence for an act valued ≥ N" : "intensity ≥ N (also > < <= =)",
+    },
+    { kind: "intensity", insert: "intensity:", hint: "within a scenario — scenario>=N" },
   ];
   return all.filter((s) => PREDICATE_SUPPORT[s.kind].includes(entity)).map(({ insert, hint }) => ({ insert, hint }));
 }
@@ -56,6 +63,11 @@ export function predicateLabel(p: QueryPredicate): string {
       return v.toLowerCase() === "video" ? "Videos" : v.toLowerCase() === "photo" ? "Photos" : `type ${v}`;
     case "act":
       return `Act ${v}`;
+    case "intensity": {
+      const m = p.op === ":" ? /^(.*?)(>=|<=|>|<|=)\s*(.+)$/.exec(v) : null;
+      if (!m) return `Intensity ${OP_TEXT[p.op] ?? p.op} ${v}`;
+      return m[1].trim() ? `${m[1].trim()} intensity ${OP_TEXT[m[2]]} ${m[3]}` : `Intensity ${OP_TEXT[m[2]]} ${m[3]}`;
+    }
     default:
       return `${p.key}${p.op}${v}`;
   }

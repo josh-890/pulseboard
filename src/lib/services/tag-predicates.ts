@@ -9,11 +9,13 @@ import {
   type ResolvedPredicate,
 } from "@/lib/tag-query";
 import type { TaggableEntity } from "@/lib/tag-domains";
+import { INTENSITY_CAP, INTENSITY_MAX } from "@/lib/intensity";
 import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // Non-tag conditions of the query language (ADR-0033, S5): is:fav,
 // is:untagged, has:workflow, rating>=N, person:ICG-ID, persontag:tag,
-// label:name, type:photo|video, act:name|scenario/name. Resolved against the DB once, then turned into
+// label:name, type:photo|video, act:name|scenario/name, intensity>=N,
+// intensity:scenario>=N. Resolved against the DB once, then turned into
 // SQL per entity. A predicate a browser cannot answer is reported, never
 // silently dropped into a different meaning.
 
@@ -115,6 +117,36 @@ export async function resolvePredicates(
         r = { kind: "act", actIds: acts.map((x) => x.id) };
         break;
       }
+      case "intensity": {
+        // intensity>=6 overall; intensity:G-G>=5 within a scenario; intensity:6 means =6
+        let op: string = p.op;
+        let num = value;
+        let scenario: string | null = null;
+        if (p.op === ":") {
+          const m = /^(.*?)(>=|<=|>|<|=)\s*(.+)$/.exec(value);
+          if (m) {
+            scenario = m[1].trim() || null;
+            op = m[2];
+            num = m[3].trim();
+          } else op = "=";
+        }
+        const n = Number(num);
+        if (num === "" || !Number.isFinite(n) || n < 0 || n > INTENSITY_MAX || !RATING_OPS.has(op)) break;
+        let scenarioIds: string[] | null = null;
+        if (scenario) {
+          const found = await prisma.intensityScenario.findMany({
+            where: { name: { equals: scenario, mode: "insensitive" } },
+            select: { id: true },
+          });
+          if (found.length === 0) {
+            problems.push(`No scenario “${scenario}”`);
+            continue;
+          }
+          scenarioIds = found.map((x) => x.id);
+        }
+        r = { kind: "intensity", op: op as "=", value: n, scenarioIds };
+        break;
+      }
     }
     if (!r) {
       problems.push(`Cannot read “${text(p)}”`);
@@ -202,6 +234,69 @@ function actSql(entity: TaggableEntity, acts: Prisma.Sql, x: Prisma.Sql): Prisma
   }
 }
 
+/**
+ * The value of each ticked act that `where` picks (alias ca, act a), as in
+ * `src/lib/intensity.ts`: the contribution's extras minus the act's DROPs and
+ * minus those a grouped ADD replaces, plus its ADDs; Max → 10, else
+ * level + points capped at 9.5. Computed on read, like everywhere else.
+ * Aliases stay clear of the caller's row alias (`e`).
+ */
+function actValues(where: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql`SELECT CASE WHEN bool_or(ivx."isMax") THEN ${INTENSITY_MAX}::float8
+      ELSE LEAST(${INTENSITY_CAP}::float8, a.level + COALESCE(sum(ivx.points), 0)) END AS value
+    FROM "ContributionAct" ca
+    JOIN "IntensityAct" a ON a.id = ca."actId"
+    LEFT JOIN LATERAL (
+      SELECT ie.id, ie.points, ie."isMax" FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
+      WHERE ce."contributionId" = ca."contributionId"
+        AND NOT EXISTS (SELECT 1 FROM "ContributionActExtra" o WHERE o."contributionActId" = ca.id AND o."extraId" = ie.id AND o.mode = 'DROP')
+        AND NOT EXISTS (SELECT 1 FROM "ContributionActExtra" o JOIN "IntensityExtra" oe ON oe.id = o."extraId"
+          WHERE o."contributionActId" = ca.id AND o.mode = 'ADD' AND ie."groupId" IS NOT NULL AND oe."groupId" = ie."groupId" AND oe.id <> ie.id)
+      UNION
+      SELECT ie.id, ie.points, ie."isMax" FROM "ContributionActExtra" o JOIN "IntensityExtra" ie ON ie.id = o."extraId"
+      WHERE o."contributionActId" = ca.id AND o.mode = 'ADD'
+    ) ivx ON TRUE
+    WHERE ${where}
+    GROUP BY ca.id, a.level`;
+}
+
+/** The contributions behind row `x`: a session's, its sets' sessions', a person's */
+function contributionsOf(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
+  switch (entity) {
+    case "SESSION":
+      return Prisma.sql`SELECT id FROM "SessionContribution" WHERE "sessionId" = ${x}`;
+    case "SET":
+      return Prisma.sql`SELECT sc.id FROM "SetSession" ss JOIN "SessionContribution" sc ON sc."sessionId" = ss."sessionId" WHERE ss."setId" = ${x}`;
+    case "PERSON":
+      return Prisma.sql`SELECT id FROM "SessionContribution" WHERE "personId" = ${x}`;
+    default:
+      return Prisma.sql`SELECT NULL::text WHERE FALSE`;
+  }
+}
+
+/**
+ * The highest intensity behind row `x`, compared: a session's (its best
+ * person), a set's (its sessions'), a person's peak; an image's — the best act
+ * it is evidence for. Within scenarios only acts there count; overall, Max
+ * among someone's session extras makes it 10. Nothing ticked → no match.
+ */
+function intensitySql(entity: TaggableEntity, p: Extract<ResolvedPredicate, { kind: "intensity" }>, x: Prisma.Sql): Prisma.Sql {
+  if (entity === "PROJECT" || entity === "ARCHIVE_FOLDER") return Prisma.sql`FALSE`;
+  const op = Prisma.raw(RATING_OPS.has(p.op) ? p.op : "=");
+  const inScenarios = p.scenarioIds ? Prisma.sql` AND a."scenarioId" IN (${Prisma.join(p.scenarioIds)})` : Prisma.empty;
+  if (entity === "MEDIA_ITEM") {
+    const acts = actValues(Prisma.sql`ca.id IN (SELECT "contributionActId" FROM "ContributionActMedia" WHERE "mediaItemId" = ${x})${inScenarios}`);
+    return Prisma.sql`(SELECT max(v.value) FROM (${acts}) v) ${op} ${p.value}`;
+  }
+  const contributions = contributionsOf(entity, x);
+  const acts = actValues(Prisma.sql`ca."contributionId" IN (${contributions})${inScenarios}`);
+  const sessionMax = p.scenarioIds
+    ? Prisma.empty
+    : Prisma.sql` UNION ALL SELECT ${INTENSITY_MAX}::float8 FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
+        WHERE ie."isMax" AND ce."contributionId" IN (${contributions})`;
+  return Prisma.sql`(SELECT max(v.value) FROM (${acts}${sessionMax}) v) ${op} ${p.value}`;
+}
+
 /** SQL for one resolved predicate on row `x` of the entity */
 export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Prisma.Sql): Prisma.Sql {
   switch (p.kind) {
@@ -243,5 +338,7 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
         : Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" mi WHERE mi.id = ${x} AND mi."mediaType"::text = ${p.value.toUpperCase()})`;
     case "act":
       return actSql(entity, Prisma.join(p.actIds), x);
+    case "intensity":
+      return intensitySql(entity, p, x);
   }
 }

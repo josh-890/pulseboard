@@ -51,4 +51,6 @@ export type ResolvedPredicate =
   | { kind: "persontag"; tagIds: string[] }
   | { kind: "label"; labelIds: string[] }
   | { kind: "type"; value: "photo" | "video" }
-  | { kind: "act"; actIds: string[] };
+  | { kind: "act"; actIds: string[] }
+  /** Intensity compared with a value — overall, or within scenarios (no session-wide Max there) */
+  | { kind: "intensity"; op: ">=" | "<=" | ">" | "<" | "="; value: number; scenarioIds: string[] | null };

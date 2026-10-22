@@ -9,6 +9,8 @@ import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
+import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -37,6 +39,7 @@ type SessionsPageProps = {
     createdTo?: string;
     loaded?: string;
     tags?: string;
+    intensity?: string;
   }>;
 };
 
@@ -72,6 +75,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       createdFrom: createdFromParam, createdTo: createdToParam,
       loaded,
       tags: tagsParam,
+      intensity: intensityParam,
     } = await searchParams;
 
   const limit = Math.min(
@@ -89,7 +93,8 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
   const createdTo = parsePartialDateBound(createdToParam, "end");
 
   // ADR-0033: tag filter → matching session ids, ANDed with the other filters
-  const tagFilter = await resolveTagFilterParam(tagsParam, "SESSION");
+  // The Intensity filter rides on the same query (ADR-0036, slice 4)
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "SESSION");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SESSION", tagFilter.resolved) : undefined;
 
   const filters = {
@@ -107,12 +112,13 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     sort: resolvedSort,
   };
 
-  const [paginated, labels, projects, facetCounts, tagFacets] = await Promise.all([
+  const [paginated, labels, projects, facetCounts, tagFacets, hasIntensity] = await Promise.all([
     getSessionsPaginated(filters, undefined, limit),
     getLabels(),
     getProjects(),
     getSessionFacetCounts(filters),
     getTagFacets("SESSION"),
+    hasIntensityCatalog(),
   ]);
 
   // Batch-load cover photos and contributor headshots
@@ -188,6 +194,15 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
         count: facetCounts.projectId[p.id],
       })),
       searchable: true,
+    });
+  }
+
+  if (hasIntensity) {
+    filterGroups.push({
+      type: "facet",
+      param: "intensity",
+      label: "Intensity",
+      options: INTENSITY_FILTER_OPTIONS,
     });
   }
 

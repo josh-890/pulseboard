@@ -6,6 +6,8 @@ import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastU
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
+import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
 import type { SetSort, SetFilters, CastCountBucket } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -44,6 +46,7 @@ type SetsPageProps = {
     rating?: string;
     groupBy?: string;
     tags?: string;
+    intensity?: string;
   }>;
 };
 
@@ -103,6 +106,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       rating: ratingParam,
       groupBy: groupByParam,
       tags: tagsParam,
+      intensity: intensityParam,
     } = await searchParams;
 
   const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
@@ -139,7 +143,8 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   // ADR-0033: tag filter → matching set ids (within the duplicates view when on).
   // The set filters read an empty id list as "no restriction", so no match is
   // passed as an id that cannot exist.
-  const tagFilter = await resolveTagFilterParam(tagsParam, "SET");
+  // The Intensity filter rides on the same query (ADR-0036, slice 4)
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "SET");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SET", tagFilter.resolved, duplicateSetIds) : undefined;
   const restrictIds = tagMatchIds ? (tagMatchIds.length > 0 ? tagMatchIds : ["__no_tag_match__"]) : duplicateSetIds;
 
@@ -174,12 +179,13 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     releaseDateTo,
   };
 
-  const [paginated, channels, recentChannelIds, lastType, roleGroups] = await Promise.all([
+  const [paginated, channels, recentChannelIds, lastType, roleGroups, hasIntensity] = await Promise.all([
     getSetsPaginated(filters, undefined, limit),
     getChannelsWithLabelMaps(),
     getRecentChannels(5),
     getLastUsedSetType(),
     getAllContributionRoleGroups(),
+    hasIntensityCatalog(),
   ]);
 
   // Batch-load cover thumbnails, headshots, and archive suggestions for initial chunk
@@ -336,6 +342,15 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       { value: "notImported", label: "Not imported" },
     ],
   });
+
+  if (hasIntensity) {
+    filterGroups.push({
+      type: "facet",
+      param: "intensity",
+      label: "Intensity",
+      options: INTENSITY_FILTER_OPTIONS,
+    });
+  }
 
   filterGroups.push({
     type: "tags",

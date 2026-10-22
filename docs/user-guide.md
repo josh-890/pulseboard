@@ -301,6 +301,9 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
 - **In pictures** — every act with photos linked to it as evidence, oldest session first (up to eight, then
   *+N*). Click a photo to open its session's gallery filtered to that act (`act:`).
 - Recording happens on the session, in the Intensity panel beside the photos.
+- **Filtering** (once the catalog has acts): /people has a **Peak intensity** filter, /sessions and /sets an
+  **Intensity** filter — *Anything recorded*, ≥ 3, ≥ 5, ≥ 7, ≥ 9, *10 · Max*. For any value or a scenario use
+  the query box: `intensity>=6.5`, `intensity:G-G>=5`, `act:Topless`.
 
 **Overview**
 - **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,
@@ -975,6 +978,8 @@ In the image viewer:
 | `label:Nubiles` | by label (sessions: producer; sets: the channel's owning label; images: either) |
 | `type:video` | videos (images, sets) |
 | `act:Topless`, `act:"G-G/Kiss on the lips"` | an intensity act by name, or scenario/name: images linked to it as evidence; sessions, sets and people where it was ticked |
+| `intensity>=6` (also `>`, `<=`, `<`, `=`) | by intensity: a session's (its best person), a set's (its sessions'), a person's **peak**; an image's best act it is evidence for. Max counts as 10. Nothing recorded never matches |
+| `intensity:G-G>=5`, `intensity:"Special one<3"` | the same within a scenario — only acts there count (a session's Max does not) |
 
 A condition that does not apply to the page (`type:video` on /people) shows as a warning chip and is ignored. So does an unknown ICG-ID, tag or label.
 

@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const persons = [ids.anna, ids.bea, ids.carl].filter(Boolean) as string[];
+  const persons = [ids.anna, ids.bea, ids.carl, ids.dora].filter(Boolean) as string[];
   await prisma.sessionContribution.deleteMany({ where: { personId: { in: persons } } });
   await prisma.mediaItem.deleteMany({ where: { filename: { startsWith: RUN } } });
   await prisma.session.deleteMany({ where: { name: { startsWith: RUN } } });
@@ -206,5 +206,68 @@ describe("photos as evidence (slice 3b)", () => {
     // A deleted photo is evidence no more
     await prisma.mediaItem.delete({ where: { id: p2 } });
     expect(await prisma.contributionActMedia.count({ where: { contributionActId: kept.id } })).toBe(0);
+  });
+});
+
+describe("intensity in the query (slice 4)", () => {
+  it("compares a session's, a set's, a person's peak and an image's act value — overall and within a scenario", async () => {
+    const { resolveTagFilterParam, findTagMatchIds } = await import("@/lib/services/tag-filter-service");
+    const { setContributionsAct, setActsEvidence, getPersonIntensity } = await import("@/lib/services/intensity-service");
+    const max = await prisma.intensityExtra.findFirst({ where: { isMax: true } });
+    if (!max) throw new Error("the catalog has no Max extra");
+    await person("dora", "female");
+    const s8 = (await prisma.session.create({ data: { name: `${RUN} eight`, date: new Date("2020-01-01"), datePrecision: "DAY" } })).id;
+    const s9 = (await prisma.session.create({ data: { name: `${RUN} nine`, date: new Date("2020-02-01"), datePrecision: "DAY" } })).id;
+    const c8 = (await prisma.sessionContribution.create({ data: { sessionId: s8, personId: ids.dora!, roleDefinitionId: "crd_model" } })).id;
+    const c9 = (await prisma.sessionContribution.create({ data: { sessionId: s9, personId: ids.dora!, roleDefinitionId: "crd_model" } })).id;
+    // s8: semi + first time; act one goes public instead and drops first time → 3 + 2 = 5; act two inherits → 5 + 1 + 1 = 7
+    await setContributionExtras(c8, [ids.semi!, ids.first!]);
+    await setContributionsAct([c8], ids.act1!, true);
+    await setContributionsAct([c8], ids.act2!, true);
+    const one = (await prisma.contributionAct.findFirstOrThrow({ where: { contributionId: c8, actId: ids.act1 } })).id;
+    await setContributionActExtras(one, [ids.pub!]);
+    // s9: Max, nothing ticked → 10 overall, nothing within a scenario
+    await setContributionExtras(c9, [max.id]);
+    const photo = (
+      await prisma.mediaItem.create({
+        data: { sessionId: s8, mediaType: "PHOTO", filename: `${RUN}-q.jpg`, mimeType: "image/jpeg", size: 1, originalWidth: 1, originalHeight: 1 },
+      })
+    ).id;
+    await setActsEvidence([one], [photo], true);
+    const set = (await prisma.set.create({ data: { type: "photo", title: `${RUN} set` } })).id;
+    await prisma.setSession.create({ data: { setId: set, sessionId: s8 } });
+
+    const match = async (entity: "SESSION" | "SET" | "PERSON" | "MEDIA_ITEM", text: string, within: string[]) => {
+      const filter = await resolveTagFilterParam(text, entity);
+      if (!filter) throw new Error("empty filter");
+      expect(filter.problems).toEqual([]);
+      return (await findTagMatchIds(entity, filter.resolved, within)).sort();
+    };
+    const sc = `intensity:"${RUN} scenario`;
+    try {
+      expect(await match("SESSION", "intensity>=7", [s8, s9])).toEqual([s8, s9].sort());
+      expect(await match("SESSION", "intensity>7", [s8, s9])).toEqual([s9]);
+      expect(await match("SESSION", "intensity:7", [s8, s9])).toEqual([s8]);
+      expect(await match("SESSION", `${sc}>=7"`, [s8, s9])).toEqual([s8]);
+      expect(await match("SESSION", `${sc}>7"`, [s8, s9])).toEqual([]);
+      expect(await match("SET", "intensity>=7", [set])).toEqual([set]);
+      expect(await match("SET", "intensity>7", [set])).toEqual([]);
+      expect(await match("MEDIA_ITEM", "intensity=5", [photo])).toEqual([photo]);
+      expect(await match("MEDIA_ITEM", "intensity>=6", [photo])).toEqual([]);
+      expect(await match("PERSON", "intensity>=10", [ids.dora!])).toEqual([ids.dora]);
+      expect(await match("PERSON", `${sc}=7"`, [ids.dora!])).toEqual([ids.dora]);
+      expect(await match("PERSON", "intensity<10", [ids.dora!])).toEqual([]); // the peak, not any session
+
+      // The SQL agrees with the person's tab
+      const summary = await getPersonIntensity(ids.dora!);
+      expect(summary.peak?.value).toBe(10);
+      expect(summary.scenarioPeaks[ids.scenario!]?.value).toBe(7);
+
+      const bad = await resolveTagFilterParam("intensity:Nope-Nothing>=3 intensity>=x", "SESSION");
+      expect(bad!.problems).toEqual(["No scenario “Nope-Nothing”", "Cannot read “intensity>=x”"]);
+    } finally {
+      await prisma.setSession.deleteMany({ where: { setId: set } });
+      await prisma.set.delete({ where: { id: set } });
+    }
   });
 });
