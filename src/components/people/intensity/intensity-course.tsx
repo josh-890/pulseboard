@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
-import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
-import { cn, formatPartialDateISO } from "@/lib/utils";
+import { formatIntensity, intensityColor } from "@/lib/intensity";
+import { formatPartialDateISO } from "@/lib/utils";
 import type { PersonIntensityData } from "./types";
 
 export type IntensityCourseProps = {
@@ -15,13 +15,13 @@ export type IntensityCourseProps = {
 // where an act came for the first time. Undated sessions follow, set apart.
 // Each bar opens its session; hovering lists its acts.
 export function IntensityCourse({ data }: IntensityCourseProps) {
-  const { summary, scenarios } = data;
+  const { summary, scenarios, max } = data;
   const actName = new Map(scenarios.flatMap((sc) => sc.acts.map((a) => [a.id, a.name] as const)));
   const dated = summary.sessions.filter((s) => s.dated);
   const undated = summary.sessions.filter((s) => !s.dated);
 
   const bar = (s: (typeof summary.sessions)[number]) => {
-    const pct = s.value === null ? 0 : (s.value / INTENSITY_MAX) * 100;
+    const pct = s.value === null ? 0 : (s.value / max) * 100;
     const acts = [...s.acts].sort((a, b) => b.value - a.value);
     const hover = [
       `${s.sessionName} — ${s.dated ? formatPartialDateISO(s.date, s.precision) : "undated"}`,
@@ -40,9 +40,10 @@ export function IntensityCourse({ data }: IntensityCourseProps) {
             </span>
             <span className="text-[11px] font-semibold tabular-nums">{s.value === null ? "—" : formatIntensity(s.value)}</span>
             <span className="relative flex h-24 w-4 items-end overflow-hidden rounded-sm bg-muted/40">
+              {/* Height and heat from the value — a style, the colour is continuous */}
               <span
-                className={cn("w-full rounded-sm transition-colors", s.value === INTENSITY_MAX ? "bg-amber-500" : "bg-primary/80 group-hover:bg-primary")}
-                style={{ height: `${pct}%` }}
+                className="w-full rounded-sm opacity-90 transition-opacity group-hover:opacity-100"
+                style={{ height: `${pct}%`, backgroundColor: s.value === null ? undefined : intensityColor(s.value, max) }}
               />
             </span>
             <DateLabel date={s.date} precision={s.precision} dated={s.dated} />

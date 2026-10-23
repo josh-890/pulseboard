@@ -9,7 +9,8 @@ import {
   type ResolvedPredicate,
 } from "@/lib/tag-query";
 import type { TaggableEntity } from "@/lib/tag-domains";
-import { INTENSITY_CAP, INTENSITY_MAX } from "@/lib/intensity";
+import { intensityCap } from "@/lib/intensity";
+import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
 import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // Non-tag conditions of the query language (ADR-0033, S5): is:fav,
@@ -131,7 +132,8 @@ export async function resolvePredicates(
           } else op = "=";
         }
         const n = Number(num);
-        if (num === "" || !Number.isFinite(n) || n < 0 || n > INTENSITY_MAX || !RATING_OPS.has(op)) break;
+        const max = await getIntensityMax();
+        if (num === "" || !Number.isFinite(n) || n < 0 || n > max || !RATING_OPS.has(op)) break;
         let scenarioIds: string[] | null = null;
         if (scenario) {
           const found = await prisma.intensityScenario.findMany({
@@ -144,7 +146,7 @@ export async function resolvePredicates(
           }
           scenarioIds = found.map((x) => x.id);
         }
-        r = { kind: "intensity", op: op as "=", value: n, scenarioIds };
+        r = { kind: "intensity", op: op as "=", value: n, scenarioIds, max };
         break;
       }
     }
@@ -237,13 +239,13 @@ function actSql(entity: TaggableEntity, acts: Prisma.Sql, x: Prisma.Sql): Prisma
 /**
  * The value of each ticked act that `where` picks (alias ca, act a), as in
  * `src/lib/intensity.ts`: the contribution's extras minus the act's DROPs and
- * minus those a grouped ADD replaces, plus its ADDs; Max → 10, else
- * level + points capped at 9.5. Computed on read, like everywhere else.
+ * minus those a grouped ADD replaces, plus its ADDs; Max → the tenant's Max,
+ * else level + points capped half a step below. Computed on read, like everywhere else.
  * Aliases stay clear of the caller's row alias (`e`).
  */
-function actValues(where: Prisma.Sql): Prisma.Sql {
-  return Prisma.sql`SELECT CASE WHEN bool_or(ivx."isMax") THEN ${INTENSITY_MAX}::float8
-      ELSE LEAST(${INTENSITY_CAP}::float8, a.level + COALESCE(sum(ivx.points), 0)) END AS value
+function actValues(where: Prisma.Sql, max: number): Prisma.Sql {
+  return Prisma.sql`SELECT CASE WHEN bool_or(ivx."isMax") THEN ${max}::float8
+      ELSE LEAST(${intensityCap(max)}::float8, a.level + COALESCE(sum(ivx.points), 0)) END AS value
     FROM "ContributionAct" ca
     JOIN "IntensityAct" a ON a.id = ca."actId"
     LEFT JOIN LATERAL (
@@ -278,21 +280,24 @@ function contributionsOf(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
  * The highest intensity behind row `x`, compared: a session's (its best
  * person), a set's (its sessions'), a person's peak; an image's — the best act
  * it is evidence for. Within scenarios only acts there count; overall, Max
- * among someone's session extras makes it 10. Nothing ticked → no match.
+ * among someone's session extras makes it Max. Nothing ticked → no match.
  */
 function intensitySql(entity: TaggableEntity, p: Extract<ResolvedPredicate, { kind: "intensity" }>, x: Prisma.Sql): Prisma.Sql {
   if (entity === "PROJECT" || entity === "ARCHIVE_FOLDER") return Prisma.sql`FALSE`;
   const op = Prisma.raw(RATING_OPS.has(p.op) ? p.op : "=");
   const inScenarios = p.scenarioIds ? Prisma.sql` AND a."scenarioId" IN (${Prisma.join(p.scenarioIds)})` : Prisma.empty;
   if (entity === "MEDIA_ITEM") {
-    const acts = actValues(Prisma.sql`ca.id IN (SELECT "contributionActId" FROM "ContributionActMedia" WHERE "mediaItemId" = ${x})${inScenarios}`);
+    const acts = actValues(
+      Prisma.sql`ca.id IN (SELECT "contributionActId" FROM "ContributionActMedia" WHERE "mediaItemId" = ${x})${inScenarios}`,
+      p.max,
+    );
     return Prisma.sql`(SELECT max(v.value) FROM (${acts}) v) ${op} ${p.value}`;
   }
   const contributions = contributionsOf(entity, x);
-  const acts = actValues(Prisma.sql`ca."contributionId" IN (${contributions})${inScenarios}`);
+  const acts = actValues(Prisma.sql`ca."contributionId" IN (${contributions})${inScenarios}`, p.max);
   const sessionMax = p.scenarioIds
     ? Prisma.empty
-    : Prisma.sql` UNION ALL SELECT ${INTENSITY_MAX}::float8 FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
+    : Prisma.sql` UNION ALL SELECT ${p.max}::float8 FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
         WHERE ie."isMax" AND ce."contributionId" IN (${contributions})`;
   return Prisma.sql`(SELECT max(v.value) FROM (${acts}${sessionMax}) v) ${op} ${p.value}`;
 }

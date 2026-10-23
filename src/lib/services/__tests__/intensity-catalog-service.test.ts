@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import {
   createIntensityAct,
+  getIntensityCatalog,
+  getIntensityMax,
+  setIntensityMax,
   moveIntensityActs,
   renameIntensityScenario,
   updateIntensityAct,
@@ -139,5 +142,33 @@ describe("moving acts on the board (K1)", () => {
       `already has “${RUN} d”`,
     );
     await expect(moveIntensityActs([twin.id], { scenarioId: third, level: 10, beforeId: null })).rejects.toThrow("up to 9.5");
+  });
+});
+
+describe("the top of the scale (2026-10-23)", () => {
+  it("rises with the Max row's text, lets levels up to half a step below, and is refused lower while acts sit above", async () => {
+    const before = await getIntensityMax();
+    const maxRow = await prisma.intensityScaleStep.findUnique({ where: { value: before } });
+    const scenario = (await prisma.intensityScenario.create({ data: { name: `${RUN} Top`, sortOrder: 96 } })).id;
+    try {
+      await setIntensityMax(before + 2);
+      expect(await getIntensityMax()).toBe(before + 2);
+      expect((await getIntensityCatalog()).max).toBe(before + 2);
+      if (maxRow) {
+        expect(await prisma.intensityScaleStep.findUnique({ where: { value: before + 2 } })).toMatchObject({ title: maxRow.title });
+      }
+      const high = await createIntensityAct(scenario, `${RUN} high`, before + 1.5);
+      await expect(createIntensityAct(scenario, `${RUN} too high`, before + 2)).rejects.toThrow("only Max reaches");
+
+      await expect(setIntensityMax(before)).rejects.toThrow(`${RUN} high (${RUN} Top, ${before + 1.5})`);
+      await expect(setIntensityMax(2)).rejects.toThrow("whole number from 3 to 20");
+      await expect(setIntensityMax(10.5)).rejects.toThrow("whole number");
+      await prisma.intensityAct.delete({ where: { id: high.id } });
+    } finally {
+      await setIntensityMax(before);
+      await prisma.intensityScenario.delete({ where: { id: scenario } });
+    }
+    expect(await getIntensityMax()).toBe(before);
+    if (maxRow) expect(await prisma.intensityScaleStep.findUnique({ where: { value: before } })).toMatchObject({ title: maxRow.title });
   });
 });

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Images, SlidersHorizontal, StickyNote } from "lucide-react";
 import { IntensityExtrasPicker, type PickerExtra, type PickerGroup } from "@/components/intensity/intensity-extras-picker";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
-import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
+import { formatIntensity, intensityColor, intensityTextColor } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
 
 export type IntensityActCheckProps = {
@@ -15,6 +15,8 @@ export type IntensityActCheckProps = {
   holders: string | null;
   /** Its value (one person) or range (several), and how it comes about */
   value: { min: number; max: number } | null;
+  /** The top of the tenant's scale — the value's colour runs up to it */
+  scaleMax: number;
   explain: string | null;
   /** One person selected — notes and own extras are theirs */
   single: boolean;
@@ -38,7 +40,7 @@ export type IntensityActCheckProps = {
 // whether all, some (− and who) or none have it; ticking sets it for all. Notes
 // and an act's own extras belong to one person, so they need one selected.
 export function IntensityActCheck(props: IntensityActCheckProps) {
-  const { act, state, holders, value, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote } = props;
+  const { act, state, holders, value, scaleMax, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote } = props;
   const [open, setOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
@@ -94,10 +96,9 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
         {valueText && (
           <IntensityHoverText side="top" text={explain} className="shrink-0">
             <span
-              className={cn(
-                "inline-block rounded-md px-1.5 text-xs font-semibold tabular-nums",
-                value!.max === INTENSITY_MAX ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground",
-              )}
+              className="inline-flex min-w-[2.9em] justify-center rounded-md px-1 text-xs font-semibold tabular-nums"
+              // The heat of the highest value shown
+              style={{ backgroundColor: intensityColor(value!.max, scaleMax), color: intensityTextColor(value!.max, scaleMax) }}
               aria-label={`Value ${valueText}`}
             >
               {valueText}
@@ -192,6 +193,7 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
             inherited={inherited}
             onChange={onExtras}
             context={act.name}
+            max={scaleMax}
           />
         </div>
       )}

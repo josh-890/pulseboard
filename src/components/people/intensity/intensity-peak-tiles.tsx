@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
+import { IntensityValue } from "@/components/intensity/intensity-value";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import type { PersonIntensityData } from "./types";
 
@@ -9,7 +9,7 @@ export type IntensityPeakTilesProps = {
 
 // The peak overall and per scenario, each with the session it came from.
 export function IntensityPeakTiles({ data }: IntensityPeakTilesProps) {
-  const { summary, scenarios } = data;
+  const { summary, scenarios, max } = data;
   const sessionOf = new Map(summary.sessions.map((s) => [s.sessionId, s]));
 
   const tile = (key: string, label: string, peak: { value: number; sessionId: string } | null | undefined, main = false) => {
@@ -23,8 +23,8 @@ export function IntensityPeakTiles({ data }: IntensityPeakTilesProps) {
         )}
       >
         <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className={cn("tabular-nums leading-tight", main ? "text-2xl font-bold" : "text-xl font-semibold", peak?.value === INTENSITY_MAX && "text-amber-500")}>
-          {peak ? formatIntensity(peak.value) : "—"}
+        <p className={cn("my-0.5 leading-tight", main ? "text-2xl font-bold" : "text-xl font-semibold")}>
+          <IntensityValue value={peak?.value ?? null} max={max} />
         </p>
         {s && (
           <Link href={`/sessions/${s.sessionId}`} className="block truncate text-[11px] text-muted-foreground hover:text-foreground hover:underline" title={s.sessionName}>

@@ -101,3 +101,13 @@ The catalog is set up once and then stays stable, so the planned bulk selection 
 merge/replace/archive tools and the impact preview with change log are dropped as more than the use warrants. K0–K2
 cover the setup. An act that is ticked and must go or join another is handled on request by a migration (backup, dry
 run with rollback on every tenant, then all tenants), as Glamour → Solo was.
+
+## Amendment 2026-10-23 — Max is set per tenant; values carry a heat colour
+
+A fixed 10 did not hold. Max is now a tenant Setting (`intensity-max`, a whole number 3–20, default 10); the cap stays
+half a step below it, and the Max extra sets Max. Lowering is refused while acts sit above the new cap or values
+above it are described — they are named; the Max row's scale text moves with Max. Values are computed on read, so a
+new Max re-rates everything at once and no act's level changes; the SQL filters take Max from the resolved predicate.
+Every intensity value is shown in a continuous heat colour from 0 to Max (green → yellow → orange → red → violet, the
+PGRADE ramp) — the catalog's scale, session values, peaks, the person's matrix and course, the header bar (a segment
+per whole value).

@@ -17,13 +17,15 @@ import { useCatalogCall } from "./use-catalog-call";
 export type IntensityExtrasPanelProps = {
   groups: IntensityCatalog["groups"];
   extras: IntensityCatalog["extras"];
+  /** The top of the scale — what the Max extra sets */
+  scaleMax: number;
 };
 
 const card = "space-y-2 rounded-2xl border border-white/20 bg-card/70 p-3 shadow-sm backdrop-blur-md dark:border-white/10";
 
 // The extras: one card per group (pick at most one), one for the extras that
 // combine freely, and Max — which can only be renamed.
-export function IntensityExtrasPanel({ groups, extras }: IntensityExtrasPanelProps) {
+export function IntensityExtrasPanel({ groups, extras, scaleMax }: IntensityExtrasPanelProps) {
   const { call, run } = useCatalogCall();
   const max = extras.find((e) => e.isMax);
   const plain = extras.filter((e) => !e.isMax);
@@ -77,10 +79,10 @@ export function IntensityExtrasPanel({ groups, extras }: IntensityExtrasPanelPro
               <InlineEditable value={max.name} onSave={(name) => call(() => updateIntensityExtraAction(max.id, { name }))} className="min-w-0 flex-1 px-1">
                 <h3 className="truncate text-sm font-semibold">{max.name}</h3>
               </InlineEditable>
-              <span className="text-sm font-semibold tabular-nums">10</span>
+              <span className="text-sm font-semibold tabular-nums">{scaleMax}</span>
             </header>
             <p className="px-1 text-xs text-muted-foreground">
-              Sets the intensity to 10, whatever the act and the other extras add up to. Only its name can change.
+              Sets the intensity to {scaleMax}, whatever the act and the other extras add up to. Only its name can change.
             </p>
           </section>
         )}

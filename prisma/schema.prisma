@@ -1751,7 +1751,7 @@ model ContributionRoleDefinition {
 /// What an intensity value means — the first column of the catalog
 model IntensityScaleStep {
   id          String   @id @default(cuid())
-  /// 0–10 in 0.5 steps; 10 is Max
+  /// 0 to the tenant's Max (Setting intensity-max) in 0.5 steps; the top value is Max
   value       Float    @unique
   title       String?
   description String?

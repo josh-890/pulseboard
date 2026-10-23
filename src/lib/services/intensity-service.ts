@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { overridesFor, suggestScenarioIds } from "@/lib/intensity";
 import { summarizePersonIntensity } from "@/lib/intensity-person";
 import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
 import { buildPhotoUrls } from "@/lib/media-url";
 import type { PhotoVariants } from "@/lib/types";
 
@@ -332,7 +333,7 @@ export async function getContributionActSessionId(contributionActId: string): Pr
 
 /** A person's intensity across their sessions — peaks, mean, first times, the course (slice 3) */
 export async function getPersonIntensity(personId: string) {
-  const [contributions, acts, extras] = await Promise.all([
+  const [contributions, acts, extras, max] = await Promise.all([
     prisma.sessionContribution.findMany({
       where: { personId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
       select: {
@@ -343,6 +344,7 @@ export async function getPersonIntensity(personId: string) {
     }),
     prisma.intensityAct.findMany({ select: { id: true, level: true, scenarioId: true } }),
     prisma.intensityExtra.findMany({ select: { id: true, points: true, groupId: true, isMax: true } }),
+    getIntensityMax(),
   ]);
   return summarizePersonIntensity(
     contributions
@@ -358,6 +360,7 @@ export async function getPersonIntensity(personId: string) {
     {
       acts: new Map(acts.map((a) => [a.id, { level: a.level, scenarioId: a.scenarioId }])),
       extras: new Map(extras.map((e) => [e.id, e])),
+      max,
     },
   );
 }

@@ -22,7 +22,7 @@ import {
   moveIntensityActsAction,
   updateIntensityActAction,
 } from "@/lib/actions/intensity-catalog-actions";
-import { formatIntensity } from "@/lib/intensity";
+import { formatIntensity, intensityCap } from "@/lib/intensity";
 import type {
   IntensityActUsage,
   IntensityCatalog,
@@ -34,6 +34,8 @@ import { useCatalogCall } from "./use-catalog-call";
 export type IntensityActPanelProps = {
   act: IntensityCatalog["scenarios"][number]["acts"][number];
   scenarioId: string;
+  /** The top of the scale — a level goes up to half a step below */
+  max: number;
   scenarios: { id: string; name: string }[];
   onClose: () => void;
   /** The previous / next card in reading order; null at the end */
@@ -50,6 +52,7 @@ const LABEL = "text-muted-foreground block text-xs font-medium";
 export function IntensityActPanel({
   act,
   scenarioId,
+  max,
   scenarios,
   onClose,
   onStep,
@@ -162,6 +165,7 @@ export function IntensityActPanel({
             key={`${act.id}-${act.level}`}
             value={act.level}
             label={`Level of ${act.name}`}
+            max={intensityCap(max)}
             onCommit={(level) =>
               call(() => updateIntensityActAction(act.id, { level }))
             }

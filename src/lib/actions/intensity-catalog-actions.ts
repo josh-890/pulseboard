@@ -12,6 +12,7 @@ import {
   updateIntensityAct,
   deleteIntensityAct,
   getIntensityActUsage,
+  setIntensityMax,
   moveIntensityActs,
   createIntensityExtraGroup,
   renameIntensityExtraGroup,
@@ -66,6 +67,11 @@ export async function updateIntensityActAction(
 ) {
   return run(() => updateIntensityAct(id, data));
 }
+/** The top of the scale (2026-10-23); people and sessions re-rate on their next render */
+export async function setIntensityMaxAction(max: number) {
+  return run(() => setIntensityMax(max));
+}
+
 /** Where an act is ticked — read when its panel opens */
 export async function getIntensityActUsageAction(actId: string) {
   return withTenantFromHeaders(() => getIntensityActUsage(actId));

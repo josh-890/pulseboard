@@ -3,7 +3,7 @@
 import { Zap } from "lucide-react";
 import { InlineEditable } from "@/components/shared/inline-editable";
 import { updateIntensityScaleStepAction } from "@/lib/actions/intensity-catalog-actions";
-import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
+import { formatIntensity } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
 import { useCatalogCall } from "./use-catalog-call";
@@ -16,8 +16,10 @@ export type IntensityScaleCellProps = {
   description: string | null;
   /** Descriptions folded away: only on hover */
   showDescription: boolean;
-  /** The Max extra's name, shown on the 10 row */
+  /** The Max extra's name, shown on the Max row */
   maxName: string;
+  /** The top of the scale — this row is Max when it equals it */
+  max: number;
 };
 
 // The first column: an intensity value with a title and, in the user's words,
@@ -28,19 +30,21 @@ export function IntensityScaleCell({
   description,
   showDescription,
   maxName,
+  max,
   active = false,
 }: IntensityScaleCellProps) {
   const { call } = useCatalogCall();
-  const isMax = value === INTENSITY_MAX;
+  const isMax = value === max;
   const isHalf = !Number.isInteger(value);
   const label = formatIntensity(value);
 
   return (
     <div role="rowheader" aria-label={`Intensity ${label}`} className="flex items-start gap-2">
+      {/* The colour is the strip at the column's edge; the number stays plain and steady */}
       <span
         className={cn(
           "w-9 shrink-0 text-right tabular-nums",
-          isHalf ? "text-sm leading-7 text-muted-foreground" : "text-base font-bold leading-7",
+          isHalf ? "text-muted-foreground text-sm leading-7" : "text-base leading-7 font-bold",
           active && "text-primary font-bold",
         )}
       >

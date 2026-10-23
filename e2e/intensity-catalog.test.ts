@@ -162,3 +162,36 @@ test("one scenario can be worked in alone, at full width", async ({ page }) => {
   await page.getByRole("button", { name: "Show all scenarios" }).click();
   await expect(page.getByRole("columnheader", { name: "Scenario G-G" })).toBeVisible();
 });
+
+test("Max is set above the board: higher adds lanes up to it, lower is refused while acts sit above", async ({ page }) => {
+  const before = Number((await db.query<{ value: string }>(`SELECT value FROM "Setting" WHERE key = 'intensity-max'`)).rows[0]?.value ?? 10);
+  const sc = `Test Scenario max ${RUN}`;
+  await db.query(`INSERT INTO "IntensityScenario" (id, name, "sortOrder") VALUES ($1, $2, 98)`, [`e2e-scn-max-${RUN}`, sc]);
+  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, $2, $3, 5)`, [
+    `e2e-act-max-${RUN}`,
+    `e2e-scn-max-${RUN}`,
+    `Test act max ${RUN}`,
+  ]);
+  try {
+    await page.goto("/settings/catalogs/intensity");
+    const field = page.getByRole("spinbutton", { name: "Top of the scale (Max)" });
+    await expect(field).toHaveValue(String(before));
+    await field.fill(String(before + 2));
+    await field.press("Enter");
+    await expect(page.getByRole("rowheader", { name: `Intensity ${before + 2}`, exact: true })).toBeVisible();
+    await expect(page.getByRole("rowheader", { name: `Intensity ${before + 1.5}`, exact: true })).toBeVisible();
+    const nameNow = (await db.query<{ name: string }>(`SELECT name FROM "IntensityExtra" WHERE "isMax"`)).rows[0]!.name;
+    await expect(page.getByText(`only ${nameNow} reaches ${before + 2}`)).toBeVisible();
+
+    await field.fill("4");
+    await field.press("Enter");
+    await expect(page.getByText(`Max cannot become 4`)).toBeVisible();
+    await expect(page.getByText(`Test act max ${RUN} (${sc}, 5)`).first()).toBeVisible();
+    await expect(field).toHaveValue(String(before + 2));
+  } finally {
+    await db.query(`DELETE FROM "IntensityScenario" WHERE id = $1`, [`e2e-scn-max-${RUN}`]);
+    // Back as it was: the Max row's text and the setting
+    await db.query(`UPDATE "IntensityScaleStep" SET value = $1 WHERE value = $2`, [before, before + 2]);
+    await db.query(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('intensity-max', $1, now()) ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()`, [String(before)]);
+  }
+});

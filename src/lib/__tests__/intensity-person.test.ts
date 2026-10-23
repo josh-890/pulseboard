@@ -13,6 +13,7 @@ const catalog = {
     ["pub", { id: "pub", points: 2, groupId: "loc", isMax: false }],
     ["max", { id: "max", points: 0, groupId: null, isMax: true }],
   ]),
+  max: 10,
 };
 const d = (y: number) => new Date(Date.UTC(y, 0, 1));
 const s = (id: string, date: Date | null, acts: string[], extraIds: string[] = [], precision = "DAY"): PersonIntensityInput => ({

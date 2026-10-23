@@ -204,6 +204,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   const intensity: PersonIntensityData | null = intensityCatalog.scenarios.some((sc) => sc.acts.length > 0)
     ? {
         summary: personIntensity,
+        max: intensityCatalog.max,
         scale: intensityCatalog.scale,
         scenarios: intensityCatalog.scenarios.map((sc) => ({
           id: sc.id,

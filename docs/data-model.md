@@ -218,6 +218,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - **IntensityScenario** / **IntensityAct** (ADR-0036) — the intensity catalog: ordered scenarios (columns), each with
   its own acts carrying a `level` (Float, 0–9.5 in 0.5 steps) and a `sortOrder` — the manual order within its cell
   (scenario × level), from 0 (2026-10-23, the board).
+- **IntensityScaleStep** — a value's title and description; values from 0 up to the tenant's Max (Setting
+  `intensity-max`, whole 3–20, default 10; the cap is Max − 0.5).
 - **IntensityExtraGroup** / **IntensityExtra** — extras add `points` to an act's level; at most one per group;
   exactly one `isMax` extra (partial unique index) sets 10.
 - **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).

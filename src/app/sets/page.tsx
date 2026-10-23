@@ -6,8 +6,8 @@ import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastU
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
-import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
-import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
+import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { intensityFilterOptions, withIntensityFilter } from "@/lib/intensity";
 import type { SetSort, SetFilters, CastCountBucket } from "@/lib/services/set-service";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
@@ -144,7 +144,8 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
   // The set filters read an empty id list as "no restriction", so no match is
   // passed as an id that cannot exist.
   // The Intensity filter rides on the same query (ADR-0036, slice 4)
-  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "SET");
+  const intensityMax = await getIntensityMax();
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam, intensityMax), "SET");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SET", tagFilter.resolved, duplicateSetIds) : undefined;
   const restrictIds = tagMatchIds ? (tagMatchIds.length > 0 ? tagMatchIds : ["__no_tag_match__"]) : duplicateSetIds;
 
@@ -348,7 +349,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       type: "facet",
       param: "intensity",
       label: "Intensity",
-      options: INTENSITY_FILTER_OPTIONS,
+      options: intensityFilterOptions(intensityMax),
     });
   }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn, computeAge, splitOptionLabel } from "@/lib/utils";
-import { formatIntensity } from "@/lib/intensity";
+import { DEFAULT_INTENSITY_MAX, formatIntensity, intensityColor } from "@/lib/intensity";
 import { PersonIntensityTab, type PersonIntensityData } from "@/components/people/intensity";
 import { formatMeasurements } from "@/lib/utils/measurements";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
@@ -190,20 +190,7 @@ const PGRADE_COLORS = [
   "rgb(128,96,176)",
 ];
 
-// ── Intensity gauge colors (ADR-0036; were CP's) ────────────────────────────────────────────
-
-const INTENSITY_COLORS = [
-  "rgb(150,200,230)",
-  "rgb(130,185,220)",
-  "rgb(110,170,210)",
-  "rgb(90,155,200)",
-  "rgb(70,140,190)",
-  "rgb(60,125,180)",
-  "rgb(50,110,175)",
-  "rgb(40,95,170)",
-  "rgb(35,80,160)",
-  "rgb(30,65,150)",
-];
+// The intensity gauge takes its colours from intensityColor (src/lib/intensity.ts) — the heat ramp up to Max
 
 // ── Basic Info Panel ─────────────────────────────────────────────────────────
 
@@ -462,11 +449,13 @@ function KpiStatsPanel({
   kpiCounts,
   intensityPeak,
   intensityMean,
+  intensityMax,
 }: {
   person: PersonData;
   kpiCounts: KpiCounts;
   intensityPeak?: number | null;
   intensityMean?: number | null;
+  intensityMax: number;
 }) {
   const [localPgrade, setLocalPgrade] = useState(person.pgrade);
   const [localRating, setLocalRating] = useState(person.rating);
@@ -556,8 +545,9 @@ function KpiStatsPanel({
           </div>
           <div className="relative mt-1 w-full">
             <div className="flex w-full gap-0.5">
-              {INTENSITY_COLORS.map((color, i) => {
-                // Whole, half (x.5) or empty segment
+              {Array.from({ length: intensityMax }, (_, i) => {
+                // A segment per whole value up to Max, in its heat; whole, half (x.5) or empty
+                const color = intensityColor(i + 1, intensityMax);
                 const fill = hasPeak ? Math.max(0, Math.min(1, intensityPeak! - i)) : 0;
                 return (
                   <div key={i} className="relative h-2.5 flex-1 overflow-hidden first:rounded-l-md last:rounded-r-md">
@@ -572,7 +562,7 @@ function KpiStatsPanel({
             {hasMean && (
               <div
                 className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-red-500 ring-1 ring-black/40"
-                style={{ left: `${(intensityMean / 10) * 100}%` }}
+                style={{ left: `${(intensityMean / intensityMax) * 100}%` }}
                 title={`Mean intensity: ${intensityMean.toFixed(1)}`}
               />
             )}
@@ -764,6 +754,7 @@ type HeroSharedProps = {
   kpiCounts: KpiCounts;
   intensityPeak?: number | null;
   intensityMean?: number | null;
+  intensityMax: number;
   displayName: string;
   initials: string;
   age: number | null;
@@ -997,7 +988,7 @@ function KpiStatsStrip({ kpiCounts }: { kpiCounts: KpiCounts }) {
 function HeroDensityLayout(props: HeroSharedProps) {
   const { layout } = useHeroLayout();
   const cfg = DENSITY_CONFIGS[layout];
-  const { person, currentState, photos, kpiCounts, intensityPeak, intensityMean, displayName, initials, age, heroAliases, referenceSessionId, plausibilityCount, onFavoriteToggle, heroLead } = props;
+  const { person, currentState, photos, kpiCounts, intensityPeak, intensityMean, intensityMax, displayName, initials, age, heroAliases, referenceSessionId, plausibilityCount, onFavoriteToggle, heroLead } = props;
 
   // Drives the EntityPills strip. Phase G Slice 15: the hero now shows
   // one chip per BODY FEATURE TYPE the person currently has (Tattoo /
@@ -1131,7 +1122,7 @@ function HeroDensityLayout(props: HeroSharedProps) {
 
         {/* Zone 4: KPI Panel — full version at lg:+ only */}
         <div className={cn("hidden lg:flex lg:shrink-0 flex-col px-2", cfg.kpiWidth)}>
-          <KpiStatsPanel person={person} kpiCounts={kpiCounts} intensityPeak={intensityPeak} intensityMean={intensityMean} />
+          <KpiStatsPanel person={person} kpiCounts={kpiCounts} intensityPeak={intensityPeak} intensityMean={intensityMean} intensityMax={intensityMax} />
         </div>
       </div>
 
@@ -1159,6 +1150,7 @@ function HeroCard({
   kpiCounts,
   intensityPeak,
   intensityMean,
+  intensityMax,
   referenceSessionId,
   refMediaCount,
   earliestSessionYear,
@@ -1176,6 +1168,7 @@ function HeroCard({
   kpiCounts: KpiCounts;
   intensityPeak?: number | null;
   intensityMean?: number | null;
+  intensityMax: number;
   referenceSessionId?: string;
   refMediaCount?: number;
   earliestSessionYear?: number | null;
@@ -1233,6 +1226,7 @@ function HeroCard({
     kpiCounts,
     intensityPeak,
     intensityMean,
+    intensityMax,
     displayName,
     initials,
     age,
@@ -1848,6 +1842,7 @@ export function PersonDetailTabs({
   const draftErasReady = useDraftErasReadyCount(person.eras);
   const intensityPeak = intensity?.summary.peak?.value ?? null;
   const intensityMean = intensity?.summary.mean ?? null;
+  const intensityMax = intensity?.max ?? DEFAULT_INTENSITY_MAX;
 
   const tabs: { id: TabId; label: string; badge?: number; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", badge: draftErasReady || undefined, icon: <LayoutDashboard size={14} /> },
@@ -1876,6 +1871,7 @@ export function PersonDetailTabs({
         refMediaCount={refMediaCount}
         intensityPeak={intensityPeak}
         intensityMean={intensityMean}
+        intensityMax={intensityMax}
         kpiCounts={{
           sets: sessionWorkHistory?.length ?? workHistory.length,
           labels: affiliations.length,

@@ -82,6 +82,7 @@
 
 | Component | Type | Props | Description |
 |---|---|---|---|
+| `IntensityValue` | Server-safe | `value` (null → —), `max`, `className?` | A value as a pill in its heat colour (`intensityColor` / `intensityTextColor`, 0 → Max, green → violet) — used for session values, peaks, the person's matrix |
 | `IntensityHoverText` | Client | `text`, `side?`, `className?` (trigger wrapper, default `min-w-0 flex-1`), `children` | Radix tooltip with a description; renders the children alone when there is none |
 | `ActEvidenceList` | Client | `acts` (`EvidenceAct[]`), `stateOf(id)` (all/some/none), `onToggle(id, linked)`, `dark?` | Ticked acts grouped by person (`Name (ICG-ID)`), each a `role="checkbox"` (`aria-checked` mixed for some) with level, name, scenario; an empty hint without ticks (3b) |
 | `BulkActEvidence` | Client | `acts`, `selectedIds`, `stateOf(id, mediaIds)`, `onToggle(id, mediaIds, linked)` | Selection bar "Act…": popover with `ActEvidenceList` over the selected photos |
@@ -97,7 +98,7 @@
 | `IntensityEvidence` | Client | `data` (`evidence`: act id → photos) | "In pictures": per act with evidence, up to 8 thumbs (+N), each linking its session gallery filtered `act:"Scenario/Act"` |
 | `IntensityCourse` | Client | `data` | A bar per session (oldest first, undated after a divider), ★ for first times, value + two-line date; each bar links its session, hover lists its acts |
 
-The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTENSITY** — peak as a 10-segment bar (half steps half-filled) and the mean as a red dot / `ø` — fed by `intensity.summary` (it replaced CP/WCP).
+The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTENSITY** — peak as a bar with a segment per whole value up to the tenant's Max, each in its heat colour (`intensityColor`; half steps half-filled) and the mean as a red dot / `ø` — fed by `intensity.summary` (it replaced CP/WCP).
 
 ### Session intensity (`components/sessions/intensity/`)
 | Component | Type | Props | Description |
@@ -287,6 +288,8 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `IntensityExtraRow` | Client | `extra`, `groups` | One extra: inline name, points field, group menu, delete (blocked while used) |
 | `IntensityStepInput` | Client | `value`, `label`, `prefix?`, `onCommit`, `autoFocus?` | Number in 0.5 steps; saves 0.7 s after the last change, on Enter or blur (once); Esc or an invalid value restores; never disables itself, so arrow-stepping keeps focus |
 | `IntensityAddInput` | Client | `placeholder`, `label`, `onAdd`, `onClose?`, `autoFocus?` | One-line add field; Enter adds and keeps the field ready; with `onClose`, Esc or leaving it empty closes it |
+
+`IntensityMaxInput` (`intensity-max-input.tsx`, props `max`) — the "Max" field above the board: a whole number 3–20, saved on Enter/blur (`setIntensityMaxAction`), Esc restores; a refused lowering toasts the acts / values in the way.
 
 `useCatalogCall()` runs a catalog action, refreshes, toasts a failure and throws so `InlineEditable` stays open.
 

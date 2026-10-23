@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
-import { formatIntensity } from "@/lib/intensity";
+import { IntensityValue } from "@/components/intensity/intensity-value";
 import { cn, formatPartialDateISO } from "@/lib/utils";
 import type { PersonIntensityData } from "./types";
 
@@ -14,7 +14,7 @@ export type IntensityMatrixViewProps = {
 // first column the scale's titles; an act reached is filled, with the date it
 // first came (a link to that session) and in how many sessions.
 export function IntensityMatrixView({ data }: IntensityMatrixViewProps) {
-  const { summary, scale, scenarios } = data;
+  const { summary, scale, scenarios, max } = data;
   const shown = scenarios.filter((sc) => sc.acts.length > 0);
   const levels = [...new Set(shown.flatMap((sc) => sc.acts.map((a) => a.level)))].sort((a, b) => a - b);
   const steps = new Map(scale.map((s) => [s.value, s]));
@@ -38,7 +38,9 @@ export function IntensityMatrixView({ data }: IntensityMatrixViewProps) {
           return (
             <div key={level} role="row" className="flex border-b border-white/10 last:border-b-0">
               <div role="rowheader" className="sticky left-0 z-10 flex w-44 shrink-0 items-start gap-2 bg-card px-3 py-1.5">
-                <span className="w-8 shrink-0 text-right font-semibold tabular-nums">{formatIntensity(level)}</span>
+                <span className="flex w-9 shrink-0 justify-end">
+                  <IntensityValue value={level} max={max} className="text-xs" />
+                </span>
                 <IntensityHoverText side="right" text={step?.description ?? null} className="min-w-0">
                   <span className="text-xs text-muted-foreground">{step?.title ?? ""}</span>
                 </IntensityHoverText>

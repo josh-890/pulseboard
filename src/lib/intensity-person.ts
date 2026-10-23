@@ -17,6 +17,8 @@ export type PersonIntensityInput = {
 export type IntensityCatalogRefs = {
   acts: Map<string, { level: number; scenarioId: string }>;
   extras: Map<string, IntensityExtraRef>;
+  /** The top of the tenant's scale */
+  max: number;
 };
 
 export type DatedRef = { sessionId: string; date: Date | null; precision: string };
@@ -51,11 +53,16 @@ export function summarizePersonIntensity(input: PersonIntensityInput[], catalog:
       .filter((a) => catalog.acts.has(a.actId))
       .map((a) => ({
         actId: a.actId,
-        value: actValue(catalog.acts.get(a.actId)!.level, effectiveExtras(inherited, a.overrides, catalog.extras)),
+        value: actValue(
+          catalog.acts.get(a.actId)!.level,
+          effectiveExtras(inherited, a.overrides, catalog.extras),
+          catalog.max,
+        ),
       }));
     const value = sessionIntensity(
       acts.map((a) => a.value),
       inherited,
+      catalog.max,
     );
     const prev = bySession.get(c.sessionId);
     if (!prev) {

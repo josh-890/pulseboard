@@ -5,6 +5,8 @@ export type SessionIntensityCatalog = {
   scenarios: { id: string; name: string; acts: { id: string; name: string; description: string | null; level: number }[] }[];
   groups: PickerGroup[];
   extras: PickerExtra[];
+  /** The top of the tenant's scale */
+  max: number;
 };
 
 /** Remembers whether the intensity panel is open — read by the page, so it renders as left */

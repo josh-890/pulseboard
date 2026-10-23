@@ -108,8 +108,8 @@ export function personView(p: PersonState, catalog: SessionIntensityCatalog, act
         {
           ...a,
           effective: effective.map((e) => e.id),
-          value: actValue(info.level, effective),
-          explain: explainActValue(info.name, info.level, effective),
+          value: actValue(info.level, effective, catalog.max),
+          explain: explainActValue(info.name, info.level, effective, catalog.max),
         },
       ] as const;
     }),
@@ -118,11 +118,12 @@ export function personView(p: PersonState, catalog: SessionIntensityCatalog, act
   const total = sessionIntensity(
     values.map((t) => t.value),
     inherited,
+    catalog.max,
   );
   const top = values.reduce<(typeof values)[number] | null>((best, t) => (best === null || t.value > best.value ? t : best), null);
   const maxExtra = inherited.find((e) => e.isMax);
   const totalExplain = maxExtra
-    ? `${maxExtra.name} in this session → 10`
+    ? `${maxExtra.name} in this session → ${catalog.max}`
     : top
       ? `Highest act: ${top.explain}`
       : "No acts ticked";

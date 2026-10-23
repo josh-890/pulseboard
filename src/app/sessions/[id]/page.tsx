@@ -261,6 +261,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             name: s.name,
             acts: s.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
           })),
+          max: intensityCatalogFull.max,
           groups: intensityCatalogFull.groups.map((g) => ({ id: g.id, name: g.name })),
           extras: intensityCatalogFull.extras.map((e) => ({
             id: e.id,

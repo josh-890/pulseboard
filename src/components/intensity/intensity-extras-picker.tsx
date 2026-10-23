@@ -19,11 +19,13 @@ export type IntensityExtrasPickerProps = {
   disabled?: boolean;
   /** For aria-labels, e.g. "Anna (AB-001)" or "Topless" */
   context: string;
+  /** The top of the tenant's scale — what the Max extra sets */
+  max: number;
 };
 
 // The extras as controls: each group a single choice (with "none"), the rest
 // toggles, Max set apart. Used for a person's session extras and an act's own.
-export function IntensityExtrasPicker({ extras, groups, selected, onChange, inherited, mixed, disabled, context }: IntensityExtrasPickerProps) {
+export function IntensityExtrasPicker({ extras, groups, selected, onChange, inherited, mixed, disabled, context, max }: IntensityExtrasPickerProps) {
   const on = new Set(selected);
   const some = new Set(mixed ?? []);
   const from = inherited ? new Set(inherited) : null;
@@ -117,7 +119,7 @@ export function IntensityExtrasPicker({ extras, groups, selected, onChange, inhe
               on.has(e.id) && "bg-amber-500 text-white hover:bg-amber-500/90 hover:text-white",
             )}
           >
-            <Zap size={11} aria-hidden="true" /> {e.name} <span className="opacity-75">10</span>
+            <Zap size={11} aria-hidden="true" /> {e.name} <span className="opacity-75">{max}</span>
           </button>
         ))}
     </div>

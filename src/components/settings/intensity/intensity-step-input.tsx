@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { isIntensityStep, INTENSITY_CAP, INTENSITY_STEP } from "@/lib/intensity";
+import { isIntensityStep, INTENSITY_STEP } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
 
 /** How long a value must rest before it is saved — arrow keys step freely until then */
@@ -13,6 +13,8 @@ export type IntensityStepInputProps = {
   /** Shown before the number, e.g. "+" for an extra's points */
   prefix?: string;
   onCommit: (value: number) => Promise<void>;
+  /** The highest value the field offers (an act's level: the cap below Max) */
+  max?: number;
   /** Focus the field when it mounts — an act that moved to another row keeps its cursor */
   autoFocus?: boolean;
   className?: string;
@@ -22,7 +24,7 @@ export type IntensityStepInputProps = {
 // Escape puts the old value back. The key resets the field when the saved
 // value changes underneath it. The field never disables itself while saving,
 // so focus — and stepping with the arrow keys — carries on.
-export function IntensityStepInput({ value, label, prefix, onCommit, autoFocus, className }: IntensityStepInputProps) {
+export function IntensityStepInput({ value, label, prefix, onCommit, max, autoFocus, className }: IntensityStepInputProps) {
   const [text, setText] = useState(String(value));
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,7 +77,7 @@ export function IntensityStepInput({ value, label, prefix, onCommit, autoFocus, 
         type="number"
         inputMode="decimal"
         min={0}
-        max={INTENSITY_CAP}
+        max={max}
         step={INTENSITY_STEP}
         value={text}
         aria-label={label}

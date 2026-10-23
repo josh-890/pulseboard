@@ -9,8 +9,8 @@ import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
-import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
-import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
+import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { intensityFilterOptions, withIntensityFilter } from "@/lib/intensity";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -94,7 +94,8 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
 
   // ADR-0033: tag filter → matching session ids, ANDed with the other filters
   // The Intensity filter rides on the same query (ADR-0036, slice 4)
-  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "SESSION");
+  const intensityMax = await getIntensityMax();
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam, intensityMax), "SESSION");
   const tagMatchIds = tagFilter ? await findTagMatchIds("SESSION", tagFilter.resolved) : undefined;
 
   const filters = {
@@ -202,7 +203,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       type: "facet",
       param: "intensity",
       label: "Intensity",
-      options: INTENSITY_FILTER_OPTIONS,
+      options: intensityFilterOptions(intensityMax),
     });
   }
 

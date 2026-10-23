@@ -19,8 +19,8 @@ import type { PersonStatus } from "@/lib/types";
 import { ICG_ID_ORIGINS, type IcgIdOrigin } from "@/lib/icg-id";
 import { PersonList } from "@/components/people/person-list";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
-import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
-import { INTENSITY_FILTER_OPTIONS, withIntensityFilter } from "@/lib/intensity";
+import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { intensityFilterOptions, withIntensityFilter } from "@/lib/intensity";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -175,7 +175,8 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
 
   // ADR-0033: tag filter → the matching person ids, ANDed with every other filter
   // The Intensity filter rides on the same query (ADR-0036, slice 4)
-  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam), "PERSON");
+  const intensityMax = await getIntensityMax();
+  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam, intensityMax), "PERSON");
   const tagMatchIds = tagFilter ? await findTagMatchIds("PERSON", tagFilter.resolved) : undefined;
 
   const filters = {
@@ -265,7 +266,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       type: "facet",
       param: "intensity",
       label: "Peak intensity",
-      options: INTENSITY_FILTER_OPTIONS,
+      options: intensityFilterOptions(intensityMax),
     });
   }
 

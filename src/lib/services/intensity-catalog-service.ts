@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
-import { INTENSITY_CAP, INTENSITY_MAX, isIntensityStep } from "@/lib/intensity";
+import {
+  DEFAULT_INTENSITY_MAX,
+  formatIntensity,
+  INTENSITY_MAX_RANGE,
+  intensityCap,
+  isIntensityStep,
+} from "@/lib/intensity";
+import { getSetting, setSetting } from "@/lib/services/setting-service";
 import { renameInTagQuery, type CatalogRename } from "@/lib/tag-query";
 
 // The intensity catalog (ADR-0036): scenarios (columns, ordered by sortOrder),
@@ -8,8 +15,62 @@ import { renameInTagQuery, type CatalogRename } from "@/lib/tag-query";
 // points, optionally in groups (at most one per group), and Max, which sets 10.
 // The scale says in the user's words what each value means.
 
+const MAX_KEY = "intensity-max";
+
+/** The top of this tenant's scale (2026-10-23): a whole number, 10 unless set */
+export async function getIntensityMax(): Promise<number> {
+  const n = Number(await getSetting(MAX_KEY));
+  return Number.isInteger(n) && n >= INTENSITY_MAX_RANGE.min && n <= INTENSITY_MAX_RANGE.max ? n : DEFAULT_INTENSITY_MAX;
+}
+
+/**
+ * Sets Max; the cap follows half a step below. Lowering is refused while acts
+ * sit above the new cap or values above the new Max are described — they are
+ * named, nothing changes silently. The Max row's title and description travel
+ * with Max. Every value is re-rated on read; no act's level changes.
+ */
+export async function setIntensityMax(next: number) {
+  if (!Number.isInteger(next) || next < INTENSITY_MAX_RANGE.min || next > INTENSITY_MAX_RANGE.max) {
+    throw new Error(`Max is a whole number from ${INTENSITY_MAX_RANGE.min} to ${INTENSITY_MAX_RANGE.max}.`);
+  }
+  const current = await getIntensityMax();
+  if (next === current) return;
+  const cap = intensityCap(next);
+  const [above, described, target] = await Promise.all([
+    prisma.intensityAct.findMany({
+      where: { level: { gt: cap } },
+      orderBy: [{ level: "desc" }, { name: "asc" }],
+      select: { name: true, level: true, scenario: { select: { name: true } } },
+    }),
+    prisma.intensityScaleStep.findMany({
+      where: { value: { gt: next, not: current } },
+      orderBy: { value: "asc" },
+      select: { value: true },
+    }),
+    prisma.intensityScaleStep.findUnique({ where: { value: next }, select: { id: true } }),
+  ]);
+  const problems: string[] = [];
+  if (above.length) {
+    const shown = above.slice(0, 5).map((a) => `${a.name} (${a.scenario.name}, ${formatIntensity(a.level)})`);
+    const more = above.length > 5 ? ` and ${above.length - 5} more` : "";
+    problems.push(`${above.length} ${above.length === 1 ? "act sits" : "acts sit"} above ${formatIntensity(cap)}: ${shown.join(", ")}${more}`);
+  }
+  if (described.length) {
+    problems.push(`values above ${next} are described: ${described.map((d) => formatIntensity(d.value)).join(", ")}`);
+  }
+  const maxRow = await prisma.intensityScaleStep.findUnique({ where: { value: current }, select: { id: true } });
+  if (maxRow && target) problems.push(`${next} has its own title — the Max row's text cannot move there`);
+  if (problems.length) throw new Error(`Max cannot become ${next} — ${problems.join("; ")}. Move or clear them first.`);
+
+  await prisma.$transaction(async (tx) => {
+    if (maxRow) await tx.intensityScaleStep.update({ where: { id: maxRow.id }, data: { value: next } });
+  });
+  await setSetting(MAX_KEY, String(next));
+}
+
 export async function getIntensityCatalog() {
-  const [scale, scenarios, groups, extras] = await Promise.all([
+  const [max, scale, scenarios, groups, extras] = await Promise.all([
+    getIntensityMax(),
     prisma.intensityScaleStep.findMany({ orderBy: { value: "asc" }, select: { value: true, title: true, description: true } }),
     prisma.intensityScenario.findMany({
       orderBy: { sortOrder: "asc" },
@@ -26,7 +87,7 @@ export async function getIntensityCatalog() {
       include: { _count: { select: { contributions: true, actOverrides: true } } },
     }),
   ]);
-  return { scale, scenarios, groups, extras };
+  return { max, scale, scenarios, groups, extras };
 }
 
 export type IntensityCatalog = Awaited<ReturnType<typeof getIntensityCatalog>>;
@@ -74,7 +135,7 @@ async function nextSortOrder(max: Promise<{ _max: { sortOrder: number | null } }
  * changes; an empty text clears it, and a value with neither is removed.
  */
 export async function updateIntensityScaleStep(value: number, data: { title?: string; description?: string }) {
-  if (!isIntensityStep(value) || value > INTENSITY_MAX) throw new Error("Not a value on the scale.");
+  if (!isIntensityStep(value) || value > (await getIntensityMax())) throw new Error("Not a value on the scale.");
   const clean = (t: string | undefined) => (t === undefined ? undefined : t.trim() || null);
   const title = clean(data.title);
   const description = clean(data.description);
@@ -127,9 +188,11 @@ export async function moveIntensityScenario(id: string, direction: -1 | 1) {
 
 // ─── Acts ────────────────────────────────────────────────────────────────────
 
-function checkLevel(level: number) {
+async function checkLevel(level: number) {
   checkStep(level, "The level");
-  if (level > INTENSITY_CAP) throw new Error(`The level goes up to ${INTENSITY_CAP} — only Max reaches 10.`);
+  const max = await getIntensityMax();
+  const cap = intensityCap(max);
+  if (level > cap) throw new Error(`The level goes up to ${formatIntensity(cap)} — only Max reaches ${max}.`);
 }
 
 /** The next place at the end of a cell (scenario × level) */
@@ -138,7 +201,7 @@ async function endOfCell(tx: Prisma.TransactionClient, scenarioId: string, level
 }
 
 export async function createIntensityAct(scenarioId: string, name: string, level: number) {
-  checkLevel(level);
+  await checkLevel(level);
   return prisma.$transaction(async (tx) =>
     tx.intensityAct.create({
       data: { scenarioId, name: cleanName(name), level, sortOrder: await endOfCell(tx, scenarioId, level) },
@@ -159,7 +222,7 @@ export type IntensityActPlace = {
  * renumbered; ticks, photos and extras stay with the acts.
  */
 export async function moveIntensityActs(ids: string[], to: IntensityActPlace) {
-  checkLevel(to.level);
+  await checkLevel(to.level);
   const moving = [...new Set(ids)];
   if (moving.length === 0) return;
   await prisma.$transaction(async (tx) => {
@@ -198,7 +261,7 @@ export async function updateIntensityAct(
   id: string,
   data: { name?: string; description?: string | null; level?: number },
 ) {
-  if (data.level !== undefined) checkLevel(data.level);
+  if (data.level !== undefined) await checkLevel(data.level);
   const to = data.name === undefined ? undefined : cleanName(data.name);
   return prisma.$transaction(async (tx) => {
     const before = await tx.intensityAct.findUniqueOrThrow({

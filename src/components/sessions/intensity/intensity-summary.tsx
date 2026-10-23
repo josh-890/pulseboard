@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { formatIntensity, INTENSITY_MAX } from "@/lib/intensity";
+import { IntensityValue } from "@/components/intensity/intensity-value";
 import type { SessionIntensity } from "@/lib/services/intensity-service";
-import { cn } from "@/lib/utils";
 import { initialPanelState, personView } from "./panel-state";
 import { IntensityPanelToggle } from "./intensity-panel-toggle";
 import type { SessionIntensityCatalog } from "./types";
@@ -34,9 +33,7 @@ export function IntensitySummary({ contributions, catalog }: IntensitySummaryPro
                 <span className="min-w-0 truncate">
                   {c.person.name} <span className="text-xs text-muted-foreground">({c.person.icgId})</span>
                 </span>
-                <span className={cn("shrink-0 font-bold tabular-nums", v.total === INTENSITY_MAX && "text-amber-500")}>
-                  {v.total === null ? "—" : formatIntensity(v.total)}
-                </span>
+                <IntensityValue value={v.total} max={catalog.max} className="shrink-0" />
               </li>
             );
           })}

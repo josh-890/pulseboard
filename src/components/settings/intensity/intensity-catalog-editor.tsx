@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { DndContext, DragOverlay, MeasuringStrategy } from "@dnd-kit/core";
 import { createIntensityScenarioAction } from "@/lib/actions/intensity-catalog-actions";
-import { INTENSITY_CAP, INTENSITY_MAX, intensityRows } from "@/lib/intensity";
+import { formatIntensity, intensityCap, intensityColor, intensityRows } from "@/lib/intensity";
 import type { IntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { cn } from "@/lib/utils";
 import { IntensityActCell } from "./intensity-act-cell";
@@ -16,6 +16,7 @@ import { useCatalogCall } from "./use-catalog-call";
 import { cellKey, useActBoard } from "./use-act-board";
 import { IntensityDragCard } from "./intensity-drag-card";
 import { IntensityActPanel } from "./intensity-act-panel";
+import { IntensityMaxInput } from "./intensity-max-input";
 import { useActSelection, useWideScreen } from "./use-act-selection";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
@@ -48,6 +49,8 @@ export function IntensityCatalogEditor({
   const shown = focused ? [focused] : scenarios;
   const col = focused ? FOCUSED_COL : SCENARIO_COL;
   const maxName = extras.find((e) => e.isMax)?.name ?? "Max";
+  const max = catalog.max;
+  const cap = intensityCap(max);
 
   const board = useActBoard(catalog);
   const { layout, acts, dragging } = board;
@@ -61,8 +64,9 @@ export function IntensityCatalogEditor({
           .filter(([, ids]) => ids.length > 0)
           .map(([key]) => Number(key.slice(key.lastIndexOf("|") + 1))),
         showHalfSteps || dragging,
+        max,
       ),
-    [scale, layout, showHalfSteps, dragging],
+    [scale, layout, showHalfSteps, dragging, max],
   );
   const knownActs = useMemo(() => new Set(acts.keys()), [acts]);
   const shownIds = useMemo(
@@ -118,6 +122,7 @@ export function IntensityCatalogEditor({
     <IntensityActPanel
       act={selectedAct}
       scenarioId={selectedAct.scenarioId}
+      max={max}
       scenarios={scenarios.map((s) => ({ id: s.id, name: s.name }))}
       onClose={selection.close}
       onStep={step}
@@ -142,7 +147,7 @@ export function IntensityCatalogEditor({
             <h2 className="text-base font-semibold">Scale and acts</h2>
             <p className="text-muted-foreground text-sm">
               Give each value a title and say what it means; acts sit on the row
-              of their level (0 to {INTENSITY_CAP} in half steps). A title is
+              of their level (0 to {formatIntensity(cap)} in half steps). A title is
               what a session offers to tick, its description shows on hover.
             </p>
           </div>
@@ -165,6 +170,7 @@ export function IntensityCatalogEditor({
               />
               Half steps
             </label>
+            <IntensityMaxInput max={max} />
           </div>
         </div>
 
@@ -214,8 +220,8 @@ export function IntensityCatalogEditor({
                   )}
                 </div>
 
-                {rows.map((value) => {
-                  const isMax = value === INTENSITY_MAX;
+                {rows.map((value, ri) => {
+                  const isMax = value === max;
                   const lit = board.overLevel === value;
                   return (
                     <div
@@ -228,20 +234,29 @@ export function IntensityCatalogEditor({
                         lit && "bg-primary/10",
                       )}
                     >
-                      {/* Sticky, so opaque: the lit tint and an accent bar sit on top of its card background */}
+                      {/* Sticky, so opaque: the lit tint sits on top of its card background */}
                       <div
                         className={cn(
                           SCALE_COL,
                           lit &&
-                            "before:bg-primary/15 shadow-[inset_3px_0_0_var(--color-primary)] before:pointer-events-none before:absolute before:inset-0 before:content-['']",
+                            "before:bg-primary/15 before:pointer-events-none before:absolute before:inset-0 before:content-['']",
                         )}
                       >
+                        {/* The heat strip: this lane's colour running into the next one's — one unbroken ramp down the column */}
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-0 -bottom-px left-0 w-1.5"
+                          style={{
+                            background: `linear-gradient(to bottom, ${intensityColor(value, max)}, ${intensityColor(rows[ri + 1] ?? value, max)})`,
+                          }}
+                        />
                         <IntensityScaleCell
                           value={value}
                           title={steps.get(value)?.title ?? null}
                           description={steps.get(value)?.description ?? null}
                           showDescription={showDescriptions}
                           maxName={maxName}
+                          max={max}
                           active={lit}
                         />
                       </div>
@@ -324,9 +339,9 @@ export function IntensityCatalogEditor({
         <p className="text-muted-foreground text-sm">
           Points added to an act&apos;s level. Set once per person in a session,
           every act there inherits them and can depart from them. The sum never
-          goes above {INTENSITY_CAP}; only {maxName} reaches 10.
+          goes above {formatIntensity(cap)}; only {maxName} reaches {max}.
         </p>
-        <IntensityExtrasPanel groups={groups} extras={extras} />
+        <IntensityExtrasPanel groups={groups} extras={extras} scaleMax={max} />
       </div>
     </div>
   );

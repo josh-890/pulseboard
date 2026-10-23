@@ -21,7 +21,8 @@ import {
   setContributionsActAction,
   setContributionsExtrasAction,
 } from "@/lib/actions/intensity-actions";
-import { applySharedExtras, formatIntensity, INTENSITY_MAX, overridesFor } from "@/lib/intensity";
+import { applySharedExtras, formatIntensity, overridesFor } from "@/lib/intensity";
+import { IntensityValue } from "@/components/intensity/intensity-value";
 import type { SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -178,8 +179,8 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
                   <span className="font-medium">{c.person.name}</span>
                   <span className="text-muted-foreground">({c.person.icgId})</span>
                   <IntensityHoverText side="bottom" text={v.totalExplain} className="shrink-0">
-                    <span className={cn("ml-0.5 font-bold tabular-nums", v.total === INTENSITY_MAX && "text-amber-500")} aria-label={v.total === null ? "no value" : `intensity ${formatIntensity(v.total)}`}>
-                      {v.total === null ? "—" : formatIntensity(v.total)}
+                    <span className="ml-0.5" aria-label={v.total === null ? "no value" : `intensity ${formatIntensity(v.total)}`}>
+                      <IntensityValue value={v.total} max={catalog.max} />
                     </span>
                   </IntensityHoverText>
                 </button>
@@ -243,6 +244,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
           selected={common}
           mixed={mixed}
           context={single ? single.label : `${chosen.length} people`}
+          max={catalog.max}
           onChange={changeExtras}
         />
       </div>
@@ -309,6 +311,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
                         state={st}
                         holders={st === "some" ? `only ${holding.map((c) => c.person.name).join(", ")}` : null}
                         value={vals.length ? { min: Math.min(...vals.map((v) => v.value)), max: Math.max(...vals.map((v) => v.value)) } : null}
+                        scaleMax={catalog.max}
                         explain={
                           vals.length === 0
                             ? null
