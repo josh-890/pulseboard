@@ -2,6 +2,8 @@ export * from "./types";
 export { parseTagQuery, PREDICATE_KEYS } from "./parse";
 export type { ParseResult } from "./parse";
 export { serializeTagQuery, serializeTerm } from "./serialize";
+export { renameInTagQuery } from "./rename";
+export type { CatalogRename } from "./rename";
 export { resolveTagQuery, resolveTerm, isEmptyResolved } from "./resolve";
 export type { CatalogTag, ResolvedTagQuery, ResolvedTerm, ResolvedGroupPart } from "./resolve";
 export {

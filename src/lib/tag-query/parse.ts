@@ -25,7 +25,8 @@ const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", s
 
 export type ParseResult = { query: TagQuery; errors: string[] };
 
-function tokenize(input: string): string[] {
+/** Whitespace-separated tokens; quotes keep spaces together (and stay in the token) */
+export function tokenize(input: string): string[] {
   const tokens: string[] = [];
   let cur = "";
   let quoted = false;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTagQuery, predicateLabel, serializeTagQuery } from "@/lib/tag-query";
+import { parseTagQuery, predicateLabel, renameInTagQuery, serializeTagQuery } from "@/lib/tag-query";
 
 const parse = (s: string) => parseTagQuery(s).query;
 
@@ -98,5 +98,41 @@ describe("serializeTagQuery", () => {
   it("is stable: parse(serialize(q)) equals q", () => {
     const q = parse('location:beach,pool -outfit:=swimwear @image:framing:close-up ~night ~"golden hour"');
     expect(parse(serializeTagQuery(q))).toEqual(q);
+  });
+});
+
+describe("renameInTagQuery", () => {
+  const act = (from: string, to: string, nameStaysTaken = false) =>
+    ({ kind: "act", scenario: "Solo", from, to, nameStaysTaken }) as const;
+
+  it("rewrites an act by its name or scenario/name, quoting as needed, and leaves the rest as typed", () => {
+    expect(renameInTagQuery("beach  act:Wettness rating>=4", act("Wettness", "Wetness"))).toBe("beach act:Wetness rating>=4");
+    expect(renameInTagQuery('act:"solo/pussy close up"', act("Pussy Close Up", "Close up, pussy"))).toBe(
+      'act:"solo/Close up, pussy"',
+    );
+    expect(renameInTagQuery("act:G-G/Wettness", act("Wettness", "Wetness"))).toBe("act:G-G/Wettness"); // another scenario's
+    expect(parseTagQuery('act:"solo/Close up, pussy"').query.predicates[0]?.value).toBe("solo/Close up, pussy");
+  });
+
+  it("keeps a bare name another act still carries", () => {
+    expect(renameInTagQuery("act:Wettness", act("Wettness", "Wetness", true))).toBe("act:Wettness");
+    expect(renameInTagQuery("act:Solo/Wettness", act("Wettness", "Wetness", true))).toBe("act:Solo/Wetness");
+  });
+
+  it("rewrites a scenario in act: and intensity: tokens, not in tags or overall intensity", () => {
+    const r = { kind: "scenario", from: "Solo", to: "Alone" } as const;
+    expect(renameInTagQuery("solo act:solo/Toys intensity:Solo>=5 intensity>=3", r)).toBe(
+      "solo act:Alone/Toys intensity:Alone>=5 intensity>=3",
+    );
+    expect(renameInTagQuery("intensity:Solo>=5", { kind: "scenario", from: "Solo", to: "Solo alone" })).toBe(
+      'intensity:"Solo alone>=5"',
+    );
+    expect(parseTagQuery('intensity:"Solo alone>=5"').query.predicates).toEqual([
+      { key: "intensity", op: ":", value: "Solo alone>=5" },
+    ]);
+  });
+
+  it("returns the text untouched when nothing names it", () => {
+    expect(renameInTagQuery("  beach  act:Other ", act("Wettness", "Wetness"))).toBe("  beach  act:Other ");
   });
 });

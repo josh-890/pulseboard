@@ -70,3 +70,11 @@ practice: both are one person alone, and the line between them is the act, not t
 `20261023090000_merge_glamour_into_solo` moves Glamour's acts to Solo with their ids (ticks, photo evidence and extras
 stay); an act whose name Solo already has, ignoring case, joins that act. A person alone is now suggested Solo only.
 
+
+## Amendment 2026-10-23 — catalog edits that reach the rest of the system (K0)
+
+The catalog will be reworked over many iterations (plan: catalog as a board — K0 integrity, K1 drag, K2 side-peek,
+K3 bulk, K4 overview; then merge/replace/archive; then impact preview and a change log with undo). First the two
+places where an edit silently broke something: moving an extra into a group is refused while sessions hold it beside
+another extra of that group (both would count), and renaming an act or a scenario rewrites the saved filters and
+Smart Collections that name it (`act:`, `intensity:Scenario…`) in the same transaction.

@@ -6,7 +6,8 @@ import type { QueryPredicate, TagClause, TagQuery, TagTerm } from "./types";
 // as `~` tokens (the syntax holds one such mixed clause).
 
 const needsQuotes = (s: string) => /[\s":,]/.test(s);
-const q = (s: string) => (needsQuotes(s) ? `"${s.replace(/"/g, "")}"` : s);
+/** A name or value as one token — quoted when it holds a space, quote, colon or comma */
+export const q = (s: string) => (needsQuotes(s) ? `"${s.replace(/"/g, "")}"` : s);
 
 function prefix(t: Pick<TagTerm, "source" | "exact">): string {
   return `${t.source === "any" ? "" : `@${t.source}:`}${t.exact ? "=" : ""}`;
