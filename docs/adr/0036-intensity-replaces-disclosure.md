@@ -94,3 +94,10 @@ A click on a card opens the act's panel beside the board (a side-peek as in Line
 sheet): name, description, level as a number, scenario, where it is ticked (`Name (ICG-ID)`, session) and delete
 (only while unticked). The card itself stays slim — title and tick count; double-click or F2 renames in place.
 `?act=` in the address (History API, no server round trip) makes it linkable; ↑/↓ walk the cards, Esc and Back close.
+
+## Amendment 2026-10-23 — the roadmap stops at K2
+
+The catalog is set up once and then stays stable, so the planned bulk selection (K3), overview helpers (K4),
+merge/replace/archive tools and the impact preview with change log are dropped as more than the use warrants. K0–K2
+cover the setup. An act that is ticked and must go or join another is handled on request by a migration (backup, dry
+run with rollback on every tenant, then all tenants), as Glamour → Solo was.
