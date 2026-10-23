@@ -122,6 +122,8 @@ test.describe("Card pivots on /sets", () => {
 
 test.describe("Esc clears the filters — last in line", () => {
   test("Esc closes an open popover first, then clears; Back and Undo bring the filters back", async ({ page }) => {
+    // Five navigations of /sets — each takes seconds on the dev server under parallel workers
+    test.slow();
     const filtered = `/sets?type=all&q=${RUN}&channel=${ids.ch1}`;
     await page.goto(filtered);
     await expect(setCard(page, "alpha")).toBeVisible();
@@ -133,13 +135,14 @@ test.describe("Esc clears the filters — last in line", () => {
     await expect(page.getByRole("link", { name: "Open profile" })).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
 
-    // Nothing open: Esc clears them, as a history step
+    // Nothing open: Esc clears them, as a history step. The URL changes once the
+    // unfiltered page (every set) has rendered — slow under parallel workers
     await page.mouse.move(5, 5);
     await page.keyboard.press("Escape");
-    await expect(page).toHaveURL(/\/sets$/);
+    await expect(page).toHaveURL(/\/sets$/, { timeout: 15_000 });
     await expect(page.getByText("Filters cleared")).toBeVisible();
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
+    await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`), { timeout: 15_000 });
     // The search comes back too — in the URL and in the field — and stays
     await expect(page).toHaveURL(new RegExp(`q=${RUN}`));
     await expect(page.getByPlaceholder(/search sets/i)).toHaveValue(RUN);
@@ -147,7 +150,7 @@ test.describe("Esc clears the filters — last in line", () => {
     await expect(page).toHaveURL(new RegExp(`q=${RUN}`));
 
     await page.keyboard.press("Escape");
-    await expect(page).toHaveURL(/\/sets$/);
+    await expect(page).toHaveURL(/\/sets$/, { timeout: 15_000 });
     await page.goBack();
     await expect(page).toHaveURL(new RegExp(`channel=${ids.ch1}`));
   });

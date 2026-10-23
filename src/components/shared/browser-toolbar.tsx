@@ -538,7 +538,10 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
       setSearchValue("");
       clearBrowseContext(browseContextKey);
       router.push(basePath);
+      // Shown at once, while the unfiltered page may still be rendering — long
+      // enough that Undo outlives a slow navigation (default 4 s did not)
       toast("Filters cleared", {
+        duration: 10_000,
         action: { label: "Undo", onClick: () => router.push(before) },
       });
     };
