@@ -87,3 +87,10 @@ level at once; within a cell the order is manual (`IntensityAct.sortOrder`, migr
 `20261023120000_intensity_act_sort_order`, started by name). Cross-cell drags light the target and draw a line
 instead of moving cards live, so nothing shifts under the pointer; every move toasts Undo. The session's act list
 follows the same order.
+
+## Amendment 2026-10-23 — the act's panel (K2)
+
+A click on a card opens the act's panel beside the board (a side-peek as in Linear or Notion; on narrow screens a
+sheet): name, description, level as a number, scenario, where it is ticked (`Name (ICG-ID)`, session) and delete
+(only while unticked). The card itself stays slim — title and tick count; double-click or F2 renames in place.
+`?act=` in the address (History API, no server round trip) makes it linkable; ↑/↓ walk the cards, Esc and Back close.

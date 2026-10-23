@@ -3,7 +3,10 @@
 import { Fragment, useState } from "react";
 import { Plus } from "lucide-react";
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { createIntensityActAction } from "@/lib/actions/intensity-catalog-actions";
 import { formatIntensity } from "@/lib/intensity";
 import type { IntensityCatalog } from "@/lib/services/intensity-catalog-service";
@@ -22,6 +25,9 @@ export type IntensityActCellProps = {
   dragging?: boolean;
   /** A card from another cell would land here: before this act, or at the end (null) */
   dropBeforeId?: string | null;
+  /** The act open in the panel */
+  selectedId?: string | null;
+  onOpen: (id: string) => void;
 };
 
 function DropLine() {
@@ -37,10 +43,14 @@ export function IntensityActCell({
   showDescriptions,
   dragging = false,
   dropBeforeId,
+  selectedId = null,
+  onOpen,
 }: IntensityActCellProps) {
   const { call } = useCatalogCall();
   const [adding, setAdding] = useState(false);
-  const { setNodeRef } = useDroppable({ id: cellDroppableId(scenario.id, level) });
+  const { setNodeRef } = useDroppable({
+    id: cellDroppableId(scenario.id, level),
+  });
   const isTarget = dropBeforeId !== undefined;
 
   return (
@@ -54,13 +64,21 @@ export function IntensityActCell({
         isTarget && "bg-primary/10 ring-primary/40",
       )}
     >
-      <SortableContext items={acts.map((a) => a.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={acts.map((a) => a.id)}
+        strategy={verticalListSortingStrategy}
+      >
         {(acts.length > 0 || isTarget) && (
           <ul className="space-y-1">
             {acts.map((act) => (
               <Fragment key={act.id}>
                 {dropBeforeId === act.id && <DropLine />}
-                <IntensityActRow act={act} showDescription={showDescriptions} />
+                <IntensityActRow
+                  act={act}
+                  showDescription={showDescriptions}
+                  selected={act.id === selectedId}
+                  onOpen={onOpen}
+                />
               </Fragment>
             ))}
             {dropBeforeId === null && <DropLine />}
@@ -72,7 +90,9 @@ export function IntensityActCell({
           autoFocus
           placeholder="Act name…"
           label={`Add an act to ${scenario.name} at ${formatIntensity(level)}`}
-          onAdd={(name) => call(() => createIntensityActAction(scenario.id, name, level))}
+          onAdd={(name) =>
+            call(() => createIntensityActAction(scenario.id, name, level))
+          }
           onClose={() => setAdding(false)}
         />
       ) : (
@@ -84,7 +104,7 @@ export function IntensityActCell({
           tabIndex={dragging ? -1 : undefined}
           className={cn(
             dragging && "invisible",
-            "flex h-5 w-full items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground opacity-0 transition-opacity hover:bg-white/5 hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-70 [@media(hover:none)]:opacity-50",
+            "text-muted-foreground hover:text-foreground flex h-5 w-full items-center gap-1 rounded-md px-1.5 text-[11px] opacity-0 transition-opacity group-hover/row:opacity-70 hover:bg-white/5 focus-visible:opacity-100 [@media(hover:none)]:opacity-50",
           )}
         >
           <Plus size={11} aria-hidden="true" /> Act

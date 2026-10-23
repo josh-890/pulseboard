@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { DndContext, DragOverlay, MeasuringStrategy } from "@dnd-kit/core";
 import { createIntensityScenarioAction } from "@/lib/actions/intensity-catalog-actions";
@@ -15,12 +15,17 @@ import { IntensityScenarioHeader } from "./intensity-scenario-header";
 import { useCatalogCall } from "./use-catalog-call";
 import { cellKey, useActBoard } from "./use-act-board";
 import { IntensityDragCard } from "./intensity-drag-card";
+import { IntensityActPanel } from "./intensity-act-panel";
+import { useActSelection, useWideScreen } from "./use-act-selection";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 
 export type IntensityCatalogEditorProps = {
   catalog: IntensityCatalog;
 };
 
-const SCALE_COL = "sticky left-0 z-10 w-64 shrink-0 bg-card px-3 py-1.5";
+// Sticky over scrolling columns, so opaque: the translucent card colour laid over the page background
+const SCALE_COL =
+  "sticky left-0 z-10 w-64 shrink-0 [background:linear-gradient(var(--card),var(--card)),var(--background)] px-3 py-1.5";
 const SCENARIO_COL = "w-56 shrink-0 px-2 py-1.5";
 /** A scenario worked in alone takes all the width beside the scale */
 const FOCUSED_COL = "min-w-0 flex-1 px-2 py-1.5";
@@ -28,7 +33,9 @@ const FOCUSED_COL = "min-w-0 flex-1 px-2 py-1.5";
 // Settings → Catalogs → Intensity (ADR-0036): a board. Lanes are intensity
 // values, lowest first; the first column says what each means, and every act
 // is a card in its scenario's column on the lane of its level — drag it to any
-// cell (K1, 2026-10-23); while dragging, every half step is a lane. Then the extras.
+// cell (K1, 2026-10-23); while dragging, every half step is a lane. A click
+// opens the act's panel beside the board (K2): ↑/↓ walk the cards, Esc closes.
+// Then the extras.
 export function IntensityCatalogEditor({
   catalog,
 }: IntensityCatalogEditorProps) {
@@ -57,6 +64,70 @@ export function IntensityCatalogEditor({
       ),
     [scale, layout, showHalfSteps, dragging],
   );
+  const knownActs = useMemo(() => new Set(acts.keys()), [acts]);
+  const shownIds = useMemo(
+    () => (focused ? [focused.id] : scenarios.map((s) => s.id)),
+    [focused, scenarios],
+  );
+  const selection = useActSelection(layout, shownIds, rows, knownActs);
+  const selectedAct = selection.selectedId
+    ? (acts.get(selection.selectedId) ?? null)
+    : null;
+  const wide = useWideScreen();
+
+  function step(dir: 1 | -1) {
+    const id = selection.neighbour(dir);
+    if (!id) return;
+    selection.open(id);
+    document.querySelector<HTMLElement>(`[data-act-id="${id}"]`)?.focus();
+  }
+
+  // The open card in view — after a link, or a card chosen off-screen
+  useEffect(() => {
+    if (!selection.selectedId) return;
+    document
+      .querySelector(`[data-act-id="${selection.selectedId}"]`)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selection.selectedId]);
+
+  // With the panel open: ↑/↓ the next card, Esc closes — not while typing, dragging or in a dialog
+  useEffect(() => {
+    if (!selectedAct) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || dragging)
+        return;
+      const t = e.target as HTMLElement;
+      if (
+        t.closest(
+          "input, textarea, select, [contenteditable=true], [role=dialog], [role=alertdialog], [role=menu]",
+        )
+      ) {
+        return;
+      }
+      if (e.key === "Escape") selection.close();
+      else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        step(e.key === "ArrowDown" ? 1 : -1);
+      } else return;
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  const panel = selectedAct && (
+    <IntensityActPanel
+      act={selectedAct}
+      scenarioId={selectedAct.scenarioId}
+      scenarios={scenarios.map((s) => ({ id: s.id, name: s.name }))}
+      onClose={selection.close}
+      onStep={step}
+      canStep={{
+        prev: !!selection.neighbour(-1),
+        next: !!selection.neighbour(1),
+      }}
+    />
+  );
+
   const cellActs = (scenarioId: string, level: number) =>
     (layout[cellKey(scenarioId, level)] ?? []).flatMap((id) => {
       const act = acts.get(id);
@@ -102,101 +173,128 @@ export function IntensityCatalogEditor({
           {...board.dnd}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
         >
-          <div className="bg-card/70 overflow-x-auto rounded-2xl border border-white/20 shadow-sm backdrop-blur-md dark:border-white/10">
-            <div
-              role="table"
-              aria-label="Intensity matrix"
-              className={focused ? "w-full" : "w-max min-w-full"}
-            >
-              <div role="row" className="flex border-b border-white/15">
-                <div
-                  role="columnheader"
-                  className={cn(SCALE_COL, "text-sm font-semibold")}
-                >
-                  Intensity
-                </div>
-                {shown.map((s) => {
-                  const i = scenarios.indexOf(s);
-                  return (
-                    <div key={s.id} className={col}>
-                      <IntensityScenarioHeader
-                        scenario={s}
-                        isFirst={i === 0}
-                        isLast={i === scenarios.length - 1}
-                        focused={s.id === focusedId}
-                        onFocusChange={(on) => setFocusedId(on ? s.id : null)}
+          <div className="flex items-start gap-4">
+            <div className="bg-card/70 min-w-0 flex-1 overflow-x-auto rounded-2xl border border-white/20 shadow-sm backdrop-blur-md dark:border-white/10">
+              <div
+                role="table"
+                aria-label="Intensity matrix"
+                className={focused ? "w-full" : "w-max min-w-full"}
+              >
+                <div role="row" className="flex border-b border-white/15">
+                  <div
+                    role="columnheader"
+                    className={cn(SCALE_COL, "text-sm font-semibold")}
+                  >
+                    Intensity
+                  </div>
+                  {shown.map((s) => {
+                    const i = scenarios.indexOf(s);
+                    return (
+                      <div key={s.id} className={col}>
+                        <IntensityScenarioHeader
+                          scenario={s}
+                          isFirst={i === 0}
+                          isLast={i === scenarios.length - 1}
+                          focused={s.id === focusedId}
+                          onFocusChange={(on) => setFocusedId(on ? s.id : null)}
+                        />
+                      </div>
+                    );
+                  })}
+                  {!focused && (
+                    <div className={cn(SCENARIO_COL, "w-52")}>
+                      <IntensityAddInput
+                        placeholder="New scenario…"
+                        label="Add a scenario"
+                        onAdd={(name) =>
+                          call(() => createIntensityScenarioAction(name))
+                        }
                       />
+                    </div>
+                  )}
+                </div>
+
+                {rows.map((value) => {
+                  const isMax = value === INTENSITY_MAX;
+                  const lit = board.overLevel === value;
+                  return (
+                    <div
+                      key={value}
+                      role="row"
+                      className={cn(
+                        "group/row flex border-b border-white/10 last:border-b-0",
+                        !Number.isInteger(value) && "bg-muted/10",
+                        isMax && "bg-amber-500/5",
+                        lit && "bg-primary/10",
+                      )}
+                    >
+                      {/* Sticky, so opaque: the lit tint and an accent bar sit on top of its card background */}
+                      <div
+                        className={cn(
+                          SCALE_COL,
+                          lit &&
+                            "before:bg-primary/15 shadow-[inset_3px_0_0_var(--color-primary)] before:pointer-events-none before:absolute before:inset-0 before:content-['']",
+                        )}
+                      >
+                        <IntensityScaleCell
+                          value={value}
+                          title={steps.get(value)?.title ?? null}
+                          description={steps.get(value)?.description ?? null}
+                          showDescription={showDescriptions}
+                          maxName={maxName}
+                          active={lit}
+                        />
+                      </div>
+                      {shown.map((s) => (
+                        <div key={s.id} className={col}>
+                          {!isMax && (
+                            <IntensityActCell
+                              scenario={s}
+                              level={value}
+                              acts={cellActs(s.id, value)}
+                              showDescriptions={showDescriptions}
+                              dragging={dragging}
+                              dropBeforeId={
+                                board.target?.cell === cellKey(s.id, value)
+                                  ? board.target.beforeId
+                                  : undefined
+                              }
+                              selectedId={selection.selectedId}
+                              onOpen={selection.open}
+                            />
+                          )}
+                        </div>
+                      ))}
+                      {!focused && <div className={cn(SCENARIO_COL, "w-52")} />}
                     </div>
                   );
                 })}
-                {!focused && (
-                  <div className={cn(SCENARIO_COL, "w-52")}>
-                    <IntensityAddInput
-                      placeholder="New scenario…"
-                      label="Add a scenario"
-                      onAdd={(name) =>
-                        call(() => createIntensityScenarioAction(name))
-                      }
-                    />
-                  </div>
-                )}
               </div>
-
-              {rows.map((value) => {
-                const isMax = value === INTENSITY_MAX;
-                const lit = board.overLevel === value;
-                return (
-                  <div
-                    key={value}
-                    role="row"
-                    className={cn(
-                      "group/row flex border-b border-white/10 last:border-b-0",
-                      !Number.isInteger(value) && "bg-muted/10",
-                      isMax && "bg-amber-500/5",
-                      lit && "bg-primary/10",
-                    )}
-                  >
-                    {/* Sticky, so opaque: the lit tint and an accent bar sit on top of its card background */}
-                    <div
-                      className={cn(
-                        SCALE_COL,
-                        lit &&
-                          "before:bg-primary/15 shadow-[inset_3px_0_0_var(--color-primary)] before:pointer-events-none before:absolute before:inset-0 before:content-['']",
-                      )}
-                    >
-                      <IntensityScaleCell
-                        value={value}
-                        title={steps.get(value)?.title ?? null}
-                        description={steps.get(value)?.description ?? null}
-                        showDescription={showDescriptions}
-                        maxName={maxName}
-                        active={lit}
-                      />
-                    </div>
-                    {shown.map((s) => (
-                      <div key={s.id} className={col}>
-                        {!isMax && (
-                          <IntensityActCell
-                            scenario={s}
-                            level={value}
-                            acts={cellActs(s.id, value)}
-                            showDescriptions={showDescriptions}
-                            dragging={dragging}
-                            dropBeforeId={
-                              board.target?.cell === cellKey(s.id, value)
-                                ? board.target.beforeId
-                                : undefined
-                            }
-                          />
-                        )}
-                      </div>
-                    ))}
-                    {!focused && <div className={cn(SCENARIO_COL, "w-52")} />}
-                  </div>
-                );
-              })}
             </div>
+            {/* Docked beside the board, in view while the board scrolls */}
+            {wide && panel && (
+              <div className="sticky top-4 max-h-[calc(100vh-2rem)] w-[22rem] shrink-0 overflow-y-auto">
+                {panel}
+              </div>
+            )}
           </div>
+          {/* Narrower: the panel slides over as a sheet */}
+          {!wide && (
+            <Sheet
+              open={!!selectedAct}
+              onOpenChange={(open) => !open && selection.close()}
+            >
+              <SheetContent
+                side="right"
+                className="w-full max-w-sm overflow-y-auto p-0"
+              >
+                <SheetTitle className="sr-only">
+                  {selectedAct?.name ?? "Act"}
+                </SheetTitle>
+                {panel && <div className="p-2">{panel}</div>}
+              </SheetContent>
+            </Sheet>
+          )}
           {/* In the body: the board's backdrop blur would otherwise offset it from the pointer */}
           {board.activeAct && board.follow && (
             <IntensityDragCard

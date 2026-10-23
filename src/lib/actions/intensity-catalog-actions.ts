@@ -11,6 +11,7 @@ import {
   createIntensityAct,
   updateIntensityAct,
   deleteIntensityAct,
+  getIntensityActUsage,
   moveIntensityActs,
   createIntensityExtraGroup,
   renameIntensityExtraGroup,
@@ -64,6 +65,10 @@ export async function updateIntensityActAction(
   data: { name?: string; description?: string | null; level?: number },
 ) {
   return run(() => updateIntensityAct(id, data));
+}
+/** Where an act is ticked — read when its panel opens */
+export async function getIntensityActUsageAction(actId: string) {
+  return withTenantFromHeaders(() => getIntensityActUsage(actId));
 }
 /** Drag on the board: acts into a cell (scenario × level), before an act or at the end */
 export async function moveIntensityActsAction(ids: string[], to: IntensityActPlace) {

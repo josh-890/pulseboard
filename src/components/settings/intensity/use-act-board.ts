@@ -131,8 +131,14 @@ export function useActBoard(catalog: IntensityCatalog) {
     useSensor(TouchSensor, {
       activationConstraint: { delay: 250, tolerance: 6 },
     }),
+    // Space picks a card up; Enter is left to open its panel
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: ["Space"],
+        cancel: ["Escape"],
+        end: ["Space", "Enter"],
+      },
     }),
   );
 
@@ -167,8 +173,12 @@ export function useActBoard(catalog: IntensityCatalog) {
         ? null
         : getEventCoordinates(activatorEvent);
     // The card as it was pressed — dnd-kit's own rect is not measured yet at this point
-    const pressed = activatorEvent.target instanceof Element ? activatorEvent.target.closest("li") : null;
-    const rect = pressed?.getBoundingClientRect() ?? active.rect.current.initial;
+    const pressed =
+      activatorEvent.target instanceof Element
+        ? activatorEvent.target.closest("li")
+        : null;
+    const rect =
+      pressed?.getBoundingClientRect() ?? active.rect.current.initial;
     setFollow(
       at && rect
         ? {

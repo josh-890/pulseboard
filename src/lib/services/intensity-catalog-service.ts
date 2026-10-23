@@ -224,6 +224,33 @@ export async function updateIntensityAct(
   });
 }
 
+/** Where an act is ticked: each person and session, newest session first (the act's panel, K2) */
+export async function getIntensityActUsage(actId: string) {
+  const rows = await prisma.contributionAct.findMany({
+    where: { actId },
+    select: {
+      id: true,
+      contribution: {
+        select: {
+          session: { select: { id: true, name: true, date: true, datePrecision: true } },
+          person: {
+            select: { id: true, icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
+          },
+        },
+      },
+    },
+  });
+  return rows
+    .map(({ id, contribution: { session, person } }) => ({
+      id,
+      session,
+      person: { id: person.id, icgId: person.icgId, name: person.aliases[0]?.name ?? person.icgId },
+    }))
+    .sort((a, b) => (b.session.date?.getTime() ?? -Infinity) - (a.session.date?.getTime() ?? -Infinity));
+}
+
+export type IntensityActUsage = Awaited<ReturnType<typeof getIntensityActUsage>>;
+
 export async function deleteIntensityAct(id: string) {
   const used = await prisma.contributionAct.count({ where: { actId: id } });
   if (used > 0) throw new Error(`Ticked in ${used} ${used === 1 ? "session" : "sessions"}.`);

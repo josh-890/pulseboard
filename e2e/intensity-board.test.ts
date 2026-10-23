@@ -27,8 +27,10 @@ test.beforeAll(async () => {
     S2.name,
   ]);
 });
+// Our acts by id — a drag gone astray may have put one in another scenario
+const ACTS = `e2e-act-%-${RUN}`;
 test.beforeEach(async () => {
-  await db.query(`DELETE FROM "IntensityAct" WHERE "scenarioId" IN ($1, $2)`, [S1.id, S2.id]);
+  await db.query(`DELETE FROM "IntensityAct" WHERE "scenarioId" IN ($1, $2) OR id LIKE $3`, [S1.id, S2.id, ACTS]);
   await db.query(
     `INSERT INTO "IntensityAct" (id, "scenarioId", name, level, "sortOrder") VALUES
       ($1, $5, $6, 2, 0), ($2, $5, $7, 2, 1), ($3, $5, $8, 2, 2), ($4, $9, $10, 3, 0)`,
@@ -36,6 +38,7 @@ test.beforeEach(async () => {
   );
 });
 test.afterAll(async () => {
+  await db.query(`DELETE FROM "IntensityAct" WHERE id LIKE $1`, [ACTS]);
   await db.query(`DELETE FROM "IntensityScenario" WHERE id IN ($1, $2)`, [S1.id, S2.id]);
   await db.end();
 });
