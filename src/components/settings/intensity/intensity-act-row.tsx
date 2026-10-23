@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import { Trash2 } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { InlineEditable } from "@/components/shared/inline-editable";
-import {
-  deleteIntensityActAction,
-  updateIntensityActAction,
-} from "@/lib/actions/intensity-catalog-actions";
+import { updateIntensityActAction } from "@/lib/actions/intensity-catalog-actions";
 import type { IntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { cn } from "@/lib/utils";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
-import { IntensityStepInput } from "./intensity-step-input";
 import { useCatalogCall } from "./use-catalog-call";
+import { swallowClickAfterDrag } from "./use-act-board";
 
 export type IntensityActRowProps = {
   act: IntensityCatalog["scenarios"][number]["acts"][number];
@@ -19,84 +16,88 @@ export type IntensityActRowProps = {
   showDescription: boolean;
 };
 
-// One act in its cell: its title (what a session offers to tick) and the
-// description behind it; the level field moves it to another row; delete
-// while no session has it ticked.
-// A new level moves the act to another row, which mounts it afresh; this
-// remembers whose level field had the cursor, and for which level, so the
-// act arriving on that row takes it back (the old one may re-render first).
-let keepLevelFocus: { id: string; level: number } | null = null;
+// One act in its cell: its title (what a session offers to tick), the
+// description behind it, and how many sessions tick it. The card drags to any
+// cell (the board, K1) — that is how its level changes; press and move, or
+// focus it and press Space. Fields inside don't start a drag. Its level as a
+// number and deleting it move to the act's panel (K2).
+const isControl = (t: EventTarget) =>
+  !!(t as HTMLElement).closest("input, textarea, button, [data-no-drag]");
 
 export function IntensityActRow({
   act,
   showDescription,
 }: IntensityActRowProps) {
-  const { call, run } = useCatalogCall();
+  const { call } = useCatalogCall();
   const used = act._count.contributions;
-  const refocus =
-    keepLevelFocus?.id === act.id && keepLevelFocus.level === act.level;
-
-  // Children's effects run first: the field has taken the focus by now
-  useEffect(() => {
-    if (refocus) keepLevelFocus = null;
-  }, [refocus]);
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: act.id,
+  });
 
   return (
-    <li className="group/act bg-muted/30 relative rounded-lg border border-white/10 px-1.5 py-0.5">
-      {/* Level and delete float right of the card, level with it, on hover or focus — the title keeps the full width.
-          The padding (not a margin) bridges the gap so the hover holds while the pointer crosses over. */}
-      <div className="absolute top-1/2 left-full z-20 -translate-y-1/2 pl-1 opacity-0 transition-opacity group-hover/act:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-        <div className="bg-popover flex items-center gap-0.5 rounded-md border border-white/15 px-0.5 py-0.5 shadow-md">
-          {used > 0 && (
-            <span
-              className="text-muted-foreground px-1 text-[10px]"
-              title={`Ticked in ${used} ${used === 1 ? "session" : "sessions"}`}
+    <li
+      ref={(el) => {
+        setNodeRef(el);
+        setActivatorNodeRef(el);
+      }}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      aria-roledescription="act card"
+      aria-label={`${act.name}, level ${act.level} — drag to another cell`}
+      // Typing is not a drag
+      onMouseDown={(e) => !isControl(e.target) && listeners?.onMouseDown?.(e)}
+      onTouchStart={(e) => !isControl(e.target) && listeners?.onTouchStart?.(e)}
+      onClickCapture={swallowClickAfterDrag}
+      className={cn(
+        "group/act bg-muted/30 relative cursor-grab rounded-lg border border-white/10 px-1.5 py-0.5 active:cursor-grabbing",
+        "focus-visible:ring-primary/60 outline-none focus-visible:ring-2",
+        isDragging && "opacity-30",
+      )}
+    >
+      <div className="flex items-start gap-1">
+        <div className="min-w-0 flex-1">
+          <IntensityHoverText
+            side="top"
+            text={showDescription ? null : act.description}
+          >
+            <InlineEditable
+              value={act.name}
+              onSave={(name) =>
+                call(() => updateIntensityActAction(act.id, { name }))
+              }
+              className="px-1 text-sm font-medium"
             >
-              {used}×
-            </span>
-          )}
-          <IntensityStepInput
-            key={act.level}
-            value={act.level}
-            label={`Level of ${act.name}`}
-            onCommit={(level) => {
-              keepLevelFocus = { id: act.id, level };
-              return call(() => updateIntensityActAction(act.id, { level }));
-            }}
-            autoFocus={refocus}
-          />
-          <button
-            type="button"
-            onClick={() => run(() => deleteIntensityActAction(act.id))}
-            disabled={used > 0}
-            aria-label={`Delete ${act.name}`}
-            title={used > 0 ? "Ticked in sessions — cannot delete" : "Delete"}
-            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive shrink-0 rounded p-1 transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
-          >
-            <Trash2 size={12} aria-hidden="true" />
-          </button>
+              <span
+                aria-label={`Act ${act.name}, level ${act.level}`}
+                className={cn(
+                  !showDescription &&
+                    act.description &&
+                    "decoration-muted-foreground/50 underline decoration-dotted underline-offset-4",
+                )}
+              >
+                {act.name}
+              </span>
+            </InlineEditable>
+          </IntensityHoverText>
         </div>
-      </div>
-      <IntensityHoverText side="top" text={showDescription ? null : act.description}>
-        <InlineEditable
-          value={act.name}
-          onSave={(name) =>
-            call(() => updateIntensityActAction(act.id, { name }))
-          }
-          className="px-1 text-sm font-medium"
-        >
+        {used > 0 && (
           <span
-            aria-label={`Act ${act.name}, level ${act.level}`}
-            className={cn(
-              !showDescription &&
-                act.description &&
-                "decoration-muted-foreground/50 underline decoration-dotted underline-offset-4",
-            )}
+            className="text-muted-foreground shrink-0 pt-1 text-[10px] tabular-nums"
+            title={`Ticked in ${used} ${used === 1 ? "session" : "sessions"}`}
           >
-            {act.name}
+            {used}×
           </span>
-        </InlineEditable>
-      </IntensityHoverText>
+        )}
+      </div>
       {showDescription && (
         <InlineEditable
           type="textarea"

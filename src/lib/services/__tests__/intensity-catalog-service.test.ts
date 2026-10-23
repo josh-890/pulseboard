@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import {
+  createIntensityAct,
+  moveIntensityActs,
   renameIntensityScenario,
   updateIntensityAct,
   updateIntensityExtra,
@@ -93,5 +95,49 @@ describe("a rename carries saved queries along", () => {
     expect((await tags(media.id)).get("q")).toBe("x");
     expect((await tags(sessions.id)).get("tags")).toBe(`intensity:"${RUN} Stage>=4"`);
     expect((await tags(other.id)).get("tags")).toBe("act:Elsewhere");
+  });
+});
+
+describe("moving acts on the board (K1)", () => {
+  const cell = async (scenarioId: string, level: number) =>
+    (
+      await prisma.intensityAct.findMany({
+        where: { scenarioId, level },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+        select: { name: true },
+      })
+    ).map((a) => a.name.replace(`${RUN} `, ""));
+
+  it("puts acts before another or at the end, across scenario and level, and renumbers the cell", async () => {
+    const other = (await prisma.intensityScenario.create({ data: { name: `${RUN} Other`, sortOrder: 98 } })).id;
+    const a = await createIntensityAct(other, `${RUN} a`, 2);
+    const b = await createIntensityAct(other, `${RUN} b`, 2);
+    const c = await createIntensityAct(other, `${RUN} c`, 2);
+    expect(await cell(other, 2)).toEqual(["a", "b", "c"]); // new ones at the end
+
+    await moveIntensityActs([c.id], { scenarioId: other, level: 2, beforeId: a.id });
+    expect(await cell(other, 2)).toEqual(["c", "a", "b"]);
+
+    // Into another scenario and level, before an act there; ticks stay with the act
+    const tick = await prisma.contributionAct.create({ data: { contributionId: ids.c!, actId: a.id } });
+    const d = await createIntensityAct(ids.scenario!, `${RUN} d`, 4.5);
+    await moveIntensityActs([a.id], { scenarioId: ids.scenario!, level: 4.5, beforeId: d.id });
+    expect(await cell(ids.scenario!, 4.5)).toEqual(["a", "d"]);
+    expect(await cell(other, 2)).toEqual(["c", "b"]);
+    expect((await prisma.contributionAct.findUniqueOrThrow({ where: { id: tick.id } })).actId).toBe(a.id);
+    await prisma.contributionAct.delete({ where: { id: tick.id } });
+
+    // Several at once keep their given order, at the end
+    await moveIntensityActs([b.id, c.id], { scenarioId: ids.scenario!, level: 4.5, beforeId: null });
+    expect(await cell(ids.scenario!, 4.5)).toEqual(["a", "d", "b", "c"]);
+  });
+
+  it("refuses a name the target scenario already has, and a level above 9.5", async () => {
+    const third = (await prisma.intensityScenario.create({ data: { name: `${RUN} Third`, sortOrder: 97 } })).id;
+    const twin = await createIntensityAct(third, `${RUN} d`, 1);
+    await expect(moveIntensityActs([twin.id], { scenarioId: ids.scenario!, level: 1, beforeId: null })).rejects.toThrow(
+      `already has “${RUN} d”`,
+    );
+    await expect(moveIntensityActs([twin.id], { scenarioId: third, level: 10, beforeId: null })).rejects.toThrow("up to 9.5");
   });
 });

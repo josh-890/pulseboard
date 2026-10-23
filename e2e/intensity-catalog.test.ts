@@ -63,25 +63,11 @@ test("acts sit on the row of their level; the scale describes each value", async
   await expect(page.getByRole("cell", { name: `${SCENARIO} at 2`, exact: true })).toContainText("Test act one");
   await expect.poll(acts).toEqual(["2 Test act one"]);
 
-  // A level off the half-step grid is refused; a valid one moves it to that row
-  const level = page.getByRole("spinbutton", { name: "Level of Test act one" });
-  await level.fill("2.3");
-  await level.press("Enter");
-  await expect(level).toHaveValue("2");
-  await level.fill("3.5");
-  await level.press("Enter");
-  await expect(page.getByRole("cell", { name: `${SCENARIO} at 3.5`, exact: true })).toContainText("Test act one");
-  await expect.poll(acts).toEqual(["3.5 Test act one"]);
-
-  // Arrow keys step; after a short rest the act moves rows and keeps the cursor
-  await page.getByRole("spinbutton", { name: "Level of Test act one" }).press("ArrowUp");
-  await page.keyboard.press("ArrowUp");
-  await expect(page.getByRole("cell", { name: `${SCENARIO} at 4.5`, exact: true })).toContainText("Test act one");
-  await expect.poll(acts).toEqual(["4.5 Test act one"]);
-  await expect(page.getByRole("spinbutton", { name: "Level of Test act one" })).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await expect.poll(acts).toEqual(["4 Test act one"]);
-  await expect(page.getByRole("spinbutton", { name: "Level of Test act one" })).toBeFocused();
+  // Its level changes by dragging it (intensity-board.test.ts); the card has no level field or delete of its own
+  const cardOne = page.getByRole("button", { name: /^Test act one, level 2/ });
+  await expect(cardOne).toBeVisible();
+  await expect(page.getByRole("spinbutton", { name: "Level of Test act one" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Delete Test act one" })).toHaveCount(0);
 
   // Half steps show on request; a value gets a title, and — with descriptions
   // unfolded — a description, which otherwise shows on hover
@@ -110,16 +96,14 @@ test("acts sit on the row of their level; the scale describes each value", async
     await expect(page.getByRole("tooltip")).toContainText("Test: almost at the edge", { timeout: 1500 });
   }).toPass({ timeout: 10_000 });
 
-  await page.getByRole("button", { name: "Delete Test act one" }).click();
-  await expect.poll(acts).toEqual([]);
-
-  // Deleting the scenario lives in its ⋯ menu and asks first
+  // Deleting the scenario lives in its ⋯ menu and asks first — its unticked acts go with it
   await page.getByRole("button", { name: `More for ${SCENARIO}` }).click();
   await page.getByRole("menuitem", { name: "Delete scenario…" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText(`Delete the scenario ${SCENARIO}?`);
   await dialog.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByRole("columnheader", { name: `Scenario ${SCENARIO}` })).toHaveCount(0);
+  await expect.poll(acts).toEqual([]);
 });
 
 test("extras: a group, an extra in it with points, Max renamed but not deletable", async ({ page }) => {

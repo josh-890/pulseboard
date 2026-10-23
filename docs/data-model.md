@@ -216,7 +216,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - Skills (`SkillGroup`, `SkillDefinition`, `PersonSkill`, `PersonSkillEvent`, `SkillEventMedia`, `ContributionSkill`) were retired 2026-10-22 (ADR-0036, slice 5): abilities became "Person traits" tags, intensity replaced the rest.
 - **IntensityScaleStep** (ADR-0036) — what an intensity value means: `value` (0–10 in 0.5 steps, unique), optional `title` + `description` (a row with neither is deleted).
 - **IntensityScenario** / **IntensityAct** (ADR-0036) — the intensity catalog: ordered scenarios (columns), each with
-  its own acts carrying a `level` (Float, 0–9.5 in 0.5 steps).
+  its own acts carrying a `level` (Float, 0–9.5 in 0.5 steps) and a `sortOrder` — the manual order within its cell
+  (scenario × level), from 0 (2026-10-23, the board).
 - **IntensityExtraGroup** / **IntensityExtra** — extras add `points` to an act's level; at most one per group;
   exactly one `isMax` extra (partial unique index) sets 10.
 - **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).

@@ -11,6 +11,7 @@ import {
   createIntensityAct,
   updateIntensityAct,
   deleteIntensityAct,
+  moveIntensityActs,
   createIntensityExtraGroup,
   renameIntensityExtraGroup,
   deleteIntensityExtraGroup,
@@ -18,6 +19,7 @@ import {
   updateIntensityExtra,
   deleteIntensityExtra,
 } from "@/lib/services/intensity-catalog-service";
+import type { IntensityActPlace } from "@/lib/services/intensity-catalog-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 // The intensity catalog editor (ADR-0036). Every action revalidates the
@@ -62,6 +64,10 @@ export async function updateIntensityActAction(
   data: { name?: string; description?: string | null; level?: number },
 ) {
   return run(() => updateIntensityAct(id, data));
+}
+/** Drag on the board: acts into a cell (scenario × level), before an act or at the end */
+export async function moveIntensityActsAction(ids: string[], to: IntensityActPlace) {
+  return run(() => moveIntensityActs(ids, to));
 }
 export async function deleteIntensityActAction(id: string) {
   return run(() => deleteIntensityAct(id));

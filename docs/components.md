@@ -276,17 +276,20 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 ### Intensity catalog (`components/settings/intensity/`, ADR-0036)
 | Component | Type | Props | Description |
 |---|---|---|---|
-| `IntensityCatalogEditor` | Client | `catalog` (`IntensityCatalog`) | Settings → Catalogs → Intensity: a matrix (`role="table"`) — rows = intensity values (`intensityRows()`, "Half steps" toggle), compact by default ("Descriptions" toggle unfolds), sticky scale column, scenario columns + "add scenario"; then the extras panel |
-| `IntensityScaleCell` | Client | `value`, `title`, `description`, `showDescription`, `maxName` | Row header: the value, its title (inline) and description (inline textarea when unfolded, hover text when folded); the 10 row names Max |
+| `IntensityCatalogEditor` | Client | `catalog` (`IntensityCatalog`) | Settings → Catalogs → Intensity: a board (`role="table"`, `DndContext` id `intensity-board`, `DragOverlay` portalled to the body) — lanes = intensity values (`intensityRows()` from the board layout; "Half steps" toggle, all half steps while a card is held), compact by default ("Descriptions" toggle unfolds), sticky scale column, scenario columns + "add scenario"; then the extras panel |
+| `IntensityScaleCell` | Client | `value`, `title`, `description`, `showDescription`, `maxName`, `active?` (the held card's lane) | Row header: the value, its title (inline) and description (inline textarea when unfolded, hover text when folded); the 10 row names Max |
 | `IntensityScenarioHeader` | Client | `scenario`, `isFirst`, `isLast`, `focused`, `onFocusChange` | Column header ‹ ⋯ name ⤢ ›: inline rename, move, focus toggle (this scenario alone at full width); delete in the ⋯ menu with a confirmation (blocked while ticked) |
-| `IntensityActCell` | Client | `scenario`, `level`, `acts` | One cell: the scenario's acts on that level + "+ Act" (hover) to add one there |
-| `IntensityActRow` | Client | `act`, `showDescription` | One act: inline title at full cell width (description as hover text when folded, inline textarea when unfolded); level field (moves it to another row) and delete (blocked while ticked) float right of the card on hover/focus; description tooltip opens above |
+| `IntensityActCell` | Client | `scenario`, `level`, `acts`, `showDescriptions`, `dragging?`, `dropBeforeId?` | One cell: a droppable + `SortableContext` of the scenario's acts on that level in their order, + "+ Act" (hover) to add one there; lit with a line where a card from another cell would land (`dropBeforeId`: before that act, `null` at the end) |
+| `IntensityActRow` | Client | `act`, `showDescription` | One act, a sortable card (whole card drags — mouse after 6 px, touch after a 250 ms hold, Space for the keyboard; fields inside don't start a drag): inline title at full width (description as hover text when folded, inline textarea when unfolded) and the tick count (`3×`). No level field or delete on the card — the level changes by dragging; number and delete go to the act's panel (K2) |
+| `IntensityDragCard` | Client | `name`, `start`, `grip`, `width` | The card in hand during a mouse/finger drag, portalled to the body: follows `mousemove`/`touchmove` itself, so it stays where it was gripped whatever shifts beneath it (keyboard drags use dnd-kit's `DragOverlay`) |
 | `IntensityExtrasPanel` | Client | `groups`, `extras` | One card per extra group ("pick one"), one for ungrouped extras, Max (rename only), new group |
 | `IntensityExtraRow` | Client | `extra`, `groups` | One extra: inline name, points field, group menu, delete (blocked while used) |
 | `IntensityStepInput` | Client | `value`, `label`, `prefix?`, `onCommit`, `autoFocus?` | Number in 0.5 steps; saves 0.7 s after the last change, on Enter or blur (once); Esc or an invalid value restores; never disables itself, so arrow-stepping keeps focus |
 | `IntensityAddInput` | Client | `placeholder`, `label`, `onAdd`, `onClose?`, `autoFocus?` | One-line add field; Enter adds and keeps the field ready; with `onClose`, Esc or leaving it empty closes it |
 
 `useCatalogCall()` runs a catalog action, refreshes, toasts a failure and throws so `InlineEditable` stays open.
+
+`useActBoard(catalog)` (`use-act-board.ts`, K1) — the board's drag state: `layout` (cell `scenarioId|level` → act ids), `target` (another cell the held card would land in), `overLevel` (the lane under the held card, lit with its scale cell), `follow` (start/grip for `IntensityDragCard`), `dnd` props (sensors, pointer-first collision with a nearest-cell fallback and `closestCenter` for the keyboard, named announcements). A drop moves optimistically, saves via `moveIntensityActsAction`, toasts "→ Scenario · level" with **Undo**; `swallowClickAfterDrag` keeps the click that ends a drag from opening an editor.
 
 ## Shared Components (`components/shared/`)
 

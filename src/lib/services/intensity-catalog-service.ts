@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
-import { INTENSITY_MAX, isIntensityStep } from "@/lib/intensity";
+import { INTENSITY_CAP, INTENSITY_MAX, isIntensityStep } from "@/lib/intensity";
 import { renameInTagQuery, type CatalogRename } from "@/lib/tag-query";
 
 // The intensity catalog (ADR-0036): scenarios (columns, ordered by sortOrder),
@@ -15,7 +15,7 @@ export async function getIntensityCatalog() {
       orderBy: { sortOrder: "asc" },
       include: {
         acts: {
-          orderBy: [{ level: "asc" }, { name: "asc" }],
+          orderBy: [{ level: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
           include: { _count: { select: { contributions: true } } },
         },
       },
@@ -127,28 +127,92 @@ export async function moveIntensityScenario(id: string, direction: -1 | 1) {
 
 // ─── Acts ────────────────────────────────────────────────────────────────────
 
-export async function createIntensityAct(scenarioId: string, name: string, level: number) {
+function checkLevel(level: number) {
   checkStep(level, "The level");
-  return prisma.intensityAct.create({ data: { scenarioId, name: cleanName(name), level } });
+  if (level > INTENSITY_CAP) throw new Error(`The level goes up to ${INTENSITY_CAP} — only Max reaches 10.`);
+}
+
+/** The next place at the end of a cell (scenario × level) */
+async function endOfCell(tx: Prisma.TransactionClient, scenarioId: string, level: number) {
+  return nextSortOrder(tx.intensityAct.aggregate({ where: { scenarioId, level }, _max: { sortOrder: true } }));
+}
+
+export async function createIntensityAct(scenarioId: string, name: string, level: number) {
+  checkLevel(level);
+  return prisma.$transaction(async (tx) =>
+    tx.intensityAct.create({
+      data: { scenarioId, name: cleanName(name), level, sortOrder: await endOfCell(tx, scenarioId, level) },
+    }),
+  );
+}
+
+export type IntensityActPlace = {
+  scenarioId: string;
+  level: number;
+  /** The act to stand before in that cell; null for the end */
+  beforeId: string | null;
+};
+
+/**
+ * Moves acts into a cell — another scenario and/or level — at a place in its
+ * order, keeping their given order (the board, 2026-10-23). The cell is
+ * renumbered; ticks, photos and extras stay with the acts.
+ */
+export async function moveIntensityActs(ids: string[], to: IntensityActPlace) {
+  checkLevel(to.level);
+  const moving = [...new Set(ids)];
+  if (moving.length === 0) return;
+  await prisma.$transaction(async (tx) => {
+    const acts = await tx.intensityAct.findMany({ where: { id: { in: moving } }, select: { id: true, name: true, scenarioId: true } });
+    if (acts.length !== moving.length) throw new Error("An act is gone — reload the page.");
+    const names = new Set<string>();
+    for (const a of acts) {
+      if (names.has(a.name)) throw new Error(`Two acts called “${a.name}” cannot share a scenario.`);
+      names.add(a.name);
+    }
+    const scenario = await tx.intensityScenario.findUniqueOrThrow({
+      where: { id: to.scenarioId },
+      select: { name: true, acts: { where: { id: { notIn: moving } }, select: { name: true } } },
+    });
+    const clash = scenario.acts.find((a) => names.has(a.name));
+    if (clash) throw new Error(`${scenario.name} already has “${clash.name}”.`);
+
+    const stay = await tx.intensityAct.findMany({
+      where: { scenarioId: to.scenarioId, level: to.level, id: { notIn: moving } },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true },
+    });
+    const order = stay.map((a) => a.id);
+    const at = to.beforeId ? order.indexOf(to.beforeId) : -1;
+    order.splice(at < 0 ? order.length : at, 0, ...moving);
+    for (const [sortOrder, id] of order.entries()) {
+      await tx.intensityAct.update({
+        where: { id },
+        data: moving.includes(id) ? { scenarioId: to.scenarioId, level: to.level, sortOrder } : { sortOrder },
+      });
+    }
+  });
 }
 
 export async function updateIntensityAct(
   id: string,
   data: { name?: string; description?: string | null; level?: number },
 ) {
-  if (data.level !== undefined) checkStep(data.level, "The level");
+  if (data.level !== undefined) checkLevel(data.level);
   const to = data.name === undefined ? undefined : cleanName(data.name);
   return prisma.$transaction(async (tx) => {
     const before = await tx.intensityAct.findUniqueOrThrow({
       where: { id },
-      select: { name: true, scenario: { select: { name: true } } },
+      select: { name: true, level: true, scenarioId: true, scenario: { select: { name: true } } },
     });
+    // A new level puts it at the end of its new row
+    const relevel = data.level !== undefined && data.level !== before.level;
     const act = await tx.intensityAct.update({
       where: { id },
       data: {
         ...(to !== undefined && { name: to }),
         ...(data.description !== undefined && { description: data.description?.trim() || null }),
-        ...(data.level !== undefined && { level: data.level }),
+        ...(relevel && { level: data.level, sortOrder: await endOfCell(tx, before.scenarioId, data.level!) }),
       },
     });
     if (to !== undefined && to !== before.name) {

@@ -1774,6 +1774,8 @@ model IntensityAct {
   description   String?
   /// In 0.5 steps
   level         Float
+  /// Manual order within its cell (scenario × level), from 0
+  sortOrder     Int               @default(0)
   contributions ContributionAct[]
   createdAt     DateTime          @default(now())
 

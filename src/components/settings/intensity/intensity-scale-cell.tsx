@@ -9,6 +9,8 @@ import { IntensityHoverText } from "@/components/intensity/intensity-hover-text"
 import { useCatalogCall } from "./use-catalog-call";
 
 export type IntensityScaleCellProps = {
+  /** A held card is over this lane */
+  active?: boolean;
   value: number;
   title: string | null;
   description: string | null;
@@ -20,7 +22,14 @@ export type IntensityScaleCellProps = {
 
 // The first column: an intensity value with a title and, in the user's words,
 // a description of what it means.
-export function IntensityScaleCell({ value, title, description, showDescription, maxName }: IntensityScaleCellProps) {
+export function IntensityScaleCell({
+  value,
+  title,
+  description,
+  showDescription,
+  maxName,
+  active = false,
+}: IntensityScaleCellProps) {
   const { call } = useCatalogCall();
   const isMax = value === INTENSITY_MAX;
   const isHalf = !Number.isInteger(value);
@@ -32,6 +41,7 @@ export function IntensityScaleCell({ value, title, description, showDescription,
         className={cn(
           "w-9 shrink-0 text-right tabular-nums",
           isHalf ? "text-sm leading-7 text-muted-foreground" : "text-base font-bold leading-7",
+          active && "text-primary font-bold",
         )}
       >
         {label}

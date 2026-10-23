@@ -78,3 +78,12 @@ K3 bulk, K4 overview; then merge/replace/archive; then impact preview and a chan
 places where an edit silently broke something: moving an extra into a group is refused while sessions hold it beside
 another extra of that group (both would count), and renaming an act or a scenario rewrites the saved filters and
 Smart Collections that name it (`act:`, `intensity:Scenario…`) in the same transaction.
+
+## Amendment 2026-10-23 — the catalog is a board (K1)
+
+The matrix is a Kanban board with sub-grouping (as in Linear or GitHub Projects): scenarios are columns, intensity
+levels are horizontal lanes across all of them, acts are cards. A card dragged into any cell takes that scenario and
+level at once; within a cell the order is manual (`IntensityAct.sortOrder`, migration
+`20261023120000_intensity_act_sort_order`, started by name). Cross-cell drags light the target and draw a line
+instead of moving cards live, so nothing shifts under the pointer; every move toasts Undo. The session's act list
+follows the same order.
