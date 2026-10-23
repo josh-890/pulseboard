@@ -84,7 +84,6 @@ export function intensityRows(described: number[], actLevels: number[], showHalf
 
 /** The seeded scenarios the cast suggests (ADR-0036) — by id, so renaming keeps the rule */
 export const SCENARIO_IDS = {
-  glamour: "dsit-glamour",
   solo: "dsit-solo",
   gg: "dsit-gg",
   gb: "dsit-gb",
@@ -92,12 +91,12 @@ export const SCENARIO_IDS = {
 } as const;
 
 /**
- * Which scenarios a person's cast suggests: alone → Glamour and Solo; with one
+ * Which scenarios a person's cast suggests: alone → Solo; with one
  * other → G-G (two women) or G-B (a woman and a man); with two or more others →
  * Group. Unknown sexes suggest nothing — every scenario stays one click away.
  */
 export function suggestScenarioIds(self: string | null, others: (string | null)[]): string[] {
-  if (others.length === 0) return [SCENARIO_IDS.glamour, SCENARIO_IDS.solo];
+  if (others.length === 0) return [SCENARIO_IDS.solo];
   if (others.length >= 2) return [SCENARIO_IDS.group];
   const pair = [self, others[0]];
   if (pair.some((s) => s !== "female" && s !== "male")) return [];

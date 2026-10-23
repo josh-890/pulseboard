@@ -46,7 +46,7 @@ async function acts() {
 
 test("acts sit on the row of their level; the scale describes each value", async ({ page }) => {
   await page.goto("/settings/catalogs/intensity");
-  for (const name of ["Glamour", "Solo", "G-G", "G-B", "Group", "Special"]) {
+  for (const name of ["Solo", "G-G", "G-B", "Group", "Special"]) {
     await expect(page.getByRole("columnheader", { name: `Scenario ${name}` })).toBeVisible();
   }
 
@@ -173,8 +173,8 @@ test("one scenario can be worked in alone, at full width", async ({ page }) => {
   await page.goto("/settings/catalogs/intensity");
   await page.getByRole("button", { name: "Work in Solo only" }).click();
   await expect(page.getByRole("columnheader", { name: "Scenario Solo" })).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "Scenario Glamour" })).toHaveCount(0);
+  await expect(page.getByRole("columnheader", { name: "Scenario G-G" })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Add a scenario" })).toHaveCount(0);
   await page.getByRole("button", { name: "Show all scenarios" }).click();
-  await expect(page.getByRole("columnheader", { name: "Scenario Glamour" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Scenario G-G" })).toBeVisible();
 });

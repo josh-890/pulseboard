@@ -66,8 +66,8 @@ describe("intensityRows", () => {
 });
 
 describe("suggestScenarioIds", () => {
-  it("alone → Glamour and Solo", () => {
-    expect(suggestScenarioIds("female", [])).toEqual(["dsit-glamour", "dsit-solo"]);
+  it("alone → Solo", () => {
+    expect(suggestScenarioIds("female", [])).toEqual(["dsit-solo"]);
   });
   it("one other → G-G or G-B", () => {
     expect(suggestScenarioIds("female", ["female"])).toEqual(["dsit-gg"]);

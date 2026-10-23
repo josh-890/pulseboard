@@ -18,7 +18,7 @@ test.beforeAll(async () => {
   await db.query(`INSERT INTO "Person" (id, "icgId", "sexAtBirth") VALUES ($1, $2, 'female')`, [P, ICG]);
   await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [`${P}-a`, P, `Test Course ${RUN}`]);
   await db.query(
-    `INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1,'dsit-glamour',$2,1.5),($3,'dsit-glamour',$4,2.5),($5,'dsit-glamour',$6,5),($7,'dsit-glamour',$8,7)`,
+    `INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1,'dsit-solo',$2,1.5),($3,'dsit-solo',$4,2.5),($5,'dsit-solo',$6,5),($7,'dsit-solo',$8,7)`,
     [act("swim"), NAMES.swim, act("ling"), NAMES.ling, act("top"), NAMES.top, act("nude"), NAMES.nude],
   );
   const sessions: [string, string | null, string, string[], string[]][] = [

@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   await db.connect();
   await db.query(`INSERT INTO "Person" (id, "icgId", "sexAtBirth") VALUES ($1, $2, 'female')`, [P.id, P.icg]);
   await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [`${P.id}-a`, P.id, P.name]);
-  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-glamour', $2, 7.5), ($3, 'dsit-glamour', $4, 2)`, [
+  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-solo', $2, 7.5), ($3, 'dsit-solo', $4, 2)`, [
     ACTS.high,
     `Test high act ${RUN}`,
     ACTS.low,
@@ -63,7 +63,7 @@ test("a person's peak, and intensity within a scenario in the query", async ({ p
   await expect(page.getByRole("button", { name: "Peak intensity: ≥ 9" })).toBeVisible();
   await expect(card).toHaveCount(0); // the peak is 7.5
 
-  await page.goto(`/sessions?q=${encodeURIComponent(`Test intense ${RUN}`)}&tags=${encodeURIComponent("intensity:Glamour<3")}`);
+  await page.goto(`/sessions?q=${encodeURIComponent(`Test intense ${RUN}`)}&tags=${encodeURIComponent("intensity:Solo<3")}`);
   await expect(page.getByText(LOW.name)).toBeVisible();
   await expect(page.getByText(HIGH.name)).toHaveCount(0);
 });

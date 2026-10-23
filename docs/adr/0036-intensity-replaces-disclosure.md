@@ -16,8 +16,8 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
 
 ## Decision
 
-1. **Words.** *Intensity* is the topic and the person tab. Columns are **scenarios** (Glamour · Solo · G-G · G-B ·
-   Group · Special, ordered). A cell is an **act** with an **intensity level**. A surcharge is an **extra**.
+1. **Words.** *Intensity* is the topic and the person tab. Columns are **scenarios** (Solo · G-G · G-B · Group ·
+   Special, ordered — Glamour was merged into Solo on 2026-10-23, see the amendment below). A cell is an **act** with an **intensity level**. A surcharge is an **extra**.
    Rejected: "activity" (the `Activity` feed), "modifier" (date modifiers), "mod" (body mods), "special" (a
    scenario), "factor" (it adds, not multiplies), "situation", "step".
 2. **Catalog.** Each scenario has its **own list of acts**, each with its own level — no shared rows across
@@ -62,3 +62,11 @@ ladder — and circumstances (public, first time) raise it by known amounts. "Di
   person skills became "Person traits" tags — acting, stunts, fitness; xpulse's Solo skills were not mapped to
   acts and nothing there was carried over; then the Skill tables, enums, tab, catalog page, session section,
   `/api/skill-events` and the skill-level settings were removed). `Person.pgrade` stays.
+
+## Amendment 2026-10-23 — Glamour merged into Solo
+
+Splitting "classic modelling, no action of one's own" (Glamour) from "action of one's own" (Solo) made no sense in
+practice: both are one person alone, and the line between them is the act, not the constellation. Migration
+`20261023090000_merge_glamour_into_solo` moves Glamour's acts to Solo with their ids (ticks, photo evidence and extras
+stay); an act whose name Solo already has, ignoring case, joins that act. A person alone is now suggested Solo only.
+

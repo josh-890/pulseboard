@@ -345,7 +345,7 @@ _Avoid_: "skill" (retired — it named an ability); "disclosure" (the first draf
 A **title** and a **description** for each intensity value (0–10 in 0.5 steps), in the user's words — the first column of the catalog matrix. Acts line up on the row of their level.
 
 **Scenario** (code model & DB table: `IntensityScenario`):
-A column of the catalog — the constellation an act happens in: Glamour (classic modelling, no action of one's own) · Solo (action of one's own) · G-G · G-B · Group · Special. Ordered. Suggested from a session's on-camera cast (alone → Glamour + Solo, one other woman → G-G, a man → G-B, two or more → Group; an unknown sex suggests nothing) — by the seeded scenario ids, so renaming keeps the rule; the user decides.
+A column of the catalog — the constellation an act happens in: Solo (one person alone — from classic modelling to action of one's own; Glamour merged into it 2026-10-23) · G-G · G-B · Group · Special. Ordered. Suggested from a session's on-camera cast (alone → Solo, one other woman → G-G, a man → G-B, two or more → Group; an unknown sex suggests nothing) — by the seeded scenario ids, so renaming keeps the rule; the user decides.
 _Avoid_: "situation" (ADR-0035's word), "setup".
 
 **Act** (code model & DB table: `IntensityAct`):

@@ -26,7 +26,7 @@ test.beforeAll(async () => {
   for (const p of [A, B]) {
     await db.query(`INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId") VALUES ($1, $2, $3, 'crd_model')`, [p.c, SESSION, p.id]);
   }
-  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-glamour', $2, 3), ($3, 'dsit-glamour', $4, 6)`, [
+  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-solo', $2, 3), ($3, 'dsit-solo', $4, 6)`, [
     ACT1.id,
     ACT1.name,
     ACT2.id,
@@ -79,8 +79,8 @@ test("one person: tick, note, session extras, own extras, Max — and it all com
   const [publicName, firstName, maxName] = [await extraName("dset-public"), await extraName("ix-first-time"), await extraName("ix-max")];
   const panel = await openPanel(page);
   await expect(panel.getByText(`Editing ${label(A)}`)).toBeVisible();
-  // Two women on camera: G-G is the suggestion; Glamour opens by hand
-  await panel.getByRole("button", { name: /^Glamour/ }).click();
+  // Two women on camera: G-G is the suggestion; Solo opens by hand
+  await panel.getByRole("button", { name: /^Solo/ }).click();
 
   await panel.getByRole("checkbox", { name: ACT1.name }).check();
   await expect(chip(page, A)).toContainText("3");
@@ -120,7 +120,7 @@ test("one person: tick, note, session extras, own extras, Max — and it all com
 test("several people: a change applies to all; a half tick names who has the act", async ({ page }) => {
   const publicName = await extraName("dset-public");
   const panel = await openPanel(page);
-  await panel.getByRole("button", { name: /^Glamour/ }).click();
+  await panel.getByRole("button", { name: /^Solo/ }).click();
   await panel.getByRole("checkbox", { name: ACT1.name }).check(); // Anna only
 
   await chip(page, B).click(); // both selected
@@ -140,7 +140,7 @@ test("several people: a change applies to all; a half tick names who has the act
 
 test("unticking an act with a note offers Undo; Same as copies; Enter in the search ticks", async ({ page }) => {
   const panel = await openPanel(page);
-  await panel.getByRole("button", { name: /^Glamour/ }).click();
+  await panel.getByRole("button", { name: /^Solo/ }).click();
   await panel.getByRole("checkbox", { name: ACT1.name }).check();
   await panel.getByRole("button", { name: `Add a note to ${ACT1.name}` }).click();
   await panel.getByRole("textbox", { name: `Note on ${ACT1.name}` }).fill("Test: keep me");

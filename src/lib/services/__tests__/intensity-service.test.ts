@@ -57,7 +57,7 @@ describe("a session's intensity", () => {
     ids.cPhoto = await contribution("s1", "carl", "crd_photographer");
     let rows = await getSessionIntensity(ids.s1!);
     expect(rows.map((r) => r.person.name)).toEqual([`${RUN} anna`]); // the photographer is behind the camera
-    expect(rows[0]!.suggestedScenarioIds).toEqual(["dsit-glamour", "dsit-solo"]);
+    expect(rows[0]!.suggestedScenarioIds).toEqual(["dsit-solo"]);
 
     await contribution("s1", "bea");
     rows = await getSessionIntensity(ids.s1!);

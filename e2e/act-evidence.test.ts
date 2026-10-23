@@ -26,7 +26,7 @@ test.beforeAll(async () => {
     `Test session ${RUN}`,
   ]);
   await db.query(`INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId") VALUES ($1, $2, $3, 'crd_model')`, [C, SESSION, P.id]);
-  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-glamour', $2, 4)`, [ACT.id, ACT.name]);
+  await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-solo', $2, 4)`, [ACT.id, ACT.name]);
   await db.query(`INSERT INTO "ContributionAct" (id, "contributionId", "actId") VALUES ($1, $2, $3)`, [CA, C, ACT.id]);
   for (const [i, m] of PHOTOS.entries()) {
     await db.query(
