@@ -25,7 +25,22 @@ export type IntensityExtraRef = {
   points: number;
   groupId: string | null;
   isMax: boolean;
+  /** Scenarios it does not count in — its group's, or its own without a group (2026-10-23); none = everywhere */
+  offIn?: string[];
 };
+
+/** Whether an extra counts for an act in this scenario — Max always does */
+export function countsIn(extra: IntensityExtraRef, scenarioId: string): boolean {
+  return extra.isMax || !extra.offIn?.includes(scenarioId);
+}
+
+/** An act's extras split by its scenario: those that count, and those set but not for this scenario */
+export function extrasForScenario<E extends IntensityExtraRef>(extras: E[], scenarioId: string): { counted: E[]; skipped: E[] } {
+  return {
+    counted: extras.filter((e) => countsIn(e, scenarioId)),
+    skipped: extras.filter((e) => !countsIn(e, scenarioId)),
+  };
+}
 
 export type ActExtraOverride = {
   extraId: string;
@@ -35,6 +50,14 @@ export type ActExtraOverride = {
 /** True for a value in 0.5 steps, 0 or more */
 export function isIntensityStep(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && Number.isInteger(value / INTENSITY_STEP);
+}
+
+/**
+ * True for an extra's points: 0.5 steps, below zero too — a circumstance that
+ * makes an act easier takes points off (2026-10-23)
+ */
+export function isPointsStep(value: number): boolean {
+  return Number.isFinite(value) && Math.abs(value) <= INTENSITY_MAX_RANGE.max && Number.isInteger(value / INTENSITY_STEP);
 }
 
 /** The extras an act carries: the inherited ones with its own departures applied */
@@ -59,11 +82,14 @@ export function effectiveExtras<E extends IntensityExtraRef>(
   return [...result.values()];
 }
 
-/** An act's value: the Max extra → Max, otherwise level + points, capped half a step below Max */
+/**
+ * An act's value: the Max extra → Max, otherwise level + points (which may be
+ * negative), capped half a step below Max and never below 0
+ */
 export function actValue(level: number, extras: IntensityExtraRef[], max: number): number {
   if (extras.some((e) => e.isMax)) return max;
   const sum = level + extras.reduce((acc, e) => acc + e.points, 0);
-  return Math.min(intensityCap(max), sum);
+  return Math.max(0, Math.min(intensityCap(max), sum));
 }
 
 /**
@@ -78,6 +104,12 @@ export function sessionIntensity(actValues: number[], sessionExtras: IntensityEx
 /** "7", "6.5", "10" */
 export function formatIntensity(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+/** An extra's points with their sign: "+1", "+0.5", "−1", "±0" */
+export function formatPoints(points: number): string {
+  if (points === 0) return "±0";
+  return `${points < 0 ? "−" : "+"}${formatIntensity(Math.abs(points))}`;
 }
 
 /**
@@ -136,15 +168,23 @@ export function explainActValue(
   level: number,
   extras: (IntensityExtraRef & { name: string })[],
   max: number,
+  /** Extras set for the person that do not count in this act's scenario — named, so the value is not a riddle */
+  skipped?: { names: string[]; scenario: string },
 ): string {
+  const note = skipped && skipped.names.length ? ` (${skipped.names.join(", ")} — not in ${skipped.scenario})` : "";
+  return explainCore(actName, level, extras, max) + note;
+}
+
+function explainCore(actName: string, level: number, extras: (IntensityExtraRef & { name: string })[], max: number): string {
   const maxExtra = extras.find((e) => e.isMax);
   if (maxExtra) return `${maxExtra.name} → ${formatIntensity(max)}`;
   const cap = intensityCap(max);
-  const added = extras.filter((e) => e.points > 0);
-  const sum = level + added.reduce((acc, e) => acc + e.points, 0);
-  const parts = [`${actName} ${formatIntensity(level)}`, ...added.map((e) => `${e.name} ${formatIntensity(e.points)}`)];
-  const shown = parts.length === 1 ? `${parts[0]}` : `${parts.join(" + ")} = ${formatIntensity(sum)}`;
-  return sum > cap ? `${shown} → capped at ${formatIntensity(cap)}` : shown;
+  const counted = extras.filter((e) => e.points !== 0);
+  const sum = level + counted.reduce((acc, e) => acc + e.points, 0);
+  const steps = counted.map((e) => `${e.points < 0 ? "−" : "+"} ${e.name} ${formatIntensity(Math.abs(e.points))}`);
+  const shown = steps.length === 0 ? `${actName} ${formatIntensity(level)}` : `${actName} ${formatIntensity(level)} ${steps.join(" ")} = ${formatIntensity(sum)}`;
+  if (sum > cap) return `${shown} → capped at ${formatIntensity(cap)}`;
+  return sum < 0 ? `${shown} → at least 0` : shown;
 }
 
 /**

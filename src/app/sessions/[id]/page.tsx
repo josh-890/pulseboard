@@ -269,6 +269,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             points: e.points,
             groupId: e.groupId,
             isMax: e.isMax,
+            offIn: e.offIn,
           })),
         }
       : null;

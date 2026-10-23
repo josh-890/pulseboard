@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { actValue, applySharedExtras, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds } from "@/lib/intensity";
+import { actValue, applySharedExtras, formatPoints, isPointsStep, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds } from "@/lib/intensity";
 
 const semi = { id: "semi", points: 1, groupId: "loc", isMax: false };
 const pub = { id: "pub", points: 2, groupId: "loc", isMax: false };
@@ -167,5 +167,30 @@ describe("intensityColor", () => {
   it("picks dark text on the light end, white on the dark end", () => {
     expect(intensityTextColor(1, 10)).toBe("rgb(17, 24, 39)");
     expect(intensityTextColor(10, 10)).toBe("rgb(255, 255, 255)");
+  });
+});
+
+describe("negative points (2026-10-23)", () => {
+  const calm = { id: "calm", name: "Familiar", points: -1, groupId: null, isMax: false };
+  const pub = { id: "pub", name: "Public", points: 2, groupId: "loc", isMax: false };
+  const max = { id: "max", name: "Max", points: 0, groupId: null, isMax: true };
+  it("take points off, never below 0; Max still sets Max", () => {
+    expect(actValue(5, [calm], 10)).toBe(4);
+    expect(actValue(5, [calm, pub], 10)).toBe(6);
+    expect(actValue(0.5, [calm], 10)).toBe(0);
+    expect(actValue(0.5, [calm, max], 10)).toBe(10);
+  });
+  it("show their sign in the explanation, and the floor", () => {
+    expect(explainActValue("Topless", 5, [calm], 10)).toBe("Topless 5 − Familiar 1 = 4");
+    expect(explainActValue("Topless", 5, [pub, calm], 10)).toBe("Topless 5 + Public 2 − Familiar 1 = 6");
+    expect(explainActValue("Swimwear", 0.5, [calm], 10)).toBe("Swimwear 0.5 − Familiar 1 = -0.5 → at least 0");
+  });
+  it("are half steps, below zero too", () => {
+    expect(isPointsStep(-1.5)).toBe(true);
+    expect(isPointsStep(-1.3)).toBe(false);
+    expect(isIntensityStep(-1)).toBe(false); // levels stay 0 or more
+    expect(formatPoints(-1)).toBe("−1");
+    expect(formatPoints(0.5)).toBe("+0.5");
+    expect(formatPoints(0)).toBe("±0");
   });
 });

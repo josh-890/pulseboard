@@ -6,6 +6,7 @@ import {
   INTENSITY_MAX_RANGE,
   intensityCap,
   isIntensityStep,
+  isPointsStep,
 } from "@/lib/intensity";
 import { getSetting, setSetting } from "@/lib/services/setting-service";
 import { renameInTagQuery, type CatalogRename } from "@/lib/tag-query";
@@ -36,7 +37,7 @@ export async function setIntensityMax(next: number) {
   const current = await getIntensityMax();
   if (next === current) return;
   const cap = intensityCap(next);
-  const [above, described, target] = await Promise.all([
+  const [above, described, target, boundaries] = await Promise.all([
     prisma.intensityAct.findMany({
       where: { level: { gt: cap } },
       orderBy: [{ level: "desc" }, { name: "asc" }],
@@ -48,6 +49,7 @@ export async function setIntensityMax(next: number) {
       select: { value: true },
     }),
     prisma.intensityScaleStep.findUnique({ where: { value: next }, select: { id: true } }),
+    prisma.intensityBoundary.findMany({ where: { value: { gt: next } }, orderBy: { value: "asc" }, select: { value: true, title: true } }),
   ]);
   const problems: string[] = [];
   if (above.length) {
@@ -57,6 +59,9 @@ export async function setIntensityMax(next: number) {
   }
   if (described.length) {
     problems.push(`values above ${next} are described: ${described.map((d) => formatIntensity(d.value)).join(", ")}`);
+  }
+  if (boundaries.length) {
+    problems.push(`boundaries lie above ${next}: ${boundaries.map((b) => `${b.title} (${formatIntensity(b.value)})`).join(", ")}`);
   }
   const maxRow = await prisma.intensityScaleStep.findUnique({ where: { value: current }, select: { id: true } });
   if (maxRow && target) problems.push(`${next} has its own title — the Max row's text cannot move there`);
@@ -69,9 +74,13 @@ export async function setIntensityMax(next: number) {
 }
 
 export async function getIntensityCatalog() {
-  const [max, scale, scenarios, groups, extras] = await Promise.all([
+  const [max, scale, boundaries, scenarios, groupRows, extraRows] = await Promise.all([
     getIntensityMax(),
     prisma.intensityScaleStep.findMany({ orderBy: { value: "asc" }, select: { value: true, title: true, description: true } }),
+    prisma.intensityBoundary.findMany({
+      orderBy: { value: "asc" },
+      select: { id: true, value: true, title: true, description: true },
+    }),
     prisma.intensityScenario.findMany({
       orderBy: { sortOrder: "asc" },
       include: {
@@ -81,13 +90,50 @@ export async function getIntensityCatalog() {
         },
       },
     }),
-    prisma.intensityExtraGroup.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-    prisma.intensityExtra.findMany({
+    prisma.intensityExtraGroup.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      include: { _count: { select: { contributions: true, actOverrides: true } } },
+      include: { scenariosOff: { select: { scenarioId: true } } },
+    }),
+    // Within a group (and among the free ones) by points, then name — the natural rise, no upkeep
+    prisma.intensityExtra.findMany({
+      orderBy: [{ points: "asc" }, { name: "asc" }],
+      include: {
+        _count: { select: { contributions: true, actOverrides: true } },
+        scenariosOff: { select: { scenarioId: true } },
+      },
     }),
   ]);
-  return { max, scale, scenarios, groups, extras };
+  // Where each counts not (2026-10-23): a group for all its extras, an extra without a group on its own; Max always counts
+  const groups = groupRows.map(({ scenariosOff, ...g }) => ({ ...g, offIn: scenariosOff.map((o) => o.scenarioId) }));
+  const groupOff = new Map(groups.map((g) => [g.id, g.offIn]));
+  const extras = extraRows.map(({ scenariosOff, ...e }) => ({
+    ...e,
+    offIn: e.isMax ? [] : e.groupId ? (groupOff.get(e.groupId) ?? []) : scenariosOff.map((o) => o.scenarioId),
+  }));
+  return { max, scale, boundaries, scenarios, groups, extras };
+}
+
+/** The scenarios an extra's group's extras do not count in — none: all of them */
+export async function setIntensityGroupScenariosOff(groupId: string, scenarioIds: string[]) {
+  await prisma.$transaction(async (tx) => {
+    await tx.intensityExtraGroupScenarioOff.deleteMany({ where: { groupId } });
+    if (scenarioIds.length) {
+      await tx.intensityExtraGroupScenarioOff.createMany({ data: [...new Set(scenarioIds)].map((scenarioId) => ({ groupId, scenarioId })) });
+    }
+  });
+}
+
+/** The scenarios an extra without a group does not count in; Max counts everywhere, a grouped extra follows its group */
+export async function setIntensityExtraScenariosOff(extraId: string, scenarioIds: string[]) {
+  const extra = await prisma.intensityExtra.findUniqueOrThrow({ where: { id: extraId }, select: { isMax: true, groupId: true } });
+  if (extra.isMax) throw new Error("Max counts in every scenario.");
+  if (extra.groupId) throw new Error("An extra in a group counts where its group does — set it on the group.");
+  await prisma.$transaction(async (tx) => {
+    await tx.intensityExtraScenarioOff.deleteMany({ where: { extraId } });
+    if (scenarioIds.length) {
+      await tx.intensityExtraScenarioOff.createMany({ data: [...new Set(scenarioIds)].map((scenarioId) => ({ extraId, scenarioId })) });
+    }
+  });
 }
 
 export type IntensityCatalog = Awaited<ReturnType<typeof getIntensityCatalog>>;
@@ -105,6 +151,11 @@ function cleanName(name: string): string {
 
 function checkStep(value: number, what: string) {
   if (!isIntensityStep(value)) throw new Error(`${what} must be 0 or more, in steps of 0.5.`);
+}
+
+/** An extra's points: half steps, below zero too (a circumstance that makes it easier) */
+function checkPoints(value: number) {
+  if (!isPointsStep(value)) throw new Error("Points go in steps of 0.5, from −20 to +20.");
 }
 
 /**
@@ -147,6 +198,41 @@ export async function updateIntensityScaleStep(value: number, data: { title?: st
     });
     if (!step.title && !step.description) await tx.intensityScaleStep.delete({ where: { value } });
   });
+}
+
+// ─── Boundaries ──────────────────────────────────────────────────────────────
+
+/**
+ * A boundary between two levels (2026-10-23): a named line on the seam just
+ * below `value` — "at 4.5" lies between 4 and 4.5. One per seam, above 0 and up
+ * to Max (a boundary at Max is the step into Max).
+ */
+export async function createIntensityBoundary(value: number, title: string, description?: string | null) {
+  const max = await getIntensityMax();
+  if (!isIntensityStep(value) || value <= 0 || value > max) {
+    throw new Error(`A boundary lies on a seam from 0.5 up to ${max}, in half steps.`);
+  }
+  const name = cleanName(title);
+  const taken = await prisma.intensityBoundary.findUnique({ where: { value }, select: { title: true } });
+  if (taken) throw new Error(`There is a boundary at ${formatIntensity(value)} already — “${taken.title}”.`);
+  return prisma.intensityBoundary.create({
+    data: { value, title: name, description: description?.trim() || null },
+  });
+}
+
+/** Only the given field changes; an empty description clears it */
+export async function updateIntensityBoundary(id: string, data: { title?: string; description?: string | null }) {
+  return prisma.intensityBoundary.update({
+    where: { id },
+    data: {
+      ...(data.title !== undefined && { title: cleanName(data.title) }),
+      ...(data.description !== undefined && { description: data.description?.trim() || null }),
+    },
+  });
+}
+
+export async function deleteIntensityBoundary(id: string) {
+  await prisma.intensityBoundary.delete({ where: { id } });
 }
 
 // ─── Scenarios ───────────────────────────────────────────────────────────────
@@ -339,7 +425,7 @@ export async function deleteIntensityExtraGroup(id: string) {
 // ─── Extras ──────────────────────────────────────────────────────────────────
 
 export async function createIntensityExtra(name: string, points: number, groupId: string | null) {
-  checkStep(points, "Points");
+  checkPoints(points);
   const sortOrder = await nextSortOrder(prisma.intensityExtra.aggregate({ _max: { sortOrder: true } }));
   return prisma.intensityExtra.create({ data: { name: cleanName(name), points, groupId, sortOrder } });
 }
@@ -376,7 +462,7 @@ export async function updateIntensityExtra(
   if (extra.isMax && (data.points !== undefined || data.groupId !== undefined)) {
     throw new Error("Max always sets 10 — only its name can change.");
   }
-  if (data.points !== undefined) checkStep(data.points, "Points");
+  if (data.points !== undefined) checkPoints(data.points);
   if (data.groupId) await checkGroupStaysSingle(id, data.groupId);
   return prisma.intensityExtra.update({
     where: { id },

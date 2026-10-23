@@ -239,8 +239,6 @@ enum PersonMediaUsage {
   PORTFOLIO
 }
 
-
-
 enum ParticipationConfidence {
   CONFIRMED
   PROBABLE
@@ -550,7 +548,6 @@ model ScrapeSource {
 
   @@index([isScannable])
 }
-
 
 // Curated, hand-asserted relationship between a Person ("from") and either
 // another Person or a not-yet-curated PersonRef ("to"). Work co-occurrence is
@@ -1705,10 +1702,6 @@ model Activity {
   @@index([type])
 }
 
-
-
-
-
 // ─── Contribution Role Catalog ───────────────────────────────────────────────
 
 model ContributionRoleGroup {
@@ -1741,7 +1734,6 @@ model ContributionRoleDefinition {
   @@index([sortOrder])
 }
 
-
 // ─── Intensity (ADR-0036) ────────────────────────────────────────────────────
 // The mental intensity a person reaches in a scenario through an act, ticked
 // per session contribution. Catalog: scenarios (columns, ordered), each with
@@ -1758,12 +1750,25 @@ model IntensityScaleStep {
   createdAt   DateTime @default(now())
 }
 
+/// A boundary between two levels — a line a person crosses, or gives up (2026-10-23).
+/// It sits on the seam just below `value`: "at 4.5" lies between 4 and 4.5.
+model IntensityBoundary {
+  id          String   @id @default(cuid())
+  /// The value crossed, in 0.5 steps, above 0 and up to the tenant's Max
+  value       Float    @unique
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+}
+
 model IntensityScenario {
-  id        String         @id @default(cuid())
-  name      String         @unique
-  sortOrder Int            @default(0)
-  acts      IntensityAct[]
-  createdAt DateTime       @default(now())
+  id             String                           @id @default(cuid())
+  name           String                           @unique
+  sortOrder      Int                              @default(0)
+  acts           IntensityAct[]
+  extrasOff      IntensityExtraScenarioOff[]
+  extraGroupsOff IntensityExtraGroupScenarioOff[]
+  createdAt      DateTime                         @default(now())
 }
 
 model IntensityAct {
@@ -1784,26 +1789,50 @@ model IntensityAct {
 }
 
 model IntensityExtraGroup {
-  id        String           @id @default(cuid())
-  name      String           @unique
-  sortOrder Int              @default(0)
-  extras    IntensityExtra[]
-  createdAt DateTime         @default(now())
+  id           String                           @id @default(cuid())
+  name         String                           @unique
+  sortOrder    Int                              @default(0)
+  extras       IntensityExtra[]
+  /// Scenarios its extras do not count in (2026-10-23) — none: they count everywhere
+  scenariosOff IntensityExtraGroupScenarioOff[]
+  createdAt    DateTime                         @default(now())
+}
+
+/// A scenario an extra group's extras do not count in (2026-10-23)
+model IntensityExtraGroupScenarioOff {
+  groupId    String
+  group      IntensityExtraGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  scenarioId String
+  scenario   IntensityScenario   @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, scenarioId])
+}
+
+/// A scenario an extra without a group does not count in (2026-10-23); ignored while it sits in a group
+model IntensityExtraScenarioOff {
+  extraId    String
+  extra      IntensityExtra    @relation(fields: [extraId], references: [id], onDelete: Cascade)
+  scenarioId String
+  scenario   IntensityScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@id([extraId, scenarioId])
 }
 
 model IntensityExtra {
-  id            String                 @id @default(cuid())
-  name          String                 @unique
+  id            String                      @id @default(cuid())
+  name          String                      @unique
   /// Added to the act's level, in 0.5 steps
-  points        Float                  @default(0)
+  points        Float                       @default(0)
   groupId       String?
-  group         IntensityExtraGroup?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  group         IntensityExtraGroup?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
   /// The one extra that sets the value to 10 — renamable, never deleted
-  isMax         Boolean                @default(false)
-  sortOrder     Int                    @default(0)
+  isMax         Boolean                     @default(false)
+  sortOrder     Int                         @default(0)
   contributions ContributionExtra[]
   actOverrides  ContributionActExtra[]
-  createdAt     DateTime               @default(now())
+  /// Scenarios it does not count in, while it has no group (2026-10-23)
+  scenariosOff  IntensityExtraScenarioOff[]
+  createdAt     DateTime                    @default(now())
 }
 
 /// An extra set for a person in a session — every act of theirs there inherits it

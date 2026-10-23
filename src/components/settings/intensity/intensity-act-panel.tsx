@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp, Loader2, Trash2, X } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -27,9 +27,10 @@ import type {
   IntensityActUsage,
   IntensityCatalog,
 } from "@/lib/services/intensity-catalog-service";
-import { cn, formatPartialDateISO } from "@/lib/utils";
+import { formatPartialDateISO } from "@/lib/utils";
 import { IntensityStepInput } from "./intensity-step-input";
 import { useCatalogCall } from "./use-catalog-call";
+import { IntensityPanelShell } from "./intensity-panel-shell";
 
 export type IntensityActPanelProps = {
   act: IntensityCatalog["scenarios"][number]["acts"][number];
@@ -95,54 +96,25 @@ export function IntensityActPanel({
   }
 
   return (
-    <aside
-      aria-label={`Act ${act.name}`}
-      className={cn(
-        "bg-card/90 flex flex-col gap-4 rounded-2xl border border-white/20 p-4 shadow-sm backdrop-blur-md dark:border-white/10",
-        className,
-      )}
-    >
-      <div className="flex items-start gap-1">
+    <IntensityPanelShell
+      label={`Act ${act.name}`}
+      heading={
         <InlineEditable
           value={act.name}
           onSave={(name) =>
             call(() => updateIntensityActAction(act.id, { name }))
           }
-          className="min-w-0 flex-1 px-1 text-base font-semibold"
+          className="px-1 text-base font-semibold"
         >
           <h3 className="break-words">{act.name}</h3>
         </InlineEditable>
-        <button
-          type="button"
-          onClick={() => onStep(-1)}
-          disabled={!canStep.prev}
-          aria-label="Previous act"
-          title="Previous act (↑)"
-          className="text-muted-foreground hover:text-foreground rounded p-1 disabled:opacity-30"
-        >
-          <ChevronUp size={16} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onStep(1)}
-          disabled={!canStep.next}
-          aria-label="Next act"
-          title="Next act (↓)"
-          className="text-muted-foreground hover:text-foreground rounded p-1 disabled:opacity-30"
-        >
-          <ChevronDown size={16} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close the act's panel"
-          title="Close (Esc)"
-          className="text-muted-foreground hover:text-foreground rounded p-1"
-        >
-          <X size={16} aria-hidden="true" />
-        </button>
-      </div>
-
+      }
+      stepNoun="act"
+      onStep={onStep}
+      canStep={canStep}
+      onClose={onClose}
+      className={className}
+    >
       <div className="grid grid-cols-2 gap-3">
         <label className="space-y-1">
           <span className={LABEL}>Scenario</span>
@@ -281,6 +253,6 @@ export function IntensityActPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </aside>
+    </IntensityPanelShell>
   );
 }

@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const persons = [ids.anna, ids.bea, ids.carl, ids.dora].filter(Boolean) as string[];
+  const persons = [ids.anna, ids.bea, ids.carl, ids.dora, ids.erin].filter(Boolean) as string[];
   await prisma.sessionContribution.deleteMany({ where: { personId: { in: persons } } });
   await prisma.mediaItem.deleteMany({ where: { filename: { startsWith: RUN } } });
   await prisma.session.deleteMany({ where: { name: { startsWith: RUN } } });
@@ -269,5 +269,84 @@ describe("intensity in the query (slice 4)", () => {
       await prisma.setSession.deleteMany({ where: { setId: set } });
       await prisma.set.delete({ where: { id: set } });
     }
+  });
+});
+
+describe("negative points in the query (2026-10-23)", () => {
+  it("take off in SQL as in the app, and never below 0", async () => {
+    const { resolveTagFilterParam, findTagMatchIds } = await import("@/lib/services/tag-filter-service");
+    const { setContributionsAct } = await import("@/lib/services/intensity-service");
+    const calm = (await prisma.intensityExtra.create({ data: { name: `${RUN} familiar`, points: -1 } })).id;
+    const deep = (await prisma.intensityExtra.create({ data: { name: `${RUN} very familiar`, points: -5 } })).id;
+    const s = (await prisma.session.create({ data: { name: `${RUN} calm` } })).id;
+    const t = (await prisma.session.create({ data: { name: `${RUN} deep` } })).id;
+    const ca = (await prisma.sessionContribution.create({ data: { sessionId: s, personId: ids.anna!, roleDefinitionId: "crd_model" } })).id;
+    const cb = (await prisma.sessionContribution.create({ data: { sessionId: t, personId: ids.anna!, roleDefinitionId: "crd_model" } })).id;
+    await setContributionExtras(ca, [calm]); // act two (5) − 1 = 4
+    await setContributionsAct([ca], ids.act2!, true);
+    await setContributionExtras(cb, [deep]); // act one (3) − 5 → 0
+    await setContributionsAct([cb], ids.act1!, true);
+    const match = async (text: string) => {
+      const filter = (await resolveTagFilterParam(text, "SESSION"))!;
+      return (await findTagMatchIds("SESSION", filter.resolved, [s, t])).sort();
+    };
+    expect(await match("intensity:4")).toEqual([s]);
+    expect(await match("intensity>=4.5")).toEqual([]);
+    expect(await match("intensity:0")).toEqual([t]);
+    expect(await match("intensity<0")).toEqual([]);
+    const rows = await getSessionIntensity(t);
+    expect(rows[0]!.acts).toHaveLength(1);
+  });
+});
+
+describe("extras for some scenarios only (2026-10-23)", () => {
+  it("an extra turned off for the act's scenario does not count — in SQL, on the person, in the panel", async () => {
+    const { resolveTagFilterParam, findTagMatchIds } = await import("@/lib/services/tag-filter-service");
+    const { setContributionsAct, getPersonIntensity } = await import("@/lib/services/intensity-service");
+    const { setIntensityGroupScenariosOff, setIntensityExtraScenariosOff, getIntensityCatalog } = await import(
+      "@/lib/services/intensity-catalog-service"
+    );
+    const { personView } = await import("@/components/sessions/intensity/panel-state");
+    await person("erin", "female");
+    const s = (await prisma.session.create({ data: { name: `${RUN} scoped`, date: new Date("2021-01-01"), datePrecision: "DAY" } })).id;
+    const c = (await prisma.sessionContribution.create({ data: { sessionId: s, personId: ids.erin!, roleDefinitionId: "crd_model" } })).id;
+    await setContributionExtras(c, [ids.semi!, ids.first!]); // act two 5 + semi 1 + first 1 = 7
+    await setContributionsAct([c], ids.act2!, true);
+    const match = async (text: string) => {
+      const filter = (await resolveTagFilterParam(text, "SESSION"))!;
+      return (await findTagMatchIds("SESSION", filter.resolved, [s])).sort();
+    };
+    const panel = async () => {
+      const cat = await getIntensityCatalog();
+      const sc = cat.scenarios.find((x) => x.id === ids.scenario)!;
+      const acts = new Map(sc.acts.map((a) => [a.id, { level: a.level, name: a.name, scenarioId: sc.id, scenario: sc.name }]));
+      const view = personView(
+        { extraIds: [ids.semi!, ids.first!], acts: [{ id: "x", actId: ids.act2!, notes: null, overrides: [], mediaIds: [] }] },
+        { scenarios: [], groups: cat.groups, extras: cat.extras, max: cat.max },
+        acts,
+      );
+      return view.ticked.get(ids.act2!)!;
+    };
+    try {
+      expect(await match("intensity:7")).toEqual([s]);
+      expect((await panel()).value).toBe(7);
+
+      await setIntensityGroupScenariosOff(ids.group!, [ids.scenario!]); // the group's extras (semi) not here
+      expect(await match("intensity:6")).toEqual([s]);
+      expect((await panel()).value).toBe(6);
+      expect((await panel()).explain).toContain(`(${RUN} semi — not in ${RUN} scenario)`);
+
+      await setIntensityExtraScenariosOff(ids.first!, [ids.scenario!]); // and the free one
+      expect(await match("intensity:5")).toEqual([s]);
+      expect((await panel()).value).toBe(5);
+      const p = await getPersonIntensity(ids.erin!);
+      expect(p.peak?.value).toBe(5);
+
+      await expect(setIntensityExtraScenariosOff(ids.semi!, [ids.scenario!])).rejects.toThrow("set it on the group");
+    } finally {
+      await setIntensityGroupScenariosOff(ids.group!, []);
+      await setIntensityExtraScenariosOff(ids.first!, []);
+    }
+    expect(await match("intensity:7")).toEqual([s]);
   });
 });

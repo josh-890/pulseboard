@@ -21,7 +21,7 @@ import {
   setContributionsActAction,
   setContributionsExtrasAction,
 } from "@/lib/actions/intensity-actions";
-import { applySharedExtras, formatIntensity, overridesFor } from "@/lib/intensity";
+import { applySharedExtras, countsIn, formatIntensity, overridesFor } from "@/lib/intensity";
 import { IntensityValue } from "@/components/intensity/intensity-value";
 import type { SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -53,7 +53,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
   const searchRef = useRef<HTMLInputElement>(null);
 
   const acts = useMemo(
-    () => new Map(catalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { level: a.level, name: a.name }] as const))),
+    () => new Map(catalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { level: a.level, name: a.name, scenarioId: s.id, scenario: s.name }] as const))),
     [catalog.scenarios],
   );
   const groupOf = useMemo(() => {
@@ -335,7 +335,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
                             mediaIds: mine.mediaIds,
                           });
                         }}
-                        extras={catalog.extras}
+                        extras={catalog.extras.filter((e) => countsIn(e, s.id))}
                         groups={catalog.groups}
                         onTick={(on) => tick(a.id, on)}
                         onExtras={(extraIds) => {

@@ -111,3 +111,29 @@ new Max re-rates everything at once and no act's level changes; the SQL filters 
 Every intensity value is shown in a continuous heat colour from 0 to Max (green → yellow → orange → red → violet, the
 PGRADE ramp) — the catalog's scale, session values, peaks, the person's matrix and course, the header bar (a segment
 per whole value).
+
+## Amendment 2026-10-23 — boundaries between the levels
+
+The lines between levels are real moral/mental boundaries a person crosses or gives up. A boundary is its own object
+(`IntensityBoundary`: the value crossed, a title, a description), on the seam just below that value — one per seam,
+from 0.5 up to Max. In the catalog it shows as a dashed line across the board with a marker in the Intensity column
+(description on hover); the marker opens a band there to name and describe it, a "Boundaries" switch opens all,
+"+ Boundary" on a seam adds one, delete has Undo. Lowering Max is refused while boundaries lie above it. For now the
+catalog only; whether a person's crossed boundaries show elsewhere is decided once they are set.
+Levels and boundaries are edited in the same side panel as acts (one place to edit; `?level=` / `?boundary=` in the
+address, ↑/↓ walk the scale with boundaries in turn); the Intensity column is for reading — ▸ unfolds a description
+there — with a double-click to rename in place.
+
+## Amendment 2026-10-23 — extras may take points off
+
+An extra's points may be negative (half steps, −20 to +20): a circumstance that makes an act easier. An act's value
+stays between 0 and the cap (Max still sets Max); the SQL filters floor at 0 the same way. Extras are listed by
+points, then name, so a group reads as its natural rise.
+
+## Amendment 2026-10-23 — extras for some scenarios only
+
+An extra counts in every scenario unless turned off there — for a group as a whole (a group is one dimension, e.g.
+a partner), or for an extra without a group on its own; an extra in a group follows its group, Max always counts.
+Stored as exclusions (`IntensityExtraGroupScenarioOff`, `IntensityExtraScenarioOff`), so a new scenario is counted
+in. On a session the extra stays set for the person but does not count for acts in an excluded scenario — in the
+app, on the person and in the SQL filters alike; the value's explanation names it ("— not in Solo").

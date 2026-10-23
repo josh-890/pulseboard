@@ -16,7 +16,7 @@ export type IntensitySummaryProps = {
 // the way to open the panel beside the photos.
 export function IntensitySummary({ contributions, catalog }: IntensitySummaryProps) {
   const acts = useMemo(
-    () => new Map(catalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { level: a.level, name: a.name }] as const))),
+    () => new Map(catalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { level: a.level, name: a.name, scenarioId: s.id, scenario: s.name }] as const))),
     [catalog.scenarios],
   );
   const state = initialPanelState(contributions);

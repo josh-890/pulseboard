@@ -240,23 +240,33 @@ function actSql(entity: TaggableEntity, acts: Prisma.Sql, x: Prisma.Sql): Prisma
  * The value of each ticked act that `where` picks (alias ca, act a), as in
  * `src/lib/intensity.ts`: the contribution's extras minus the act's DROPs and
  * minus those a grouped ADD replaces, plus its ADDs; Max → the tenant's Max,
- * else level + points capped half a step below. Computed on read, like everywhere else.
+ * else level + points (negative ones too) capped half a step below, never below 0. Computed on read, like everywhere else.
  * Aliases stay clear of the caller's row alias (`e`).
  */
+/**
+ * An extra `ie` counts for act `a` unless its scenario is turned off — for its
+ * group, or for itself while it has none (2026-10-23); Max counts everywhere.
+ */
+const countsHere = Prisma.sql`(ie."isMax" OR NOT EXISTS (
+    SELECT 1 FROM "IntensityExtraGroupScenarioOff" gx WHERE gx."groupId" = ie."groupId" AND gx."scenarioId" = a."scenarioId"
+  ) AND NOT EXISTS (
+    SELECT 1 FROM "IntensityExtraScenarioOff" ex WHERE ex."extraId" = ie.id AND ie."groupId" IS NULL AND ex."scenarioId" = a."scenarioId"
+  ))`;
+
 function actValues(where: Prisma.Sql, max: number): Prisma.Sql {
   return Prisma.sql`SELECT CASE WHEN bool_or(ivx."isMax") THEN ${max}::float8
-      ELSE LEAST(${intensityCap(max)}::float8, a.level + COALESCE(sum(ivx.points), 0)) END AS value
+      ELSE GREATEST(0::float8, LEAST(${intensityCap(max)}::float8, a.level + COALESCE(sum(ivx.points), 0))) END AS value
     FROM "ContributionAct" ca
     JOIN "IntensityAct" a ON a.id = ca."actId"
     LEFT JOIN LATERAL (
       SELECT ie.id, ie.points, ie."isMax" FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
-      WHERE ce."contributionId" = ca."contributionId"
+      WHERE ce."contributionId" = ca."contributionId" AND ${countsHere}
         AND NOT EXISTS (SELECT 1 FROM "ContributionActExtra" o WHERE o."contributionActId" = ca.id AND o."extraId" = ie.id AND o.mode = 'DROP')
         AND NOT EXISTS (SELECT 1 FROM "ContributionActExtra" o JOIN "IntensityExtra" oe ON oe.id = o."extraId"
           WHERE o."contributionActId" = ca.id AND o.mode = 'ADD' AND ie."groupId" IS NOT NULL AND oe."groupId" = ie."groupId" AND oe.id <> ie.id)
       UNION
       SELECT ie.id, ie.points, ie."isMax" FROM "ContributionActExtra" o JOIN "IntensityExtra" ie ON ie.id = o."extraId"
-      WHERE o."contributionActId" = ca.id AND o.mode = 'ADD'
+      WHERE o."contributionActId" = ca.id AND o.mode = 'ADD' AND ${countsHere}
     ) ivx ON TRUE
     WHERE ${where}
     GROUP BY ca.id, a.level`;

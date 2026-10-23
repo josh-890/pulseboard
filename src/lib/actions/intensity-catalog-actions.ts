@@ -4,6 +4,9 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
   updateIntensityScaleStep,
+  createIntensityBoundary,
+  updateIntensityBoundary,
+  deleteIntensityBoundary,
   createIntensityScenario,
   renameIntensityScenario,
   deleteIntensityScenario,
@@ -13,6 +16,8 @@ import {
   deleteIntensityAct,
   getIntensityActUsage,
   setIntensityMax,
+  setIntensityGroupScenariosOff,
+  setIntensityExtraScenariosOff,
   moveIntensityActs,
   createIntensityExtraGroup,
   renameIntensityExtraGroup,
@@ -45,6 +50,26 @@ export async function updateIntensityScaleStepAction(value: number, data: { titl
   return run(() => updateIntensityScaleStep(value, data));
 }
 
+/** Boundaries between levels (2026-10-23) */
+/** Returns the new boundary's id, so its panel can open right away */
+export async function createIntensityBoundaryAction(
+  value: number,
+  title: string,
+  description?: string | null,
+): Promise<SimpleActionResult & { id?: string }> {
+  let id: string | undefined;
+  const result = await run(async () => {
+    id = (await createIntensityBoundary(value, title, description)).id;
+  });
+  return { ...result, id };
+}
+export async function updateIntensityBoundaryAction(id: string, data: { title?: string; description?: string | null }) {
+  return run(() => updateIntensityBoundary(id, data));
+}
+export async function deleteIntensityBoundaryAction(id: string) {
+  return run(() => deleteIntensityBoundary(id));
+}
+
 export async function createIntensityScenarioAction(name: string) {
   return run(() => createIntensityScenario(name));
 }
@@ -67,6 +92,14 @@ export async function updateIntensityActAction(
 ) {
   return run(() => updateIntensityAct(id, data));
 }
+/** Where an extra group's extras — or an extra without a group — do not count (2026-10-23) */
+export async function setIntensityGroupScenariosOffAction(groupId: string, scenarioIds: string[]) {
+  return run(() => setIntensityGroupScenariosOff(groupId, scenarioIds));
+}
+export async function setIntensityExtraScenariosOffAction(extraId: string, scenarioIds: string[]) {
+  return run(() => setIntensityExtraScenariosOff(extraId, scenarioIds));
+}
+
 /** The top of the scale (2026-10-23); people and sessions re-rate on their next render */
 export async function setIntensityMaxAction(max: number) {
   return run(() => setIntensityMax(max));

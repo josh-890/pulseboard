@@ -1,4 +1,11 @@
-import { actValue, effectiveExtras, sessionIntensity, type ActExtraOverride, type IntensityExtraRef } from "@/lib/intensity";
+import {
+  actValue,
+  effectiveExtras,
+  extrasForScenario,
+  sessionIntensity,
+  type ActExtraOverride,
+  type IntensityExtraRef,
+} from "@/lib/intensity";
 
 // A person's intensity across their sessions (ADR-0036, slice 3). Pure: built
 // from their on-camera contributions and the catalog. Sessions run oldest
@@ -53,9 +60,11 @@ export function summarizePersonIntensity(input: PersonIntensityInput[], catalog:
       .filter((a) => catalog.acts.has(a.actId))
       .map((a) => ({
         actId: a.actId,
+        // Only the extras that count in the act's scenario (2026-10-23)
         value: actValue(
           catalog.acts.get(a.actId)!.level,
-          effectiveExtras(inherited, a.overrides, catalog.extras),
+          extrasForScenario(effectiveExtras(inherited, a.overrides, catalog.extras), catalog.acts.get(a.actId)!.scenarioId)
+            .counted,
           catalog.max,
         ),
       }));

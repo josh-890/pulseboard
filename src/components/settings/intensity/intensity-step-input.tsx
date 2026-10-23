@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { isIntensityStep, INTENSITY_STEP } from "@/lib/intensity";
+import { INTENSITY_MAX_RANGE, isIntensityStep, isPointsStep, INTENSITY_STEP } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
 
 /** How long a value must rest before it is saved — arrow keys step freely until then */
@@ -15,6 +15,8 @@ export type IntensityStepInputProps = {
   onCommit: (value: number) => Promise<void>;
   /** The highest value the field offers (an act's level: the cap below Max) */
   max?: number;
+  /** Below zero too — an extra's points (2026-10-23) */
+  allowNegative?: boolean;
   /** Focus the field when it mounts — an act that moved to another row keeps its cursor */
   autoFocus?: boolean;
   className?: string;
@@ -24,7 +26,7 @@ export type IntensityStepInputProps = {
 // Escape puts the old value back. The key resets the field when the saved
 // value changes underneath it. The field never disables itself while saving,
 // so focus — and stepping with the arrow keys — carries on.
-export function IntensityStepInput({ value, label, prefix, onCommit, max, autoFocus, className }: IntensityStepInputProps) {
+export function IntensityStepInput({ value, label, prefix, onCommit, max, allowNegative = false, autoFocus, className }: IntensityStepInputProps) {
   const [text, setText] = useState(String(value));
   const [busy, setBusy] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,8 +44,8 @@ export function IntensityStepInput({ value, label, prefix, onCommit, max, autoFo
   }, [autoFocus]);
 
   function parse(t: string): number | null {
-    const n = Number(t.replace(",", "."));
-    return t.trim() !== "" && isIntensityStep(n) ? n : null;
+    const n = Number(t.replace(",", ".").replace("−", "-"));
+    return t.trim() !== "" && (allowNegative ? isPointsStep(n) : isIntensityStep(n)) ? n : null;
   }
 
   const invalid = parse(text) === null;
@@ -76,7 +78,7 @@ export function IntensityStepInput({ value, label, prefix, onCommit, max, autoFo
         ref={inputRef}
         type="number"
         inputMode="decimal"
-        min={0}
+        min={allowNegative ? -INTENSITY_MAX_RANGE.max : 0}
         max={max}
         step={INTENSITY_STEP}
         value={text}

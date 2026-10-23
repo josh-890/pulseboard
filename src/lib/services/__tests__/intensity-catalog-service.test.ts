@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import {
   createIntensityAct,
+  createIntensityBoundary,
+  deleteIntensityBoundary,
+  updateIntensityBoundary,
   getIntensityCatalog,
   getIntensityMax,
   setIntensityMax,
@@ -170,5 +173,64 @@ describe("the top of the scale (2026-10-23)", () => {
     }
     expect(await getIntensityMax()).toBe(before);
     if (maxRow) expect(await prisma.intensityScaleStep.findUnique({ where: { value: before } })).toMatchObject({ title: maxRow.title });
+  });
+});
+
+describe("boundaries between levels (2026-10-23)", () => {
+  it("sit on a seam once, from 0.5 up to Max; title required; they block a lower Max", async () => {
+    const max = await getIntensityMax();
+    // A seam no real boundary of this tenant uses: the highest free half step
+    const used = new Set((await prisma.intensityBoundary.findMany({ select: { value: true } })).map((b) => b.value));
+    let at = max;
+    while (used.has(at)) at -= 0.5;
+    const b = await createIntensityBoundary(at, `  ${RUN} Shame  `);
+    try {
+      expect(b).toMatchObject({ value: at, title: `${RUN} Shame`, description: null });
+      expect((await getIntensityCatalog()).boundaries.map((x) => x.value)).toContain(at);
+      await expect(createIntensityBoundary(at, `${RUN} again`)).rejects.toThrow(`There is a boundary at`);
+      await expect(createIntensityBoundary(0, `${RUN} zero`)).rejects.toThrow("from 0.5 up to");
+      await expect(createIntensityBoundary(max + 0.5, `${RUN} over`)).rejects.toThrow("from 0.5 up to");
+      await expect(createIntensityBoundary(2.3, `${RUN} off`)).rejects.toThrow("half steps");
+      await expect(createIntensityBoundary(at - 0.5 > 0 ? at - 0.5 : 0.5, "  ")).rejects.toThrow("Name is required");
+
+      await updateIntensityBoundary(b.id, { description: "  Here she gives up shame  " });
+      expect(await prisma.intensityBoundary.findUnique({ where: { id: b.id } })).toMatchObject({
+        title: `${RUN} Shame`,
+        description: "Here she gives up shame",
+      });
+      await updateIntensityBoundary(b.id, { description: "" });
+      expect((await prisma.intensityBoundary.findUnique({ where: { id: b.id } }))!.description).toBeNull();
+
+      if (at > 3) await expect(setIntensityMax(Math.floor(at - 0.5) >= 3 ? Math.floor(at - 0.5) : 3)).rejects.toThrow(`${RUN} Shame (`);
+    } finally {
+      await deleteIntensityBoundary(b.id);
+    }
+    expect(await prisma.intensityBoundary.findUnique({ where: { id: b.id } })).toBeNull();
+  });
+});
+
+describe("the order of extras (2026-10-23)", () => {
+  it("runs by points, then name — however they were added", async () => {
+    const g = (await prisma.intensityExtraGroup.create({ data: { name: `${RUN} order` } })).id;
+    await prisma.intensityExtra.createMany({
+      data: [
+        { name: `${RUN} o-public`, points: 2, groupId: g, sortOrder: 0 },
+        { name: `${RUN} o-private`, points: 0, groupId: g, sortOrder: 1 },
+        { name: `${RUN} o-b-semi`, points: 1, groupId: g, sortOrder: 2 },
+        { name: `${RUN} o-a-semi`, points: 1, groupId: g, sortOrder: 3 },
+      ],
+    });
+    const names = (await getIntensityCatalog()).extras.filter((e) => e.groupId === g).map((e) => e.name.replace(`${RUN} o-`, ""));
+    expect(names).toEqual(["private", "a-semi", "b-semi", "public"]);
+  });
+});
+
+describe("an extra's points (2026-10-23)", () => {
+  it("go below zero in half steps", async () => {
+    await updateIntensityExtra(ids.rain!, { points: -1.5 });
+    expect((await prisma.intensityExtra.findUniqueOrThrow({ where: { id: ids.rain! } })).points).toBe(-1.5);
+    await expect(updateIntensityExtra(ids.rain!, { points: -1.3 })).rejects.toThrow("steps of 0.5");
+    await expect(updateIntensityExtra(ids.rain!, { points: -21 })).rejects.toThrow("from −20 to +20");
+    await updateIntensityExtra(ids.rain!, { points: 1 });
   });
 });

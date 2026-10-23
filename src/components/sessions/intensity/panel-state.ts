@@ -4,6 +4,7 @@ import {
   explainActValue,
   sessionIntensity,
   type ActExtraOverride,
+  extrasForScenario,
 } from "@/lib/intensity";
 import type { SessionIntensity } from "@/lib/services/intensity-service";
 import type { SessionIntensityCatalog } from "./types";
@@ -93,7 +94,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
   }
 }
 
-export type ActInfo = { level: number; name: string };
+export type ActInfo = { level: number; name: string; scenarioId: string; scenario: string };
 
 /** One person's computed view: each ticked act with its extras, value and explanation; the session's value */
 export function personView(p: PersonState, catalog: SessionIntensityCatalog, acts: Map<string, ActInfo>) {
@@ -101,15 +102,20 @@ export function personView(p: PersonState, catalog: SessionIntensityCatalog, act
   const inherited = p.extraIds.map((id) => byId.get(id)).filter((e) => e !== undefined);
   const ticked = new Map(
     p.acts.map((a) => {
-      const info = acts.get(a.actId) ?? { level: 0, name: "?" };
+      const info = acts.get(a.actId) ?? { level: 0, name: "?", scenarioId: "", scenario: "?" };
       const effective = effectiveExtras(inherited, a.overrides, byId);
+      // Only the extras that count in the act's scenario (2026-10-23); the others are named in the explanation
+      const { counted, skipped } = extrasForScenario(effective, info.scenarioId);
       return [
         a.actId,
         {
           ...a,
           effective: effective.map((e) => e.id),
-          value: actValue(info.level, effective, catalog.max),
-          explain: explainActValue(info.name, info.level, effective, catalog.max),
+          value: actValue(info.level, counted, catalog.max),
+          explain: explainActValue(info.name, info.level, counted, catalog.max, {
+            names: skipped.map((e) => e.name),
+            scenario: info.scenario,
+          }),
         },
       ] as const;
     }),

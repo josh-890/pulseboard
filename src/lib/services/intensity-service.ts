@@ -343,7 +343,16 @@ export async function getPersonIntensity(personId: string) {
       },
     }),
     prisma.intensityAct.findMany({ select: { id: true, level: true, scenarioId: true } }),
-    prisma.intensityExtra.findMany({ select: { id: true, points: true, groupId: true, isMax: true } }),
+    prisma.intensityExtra.findMany({
+      select: {
+        id: true,
+        points: true,
+        groupId: true,
+        isMax: true,
+        scenariosOff: { select: { scenarioId: true } },
+        group: { select: { scenariosOff: { select: { scenarioId: true } } } },
+      },
+    }),
     getIntensityMax(),
   ]);
   return summarizePersonIntensity(
@@ -359,7 +368,13 @@ export async function getPersonIntensity(personId: string) {
       })),
     {
       acts: new Map(acts.map((a) => [a.id, { level: a.level, scenarioId: a.scenarioId }])),
-      extras: new Map(extras.map((e) => [e.id, e])),
+      // Where each does not count: its group's scenarios, or its own without a group; Max counts everywhere
+      extras: new Map(
+        extras.map(({ scenariosOff, group, ...e }) => [
+          e.id,
+          { ...e, offIn: e.isMax ? [] : (group ?? { scenariosOff }).scenariosOff.map((o) => o.scenarioId) },
+        ]),
+      ),
       max,
     },
   );

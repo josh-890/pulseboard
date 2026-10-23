@@ -69,25 +69,31 @@ test("acts sit on the row of their level; the scale describes each value", async
   await expect(page.getByRole("spinbutton", { name: "Level of Test act one" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Delete Test act one" })).toHaveCount(0);
 
-  // Half steps show on request; a value gets a title, and — with descriptions
-  // unfolded — a description, which otherwise shows on hover
+  // Half steps show on request. A value is renamed in place with a double-click;
+  // a click opens its panel, where the description is written — it shows in the
+  // column with "Descriptions", and otherwise on hover
   await expect(page.getByRole("rowheader", { name: "Intensity 8.5" })).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Half steps" }).check();
   const row = page.getByRole("rowheader", { name: "Intensity 8.5" });
-  await row.getByText("Title for 8.5").click();
-  await row.getByRole("textbox").fill("Test edge");
-  await row.getByRole("textbox").press("Enter");
+  await row.getByText("Title for 8.5").dblclick();
+  await row.getByRole("textbox", { name: "Rename 8.5" }).fill("Test edge");
+  await row.getByRole("textbox", { name: "Rename 8.5" }).press("Enter");
   await expect(row.getByText("Test edge")).toBeVisible();
-  await expect(row.getByText("Describe 8.5")).toHaveCount(0);
 
-  await page.getByRole("checkbox", { name: "Descriptions" }).check();
-  await row.getByText("Describe 8.5").click();
-  await row.getByRole("textbox").fill("Test: almost at the edge");
-  await row.getByRole("textbox").press("Control+Enter");
+  await row.getByText("Test edge").click();
+  const level = page.getByRole("complementary", { name: "Intensity 8.5" });
+  await expect(page).toHaveURL(/level=8\.5/);
+  await level.getByText("Describe 8.5").click();
+  await level.getByRole("textbox").fill("Test: almost at the edge");
+  await level.getByRole("textbox").press("Control+Enter");
   await expect
     .poll(async () => (await db.query(`SELECT title, description FROM "IntensityScaleStep" WHERE value = 8.5`)).rows[0])
     .toEqual({ title: "Test edge", description: "Test: almost at the edge" });
+  await page.keyboard.press("Escape");
+  await expect(level).toHaveCount(0);
 
+  await page.getByRole("checkbox", { name: "Descriptions" }).check();
+  await expect(row.getByText("Test: almost at the edge")).toBeVisible();
   await page.getByRole("checkbox", { name: "Descriptions" }).uncheck();
   // Radix opens on pointer movement — a re-render under a still pointer needs another move
   await expect(async () => {
@@ -126,9 +132,14 @@ test("extras: a group, an extra in it with points, Max renamed but not deletable
     .poll(async () => (await db.query(`SELECT points FROM "IntensityExtra" WHERE name = $1`, [EXTRA])).rows[0]?.points)
     .toBe(1.5);
 
-  // Moving it out of the group
-  await group.getByRole("combobox", { name: `Group of ${EXTRA}` }).selectOption("");
-  await expect(page.getByRole("region", { name: "Extras without a group" }).getByText(EXTRA)).toBeVisible();
+  // Out of the group with its small icon — it falls back to No group; and back in through the menu
+  await group.getByRole("button", { name: `Take ${EXTRA} out of its group` }).click();
+  const free = page.getByRole("region", { name: "Extras without a group" });
+  await expect(free.getByText(EXTRA)).toBeVisible();
+  await free.getByRole("button", { name: `Put ${EXTRA} into a group` }).click();
+  await page.getByRole("menuitem", { name: GROUP }).click();
+  await expect(group.getByText(EXTRA)).toBeVisible();
+  await expect(free.getByText(EXTRA)).toHaveCount(0);
 
   // Max: rename only — it has no delete button
   const max = page.getByRole("region", { name: "Max extra" });
@@ -193,5 +204,53 @@ test("Max is set above the board: higher adds lanes up to it, lower is refused w
     // Back as it was: the Max row's text and the setting
     await db.query(`UPDATE "IntensityScaleStep" SET value = $1 WHERE value = $2`, [before, before + 2]);
     await db.query(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('intensity-max', $1, now()) ON CONFLICT (key) DO UPDATE SET value = $1, "updatedAt" = now()`, [String(before)]);
+  }
+});
+
+test("a value's ▸ unfolds its own description to read; ↑/↓ in its panel walk the scale", async ({ page }) => {
+  // 8.5 is ours for this file (restored in afterAll)
+  await db.query(
+    `INSERT INTO "IntensityScaleStep" (id, value, description) VALUES ('e2e-step-85', 8.5, 'Test: on its own')
+     ON CONFLICT (value) DO UPDATE SET description = 'Test: on its own'`,
+  );
+  await page.goto("/settings/catalogs/intensity");
+  await page.getByRole("checkbox", { name: "Half steps" }).check();
+  const row = page.getByRole("rowheader", { name: "Intensity 8.5" });
+  await expect(page.getByRole("checkbox", { name: "Descriptions" })).not.toBeChecked();
+  await row.getByRole("button", { name: "Open the description of 8.5" }).click();
+  await expect(row.getByText("Test: on its own")).toBeVisible();
+  // Other values stay folded
+  await expect(page.getByRole("rowheader", { name: "Intensity 8", exact: true }).getByText(/open to write one/)).toHaveCount(0);
+  await row.getByRole("button", { name: "Fold the description of 8.5" }).click();
+  await expect(row.getByText("Test: on its own")).toHaveCount(0);
+
+  // The panel walks the scale: 8.5 → 9 → back
+  await row.locator("[data-level]").click();
+  await expect(page.getByRole("complementary", { name: "Intensity 8.5" })).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("complementary", { name: "Intensity 9" })).toBeVisible();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByRole("complementary", { name: "Intensity 8.5" })).toBeVisible();
+});
+
+test("a group counts in some scenarios only: untick one in its menu, the card says “not in …”", async ({ page }) => {
+  const name = `Test Group scope ${RUN}`;
+  await db.query(`INSERT INTO "IntensityExtraGroup" (id, name) VALUES ($1, $2)`, [`e2e-grp-scope-${RUN}`, name]);
+  try {
+    await page.goto("/settings/catalogs/intensity");
+    const card = page.getByRole("region", { name: `Extra group ${name}` });
+    await expect(async () => {
+      await card.getByRole("button", { name: `Scenarios the group ${name} counts in` }).click();
+      await expect(page.getByRole("menuitemcheckbox", { name: "Solo" })).toBeVisible({ timeout: 1000 });
+    }).toPass();
+    await expect(page.getByRole("menuitemcheckbox", { name: "Solo" })).toBeChecked();
+    await page.getByRole("menuitemcheckbox", { name: "Solo" }).click();
+    await expect
+      .poll(async () => (await db.query(`SELECT "scenarioId" FROM "IntensityExtraGroupScenarioOff" WHERE "groupId" = $1`, [`e2e-grp-scope-${RUN}`])).rows)
+      .toEqual([{ scenarioId: "dsit-solo" }]);
+    await page.keyboard.press("Escape");
+    await expect(card.getByText("not in Solo")).toBeVisible();
+  } finally {
+    await db.query(`DELETE FROM "IntensityExtraGroup" WHERE id = $1`, [`e2e-grp-scope-${RUN}`]);
   }
 });

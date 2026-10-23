@@ -1,10 +1,18 @@
 "use client";
 
 import { Zap } from "lucide-react";
-import { formatIntensity } from "@/lib/intensity";
+import { formatPoints } from "@/lib/intensity";
 import { cn } from "@/lib/utils";
 
-export type PickerExtra = { id: string; name: string; points: number; groupId: string | null; isMax: boolean };
+export type PickerExtra = {
+  id: string;
+  name: string;
+  points: number;
+  groupId: string | null;
+  isMax: boolean;
+  /** Scenarios it does not count in (2026-10-23) */
+  offIn?: string[];
+};
 export type PickerGroup = { id: string; name: string };
 
 export type IntensityExtrasPickerProps = {
@@ -47,7 +55,7 @@ export function IntensityExtrasPicker({ extras, groups, selected, onChange, inhe
       differs && "ring-1 ring-amber-500/70",
     );
   const partlyTitle = (e: PickerExtra) => (some.has(e.id) ? `${e.name}: only some of them — click to set it for all` : undefined);
-  const pts = (e: PickerExtra) => <span className="tabular-nums opacity-75">+{formatIntensity(e.points)}</span>;
+  const pts = (e: PickerExtra) => <span className="tabular-nums opacity-75">{formatPoints(e.points)}</span>;
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

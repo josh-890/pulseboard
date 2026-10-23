@@ -5,10 +5,11 @@ import { useSearchParams } from "next/navigation";
 import type { BoardLayout } from "./use-act-board";
 import { cellKey } from "./use-act-board";
 
-// The act open in the side panel (K2): `?act=<id>` in the address — a link
-// opens it, Back closes it. Set with the History API, so opening a card asks
-// nothing of the server. ↑/↓ walk the cards in reading order: down a column,
-// level by level, then the next column.
+// What is open in the side panel (K2; levels and boundaries 2026-10-23): one of
+// `?act=<id>`, `?level=<value>`, `?boundary=<id>` in the address — a link opens
+// it, Back closes it. Set with the History API, so opening asks nothing of the
+// server. ↑/↓ walk their own kind: cards in reading order (down a column,
+// level by level, then the next column); levels and boundaries down the scale.
 
 const WIDE = "(min-width: 1024px)";
 
@@ -27,26 +28,50 @@ export function useWideScreen(): boolean {
   );
 }
 
-function withAct(id: string | null): string {
+export type CatalogSelection =
+  | { kind: "act"; key: string }
+  | { kind: "level"; key: string }
+  | { kind: "boundary"; key: string };
+
+const KINDS = ["act", "level", "boundary"] as const;
+
+function withSelection(sel: CatalogSelection | null): string {
   const url = new URL(window.location.href);
-  if (id) url.searchParams.set("act", id);
-  else url.searchParams.delete("act");
+  for (const k of KINDS) url.searchParams.delete(k);
+  if (sel) url.searchParams.set(sel.kind, sel.key);
   return url.pathname + url.search + url.hash;
 }
+
+const same = (a: CatalogSelection | null, b: CatalogSelection | null) =>
+  a?.kind === b?.kind && a?.key === b?.key;
 
 export function useActSelection(
   layout: BoardLayout,
   scenarioIds: string[],
   levels: number[],
-  known: Set<string>,
+  known: { acts: Set<string>; boundaries: Set<string> },
+  /** The scale from the top: each boundary before the level it is crossed into */
+  scale: CatalogSelection[],
 ) {
   const params = useSearchParams();
-  const raw = params.get("act");
-  const selectedId = raw && known.has(raw) ? raw : null;
+  const act = params.get("act");
+  const level = params.get("level");
+  const boundary = params.get("boundary");
+  const selected = useMemo<CatalogSelection | null>(
+    () =>
+      act && known.acts.has(act)
+        ? { kind: "act", key: act }
+        : level !== null && levels.includes(Number(level))
+          ? { kind: "level", key: String(Number(level)) }
+          : boundary && known.boundaries.has(boundary)
+            ? { kind: "boundary", key: boundary }
+            : null,
+    [act, level, boundary, known, levels],
+  );
   // Opened here (pushed): closing goes Back, so the history holds no dead entry
   const pushed = useRef(false);
 
-  const order = useMemo(
+  const cards = useMemo(
     () =>
       scenarioIds.flatMap((s) =>
         levels.flatMap((l) => layout[cellKey(s, l)] ?? []),
@@ -54,16 +79,16 @@ export function useActSelection(
     [layout, scenarioIds, levels],
   );
 
-  const open = useCallback(
-    (id: string) => {
-      if (selectedId) {
-        window.history.replaceState(null, "", withAct(id));
+  const select = useCallback(
+    (sel: CatalogSelection) => {
+      if (selected) {
+        window.history.replaceState(null, "", withSelection(sel));
       } else {
-        window.history.pushState(null, "", withAct(id));
+        window.history.pushState(null, "", withSelection(sel));
         pushed.current = true;
       }
     },
-    [selectedId],
+    [selected],
   );
 
   const close = useCallback(() => {
@@ -71,18 +96,32 @@ export function useActSelection(
       pushed.current = false;
       window.history.back();
     } else {
-      window.history.replaceState(null, "", withAct(null));
+      window.history.replaceState(null, "", withSelection(null));
     }
   }, []);
 
-  /** The next (+1) or previous (-1) card in reading order, or null at the end */
+  /** The next (+1) or previous (-1) of the open kind — card, or level/boundary — or null at the end */
   const neighbour = useCallback(
-    (step: 1 | -1) => {
-      if (!selectedId) return null;
-      return order[order.indexOf(selectedId) + step] ?? null;
+    (step: 1 | -1): CatalogSelection | null => {
+      if (!selected) return null;
+      if (selected.kind === "act") {
+        const id = cards[cards.indexOf(selected.key) + step];
+        return id ? { kind: "act", key: id } : null;
+      }
+      const i = scale.findIndex((s) => same(s, selected));
+      return scale[i + step] ?? null;
     },
-    [order, selectedId],
+    [cards, scale, selected],
   );
 
-  return { selectedId, open, close, neighbour };
+  return {
+    selected,
+    /** The open card's id, for the board */
+    selectedId: selected?.kind === "act" ? selected.key : null,
+    /** Opens a card (the board's click and Enter) */
+    open: (id: string) => select({ kind: "act", key: id }),
+    select,
+    close,
+    neighbour,
+  };
 }
