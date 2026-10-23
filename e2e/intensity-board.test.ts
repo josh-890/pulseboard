@@ -8,7 +8,7 @@ import { Client } from "pg";
 // Two scenarios of our own, first in line so both columns are in view.
 
 const db = new Client({ connectionString: process.env.DATABASE_URL });
-const RUN = Date.now().toString(36);
+const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 5); // unique even when workers start together
 const S1 = { id: `e2e-scn-a-${RUN}`, name: `Test Board A ${RUN}` };
 const S2 = { id: `e2e-scn-b-${RUN}`, name: `Test Board B ${RUN}` };
 const name = (k: string) => `Test act ${k} ${RUN}`;
@@ -28,7 +28,7 @@ test.beforeAll(async () => {
   ]);
 });
 // Our acts by id — a drag gone astray may have put one in another scenario
-const ACTS = `e2e-act-%-${RUN}`;
+const ACTS = `e2e-act-_-${RUN}`; // a, b, c, d — not the panel test's pa, pb, pc
 test.beforeEach(async () => {
   await db.query(`DELETE FROM "IntensityAct" WHERE "scenarioId" IN ($1, $2) OR id LIKE $3`, [S1.id, S2.id, ACTS]);
   await db.query(
@@ -73,25 +73,33 @@ async function pickUp(page: Page, from: Locator) {
   }).toPass({ timeout: 15_000 });
 }
 
-/** Pick up, then over the target at a height within it, and drop */
-async function drag(page: Page, from: Locator, to: Locator, yFrac = 0.5) {
+/**
+ * Pick up, then over the target at a height within it, and drop. Into another
+ * cell (`lit`), let go only once that cell is lit as the target — what a person
+ * waits to see; the board measures the lanes that opened with the drag.
+ */
+async function drag(page: Page, from: Locator, to: Locator, yFrac = 0.5, lit?: Locator) {
   await pickUp(page, from);
-  const b = (await to.boundingBox())!; // after the half-step lanes have opened
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height * yFrac, { steps: 12 });
+  await expect(async () => {
+    const b = (await to.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height * yFrac, { steps: 4 });
+    if (lit) await expect(lit).toHaveClass(/bg-primary\/10/, { timeout: 500 });
+    else await page.waitForTimeout(150);
+  }).toPass({ timeout: 10_000 });
   await page.mouse.up();
 }
 
 test("a card dragged onto another scenario's card lands before it, at that level; Undo puts it back", async ({ page }) => {
   await page.goto("/settings/catalogs/intensity");
   await expect(card(page, "c")).toBeVisible();
-  await drag(page, card(page, "c"), card(page, "d"), 0.3);
+  await drag(page, card(page, "c"), card(page, "d"), 0.3, cell(page, S2, "3"));
 
   await expect(page.getByText(`${name("c")} → ${S2.name} · 3`)).toBeVisible();
   await expect.poll(() => where("c")).toEqual({ scenarioId: S2.id, level: 3, sortOrder: 0 });
   expect(await where("d")).toMatchObject({ sortOrder: 1 });
   await page.getByRole("button", { name: "Undo" }).click(); // while the toast is up
   await expect.poll(() => where("c")).toMatchObject({ scenarioId: S1.id, level: 2 });
-  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("a"), name("b"), name("c")]);
+  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("a"), name("b"), name("c")], { timeout: 15_000 });
 });
 
 test("while dragging, every half step is a lane: a card dropped on an empty cell takes its level", async ({ page }) => {
@@ -100,11 +108,15 @@ test("while dragging, every half step is a lane: a card dropped on an empty cell
   await pickUp(page, card(page, "a"));
   const target = cell(page, S2, "4.5"); // only there while a card is held
   await expect(target).toBeVisible();
-  const b = (await target.boundingBox())!;
-  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 12 });
+  // Let go once that cell is lit as the target — what a person waits to see
+  await expect(async () => {
+    const b = (await target.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 });
+    await expect(target).toHaveClass(/bg-primary\/10/, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   await page.mouse.up();
   await expect.poll(() => where("a")).toMatchObject({ scenarioId: S2.id, level: 4.5 });
-  await expect(cell(page, S2, "4.5").locator("li")).toHaveText([name("a")]);
+  await expect(cell(page, S2, "4.5").locator("li")).toHaveText([name("a")], { timeout: 15_000 });
 });
 
 test("the order within a cell is manual and stays after a reload", async ({ page }) => {
@@ -114,7 +126,7 @@ test("the order within a cell is manual and stays after a reload", async ({ page
   await expect(page.getByText(`${name("c")}: new place in its row`)).toBeVisible();
   await expect.poll(async () => (await where("c")).sortOrder).toBe(0);
   await page.reload();
-  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("c"), name("a"), name("b")]);
+  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("c"), name("a"), name("b")], { timeout: 15_000 });
 });
 
 test("the keyboard drags: Space picks up, arrows move, Space drops", async ({ page }) => {
@@ -130,7 +142,7 @@ test("the keyboard drags: Space picks up, arrows move, Space drops", async ({ pa
   await page.keyboard.press("ArrowUp");
   await page.waitForTimeout(300); // the sensor measures the new place
   await page.keyboard.press("Space");
-  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("b"), name("a"), name("c")]);
+  await expect(cell(page, S1, "2").locator("li")).toHaveText([name("b"), name("a"), name("c")], { timeout: 15_000 });
   await expect.poll(async () => (await where("b")).sortOrder).toBe(0);
 });
 
@@ -139,9 +151,9 @@ test("a name the target scenario already has is refused, and the card stays", as
   await page.goto("/settings/catalogs/intensity");
   const dInB = cell(page, S2, "3").locator("li");
   await expect(dInB).toHaveText([name("a")]);
-  await drag(page, card(page, "c"), cell(page, S2, "3"), 0.9);
+  await drag(page, card(page, "c"), cell(page, S2, "3"), 0.9, cell(page, S2, "3"));
   await expect.poll(() => where("c")).toMatchObject({ scenarioId: S2.id }); // c is free to go
-  await drag(page, cell(page, S1, "2").locator("li").first(), cell(page, S2, "3"), 0.9);
+  await drag(page, cell(page, S1, "2").locator("li").first(), cell(page, S2, "3"), 0.9, cell(page, S2, "3"));
   await expect(page.getByText(`${S2.name} already has “${name("a")}”.`)).toBeVisible();
   await expect(cell(page, S1, "2").locator("li").first()).toHaveText(name("a"));
 });

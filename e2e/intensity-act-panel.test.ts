@@ -9,7 +9,7 @@ import { Client } from "pg";
 // F2 or a double-click renames.
 
 const db = new Client({ connectionString: process.env.DATABASE_URL });
-const RUN = Date.now().toString(36);
+const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 5); // unique even when workers start together
 const S1 = { id: `e2e-scn-pa-${RUN}`, name: `Test Panel A ${RUN}` };
 const S2 = { id: `e2e-scn-pb-${RUN}`, name: `Test Panel B ${RUN}` };
 const ACT = (k: string) => ({ id: `e2e-act-p${k}-${RUN}`, name: `Test act ${k} ${RUN}` });
@@ -20,16 +20,20 @@ const ICG = `E2E-PA-${RUN}`.toUpperCase();
 const PERSON = `Panel Model ${RUN}`;
 const ids = { person: `e2e-person-pa-${RUN}`, session: `e2e-session-pa-${RUN}`, c: `e2e-contrib-pa-${RUN}` };
 
+// Our two columns side by side, first in line — a slot of their own, even beside a parallel copy of this file
+const SLOT = -1000 - Math.floor(Math.random() * 100_000) * 2;
+
 test.use({ viewport: { width: 2200, height: 1000 } });
 test.describe.configure({ timeout: 90_000 });
 
 test.beforeAll(async () => {
   await db.connect();
-  await db.query(`INSERT INTO "IntensityScenario" (id, name, "sortOrder") VALUES ($1, $2, -20), ($3, $4, -19)`, [
+  await db.query(`INSERT INTO "IntensityScenario" (id, name, "sortOrder") VALUES ($1, $2, $5), ($3, $4, $5 + 1)`, [
     S1.id,
     S1.name,
     S2.id,
     S2.name,
+    SLOT,
   ]);
   await db.query(`INSERT INTO "Person" (id, "icgId") VALUES ($1, $2)`, [ids.person, ICG]);
   await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [
@@ -103,8 +107,9 @@ test("it shows where the act is ticked, Name (ICG-ID), and keeps a ticked act fr
   const p = panel(page, A);
   await expect(p).toBeVisible();
   await expect(p.getByText("Ticked in 1 session")).toBeVisible();
+  // Read when the panel opens — slow while parallel workers render whole boards
   const where = p.getByRole("list", { name: `Where ${A.name} is ticked` });
-  await expect(where).toContainText(`${PERSON} (${ICG})`);
+  await expect(where).toContainText(`${PERSON} (${ICG})`, { timeout: 15_000 });
   await expect(where).toContainText(`2019-05-04 · Test Session panel ${RUN}`);
   await expect(where.getByRole("link")).toHaveAttribute("href", `/sessions/${ids.session}`);
   await expect(p.getByRole("button", { name: /Delete act/ })).toBeDisabled();
@@ -132,11 +137,11 @@ test("level, scenario and description change in the panel; an unticked act is de
   await level.fill("4.5");
   await level.press("Enter");
   await expect.poll(async () => (await act(B.id))!.level).toBe(4.5);
-  await expect(cell(page, S1, "4.5").locator("li")).toHaveText([B.name]);
+  await expect(cell(page, S1, "4.5").locator("li")).toHaveText([B.name], { timeout: 15_000 });
 
   await p.getByRole("combobox", { name: `Scenario of ${B.name}` }).selectOption({ label: S2.name });
   await expect.poll(async () => (await act(B.id))!.scenarioId).toBe(S2.id);
-  await expect(cell(page, S2, "4.5").locator("li")).toHaveText([B.name]);
+  await expect(cell(page, S2, "4.5").locator("li")).toHaveText([B.name], { timeout: 15_000 });
 
   await p.getByText("Add a description").click();
   await p.getByRole("textbox").fill("Test: what it means");
