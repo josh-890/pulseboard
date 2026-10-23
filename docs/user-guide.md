@@ -300,7 +300,7 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
   the end under *undated* and never count as a first time; partial dates show as recorded (2020-03, 2019).
 - **In pictures** — every act with photos linked to it as evidence, oldest session first (up to eight, then
   *+N*). Click a photo to open its session's gallery filtered to that act (`act:`).
-- Recording happens on the session, in the Intensity panel beside the photos.
+- Recording happens on the session, in the Intensity panel beside the photos — or on a set, where the same panel saves on its session.
 - **Filtering** (once the catalog has acts): /people has a **Peak intensity** filter, /sessions and /sets an
   **Intensity** filter — *Anything recorded*, ≥ 3, ≥ 5, ≥ 7, ≥ 9, *10 · Max*. For any value or a scenario use
   the query box: `intensity>=6.5`, `intensity:G-G>=5`, `act:Topless`.
@@ -747,6 +747,14 @@ Click **"Add Set"** to open the creation sheet:
 Creating a set automatically creates a linked Draft session (the "primary session") and a SetSession link.
 
 ### Set Detail
+
+#### Intensity on the set (2026-10-24)
+
+A set is a **release** of what was shot in its session — intensity is recorded on the session (where the photos were made) and the set **shows it**. Once the catalog has acts, the set's sidebar has an **Intensity** box (each person's value here) and its **Intensity** button opens the same **panel** as on the session, beside the set's photos: what you tick here is **saved on the session**. (A set from several sessions picks the session at the top of the panel.)
+
+When a session was split into **several sets** — e.g. a tame and a full release — each ticked act in the panel carries a small **in set / not in set** switch: leave an act out of this set and the set's values, its card and the filters count without it. **no photo here** marks an act whose evidence photos are all in the other set — a hint to leave it out here. The person's peak stays the session's (what they did), unchanged by what a release shows.
+
+On the **Sets** list each card carries the set's intensity as a heat pill on its cover; the **Intensity** filter on /sets counts the same way.
 
 #### Header Card
 

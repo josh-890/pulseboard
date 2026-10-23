@@ -14,7 +14,9 @@ import {
   setContributionActNote,
   setActEvidence,
   setActsEvidence,
+  setSetActExcluded,
 } from "@/lib/services/intensity-service";
+import { prisma } from "@/lib/db";
 import type { SimpleActionResult } from "@/lib/types";
 
 // Intensity on a session (ADR-0036, slice 2): extras per person, acts ticked,
@@ -26,6 +28,10 @@ async function run(sessionOf: () => Promise<string>, fn: () => Promise<unknown>)
       const sessionId = await sessionOf();
       await fn();
       revalidatePath(`/sessions/${sessionId}`);
+      // Its sets show the same intensity (2026-10-24)
+      for (const { setId } of await prisma.setSession.findMany({ where: { sessionId }, select: { setId: true } })) {
+        revalidatePath(`/sets/${setId}`);
+      }
       return { success: true };
     } catch (err) {
       console.error("intensity", err);
@@ -95,5 +101,13 @@ export async function setActEvidenceAction(contributionActId: string, mediaItemI
   return run(
     () => getContributionActSessionId(contributionActId),
     () => setActEvidence(contributionActId, mediaItemIds),
+  );
+}
+
+/** Leave a ticked act out of a set, or take it back in (2026-10-24) */
+export async function setSetActExcludedAction(setId: string, contributionActId: string, excluded: boolean) {
+  return run(
+    () => getContributionActSessionId(contributionActId),
+    () => setSetActExcluded(setId, contributionActId, excluded),
   );
 }

@@ -2,7 +2,8 @@ import { EntityTagsPanel } from "@/components/tags";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { Tag } from "lucide-react";
+import { Gauge, Tag } from "lucide-react";
+import { cookies } from "next/headers";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
@@ -24,6 +25,16 @@ import { CreditsPanel } from "@/components/sets/credits-panel";
 import { ProductionPanel } from "@/components/sets/production-panel";
 import { getArchiveSuggestionsForSet, parseVideoFiles } from "@/lib/services/archive-service";
 import { prisma } from "@/lib/db";
+import { getSetIntensity } from "@/lib/services/intensity-service";
+import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import {
+  INTENSITY_PANEL_COOKIE,
+  IntensityPanelProvider,
+  SessionWorkspace,
+  SetIntensityPanel,
+  SetIntensitySummary,
+  sessionIntensityCatalog,
+} from "@/components/sessions/intensity";
 
 
 export const dynamic = "force-dynamic";
@@ -37,14 +48,21 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
   return withTenantFromHeaders(async () => {
     const [{ id }, { tags: tagsParam, photo: photoParam }] = await Promise.all([params, searchParams]);
 
-    const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions] = await Promise.all([
-      getSetById(id),
-      getChannelsForSelect(),
-      getAllContributionRoleGroups(),
-      getEffectiveTags("SET", id),
-      getHeroBackdropEnabled(),
-      getArchiveSuggestionsForSet(id),
-    ]);
+    const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions, setIntensity, intensityCatalogFull, cookieStore] =
+      await Promise.all([
+        getSetById(id),
+        getChannelsForSelect(),
+        getAllContributionRoleGroups(),
+        getEffectiveTags("SET", id),
+        getHeroBackdropEnabled(),
+        getArchiveSuggestionsForSet(id),
+        getSetIntensity(id),
+        getIntensityCatalog(),
+        cookies(),
+      ]);
+    // Intensity on the set (2026-10-24): its sessions', minus what it leaves out — once the catalog has acts
+    const intensityCatalog = sessionIntensityCatalog(intensityCatalogFull);
+    const intensityPanelOpen = cookieStore.get(INTENSITY_PANEL_COOKIE)?.value === "1";
 
     if (!set) notFound();
 
@@ -224,9 +242,11 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         {/* About card — hidden when description + notes both empty */}
         <SetAboutCard setId={id} description={setData.description} notes={setData.notes} />
 
-        {/* 2-column layout: gallery left, metadata sidebar right */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px] items-start">
-          {/* Left column: gallery */}
+        {/* 2-column layout: gallery left, metadata sidebar right — or the intensity panel (2026-10-24) */}
+        <IntensityPanelProvider initialOpen={intensityPanelOpen}>
+        <SessionWorkspace
+          panel={intensityCatalog ? <SetIntensityPanel setId={id} intensity={setIntensity} catalog={intensityCatalog} /> : null}
+          main={
           <SetDetailGallery
             items={galleryItems}
             tagFilter={{ facets: galleryTagFacets, matchIds: tagMatchIds, problems: tagFilter?.problems ?? [] }}
@@ -245,9 +265,18 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
             copyToReferenceTargets={copyToReferenceTargets}
             cast={castDirectory}
           />
+          }
+          sidebar={<>
+            {intensityCatalog && (
+              <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
+                <div className="mb-3 flex items-center gap-2">
+                  <Gauge size={14} className="text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold">Intensity</h2>
+                </div>
+                <SetIntensitySummary intensity={setIntensity} catalog={intensityCatalog} />
+              </div>
+            )}
 
-          {/* Right sidebar: credits + tags + archive (when needed) */}
-          <div className="space-y-6">
             <CreditsPanel
               setId={id}
               channelId={setData.channelId}
@@ -301,8 +330,9 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
                 releaseYear={releaseYear}
               />
             )}
-          </div>
-        </div>
+          </>}
+        />
+        </IntensityPanelProvider>
       </div>
     );
   });

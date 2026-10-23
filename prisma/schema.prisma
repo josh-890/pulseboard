@@ -1065,6 +1065,8 @@ model Set {
   participants      SetParticipant[]
   labelEvidence     SetLabelEvidence[]
   sessionLinks      SetSession[]
+  /// Acts of its session(s) this set does not show (2026-10-24) — a split session's other release
+  actExclusions     SetActExclusion[]
   setTags           SetTag[]
   stagingMatches    StagingSet[]            @relation("StagingSetMatch")
   stagingPromotions StagingSet[]            @relation("StagingSetPromoted")
@@ -1856,6 +1858,7 @@ model ContributionAct {
   notes          String?
   extras         ContributionActExtra[]
   media          ContributionActMedia[]
+  setExclusions  SetActExclusion[]
   createdAt      DateTime               @default(now())
 
   @@unique([contributionId, actId])
@@ -1878,6 +1881,19 @@ model ContributionActExtra {
 
   @@id([contributionActId, extraId])
   @@index([extraId])
+}
+
+/// A ticked act of one person that a set of the session does not show (2026-10-24): the set
+/// inherits its session's acts, minus these — for a session split into several releases
+model SetActExclusion {
+  setId             String
+  set               Set             @relation(fields: [setId], references: [id], onDelete: Cascade)
+  contributionActId String
+  contributionAct   ContributionAct @relation(fields: [contributionActId], references: [id], onDelete: Cascade)
+  createdAt         DateTime        @default(now())
+
+  @@id([setId, contributionActId])
+  @@index([contributionActId])
 }
 
 /// A photo of the session as evidence for a ticked act of one person (slice 3b)

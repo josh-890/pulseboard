@@ -33,6 +33,11 @@ export type IntensityActCheckProps = {
   onTick: (ticked: boolean) => void;
   onExtras: (extraIds: string[]) => void;
   onNote: (note: string) => void;
+  /**
+   * On a set whose session is split into several sets (2026-10-24): whether this
+   * set leaves the act out, and a hint when its evidence photos are all elsewhere
+   */
+  release?: { excluded: boolean; noEvidenceHere: boolean; onToggle: () => void };
 };
 
 // One act to tick, read left to right in one glance: ☐ level · title · value ·
@@ -40,7 +45,7 @@ export type IntensityActCheckProps = {
 // whether all, some (− and who) or none have it; ticking sets it for all. Notes
 // and an act's own extras belong to one person, so they need one selected.
 export function IntensityActCheck(props: IntensityActCheckProps) {
-  const { act, state, holders, value, scaleMax, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote } = props;
+  const { act, state, holders, value, scaleMax, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote, release } = props;
   const [open, setOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
@@ -96,7 +101,10 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
         {valueText && (
           <IntensityHoverText side="top" text={explain} className="shrink-0">
             <span
-              className="inline-flex min-w-[2.9em] justify-center rounded-md px-1 text-xs font-semibold tabular-nums"
+              className={cn(
+                "inline-flex min-w-[2.9em] justify-center rounded-md px-1 text-xs font-semibold tabular-nums",
+                release?.excluded && "line-through opacity-40",
+              )}
               // The heat of the highest value shown
               style={{ backgroundColor: intensityColor(value!.max, scaleMax), color: intensityTextColor(value!.max, scaleMax) }}
               aria-label={`Value ${valueText}`}
@@ -106,6 +114,30 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
           </IntensityHoverText>
         )}
         {state === "some" && holders && <span className="min-w-0 truncate text-[11px] text-muted-foreground">{holders}</span>}
+        {release && (
+          <>
+            <button
+              type="button"
+              onClick={release.onToggle}
+              aria-pressed={!release.excluded}
+              aria-label={release.excluded ? `Show ${act.name} in this set` : `Leave ${act.name} out of this set`}
+              title={release.excluded ? "Left out of this set — click to show it here" : "In this set — click to leave it out"}
+              className={cn(
+                "shrink-0 rounded-full border px-1.5 text-[10px] leading-4 transition-colors",
+                release.excluded
+                  ? "border-white/15 text-muted-foreground hover:text-foreground"
+                  : "border-primary/40 text-primary hover:bg-primary/10",
+              )}
+            >
+              {release.excluded ? "not in set" : "in set"}
+            </button>
+            {release.noEvidenceHere && !release.excluded && (
+              <span className="shrink-0 text-[10px] text-amber-600 dark:text-amber-400" title="Its evidence photos are all in other sets">
+                no photo here
+              </span>
+            )}
+          </>
+        )}
         {ticked && (
           <>
             <button

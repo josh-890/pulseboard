@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const persons = [ids.anna, ids.bea, ids.carl, ids.dora, ids.erin].filter(Boolean) as string[];
+  const persons = [ids.anna, ids.bea, ids.carl, ids.dora, ids.erin, ids.fay].filter(Boolean) as string[];
   await prisma.sessionContribution.deleteMany({ where: { personId: { in: persons } } });
   await prisma.mediaItem.deleteMany({ where: { filename: { startsWith: RUN } } });
   await prisma.session.deleteMany({ where: { name: { startsWith: RUN } } });
@@ -348,5 +348,63 @@ describe("extras for some scenarios only (2026-10-23)", () => {
       await setIntensityExtraScenariosOff(ids.first!, []);
     }
     expect(await match("intensity:7")).toEqual([s]);
+  });
+});
+
+describe("intensity on sets (2026-10-24)", () => {
+  it("a set shows its session's acts minus those it leaves out — in its view, the SQL filter and the card peaks", async () => {
+    const { resolveTagFilterParam, findTagMatchIds } = await import("@/lib/services/tag-filter-service");
+    const { setContributionsAct, getSetIntensity, setSetActExcluded, setActsEvidence } = await import("@/lib/services/intensity-service");
+    const { setIntensityPeaks } = await import("@/lib/services/tag-predicates");
+    await person("fay", "female");
+    const s = (await prisma.session.create({ data: { name: `${RUN} split` } })).id;
+    const c = (await prisma.sessionContribution.create({ data: { sessionId: s, personId: ids.fay!, roleDefinitionId: "crd_model" } })).id;
+    await setContributionsAct([c], ids.act1!, true); // 3
+    await setContributionsAct([c], ids.act2!, true); // 5
+    const two = (await prisma.contributionAct.findFirstOrThrow({ where: { contributionId: c, actId: ids.act2 } })).id;
+    // Two releases of the one session; the explicit photo is only in the second
+    const photo = (
+      await prisma.mediaItem.create({
+        data: { sessionId: s, mediaType: "PHOTO", filename: `${RUN}-split.jpg`, mimeType: "image/jpeg", size: 1, originalWidth: 1, originalHeight: 1 },
+      })
+    ).id;
+    await setActsEvidence([two], [photo], true);
+    const tame = (await prisma.set.create({ data: { type: "photo", title: `${RUN} tame` } })).id;
+    const full = (await prisma.set.create({ data: { type: "photo", title: `${RUN} full` } })).id;
+    await prisma.setSession.createMany({ data: [{ setId: tame, sessionId: s }, { setId: full, sessionId: s }] });
+    await prisma.setMediaItem.create({ data: { setId: full, mediaItemId: photo } });
+    const match = async (text: string) => {
+      const filter = (await resolveTagFilterParam(text, "SET"))!;
+      return (await findTagMatchIds("SET", filter.resolved, [tame, full])).sort();
+    };
+    try {
+      let view = await getSetIntensity(tame);
+      expect(view.sessions).toHaveLength(1);
+      expect(view.sessions[0]!.shared).toBe(true);
+      expect(view.evidenceInSet).toEqual([]); // act two's photo is elsewhere — the hint
+      expect((await getSetIntensity(full)).evidenceInSet).toEqual([two]);
+      expect(await match("intensity:5")).toEqual([tame, full].sort());
+
+      await setSetActExcluded(tame, two, true);
+      view = await getSetIntensity(tame);
+      expect(view.excluded).toEqual([two]);
+      expect(await match("intensity:5")).toEqual([full]);
+      expect(await match("intensity:3")).toEqual([tame]);
+      const peaks = await setIntensityPeaks([tame, full], 10);
+      expect(peaks.get(tame)).toBe(3);
+      expect(peaks.get(full)).toBe(5);
+
+      await setSetActExcluded(tame, two, false);
+      expect((await setIntensityPeaks([tame], 10)).get(tame)).toBe(5);
+
+      const other = (await prisma.set.create({ data: { type: "photo", title: `${RUN} other` } })).id;
+      await expect(setSetActExcluded(other, two, true)).rejects.toThrow("not from a session of this set");
+      await prisma.set.delete({ where: { id: other } });
+    } finally {
+      await prisma.setActExclusion.deleteMany({ where: { setId: { in: [tame, full] } } });
+      await prisma.setMediaItem.deleteMany({ where: { setId: full } });
+      await prisma.setSession.deleteMany({ where: { setId: { in: [tame, full] } } });
+      await prisma.set.deleteMany({ where: { id: { in: [tame, full] } } });
+    }
   });
 });

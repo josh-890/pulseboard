@@ -65,6 +65,8 @@ type SetGridProps = {
   suggestionsMap?: Record<string, SuggestedFolderInfo>;
   /** Keyed by set ID → partner set ID. Present only when duplicate filter is active. */
   duplicatePairMap?: Record<string, string>;
+  /** Set ID → its intensity, and the scale's top — absent while the catalog has no acts (2026-10-24) */
+  intensity?: { values: Record<string, number>; max: number };
 };
 
 function getSetGroupKey(set: SetItem, groupBy: SetsGroupBy): string {
@@ -160,6 +162,7 @@ export function SetGrid({
   filters,
   groupBy: groupByProp = "none",
   duplicatePairMap,
+  intensity: initialIntensity,
 }: SetGridProps) {
   const groupBy = groupByProp as SetsGroupBy;
   const { density } = useDensity();
@@ -170,6 +173,7 @@ export function SetGrid({
   const [starredIds, setStarredIds] = useState<string[]>([]);
   const [photoMap, setPhotoMap] = useState(initialPhotoMap);
   const [headshotMap, setHeadshotMap] = useState(initialHeadshotMap);
+  const [intensityValues, setIntensityValues] = useState(initialIntensity?.values ?? {});
   const [cursor, setCursor] = useState(initialCursor);
   const [isPending, startTransition] = useTransition();
   const hasRestoredScroll = useRef(false);
@@ -213,6 +217,7 @@ export function SetGrid({
   useEffect(() => { setSets(initialSets); }, [initialSets]);
   useEffect(() => { setPhotoMap(initialPhotoMap); }, [initialPhotoMap]);
   useEffect(() => { setHeadshotMap(initialHeadshotMap); }, [initialHeadshotMap]);
+  useEffect(() => { setIntensityValues(initialIntensity?.values ?? {}); }, [initialIntensity]);
   useEffect(() => { setCursor(initialCursor); }, [initialCursor]);
   useEffect(() => { setStarredIds(getStarred("sets")); }, []);
 
@@ -306,6 +311,7 @@ export function SetGrid({
       });
       setPhotoMap((prev) => ({ ...prev, ...result.photoMap }));
       setHeadshotMap((prev) => ({ ...prev, ...result.headshotMap }));
+      setIntensityValues((prev) => ({ ...prev, ...result.intensity }));
       setCursor(result.nextCursor);
     });
   }, [cursor, isPending, filters]);
@@ -420,6 +426,7 @@ export function SetGrid({
                                     onDismissDuplicate={handleDismissDuplicate}
                                     isStarred={starredIds.includes(set.id)}
                                     onToggleStar={handleToggleStar}
+                  intensity={initialIntensity && intensityValues[set.id] !== undefined ? { value: intensityValues[set.id]!, max: initialIntensity.max } : undefined}
                                   />
                                 ))}
                               </div>
@@ -457,6 +464,7 @@ export function SetGrid({
                         onDismissDuplicate={handleDismissDuplicate}
                         isStarred={starredIds.includes(set.id)}
                         onToggleStar={handleToggleStar}
+                  intensity={initialIntensity && intensityValues[set.id] !== undefined ? { value: intensityValues[set.id]!, max: initialIntensity.max } : undefined}
                       />
                     ))}
                   </div>
@@ -530,6 +538,7 @@ export function SetGrid({
                   onDismissDuplicate={handleDismissDuplicate}
                   isStarred={starredIds.includes(set.id)}
                   onToggleStar={handleToggleStar}
+                  intensity={initialIntensity && intensityValues[set.id] !== undefined ? { value: intensityValues[set.id]!, max: initialIntensity.max } : undefined}
                 />
               </div>
             </div>

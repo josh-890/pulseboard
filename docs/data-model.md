@@ -226,6 +226,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   a group, do not count in (2026-10-23; none = everywhere; cascade both ways).
 - **IntensityExtraGroup** / **IntensityExtra** — extras add `points` to an act's level; at most one per group;
   exactly one `isMax` extra (partial unique index) sets 10.
+- **SetActExclusion** — a ticked act (`ContributionAct`) a set of its session does not show (2026-10-24; a session
+  split into several releases); cascade both ways. A set otherwise inherits its sessions' acts.
 - **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).
   **ContributionAct** — an act ticked for a person in a session, unique per (contribution, act).
   **ContributionActExtra** — an act's departure from the inherited extras (`mode` ADD | DROP). Values are computed.

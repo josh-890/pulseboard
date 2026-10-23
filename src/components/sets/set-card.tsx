@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle, Copy, Star, Link2Off, ChevronDown } from "lucide-react";
+import { IntensityValue } from "@/components/intensity/intensity-value";
 import { cn, focalStyle, formatPartialDateISO, computeProductionAge } from "@/lib/utils";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
@@ -39,6 +40,8 @@ type SetCardProps = {
   onDismissDuplicate?: (setId: string, partnerId: string) => void;
   isStarred?: boolean;
   onToggleStar?: (id: string) => void;
+  /** The set's intensity and the scale's top — a heat pill on the cover (2026-10-24) */
+  intensity?: { value: number; max: number };
 };
 
 function getPersonName(
@@ -199,6 +202,7 @@ export function SetCard({
   onDismissDuplicate,
   isStarred = false,
   onToggleStar,
+  intensity,
 }: SetCardProps) {
   const { density } = useDensity();
   const { setsLayout, setsCoverAspect } = useBrowserLayout();
@@ -284,6 +288,11 @@ export function SetCard({
             )}
 
             <CoverBadges {...coverBadgeProps} />
+            {intensity && (
+              <span className="absolute bottom-1.5 left-1.5" title="Intensity of this set">
+                <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+              </span>
+            )}
 
             {onToggleStar && (
               <button
@@ -372,6 +381,11 @@ export function SetCard({
           )}
 
           <CoverBadges {...coverBadgeProps} />
+            {intensity && (
+              <span className="absolute bottom-1.5 left-1.5" title="Intensity of this set">
+                <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+              </span>
+            )}
 
           {onToggleStar && (
             <button

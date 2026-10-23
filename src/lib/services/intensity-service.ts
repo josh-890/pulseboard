@@ -70,6 +70,69 @@ export async function getSessionIntensity(sessionId: string) {
 
 export type SessionIntensity = Awaited<ReturnType<typeof getSessionIntensity>>;
 
+/**
+ * A set's intensity (2026-10-24): its sessions' — a set is a release of what
+ * was shot — with each session's people and acts, the acts this set leaves out,
+ * and which acts have an evidence photo in the set (a hint to leave one out).
+ * `shared`: the session has other sets too, so leaving out makes sense.
+ */
+export async function getSetIntensity(setId: string) {
+  const links = await prisma.setSession.findMany({
+    where: { setId },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    select: {
+      session: { select: { id: true, name: true, date: true, datePrecision: true, _count: { select: { setSessionLinks: true } } } },
+    },
+  });
+  const [sessions, excluded, evidence] = await Promise.all([
+    Promise.all(
+      links.map(async ({ session }) => ({
+        id: session.id,
+        name: session.name,
+        date: session.date,
+        datePrecision: session.datePrecision,
+        shared: session._count.setSessionLinks > 1,
+        contributions: await getSessionIntensity(session.id),
+      })),
+    ),
+    prisma.setActExclusion.findMany({ where: { setId }, select: { contributionActId: true } }),
+    prisma.contributionActMedia.findMany({
+      where: { mediaItem: { setMediaItems: { some: { setId } } } },
+      distinct: ["contributionActId"],
+      select: { contributionActId: true },
+    }),
+  ]);
+  return {
+    sessions,
+    excluded: excluded.map((e) => e.contributionActId),
+    evidenceInSet: evidence.map((e) => e.contributionActId),
+  };
+}
+
+export type SetIntensity = Awaited<ReturnType<typeof getSetIntensity>>;
+
+/** Leave a ticked act out of a set — or take it back in; only for an act of one of the set's sessions */
+export async function setSetActExcluded(setId: string, contributionActId: string, excluded: boolean) {
+  const act = await prisma.contributionAct.findUniqueOrThrow({
+    where: { id: contributionActId },
+    select: { contribution: { select: { sessionId: true } } },
+  });
+  const linked = await prisma.setSession.findUnique({
+    where: { setId_sessionId: { setId, sessionId: act.contribution.sessionId } },
+    select: { setId: true },
+  });
+  if (!linked) throw new Error("That act is not from a session of this set.");
+  if (excluded) {
+    await prisma.setActExclusion.upsert({
+      where: { setId_contributionActId: { setId, contributionActId } },
+      create: { setId, contributionActId },
+      update: {},
+    });
+  } else {
+    await prisma.setActExclusion.deleteMany({ where: { setId, contributionActId } });
+  }
+}
+
 /** At most one extra per group; returns the extras, all known */
 async function checkExtras(tx: TxClient, extraIds: string[]) {
   const unique = [...new Set(extraIds)];

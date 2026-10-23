@@ -13,6 +13,7 @@ import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/me
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
+import { setIntensityPeaks } from "@/lib/services/tag-predicates";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
@@ -199,6 +200,10 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     getHeadshotsForPersons(allPersonIds),
     getSuggestedFoldersForSets(setIds),
   ]);
+  // Each set's intensity for its card (2026-10-24)
+  const intensityValues = hasIntensity
+    ? Object.fromEntries(await setIntensityPeaks(setIds, intensityMax))
+    : null;
   const photoMap = Object.fromEntries(coverMapRaw);
   const headshotMap = Object.fromEntries(headshotMapRaw);
   const suggestionsMap = Object.fromEntries(suggestionsRaw);
@@ -418,6 +423,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
           sets={paginated.items}
           photoMap={photoMap}
           headshotMap={headshotMap}
+          intensity={intensityValues ? { values: intensityValues, max: intensityMax } : undefined}
           suggestionsMap={suggestionsMap}
           nextCursor={paginated.nextCursor}
           totalCount={paginated.totalCount}

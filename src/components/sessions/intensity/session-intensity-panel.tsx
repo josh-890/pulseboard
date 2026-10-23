@@ -20,6 +20,7 @@ import {
   setContributionActNoteAction,
   setContributionsActAction,
   setContributionsExtrasAction,
+  setSetActExcludedAction,
 } from "@/lib/actions/intensity-actions";
 import { applySharedExtras, countsIn, formatIntensity, overridesFor } from "@/lib/intensity";
 import { IntensityValue } from "@/components/intensity/intensity-value";
@@ -36,14 +37,36 @@ export type SessionIntensityPanelProps = {
   sessionId: string;
   contributions: SessionIntensity;
   catalog: SessionIntensityCatalog;
+  /**
+   * Opened on a set (2026-10-24): values count only the acts the set shows; with
+   * a session split into several sets, each ticked act can be left out of this one
+   */
+  release?: SetRelease;
+};
+
+export type SetRelease = {
+  setId: string;
+  /** The session has other sets too — leaving out makes sense */
+  shared: boolean;
+  /** Ticked acts (ContributionAct ids) this set leaves out */
+  excluded: string[];
+  /** Ticked acts with an evidence photo in this set */
+  evidenceInSet: string[];
 };
 
 // The intensity panel beside the session's photos (ADR-0036): the people on
 // camera as chips — one or several selected — over a single editor. With
 // several selected, every change applies to all of them; a half tick (−) says
 // only some have an act, and names them. Changes show at once and save behind.
-export function SessionIntensityPanel({ sessionId, contributions, catalog }: SessionIntensityPanelProps) {
+export function SessionIntensityPanel({ sessionId, contributions, catalog, release }: SessionIntensityPanelProps) {
   const { setOpen } = useIntensityPanel();
+  // The set's left-out acts, changed at once and saved behind; follows the server's copy
+  const [leftOut, setLeftOut] = useState(() => new Set(release?.excluded ?? []));
+  const [seenLeftOut, setSeenLeftOut] = useState(release?.excluded);
+  if (release && release.excluded !== seenLeftOut) {
+    setSeenLeftOut(release.excluded);
+    setLeftOut(new Set(release.excluded));
+  }
   const [state, apply] = useOptimistic(initialPanelState(contributions), reducePanel);
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<string[]>(() => (contributions[0] ? [contributions[0].id] : []));
@@ -63,6 +86,32 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
 
   const people = contributions.map((c) => ({ ...c, label: `${c.person.name} (${c.person.icgId})` }));
   const views = new Map(people.map((c) => [c.id, personView(state[c.id]!, catalog, acts)]));
+  // On a set, each person's value counts only the acts it shows
+  const shownViews = release
+    ? new Map(
+        people.map((c) => {
+          const p = state[c.id]!;
+          return [c.id, personView({ ...p, acts: p.acts.filter((a) => !a.id || !leftOut.has(a.id)) }, catalog, acts)];
+        }),
+      )
+    : views;
+
+  function leaveOut(contributionActId: string, out: boolean) {
+    if (!release) return;
+    setLeftOut((prev) => {
+      const next = new Set(prev);
+      if (out) next.add(contributionActId);
+      else next.delete(contributionActId);
+      return next;
+    });
+    startTransition(async () => {
+      const result = await setSetActExcludedAction(release.setId, contributionActId, out);
+      if (!result.success) {
+        toast.error(result.error ?? "Could not save");
+        setLeftOut(new Set(release.excluded));
+      }
+    });
+  }
   const chosen = people.filter((c) => selected.includes(c.id));
   const single = chosen.length === 1 ? chosen[0]! : null;
 
@@ -166,7 +215,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="People on camera">
           {people.map((c) => {
             const on = selected.includes(c.id);
-            const v = views.get(c.id)!;
+            const v = shownViews.get(c.id)!;
             return (
               <span key={c.id} className={cn("inline-flex overflow-hidden rounded-lg border text-xs", on ? "border-primary bg-primary/10" : "border-white/15")}>
                 <button
@@ -320,6 +369,15 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog }: Ses
                               : holding.map((c, i) => `${c.person.name}: ${vals[i]!.explain}`).join("\n")
                         }
                         single={!!single}
+                        release={
+                          release?.shared && mine?.id
+                            ? {
+                                excluded: leftOut.has(mine.id),
+                                noEvidenceHere: mine.mediaIds.length > 0 && !release.evidenceInSet.includes(mine.id),
+                                onToggle: () => leaveOut(mine.id!, !leftOut.has(mine.id!)),
+                              }
+                            : undefined
+                        }
                         effective={mine?.effective ?? []}
                         inherited={single ? state[single.id]!.extraIds : []}
                         saved={!!mine?.id}

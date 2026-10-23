@@ -272,6 +272,37 @@ function actValues(where: Prisma.Sql, max: number): Prisma.Sql {
     GROUP BY ca.id, a.level`;
 }
 
+/** An act set `set` leaves out — a split session's act that this release does not show */
+function notLeftOutBy(set: Prisma.Sql): Prisma.Sql {
+  return Prisma.sql` AND NOT EXISTS (SELECT 1 FROM "SetActExclusion" sx WHERE sx."setId" = ${set} AND sx."contributionActId" = ca.id)`;
+}
+
+/**
+ * Each set's intensity — the highest value of its sessions' acts it shows, or
+ * Max where someone has the Max extra — for the set cards (2026-10-24); sets
+ * without anything ticked are absent.
+ */
+export async function setIntensityPeaks(setIds: string[], max: number): Promise<Map<string, number>> {
+  if (setIds.length === 0) return new Map();
+  const acts = actValues(
+    Prisma.sql`ca."contributionId" IN (SELECT sc.id FROM "SessionContribution" sc WHERE sc."sessionId" = ss."sessionId")${notLeftOutBy(Prisma.sql`ss."setId"`)}`,
+    max,
+  );
+  const rows = await prisma.$queryRaw<{ setId: string; value: number }[]>`
+    SELECT ss."setId", max(v.value)::float8 AS value
+    FROM "SetSession" ss
+    JOIN LATERAL (
+      ${acts}
+      UNION ALL SELECT ${max}::float8 FROM "ContributionExtra" ce
+        JOIN "IntensityExtra" ie ON ie.id = ce."extraId"
+        JOIN "SessionContribution" sc ON sc.id = ce."contributionId"
+        WHERE ie."isMax" AND sc."sessionId" = ss."sessionId"
+    ) v ON TRUE
+    WHERE ss."setId" IN (${Prisma.join(setIds)})
+    GROUP BY ss."setId"`;
+  return new Map(rows.map((r) => [r.setId, r.value]));
+}
+
 /** The contributions behind row `x`: a session's, its sets' sessions', a person's */
 function contributionsOf(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
   switch (entity) {
@@ -304,7 +335,9 @@ function intensitySql(entity: TaggableEntity, p: Extract<ResolvedPredicate, { ki
     return Prisma.sql`(SELECT max(v.value) FROM (${acts}) v) ${op} ${p.value}`;
   }
   const contributions = contributionsOf(entity, x);
-  const acts = actValues(Prisma.sql`ca."contributionId" IN (${contributions})${inScenarios}`, p.max);
+  // A set shows its sessions' acts, minus those it leaves out (2026-10-24)
+  const shown = entity === "SET" ? notLeftOutBy(x) : Prisma.empty;
+  const acts = actValues(Prisma.sql`ca."contributionId" IN (${contributions})${inScenarios}${shown}`, p.max);
   const sessionMax = p.scenarioIds
     ? Prisma.empty
     : Prisma.sql` UNION ALL SELECT ${p.max}::float8 FROM "ContributionExtra" ce JOIN "IntensityExtra" ie ON ie.id = ce."extraId"

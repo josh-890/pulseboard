@@ -1,5 +1,8 @@
 "use server";
 
+import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { setIntensityPeaks } from "@/lib/services/tag-predicates";
+
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
@@ -611,9 +614,10 @@ export async function loadMoreSets(
     const personIds = [
       ...new Set(result.items.flatMap((s) => s.participants.map((p) => p.personId))),
     ];
-    const [coverMapRaw, headshotMapRaw] = await Promise.all([
+    const [coverMapRaw, headshotMapRaw, intensity] = await Promise.all([
       getCoverPhotosForSets(result.items.map((s) => s.id)),
       getHeadshotsForPersons(personIds),
+      setIntensityValues(result.items.map((s) => s.id)),
     ]);
     const photoMap = Object.fromEntries(coverMapRaw);
     const headshotMap = Object.fromEntries(headshotMapRaw);
@@ -622,6 +626,7 @@ export async function loadMoreSets(
       nextCursor: result.nextCursor,
       photoMap,
       headshotMap,
+      intensity,
     };
 
   });
@@ -710,4 +715,10 @@ export async function undismissSetDuplicateAction(id: string): Promise<SimpleAct
       return { success: false, error: err instanceof Error ? err.message : "Failed to undo dismissal" };
     }
   });
+}
+
+/** Each set's intensity for the cards (2026-10-24) — empty while the catalog has no acts */
+async function setIntensityValues(setIds: string[]): Promise<Record<string, number>> {
+  if (!(await hasIntensityCatalog())) return {};
+  return Object.fromEntries(await setIntensityPeaks(setIds, await getIntensityMax()));
 }

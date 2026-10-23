@@ -137,3 +137,11 @@ a partner), or for an extra without a group on its own; an extra in a group foll
 Stored as exclusions (`IntensityExtraGroupScenarioOff`, `IntensityExtraScenarioOff`), so a new scenario is counted
 in. On a session the extra stays set for the person but does not count for acts in an excluded scenario — in the
 app, on the person and in the SQL filters alike; the value's explanation names it ("— not in Solo").
+
+## Amendment 2026-10-24 — intensity on sets
+
+The session stays the one source (the photos are made there; the model's strain is rated there). A set is a release
+of it and shows its sessions' intensity: a sidebar box, the same panel beside the set's photos (saving on the
+session), a heat pill on the set card, and the /sets filter. For a session split into several sets (16 of 1106 in
+xpulse) a set can leave a ticked act out (`SetActExclusion`, per person and act), hinted at when the act's evidence
+photos all lie in another set. A person's peak stays the sessions' — what they did, not what a release shows.

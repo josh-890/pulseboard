@@ -37,6 +37,7 @@ import {
   IntensityPanelProvider,
   IntensityPanelToggle,
   IntensitySummary,
+  sessionIntensityCatalog,
   SessionIntensityPanel,
   SessionWorkspace,
   INTENSITY_PANEL_COOKIE,
@@ -253,26 +254,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   const [intensityRows, intensityCatalogFull] = !isReference
     ? await Promise.all([getSessionIntensity(id), getIntensityCatalog()])
     : [[], null];
-  const intensityCatalog: SessionIntensityCatalog | null =
-    intensityCatalogFull && intensityCatalogFull.scenarios.some((s) => s.acts.length > 0)
-      ? {
-          scenarios: intensityCatalogFull.scenarios.map((s) => ({
-            id: s.id,
-            name: s.name,
-            acts: s.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
-          })),
-          max: intensityCatalogFull.max,
-          groups: intensityCatalogFull.groups.map((g) => ({ id: g.id, name: g.name })),
-          extras: intensityCatalogFull.extras.map((e) => ({
-            id: e.id,
-            name: e.name,
-            points: e.points,
-            groupId: e.groupId,
-            isMax: e.isMax,
-            offIn: e.offIn,
-          })),
-        }
-      : null;
+  const intensityCatalog: SessionIntensityCatalog | null = sessionIntensityCatalog(intensityCatalogFull);
   // ADR-0036, 3b: the gallery's acts to link photos to, and which photos already are evidence
   const galleryIntensity: GalleryIntensity | undefined = intensityCatalog
     ? (() => {
