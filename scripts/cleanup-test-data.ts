@@ -99,6 +99,12 @@ async function main() {
         console.log(`  Deleted auto session: ${session.name}`);
       }
     }
+    // Same order as cascadeDeleteSet
+    await prisma.setMediaItem.deleteMany({ where: { setId: set.id } });
+    await prisma.setParticipant.deleteMany({ where: { setId: set.id } });
+    await prisma.setLabelEvidence.deleteMany({ where: { setId: set.id } });
+    await prisma.setTag.deleteMany({ where: { setId: set.id } });
+    await prisma.set.update({ where: { id: set.id }, data: { coverMediaItemId: null } });
     await prisma.set.delete({ where: { id: set.id } });
     console.log(`  Deleted set: ${set.title}`);
   }
