@@ -6,7 +6,12 @@ import { parsePhotoVariants } from "@/lib/types";
 import type { MediaItemWithUrls, PersonMediaUsage } from "@/lib/types";
 import type { GalleryItem, DuplicateMatch, SimilarMatch } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
-import { getOnCameraCastForSessions, getHiddenPersonsForMedia } from "./appearance-service";
+import {
+  getLeadCastForSessions,
+  getHiddenPersonsForMedia,
+  getSupportCastForSessions,
+  getShownSupportForMedia,
+} from "./appearance-service";
 import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
@@ -623,17 +628,23 @@ export async function getSetMediaGallery(
 
 /**
  * Attach per-image appearance (ADR-0023) to gallery items in place: each item's
- * session on-camera cast (`sessionCastIds`) + its exclusions (`hiddenPersonIds`).
+ * session lead cast (`sessionCastIds`) + its exclusions (`hiddenPersonIds`), and
+ * its support (`supportCastIds`) + who of them it shows (`shownSupportIds`).
  */
 async function attachAppearance(items: GalleryItem[], sessionIds: string[]): Promise<void> {
   if (items.length === 0) return;
-  const [castMap, hiddenMap] = await Promise.all([
-    getOnCameraCastForSessions(sessionIds),
-    getHiddenPersonsForMedia(items.map((i) => i.id)),
+  const ids = items.map((i) => i.id);
+  const [castMap, hiddenMap, supportMap, shownMap] = await Promise.all([
+    getLeadCastForSessions(sessionIds),
+    getHiddenPersonsForMedia(ids),
+    getSupportCastForSessions(sessionIds),
+    getShownSupportForMedia(ids),
   ]);
   for (const it of items) {
     it.sessionCastIds = it.sessionId ? (castMap.get(it.sessionId) ?? []) : [];
     it.hiddenPersonIds = hiddenMap.get(it.id) ?? [];
+    it.supportCastIds = it.sessionId ? (supportMap.get(it.sessionId) ?? []) : [];
+    it.shownSupportIds = shownMap.get(it.id) ?? [];
   }
 }
 

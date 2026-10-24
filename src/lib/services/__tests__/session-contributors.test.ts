@@ -11,13 +11,13 @@ import {
  * contributor union/dedup before any reader uses them.
  */
 describe("contributorKindForRoleGroup", () => {
-  it("maps Behind Camera → artist", () => {
-    expect(contributorKindForRoleGroup("Behind Camera")).toBe("artist");
+  it("maps BEHIND_CAMERA → artist", () => {
+    expect(contributorKindForRoleGroup("BEHIND_CAMERA")).toBe("artist");
   });
 
-  it("maps On-Camera (and anything else) → person", () => {
-    expect(contributorKindForRoleGroup("On-Camera")).toBe("person");
-    expect(contributorKindForRoleGroup("Cast")).toBe("person");
+  it("maps ON_CAMERA (and anything else) → person — by the group's kind, not its name (2026-10-24)", () => {
+    expect(contributorKindForRoleGroup("ON_CAMERA")).toBe("person");
+    expect(contributorKindForRoleGroup("Behind Camera")).toBe("person"); // a name is no longer read
   });
 });
 

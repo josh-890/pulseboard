@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { getPersonKnownFor, getPersonOverviewShowcase, getPersonShowcase } from "@/lib/services/person-showcase-service";
-import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { LEAD_ROLE } from "@/lib/services/session-contributors";
 
 // The Overview showcase (2026-10-16): iconic > ★ > outtake, then production photos
 // at random; iconic fixed, the rest rotating by day. Runs against the DEV database;
@@ -42,7 +42,7 @@ beforeAll(async () => {
 
   const person = await prisma.person.create({ data: { icgId: `${RUN}-P`.toUpperCase() } });
   ids.P = person.id;
-  const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } });
+  const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: LEAD_ROLE });
   const prod = await prisma.session.create({ data: { name: `${RUN} production` } });
   const prod2 = await prisma.session.create({ data: { name: `${RUN} production 2` } });
   const ref = await prisma.session.create({ data: { name: `${RUN} reference`, type: "REFERENCE" } });
@@ -206,7 +206,7 @@ describe("getPersonOverviewShowcase — what the Overview opens with", () => {
   it("Best for a person with reference photos only — the random deal would be empty", async () => {
     const person = await prisma.person.create({ data: { icgId: `${RUN}-REF`.toUpperCase() } });
     ids.refOnly = person.id;
-    const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } });
+    const role = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: LEAD_ROLE });
     await prisma.sessionContribution.create({ data: { sessionId: ids.ref, personId: person.id, roleDefinitionId: role.id } });
     try {
       const showcase = await getPersonOverviewShowcase(person.id);

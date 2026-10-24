@@ -18,6 +18,7 @@ import {
   setHiddenPersons,
   bulkHidePersons,
   bulkShowPersons,
+  setShownSupport,
 } from "@/lib/services/appearance-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { setMediaFavorite } from "@/lib/services/media-mark-service";
@@ -306,6 +307,23 @@ export async function setMediaShownPeopleAction(
       await setHiddenPersons(mediaItemId, hiddenPersonIds);
       return { success: true };
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Support on one image (2026-10-24): who of the people only appearing it shows.
+export async function setMediaShownSupportAction(
+  mediaItemId: string,
+  shownPersonIds: string[],
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setShownSupport(mediaItemId, shownPersonIds);
+      return { success: true };
+    } catch (err) {
+      console.error("[setMediaShownSupportAction] failed:", mediaItemId, err);
       const message = err instanceof Error ? err.message : "Unexpected error";
       return { success: false, error: message };
     }

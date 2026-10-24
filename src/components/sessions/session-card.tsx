@@ -1,9 +1,11 @@
 "use client";
 
+import { Fragment } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, ImageIcon, Camera, Film, ShoppingBasket, Star } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, computeProductionAge } from "@/lib/utils";
+import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
 import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { SessionStatusBadge } from "./session-status-badge";
@@ -67,23 +69,32 @@ function AvatarRow({
   if (avatarContributors.length === 0) return null;
   return (
     <div className="mt-2 flex items-start gap-1">
-        {avatarContributors.map((c) => (
-          <PivotPersonAvatar
-            key={`${sessionId}-${c.person.id}`}
-            personId={c.person.id}
-            icgId={c.person.icgId}
-            name={getContributorName(c.person)}
-            headshot={headshotMap[c.person.id]}
-            size={avatarSize}
-            age={computeProductionAge(
-              c.person.birthdate,
-              c.person.birthdatePrecision,
-              sessionDate,
-              sessionDatePrecision,
-              sessionDateIsConfirmed,
-            )}
-          />
-        ))}
+        {avatarContributors.map((c) => {
+          const avatar = (
+            <PivotPersonAvatar
+              personId={c.person.id}
+              icgId={c.person.icgId}
+              name={getContributorName(c.person)}
+              headshot={headshotMap[c.person.id]}
+              // Someone only appearing: smaller, after the models
+              size={isSupport(c) ? Math.round(avatarSize * 0.75) : avatarSize}
+              age={computeProductionAge(
+                c.person.birthdate,
+                c.person.birthdatePrecision,
+                sessionDate,
+                sessionDatePrecision,
+                sessionDateIsConfirmed,
+              )}
+            />
+          );
+          return isSupport(c) ? (
+            <div key={`${sessionId}-${c.person.id}`} className="opacity-60 transition-opacity hover:opacity-100" title="Appearing">
+              {avatar}
+            </div>
+          ) : (
+            <Fragment key={`${sessionId}-${c.person.id}`}>{avatar}</Fragment>
+          );
+        })}
         {totalContributionCount > 4 && (
           <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
             <div
@@ -122,7 +133,7 @@ export function SessionCard({
 
   const dateStr = formatPartialDateISO(session.date, session.datePrecision) || null;
 
-  const avatarContributors = session.contributions.slice(0, 4);
+  const avatarContributors = leadsFirst(session.contributions).slice(0, 4);
 
   function handleStarClick(e: React.MouseEvent) {
     e.preventDefault();

@@ -33,6 +33,7 @@ type SessionsPageProps = {
     project?: string;
     personId?: string;
     personName?: string;
+    personSupport?: string;
     dateFrom?: string;
     dateTo?: string;
     createdFrom?: string;
@@ -71,6 +72,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       q, status, sort: sortParam,
       label: labelId, project: projectId,
       personId,
+      personSupport,
       dateFrom: dateFromParam, dateTo: dateToParam,
       createdFrom: createdFromParam, createdTo: createdToParam,
       loaded,
@@ -106,6 +108,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
     labelId: labelId || undefined,
     projectId: projectId || undefined,
     personId: personId || undefined,
+    personInclSupport: personSupport === "true" || undefined,
     dateFrom,
     dateTo,
     createdFrom,
@@ -156,6 +159,8 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       apiPath: "/api/people/search",
       inline: true,
     },
+    // The person as a model by default; this takes in where they only appear (2026-10-24)
+    ...(personId ? [{ type: "toggle" as const, param: "personSupport", label: "incl. appearing" }] : []),
     {
       type: "daterange",
       paramFrom: "dateFrom",

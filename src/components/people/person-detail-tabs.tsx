@@ -127,6 +127,7 @@ type PersonDetailTabsProps = {
   // `we-keep-freckles-scalar-twinkly-squirrel.md`). Loaded by the page
   // based on URL searchParams.
   careerTimeline?: import("@/lib/services/career-service").CareerTimelineRow[];
+  careerAppearsIn?: import("@/lib/services/career-service").CareerTimelineRow[];
   careerStats?: import("@/lib/services/career-service").CareerStats;
   careerFacetCounts?: import("@/lib/services/career-service").CareerFacetCounts;
   careerChannels?: { id: string; name: string }[];
@@ -1747,6 +1748,7 @@ export function PersonDetailTabs({
   importHistory,
   stagingWorkHistory = [],
   careerTimeline = [],
+  careerAppearsIn = [],
   careerStats = {
     claimed: { photosets: null, videos: null, covers: null, note: null },
     promoted: { photos: 0, videos: 0, covers: 0 },
@@ -1854,9 +1856,9 @@ export function PersonDetailTabs({
     ...(intensity
       ? [{ id: "intensity" as TabId, label: "Intensity", badge: intensity.summary.sessions.length || undefined, icon: <Gauge size={14} /> }]
       : []),
-    { id: "career", label: "Career", badge: ((sessionWorkHistory?.length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
+    { id: "career", label: "Career", badge: ((sessionWorkHistory?.filter((s) => s.lead).length ?? workHistory.length) + stagingWorkHistory.length) || undefined, icon: <Briefcase size={14} /> },
     { id: "network", label: "Connections", badge: (connections.personal.length + connections.workHeld.length + connections.claimed.length) || undefined, icon: <Users size={14} /> },
-    { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
+    { id: "photos", label: "Photos", badge: (photos.length + (productionSessions?.reduce((sum, s) => sum + (s.lead ? s.mediaCount : 0), 0) ?? 0)) || undefined, icon: <ImageIcon size={14} /> },
     { id: "research" as TabId, label: "Research", badge: researchEntries.length || undefined, icon: <ScrollText size={14} /> },
   ];
 
@@ -1873,7 +1875,8 @@ export function PersonDetailTabs({
         intensityMean={intensityMean}
         intensityMax={intensityMax}
         kpiCounts={{
-          sets: sessionWorkHistory?.length ?? workHistory.length,
+          // The sessions they lead — not ones they only appear in (2026-10-24)
+          sets: sessionWorkHistory?.filter((s) => s.lead).length ?? workHistory.length,
           labels: affiliations.length,
           photos: photos.length + (productionSessions?.reduce((sum, s) => sum + s.mediaCount, 0) ?? 0),
           connections: connections.personal.length + connections.workHeld.length + connections.claimed.length,
@@ -2015,6 +2018,7 @@ export function PersonDetailTabs({
           <CareerTab
             person={person}
             careerTimeline={careerTimeline}
+            appearsIn={careerAppearsIn}
             careerStats={careerStats}
             facetCounts={careerFacetCounts}
             channels={careerChannels}

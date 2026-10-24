@@ -37,6 +37,7 @@ type SetsPageProps = {
     label?: string;
     personId?: string;
     personName?: string;
+    personSupport?: string;
     castCount?: string;
     hasMedia?: string;
     archiveFilter?: string;
@@ -97,6 +98,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       q, type, loaded, sort: sortParam,
       channel: channelParam, label: labelParam,
       personId,
+      personSupport,
       castCount: castCountParam,
       hasMedia: hasMediaParam,
       archiveFilter: archiveFilterParam,
@@ -170,6 +172,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
     channelIds: selectedChannelIds.length > 0 ? selectedChannelIds : undefined,
     personId: personId || undefined,
+    personInclSupport: personSupport === "true" || undefined,
     castCounts: castCounts.length > 0 ? castCounts : undefined,
     hasMedia: hasMediaParam === "true" ? true : undefined,
     sort: resolvedSort,
@@ -265,6 +268,8 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       apiPath: "/api/people/search",
       inline: true,
     },
+    // The person as a model by default; this takes in where they only appear (2026-10-24)
+    ...(personId ? [{ type: "toggle" as const, param: "personSupport", label: "incl. appearing" }] : []),
     {
       type: "daterange",
       paramFrom: "releaseDateFrom",

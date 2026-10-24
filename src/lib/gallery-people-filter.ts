@@ -1,3 +1,5 @@
+import { imageShownIds, type ShownSource } from "@/lib/image-shown";
+
 /**
  * The set gallery's "people shown" filter (ADR-0023).
  *
@@ -8,7 +10,7 @@
  * the combination row sets exactly that in one click, and only lists the
  * combinations the images actually contain.
  *
- * An image's shown set is its session cast minus its exclusions, restricted to
+ * An image's shown set is `imageShownIds` (leads not hidden, support marked shown), restricted to
  * the set's cast (a compilation's session cast may name people this set does not
  * credit, and a chip cannot be offered for them).
  */
@@ -16,15 +18,12 @@
 export type PeopleChipState = "include" | "exclude";
 export type PeopleFilter = Readonly<Record<string, PeopleChipState>>;
 
-type ShownSource = { sessionCastIds?: string[]; hiddenPersonIds?: string[] };
-
 export const EMPTY_PEOPLE_FILTER: PeopleFilter = {};
 
 /** Who the image shows, in cast order. */
 export function shownPeople(item: ShownSource, castIds: readonly string[]): string[] {
-  const inSession = new Set(item.sessionCastIds ?? []);
-  const hidden = new Set(item.hiddenPersonIds ?? []);
-  return castIds.filter((id) => inSession.has(id) && !hidden.has(id));
+  const shown = new Set(imageShownIds(item));
+  return castIds.filter((id) => shown.has(id));
 }
 
 export function isPeopleFilterActive(filter: PeopleFilter): boolean {

@@ -5,7 +5,7 @@ import type { GalleryItem, SessionMergeCandidate, SessionMergeCard, SessionMerge
 import { parsePhotoVariants } from "@/lib/types";
 import { getDisplayName } from "@/lib/utils";
 import { getSessionMediaGallery } from "./media-service";
-import { BEHIND_CAMERA_GROUP } from "./session-contributors";
+import { LEAD_ROLE } from "./session-contributors";
 
 // Session merge suggestions (2026-10-18). Each set used to get its own session;
 // a merge says two sets came from one shoot. Names are often no help ("Set 1"
@@ -13,7 +13,7 @@ import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 // the label, the project — and how close their sets were released, and each
 // card shows the sets that were published from it.
 
-const ON_CAMERA = { roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } };
+const ON_CAMERA = { roleDefinition: LEAD_ROLE }; // the leads — someone only appearing doesn't make two sessions alike (2026-10-24)
 const MAX_SUGGESTED = 20;
 const MAX_SEARCHED = 50;
 /** Label-/project-wide sessions considered for ranking — a label can hold hundreds */

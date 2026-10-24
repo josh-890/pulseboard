@@ -531,6 +531,9 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),
             )
           }
+          onShownSupportChange={(id, shown) =>
+            setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown } : it)))
+          }
         />
       )}
     </div>

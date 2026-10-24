@@ -24,6 +24,7 @@ import {
 } from "@/lib/services/import/staging-cast-readiness";
 import { buildUrl } from "@/lib/media-url";
 import type { PhotoVariants } from "@/lib/types/photo";
+import { LEAD_ROLE, SUPPORT_ROLE } from "@/lib/services/session-contributors";
 
 // ─── Filter spec ─────────────────────────────────────────────────────────
 
@@ -62,6 +63,9 @@ export type CareerTimelineFilters = {
   // "all" (or absent): the whole pipeline. Applied before the status filter.
   scope?: CareerScope;
   sort?: CareerSort;
+  // The sets they lead (default) or only appear in — "Appears in" (2026-10-24).
+  // Staged sets are imports, always credited as Model: none appear as support.
+  presence?: "LEAD" | "SUPPORT";
 };
 
 // ─── Status filter helpers ───────────────────────────────────────────────
@@ -185,10 +189,11 @@ function buildPromotedWhere(
       some: {
         session: {
           contributions: {
-            some:
-              filters.eraIds && filters.eraIds.length > 0
-                ? { personId, eraId: { in: filters.eraIds } }
-                : { personId },
+            some: {
+              personId,
+              roleDefinition: filters.presence === "SUPPORT" ? SUPPORT_ROLE : LEAD_ROLE,
+              ...(filters.eraIds && filters.eraIds.length > 0 ? { eraId: { in: filters.eraIds } } : {}),
+            },
           },
         },
       },
@@ -248,6 +253,7 @@ function buildStagedWhere(
   icgId: string,
   filters: CareerTimelineFilters,
 ): Prisma.StagingSetWhereInput | null {
+  if (filters.presence === "SUPPORT") return null;
   if (filters.eraIds && filters.eraIds.length > 0) return null;
   if (
     filters.ratings &&
@@ -521,7 +527,8 @@ async function fetchParticipantsForSets(
 ): Promise<Map<string, ParticipantsForSet>> {
   if (setIds.length === 0) return new Map();
   const rows = await prisma.setParticipant.findMany({
-    where: { setId: { in: setIds }, personId: { not: excludePersonId } },
+    // The leads: who the set is of, not someone only appearing in it
+    where: { setId: { in: setIds }, personId: { not: excludePersonId }, roleDefinition: LEAD_ROLE },
     select: {
       setId: true,
       person: {
@@ -822,6 +829,7 @@ export async function getCareerFacetCounts(
       f.labelIds,
       f.statuses,
       f.scope,
+      f.presence,
     ]);
     let p = cache.get(key);
     if (!p) {
@@ -928,7 +936,7 @@ export async function getCareerStats(personId: string): Promise<CareerStats> {
     prisma.set.groupBy({
       by: ["type"],
       where: {
-        sessionLinks: { some: { session: { contributions: { some: { personId } } } } },
+        sessionLinks: { some: { session: { contributions: { some: { personId, roleDefinition: LEAD_ROLE } } } } },
       },
       _count: true,
     }),

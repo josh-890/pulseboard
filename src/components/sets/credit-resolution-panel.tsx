@@ -44,6 +44,7 @@ type CreditRawItem = {
   roleDefinitionId: string | null;
   roleName: string | null;
   roleGroupName: string | null;
+  roleGroupKind: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedAlias: { id: string; name: string } | null;
@@ -289,7 +290,7 @@ export function CreditResolutionPanel({ setId, credits: initialCredits, channelI
     // Resolve kind is fixed by the credit's role group (ADR-0021):
     // On-Camera → Person, Behind-Camera → Artist. No user toggle.
     const credit = credits.find((c) => c.id === creditId);
-    const defaultMode = contributorKindForRoleGroup(credit?.roleGroupName ?? "");
+    const defaultMode = contributorKindForRoleGroup(credit?.roleGroupKind ?? "");
     setResolveMode(defaultMode);
 
     // Load suggestions based on mode

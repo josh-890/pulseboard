@@ -5,6 +5,7 @@ import { normalizeForSearch } from "@/lib/normalize";
 import { cascadeDeleteSession, type TxClient } from "./cascade-helpers";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
+import { LEAD_ROLE, ON_CAMERA_ROLE } from "./session-contributors";
 
 const personSelect = {
   select: {
@@ -32,6 +33,8 @@ export type SessionFilters = {
   labelId?: string;
   projectId?: string;
   personId?: string;
+  /** With personId: also sessions they only appear in (support) — leads only by default */
+  personInclSupport?: boolean;
   dateFrom?: Date;
   dateTo?: Date;
   createdFrom?: Date;
@@ -163,7 +166,7 @@ export async function getSessionsPaginated(
   }
 
   if (personId) {
-    where.contributions = { some: { personId } };
+    where.contributions = { some: { personId, roleDefinition: filters.personInclSupport ? ON_CAMERA_ROLE : LEAD_ROLE } };
   }
 
   if (dateFrom || dateTo) {
@@ -310,7 +313,11 @@ export async function getSessionFacetCounts(filters: Omit<SessionFilters, "sort"
         { notes: { contains: filters.q, mode: "insensitive" } },
       ];
     }
-    if (filters.personId) w.contributions = { some: { personId: filters.personId } };
+    if (filters.personId) {
+      w.contributions = {
+        some: { personId: filters.personId, roleDefinition: filters.personInclSupport ? ON_CAMERA_ROLE : LEAD_ROLE },
+      };
+    }
     if (filters.dateFrom || filters.dateTo) {
       w.date = {
         ...(filters.dateFrom ? { gte: filters.dateFrom } : {}),

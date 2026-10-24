@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { getSessionMergeCandidates, getSessionMergeComparison, getSessionMergeDirection } from "@/lib/services/session-merge-candidates";
 import { mergeSessionsRecord } from "@/lib/services/session-service";
-import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { LEAD_ROLE } from "@/lib/services/session-contributors";
 
 // Session merge suggestions (2026-10-18): candidates by shared people, label and
 // project, with the reasons; search over set titles, people and labels; the
@@ -31,7 +31,7 @@ async function session(key: string, opts: { date?: string; type?: "REFERENCE"; p
 }
 
 beforeAll(async () => {
-  ids.onCamera = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } })).id;
+  ids.onCamera = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: LEAD_ROLE })).id;
   ids.label = (await prisma.label.create({ data: { name: `${RUN} Label` } })).id;
   ids.channel = (await prisma.channel.create({ data: { name: `${RUN} Channel`, labelId: ids.label } })).id;
   for (const [key, alias] of [["anna", "Anna"], ["zelda", "Zelda"]] as const) {

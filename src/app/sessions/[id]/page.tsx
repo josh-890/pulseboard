@@ -24,6 +24,7 @@ import {
 } from "@/lib/services/tag-filter-service";
 import { prisma } from "@/lib/db";
 import { cn, formatPartialDateISO } from "@/lib/utils";
+import { leadsFirst } from "@/lib/services/session-contributors";
 import { EditSessionSheet } from "@/components/sessions/edit-session-sheet";
 import { deleteSession } from "@/lib/actions/session-actions";
 import { SessionActionsMenu } from "@/components/sessions/session-actions-menu";
@@ -294,6 +295,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   const roleDefinitions = (contributionRoleGroups as Awaited<ReturnType<typeof getAllContributionRoleGroups>>).flatMap((g) =>
     g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
   );
+  // The on-camera roles a contributor switches between — Model ↔ Appearance (2026-10-24)
+  const onCameraRoles = (contributionRoleGroups as Awaited<ReturnType<typeof getAllContributionRoleGroups>>)
+    .filter((g) => g.kind === "ON_CAMERA")
+    .flatMap((g) => g.definitions.map((d) => ({ id: d.id, name: d.name, presence: d.presence })));
+  const actCounts = new Map(intensityRows.map((c) => [c.id, c.acts.length]));
 
   const productionContext: ProductionContext | undefined =
     !isReference && contributorsWithEntities.length > 0
@@ -433,12 +439,15 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 <EmptyState message="No contributors in this session." />
               ) : (
                 <ul className="space-y-0.5">
-                  {session.contributions.map((contribution) => (
+                  {leadsFirst(session.contributions).map((contribution) => (
                     <ContributionParticipantRow
                       key={contribution.id}
                       contributionId={contribution.id}
                       sessionId={id}
                       roleName={contribution.roleDefinition.name}
+                      roleId={contribution.roleDefinitionId}
+                      roleOptions={onCameraRoles}
+                      actCount={actCounts.get(contribution.id) ?? 0}
                       creditNameOverride={contribution.creditNameOverride}
                       era={contribution.era}
                       person={contribution.person}

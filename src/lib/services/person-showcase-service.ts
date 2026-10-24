@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import type { GalleryItem } from "@/lib/types";
 import { getCoverPhotosForSets, getMediaGalleryItemsByIds } from "./media-service";
-import { BEHIND_CAMERA_GROUP } from "./session-contributors";
+import { LEAD_ROLE } from "./session-contributors";
 
 // The Overview showcase of a person (2026-10-16): their best photos first, the way
 // you marked them — iconic, then ★, then outtake — filled up with production
@@ -56,14 +56,15 @@ export async function getPersonShowcase(
 
   // Set-based, not per image: a person's photos run to thousands. "Shown" is the
   // rule of `imageShows` in tag-predicates.ts — on camera in the image's session
-  // and not hidden from it, or linked directly
+  // and not hidden from it, or linked directly. Showcase/Known-for is the leads'
+  // (2026-10-24): someone only appearing is left out — even where marked shown
   const rows = await prisma.$queryRaw<{ id: string; level: number; grp: string }[]>`
     WITH on_camera AS (
       SELECT DISTINCT sc."sessionId"
       FROM "SessionContribution" sc
       JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
       JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
-      WHERE sc."personId" = ${personId} AND rg.name <> ${BEHIND_CAMERA_GROUP}
+      WHERE sc."personId" = ${personId} AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD'
     ),
     -- Two indexed ways in, united (an OR across them scans every image)
     ids AS (
@@ -156,7 +157,8 @@ export type KnownForSet = {
 /** The person's sets as posters: your highest-rated first, then the newest */
 export async function getPersonKnownFor(personId: string, limit = 8): Promise<KnownForSet[]> {
   const sets = await prisma.set.findMany({
-    where: { participants: { some: { personId } } },
+    // The sets they lead — not ones they only appear in, nor behind the camera (2026-10-24)
+    where: { participants: { some: { personId, roleDefinition: LEAD_ROLE } } },
     orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { releaseDate: { sort: "desc", nulls: "last" } }],
     take: limit,
     select: { id: true, title: true, releaseDate: true, rating: true, type: true, channel: { select: { name: true } } },

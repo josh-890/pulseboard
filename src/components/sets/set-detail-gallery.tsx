@@ -1083,6 +1083,9 @@ export function SetDetailGallery({
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),
             )
           }
+          onShownSupportChange={(id, shown) =>
+            setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown } : it)))
+          }
           onDecodeIssueCleared={(id) =>
             setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, decodeIssue: null } : it)))
           }

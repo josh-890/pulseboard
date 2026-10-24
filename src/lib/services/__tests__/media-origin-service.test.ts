@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { getMediaItemOrigin } from "@/lib/services/media-origin-service";
-import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { BEHIND_CAMERA_ROLE, LEAD_ROLE } from "@/lib/services/session-contributors";
 import { mediaOriginTarget } from "@/lib/media-origin-href";
 
 // Where an image comes from (2026-10-18) — the way back from favorites and
@@ -39,8 +39,8 @@ beforeAll(async () => {
   ids.A = shown.id;
   ids.B = other.id;
   ids.C = crew.id;
-  const onCamera = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } });
-  const behind = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: BEHIND_CAMERA_GROUP } } });
+  const onCamera = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: LEAD_ROLE });
+  const behind = await prisma.contributionRoleDefinition.findFirstOrThrow({ where: BEHIND_CAMERA_ROLE });
 
   const prod = await prisma.session.create({ data: { name: `${RUN} production` } });
   const ref = await prisma.session.create({ data: { name: `${RUN} reference`, type: "REFERENCE", personId: shown.id } });

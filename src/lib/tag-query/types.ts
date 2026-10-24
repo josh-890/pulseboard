@@ -48,6 +48,8 @@ export type ResolvedPredicate =
   | { kind: "workflow" }
   | { kind: "rating"; op: ">=" | "<=" | ">" | "<" | "="; value: number }
   | { kind: "person"; personIds: string[] }
+  /** Like person, but also where they only appear (support, 2026-10-24) */
+  | { kind: "cast"; personIds: string[] }
   | { kind: "persontag"; tagIds: string[] }
   | { kind: "label"; labelIds: string[] }
   | { kind: "type"; value: "photo" | "video" }

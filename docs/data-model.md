@@ -97,6 +97,10 @@ Network ──< LabelNetwork >── Label
   `confidenceSource ConfidenceSource` (MANUAL / CREDIT_MATCH / IMPORT).
   Resolving a credit promotes confidence to CONFIRMED + CREDIT_MATCH.
   SetParticipant mirrors the highest confidence of its linked contributions.
+- **ContributionRoleGroup.kind** `RoleGroupKind` (ON_CAMERA / BEHIND_CAMERA) and
+  **ContributionRoleDefinition.presence** `RolePresence` (LEAD / SUPPORT, default LEAD) — ADR-0037: code
+  reads these, never a group's name. On-Camera holds *Model* (LEAD) and *Appearance* (`crd_appearance`,
+  SUPPORT — someone only appearing: no intensity, shown on an image only where marked, "Appears in").
 - **SessionContribution.eraId** (nullable) — ADR-0004: optionally links the
   contribution to the Era the person was in at the shoot. Drives the
   appearance-at-shoot snapshot via point-in-time fold. Authored here (not on
@@ -149,7 +153,12 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
    │     ──< MediaCollectionItem >── MediaCollection (user album)
    │     ──< MediaItemTag        >── Tag
    │     ──< ContributionActMedia >── ContributionAct (evidence, ADR-0036)
+   │     ──< MediaItemHiddenPerson >── Person (a lead not shown, ADR-0023)
+   │     ──< MediaItemShownPerson  >── Person (support shown, ADR-0037)
 ```
+
+- Who an image shows: its session's leads minus `media_item_hidden_person`, plus its session's support
+  where `media_item_shown_person` has a row, plus `PersonMediaLink` (`imageShownIds` / SQL `imageShows`).
 
 - `PersonMediaUsage`: PROFILE / HEADSHOT / DETAIL / PORTFOLIO. DETAIL media
   links via `categoryId` to a `MediaCategory` (admin-configurable; categories

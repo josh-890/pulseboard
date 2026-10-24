@@ -5,6 +5,7 @@ import {
   clearMediaDecodeIssueAction,
   setMediaFavoriteAction,
   setMediaShownPeopleAction,
+  setMediaShownSupportAction,
 } from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
@@ -73,6 +74,8 @@ type GalleryLightboxProps = {
   // Notifies the parent gallery when an image's hidden set changes, so the grid's
   // subset badge updates live (without a reload).
   onHiddenPersonsChange?: (itemId: string, hiddenPersonIds: string[]) => void;
+  /** Support shown on an image changed (2026-10-24) */
+  onShownSupportChange?: (itemId: string, shownSupportIds: string[]) => void;
   /** "Looks fine" cleared a damaged image's flag — lets the parent drop its red frame */
   onDecodeIssueCleared?: (itemId: string) => void;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
@@ -138,6 +141,7 @@ function SimpleLightbox({
   cast,
   actEvidence,
   onHiddenPersonsChange,
+  onShownSupportChange,
   onDecodeIssueCleared,
   enableCollections,
   showOrigin = false,
@@ -181,6 +185,7 @@ function SimpleLightbox({
   const [isDecodeClearPending, startDecodeClearTransition] = useTransition();
   // ADR-0023: optimistic per-image "people shown" override (hidden person ids).
   const [localHiddenMap, setLocalHiddenMap] = useState<Map<string, string[]>>(new Map());
+  const [localShownSupportMap, setLocalShownSupportMap] = useState<Map<string, string[]>>(new Map());
   const [, startHiddenTransition] = useTransition();
   // ADR-0019: quick-add palette + target collection.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -210,16 +215,18 @@ function SimpleLightbox({
           const collOverride = localCollectionIdsMap.get(it.id);
           const favOverride = localFavoriteMap.get(it.id);
           const hiddenOverride = localHiddenMap.get(it.id);
+          const shownSupportOverride = localShownSupportMap.get(it.id);
           let result = it;
           if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
           if (linksOverride !== undefined) result = { ...result, links: linksOverride };
           if (collOverride !== undefined) result = { ...result, collectionIds: collOverride };
           if (favOverride !== undefined) result = { ...result, isFavorite: favOverride };
           if (hiddenOverride !== undefined) result = { ...result, hiddenPersonIds: hiddenOverride };
+          if (shownSupportOverride !== undefined) result = { ...result, shownSupportIds: shownSupportOverride };
           if (decodeClearedIds.has(it.id)) result = { ...result, decodeIssue: null };
           return result;
         }),
-    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap, decodeClearedIds],
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap, localShownSupportMap, decodeClearedIds],
   );
 
   const item = localItems[currentIndex];
@@ -323,6 +330,16 @@ function SimpleLightbox({
       await setMediaShownPeopleAction(id, hiddenIds);
     });
   }, [onHiddenPersonsChange]);
+
+  // Support shown on the image (2026-10-24) — the reverse of hidden. Optimistic.
+  const handleSetShownSupport = useCallback((id: string, shownIds: string[]) => {
+    setLocalShownSupportMap((m) => new Map(m).set(id, shownIds));
+    onShownSupportChange?.(id, shownIds);
+    startHiddenTransition(async () => {
+      const res = await setMediaShownSupportAction(id, shownIds);
+      if (!res.success) toast.error(res.error ?? "Could not save who is shown");
+    });
+  }, [onShownSupportChange]);
 
   // ADR-0019: quick-add palette data + optimistic collection membership.
   useEffect(() => {
@@ -758,6 +775,7 @@ function SimpleLightbox({
     onCollectionCreated: enableCollections || collectionContext ? handleCollectionCreated : undefined,
     cast,
     onSetHiddenPersons: handleSetHidden,
+    onSetShownSupport: handleSetShownSupport,
     showOrigin,
     origin,
   };

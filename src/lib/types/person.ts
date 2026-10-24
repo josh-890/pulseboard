@@ -252,6 +252,9 @@ export type PersonSessionWorkEntry = {
   labelId: string | null;
   labelName: string | null;
   roles: string[];
+  // A lead (Model) here — false when they only appear (support, 2026-10-24):
+  // such sessions stay out of the "Sets" count
+  lead: boolean;
   mediaCount: number;
   thumbnails: SessionThumbnail[];
   linkedSets: LinkedSetSummary[];
@@ -270,6 +273,8 @@ export type PersonProductionSession = {
   sessionDatePrecision: string;
   labelName: string | null;
   roles: string[];
+  // A lead here — false when they only appear (support); its photos aren't theirs to count
+  lead: boolean;
   mediaCount: number;
   previewThumbnails: SessionThumbnail[];
   confidence: import("@/generated/prisma/client").ParticipationConfidence;

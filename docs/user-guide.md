@@ -433,8 +433,11 @@ Only photos from the person's reference session can be embedded — external URL
   **title** + a confidence-graded status pill (`PROMOTED` emerald /
   `APPROVED` cyan / `IN REVIEW` amber / `PENDING` blue) + archive pill
   (green `In archive` / slate `Linked` / red specific issue) + rating
-  stars. Multi-cast sets show a 3rd line listing the other participants
+  stars. Multi-cast sets show a 3rd line listing the other models
   (the viewer themselves is omitted)
+- **Appears in** (ADR-0037) — below the timeline, the sets this person only
+  appears in (role *Appearance* in the session), by year. They are not part
+  of the career's counts, the Sets figure in the header, labels or Known for.
 - **Promote an approved set right here** — every approved set carries a
   green **Promote** button (bottom-left on the gallery cover, at the right
   end of a list row). Clicking it first checks what a promote would do and
@@ -597,7 +600,13 @@ Click **"Add Session"** to create a production session:
 - Header with status badge, project/label links, participant/set counts
 - **Inline editable** fields: name, description, location, notes
 - **Gallery** — media grid with batch upload zone and lightbox
-- **Contributors** — list of persons with role badges (Model, Photographer). Shows "as: [name]" when the credited name differs from the person's common alias. Click to navigate to person detail. Use **"+ Add"** to add a contributor (alias-aware search, role selector, optional "credited as" override). The **+ Add** button is only available on production sessions — reference sessions are 1:1 with their person and cannot have additional contributors.
+- **Contributors** — list of persons with role badges (Model, Appearance, Photographer), the models first.
+  **Model or Appearance** (ADR-0037): click the role pill of someone on camera to switch. *Appearance* is for
+  someone who is in the shoot without it being about them — a guest, a partner in a few frames. They stay in the
+  session and its sets, but carry **no intensity** (not in the panel, not in the scenario suggestion), are shown on
+  an image **only where you mark them**, and appear on the person's Career tab under **Appears in** instead of the
+  career (not in the Sets count, Known for or the showcase). Switching someone with ticked acts to Appearance asks
+  first — their acts, extras and evidence photos in this session are removed. Imports always credit as Model. Shows "as: [name]" when the credited name differs from the person's common alias. Click to navigate to person detail. Use **"+ Add"** to add a contributor (alias-aware search, role selector, optional "credited as" override). The **+ Add** button is only available on production sessions — reference sessions are 1:1 with their person and cannot have additional contributors.
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Intensity** (ADR-0036; once the intensity catalog has acts) — recorded in a **panel beside the photos**, so you look and tick at once. Open it with **Intensity** in the Media header (or in the sidebar's Intensity box, which shows each person's value while the panel is closed); × closes it. It takes the sidebar's place, a little wider, and stays in view while the photos scroll; the page remembers it open or closed.
   - **People** on camera are chips at the top — `Name (ICG-ID)` and their intensity in this session (hover the value: how it comes about). Click a chip to add it to or take it out of the selection, **only** to work on that person alone, **All** for everyone. With **several selected, every change applies to all of them.** An act or extra only some of them have shows a half tick (−) or a dashed outline and names who (*only Anna*); a click sets it for all.
@@ -689,7 +698,10 @@ Hover the dot for a tooltip with folder path and file count.
 - **Type** — Photo, Video, or All
 - **Channel** — filter to a specific channel
 - **Label** — filter by associated label
-- **Person** — filter to sets with a specific participant
+- **Person** — filter to sets with a specific model; **incl. appearing** (shown once a
+  person is chosen) also lists sets they only appear in. On cards, someone only appearing
+  sits after the models, smaller and dimmed; on the set page under **Appearing**. The
+  **Cast** size filter counts the models
 - **Release Date / Added** — date range filters
 - **Has media** — toggle to show only sets with uploaded media
 - **Archive** — No archive, Verified, Changed, Missing, Not imported
@@ -981,7 +993,8 @@ In the image viewer:
 | `is:untagged` | items without own tags |
 | `has:workflow` | items with a to-do tag |
 | `rating>=4` (also `>`, `<=`, `<`, `=`) | by rating (sets, people) |
-| `person:AB-1234` | images showing that person (session cast minus "not shown", or linked directly); sets/sessions with them in the cast; on /people that person |
+| `person:AB-1234` | images showing that person as a model (session models minus "not shown", or linked directly); sets/sessions with them as a model; on /people that person |
+| `cast:AB-1234` | like `person:`, but also where they only appear (role *Appearance*; on images only where marked shown) |
 | `persontag:fitness` | images, sets or sessions whose cast carries a person tag |
 | `label:Nubiles` | by label (sessions: producer; sets: the channel's owning label; images: either) |
 | `type:video` | videos (images, sets) |
@@ -1451,6 +1464,9 @@ galleries with 2+ cast) lets you record this **per image**:
   crew are excluded), which matters for sets built from multiple sessions.
 - Nothing is stored until you deselect someone (only the exclusions are saved), so adding a
   contributor to the credits later automatically shows them in every image by default.
+- **Someone only appearing** (role *Appearance*) is the other way round: they are listed under
+  **Appearing**, **not shown by default** — click their chip on the images that do show them.
+  "Only X" and "Deselect all" also unmark them. Bulk **Show** marks them on the selected images.
 
 **Where you see it:**
 - **Thumbnail badge** — a small `shown/total` people badge appears **only on images that

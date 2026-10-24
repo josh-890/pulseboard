@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Camera, Film, AlertTriangle, Copy, Star, Link2Off, ChevronDown } from "lucide-react";
@@ -10,6 +10,7 @@ import { useDensity } from "@/components/layout/density-provider";
 import { useBrowserLayout } from "@/components/layout/browser-layout-provider";
 import { PivotDate, PivotPersonAvatar, PivotValue } from "@/components/shared/pivot";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
 import type { getSets } from "@/lib/services/set-service";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
 
@@ -158,25 +159,34 @@ function AvatarRow({
   if (avatarParticipants.length === 0) return null;
   return (
     <div className="mt-2 flex items-start gap-1">
-        {avatarParticipants.map((p) => (
-          <PivotPersonAvatar
-            key={`${p.setId}-${p.personId}`}
-            personId={p.personId}
-            icgId={p.person.icgId}
-            name={getPersonName(p.person)}
-            headshot={headshotMap[p.personId]}
-            size={avatarSize}
-            age={computeProductionAge(
-              p.person.birthdate,
-              p.person.birthdatePrecision,
-              primarySession?.date ?? null,
-              primarySession?.datePrecision ?? "UNKNOWN",
-              primarySession?.dateIsConfirmed ?? false,
-              releaseDate,
-              releaseDatePrecision,
-            )}
-          />
-        ))}
+        {avatarParticipants.map((p) => {
+          const avatar = (
+            <PivotPersonAvatar
+              personId={p.personId}
+              icgId={p.person.icgId}
+              name={getPersonName(p.person)}
+              headshot={headshotMap[p.personId]}
+              // Someone only appearing: smaller, after the models
+              size={isSupport(p) ? Math.round(avatarSize * 0.75) : avatarSize}
+              age={computeProductionAge(
+                p.person.birthdate,
+                p.person.birthdatePrecision,
+                primarySession?.date ?? null,
+                primarySession?.datePrecision ?? "UNKNOWN",
+                primarySession?.dateIsConfirmed ?? false,
+                releaseDate,
+                releaseDatePrecision,
+              )}
+            />
+          );
+          return isSupport(p) ? (
+            <div key={`${p.setId}-${p.personId}`} className="opacity-60 transition-opacity hover:opacity-100" title="Appearing">
+              {avatar}
+            </div>
+          ) : (
+            <Fragment key={`${p.setId}-${p.personId}`}>{avatar}</Fragment>
+          );
+        })}
         {totalParticipantCount > 4 && (
           <div className="flex flex-col items-center gap-0.5" style={{ width: avatarSize + 8 }}>
             <div
@@ -225,7 +235,7 @@ export function SetCard({
   const artistLine = artistNames.slice(0, 2).join(" · ");
   const extraArtists = artistNames.length > 2 ? artistNames.length - 2 : 0;
 
-  const avatarParticipants = set.participants.slice(0, 4);
+  const avatarParticipants = leadsFirst(set.participants).slice(0, 4);
   const primarySession = set.sessionLinks[0]?.session ?? null;
 
   const noArchive = !set.archiveLinks?.length;

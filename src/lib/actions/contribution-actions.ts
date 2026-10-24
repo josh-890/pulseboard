@@ -6,6 +6,7 @@ import type { ParticipationConfidence } from "@/generated/prisma/client";
 import {
   addSessionContribution,
   removeSessionContribution,
+  setContributionRole,
   updateSessionContribution,
   updateSessionContributionConfidence,
 } from "@/lib/services/contribution-service";
@@ -100,5 +101,25 @@ export async function updateContributionConfidenceAction(
       return { success: false, error: message };
     }
 
+  });
+}
+
+/** Model ↔ Appearance on a contribution (2026-10-24); to Appearance drops its intensity */
+export async function setContributionRoleAction(
+  contributionId: string,
+  sessionId: string,
+  roleDefinitionId: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setContributionRole(contributionId, roleDefinitionId);
+      revalidatePath(`/sessions/${sessionId}`);
+      revalidatePath("/sets", "layout");
+      return { success: true };
+    } catch (err) {
+      console.error("[setContributionRoleAction] failed:", contributionId, err);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
   });
 }

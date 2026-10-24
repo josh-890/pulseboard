@@ -52,6 +52,8 @@ type CareerTabPerson = {
 export type CareerTabProps = {
   person: CareerTabPerson;
   careerTimeline: CareerTimelineRow[];
+  // The sets they only appear in (support, 2026-10-24) — listed apart, after the career
+  appearsIn?: CareerTimelineRow[];
   careerStats: CareerStats;
   facetCounts: CareerFacetCounts;
   channels: { id: string; name: string }[];
@@ -118,6 +120,7 @@ function formatIsoYM(d: Date | null, precision: string): string {
 export function CareerTab({
   person,
   careerTimeline,
+  appearsIn = [],
   careerStats,
   facetCounts,
   channels,
@@ -699,6 +702,25 @@ export function CareerTab({
           collapseStorageKey={`career.collapse.${person.id}`}
           jumpPerson={jumpPerson}
         />
+      )}
+
+      {/* Appears in — sets they are in without leading them; not in the counts above */}
+      {appearsIn.length > 0 && (
+        <section aria-labelledby="career-appears-in" className="space-y-2 border-t border-white/10 pt-4">
+          <h3 id="career-appears-in" className="text-sm font-medium text-muted-foreground">
+            Appears in <span className="tabular-nums">({appearsIn.length})</span>
+          </h3>
+          <TimelineSection
+            rows={appearsIn}
+            withTint={withTint}
+            groupBy="year"
+            density={density}
+            view={view}
+            tileSize={tileSize}
+            collapseStorageKey={`career.appears.collapse.${person.id}`}
+            jumpPerson={jumpPerson}
+          />
+        </section>
       )}
 
       <CreateKnownSetSheet

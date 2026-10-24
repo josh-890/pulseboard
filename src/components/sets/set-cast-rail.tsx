@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { cn, focalStyle, getInitialsFromName } from "@/lib/utils";
@@ -13,6 +13,7 @@ import {
 
 const HOVER_SIZE = 64;
 const AVATAR_SIZE = 64;
+const SUPPORT_AVATAR_SIZE = 44;
 
 type HeadshotData = { url: string; focalX: number | null; focalY: number | null };
 
@@ -23,6 +24,8 @@ export type CastMember = {
   age: string;
   headshot: HeadshotData | null;
   era: { label: string | null; isBaseline: boolean; count: number } | null;
+  /** Only appearing (support, 2026-10-24): after the models, under "Appearing", smaller */
+  support?: boolean;
 };
 
 /**
@@ -30,6 +33,7 @@ export type CastMember = {
  * circular avatar on top with the common name / "as <alias>" / age centered
  * beneath, full name/credited-as on the hover tooltip (64px headshot). When the
  * chips overflow the width the rail scrolls; edge fades cue that there's more.
+ * Support follows the models behind an "Appearing" label, in smaller chips.
  */
 export function SetCastRail({ cast }: { cast: CastMember[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,18 +68,34 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
           onScroll={updateFades}
           className="flex gap-2 overflow-x-auto pb-1 snap-x"
         >
-        {cast.map((m) => {
+        {cast.map((m, i) => {
           const initials = getInitialsFromName(m.name);
+          const size = m.support ? SUPPORT_AVATAR_SIZE : AVATAR_SIZE;
+          const firstSupport = m.support && !cast[i - 1]?.support;
           return (
-            <Tooltip key={m.personId}>
+            <Fragment key={m.personId}>
+            {firstSupport && (
+              <div className="flex shrink-0 items-center self-stretch border-l border-white/10 pl-2">
+                <span className="text-[11px] uppercase tracking-wide text-muted-foreground/70 [writing-mode:vertical-rl] rotate-180">
+                  Appearing
+                </span>
+              </div>
+            )}
+            <Tooltip>
               <TooltipTrigger asChild>
                 <Link
                   href={`/people/${m.personId}`}
-                  className="group flex w-[100px] shrink-0 snap-start flex-col items-center gap-1 rounded-xl border border-white/15 bg-card/80 p-2 shadow-sm transition-colors hover:border-white/30 hover:bg-card"
+                  aria-label={m.support ? `${m.name} (appearing)` : undefined}
+                  className={cn(
+                    "group flex shrink-0 snap-start flex-col items-center gap-1 rounded-xl border p-2 shadow-sm transition-colors hover:border-white/30 hover:bg-card",
+                    m.support
+                      ? "w-[84px] self-end border-white/10 bg-card/50 opacity-75 hover:opacity-100"
+                      : "w-[100px] border-white/15 bg-card/80",
+                  )}
                 >
                   <div
                     className="relative shrink-0 overflow-hidden rounded-full border-2 border-card bg-muted/60"
-                    style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+                    style={{ width: size, height: size }}
                   >
                     {m.headshot ? (
                       <Image
@@ -85,7 +105,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
                         className="object-cover"
                         style={focalStyle(m.headshot.focalX, m.headshot.focalY)}
                         unoptimized
-                        sizes={`${AVATAR_SIZE}px`}
+                        sizes={`${size}px`}
                       />
                     ) : (
                       <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-muted-foreground">
@@ -95,7 +115,12 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
                   </div>
 
                   <div className="mt-0.5 w-full text-center">
-                    <p className="line-clamp-2 text-sm font-medium leading-tight text-foreground [overflow-wrap:anywhere]">
+                    <p
+                      className={cn(
+                        "line-clamp-2 font-medium leading-tight text-foreground [overflow-wrap:anywhere]",
+                        m.support ? "text-xs" : "text-sm",
+                      )}
+                    >
                       {m.name}
                     </p>
                     {m.creditedAs && (
@@ -156,8 +181,10 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
                   <span className="text-xs italic text-muted-foreground">as {m.creditedAs}</span>
                 )}
                 {m.age && <span className="text-xs text-muted-foreground">{m.age}</span>}
+                {m.support && <span className="text-[11px] text-muted-foreground">Appearing</span>}
               </TooltipContent>
             </Tooltip>
+            </Fragment>
           );
         })}
         </div>

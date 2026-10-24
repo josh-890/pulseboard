@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getCareerStats } from "@/lib/services/career-service";
+import { LEAD_ROLE } from "@/lib/services/session-contributors";
 import {
   getScanCadenceDays,
   pageDueLevel,
@@ -590,7 +591,8 @@ export { getPersonDigitalIdentities };
 
 export async function getPersonWorkHistory(personId: string): Promise<PersonWorkHistoryItem[]> {
   const participants = await prisma.setParticipant.findMany({
-    where: { personId },
+    // The sets they lead: affiliations count these, not ones they only appear in (2026-10-24)
+    where: { personId, roleDefinition: LEAD_ROLE },
     include: {
       roleDefinition: true,
       set: {
@@ -658,7 +660,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
         session: { type: "PRODUCTION" },
       },
       include: {
-        roleDefinition: { select: { name: true } },
+        roleDefinition: { select: { name: true, presence: true } },
         session: {
           include: {
             label: { select: { id: true, name: true } },
@@ -690,6 +692,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
     const s = c.session;
     const existing = sessionMap.get(s.id);
     if (existing) {
+      if (c.roleDefinition.presence === "LEAD") existing.lead = true;
       if (!existing.roles.includes(c.roleDefinition.name)) {
         existing.roles.push(c.roleDefinition.name);
       }
@@ -720,6 +723,7 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
         labelId: s.label?.id ?? null,
         labelName: s.label?.name ?? null,
         roles: [c.roleDefinition.name],
+        lead: c.roleDefinition.presence === "LEAD",
         mediaCount: s._count.mediaItems,
         thumbnails: buildSessionThumbnails(s.mediaItems, 6),
         linkedSets: s.setSessionLinks.map((link) => ({
@@ -752,7 +756,7 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
       session: { type: "PRODUCTION" },
     },
     include: {
-      roleDefinition: { select: { name: true } },
+      roleDefinition: { select: { name: true, presence: true } },
       session: {
         include: {
           label: { select: { name: true } },
@@ -772,6 +776,7 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
     const s = c.session;
     const existing = sessionMap.get(s.id);
     if (existing) {
+      if (c.roleDefinition.presence === "LEAD") existing.lead = true;
       if (!existing.roles.includes(c.roleDefinition.name)) {
         existing.roles.push(c.roleDefinition.name);
       }
@@ -787,6 +792,7 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
         sessionDatePrecision: s.datePrecision,
         labelName: s.label?.name ?? null,
         roles: [c.roleDefinition.name],
+        lead: c.roleDefinition.presence === "LEAD",
         mediaCount: s._count.mediaItems,
         previewThumbnails: buildSessionThumbnails(s.mediaItems, 3),
         confidence: c.confidence,
@@ -1389,7 +1395,7 @@ export function deriveAffiliations(
 
 export async function getPersonAffiliations(personId: string): Promise<PersonAffiliation[]> {
   const participants = await prisma.setParticipant.findMany({
-    where: { personId },
+    where: { personId, roleDefinition: LEAD_ROLE },
     include: {
       set: {
         include: {

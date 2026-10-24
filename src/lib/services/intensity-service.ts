@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { overridesFor, suggestScenarioIds } from "@/lib/intensity";
 import { summarizePersonIntensity } from "@/lib/intensity-person";
-import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { LEAD_ROLE } from "@/lib/services/session-contributors";
 import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
 import { buildPhotoUrls } from "@/lib/media-url";
 import type { PhotoVariants } from "@/lib/types";
@@ -16,7 +16,7 @@ type TxClient = Prisma.TransactionClient;
 /** The on-camera contributions of a session with their intensity, and the scenarios their cast suggests */
 export async function getSessionIntensity(sessionId: string) {
   const contributions = await prisma.sessionContribution.findMany({
-    where: { sessionId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
+    where: { sessionId, roleDefinition: LEAD_ROLE },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -398,7 +398,7 @@ export async function getContributionActSessionId(contributionActId: string): Pr
 export async function getPersonIntensity(personId: string) {
   const [contributions, acts, extras, max] = await Promise.all([
     prisma.sessionContribution.findMany({
-      where: { personId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
+      where: { personId, roleDefinition: LEAD_ROLE },
       select: {
         session: { select: { id: true, name: true, date: true, datePrecision: true } },
         intensityExtras: { select: { extraId: true } },

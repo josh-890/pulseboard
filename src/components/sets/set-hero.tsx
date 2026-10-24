@@ -12,6 +12,7 @@ import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
+import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
 
@@ -82,7 +83,7 @@ export function SetHero({
         dateIsConfirmed: primarySession.dateIsConfirmed,
       }
     : null;
-  const cast: CastMember[] = set.participants.map((p) => {
+  const cast: CastMember[] = leadsFirst(set.participants).map((p) => {
     const name = p.person.aliases[0]?.name ?? p.person.icgId ?? "";
     const headshot = headshotMap.get(p.personId) ?? null;
     const eraInfo = participantEraMap?.[p.personId];
@@ -105,6 +106,7 @@ export function SetHero({
       era: eraInfo
         ? { label: eraInfo.eraLabel, isBaseline: eraInfo.isBaseline, count: eraInfo.eraCount }
         : null,
+      support: isSupport(p),
     };
   });
 

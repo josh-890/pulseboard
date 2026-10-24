@@ -3,7 +3,7 @@ import type { ParticipationConfidence, ConfidenceSource } from "@/generated/pris
 import { normalizeForSearch } from "@/lib/normalize";
 import { CONFIDENCE_RANK } from "@/lib/constants/confidence";
 import type { TxClient } from "./cascade-helpers";
-import { BEHIND_CAMERA_GROUP, type BehindCameraCredit } from "./session-contributors";
+import { BEHIND_CAMERA_ROLE, type BehindCameraCredit } from "./session-contributors";
 import { syncPromotedStagingCasts } from "./set-cast-service";
 
 // ─── Session Contributions ──────────────────────────────────────────────────
@@ -11,7 +11,7 @@ import { syncPromotedStagingCasts } from "./set-cast-service";
 /**
  * Behind-camera credits on this session's sets (ADR-0021). The session contributor
  * list unions these (read-only) with the Person `SessionContribution`s. A credit is
- * behind-camera when its role's group is `BEHIND_CAMERA_GROUP`; ignored credits are
+ * behind-camera when its role's group is of kind BEHIND_CAMERA; ignored credits are
  * excluded. Shown whether resolved to an Artist or still raw.
  */
 export async function getSessionBehindCameraCredits(
@@ -28,7 +28,7 @@ export async function getSessionBehindCameraCredits(
     where: {
       setId: { in: setIds },
       resolutionStatus: { not: "IGNORED" },
-      roleDefinition: { group: { name: BEHIND_CAMERA_GROUP } },
+      roleDefinition: BEHIND_CAMERA_ROLE,
     },
     select: {
       rawName: true,
@@ -153,6 +153,45 @@ export async function updateSessionContribution(
   return prisma.sessionContribution.update({
     where: { id: contributionId },
     data,
+  });
+}
+
+/**
+ * Switch an on-camera contribution between roles of its group — Model ↔ Appearance
+ * (2026-10-24). Someone only appearing carries no intensity, so moving to a SUPPORT
+ * role drops the contribution's acts and extras (the UI confirms first). The sets'
+ * cast cache follows in the same transaction.
+ */
+export async function setContributionRole(contributionId: string, roleDefinitionId: string) {
+  return prisma.$transaction(async (tx) => {
+    const c = await tx.sessionContribution.findUniqueOrThrow({
+      where: { id: contributionId },
+      select: { sessionId: true, personId: true, roleDefinitionId: true, roleDefinition: { select: { group: { select: { kind: true } } } } },
+    });
+    if (c.roleDefinitionId === roleDefinitionId) return { droppedActs: 0 };
+    const role = await tx.contributionRoleDefinition.findUniqueOrThrow({
+      where: { id: roleDefinitionId },
+      select: { presence: true, group: { select: { kind: true } } },
+    });
+    if (c.roleDefinition.group.kind !== "ON_CAMERA" || role.group.kind !== "ON_CAMERA") {
+      throw new Error("Only an on-camera role can be switched, and only to another on-camera role");
+    }
+    const taken = await tx.sessionContribution.findFirst({
+      where: { sessionId: c.sessionId, personId: c.personId, roleDefinitionId },
+      select: { id: true },
+    });
+    if (taken) throw new Error("This person already has that role in the session");
+
+    let droppedActs = 0;
+    if (role.presence === "SUPPORT") {
+      droppedActs = (await tx.contributionAct.deleteMany({ where: { contributionId } })).count;
+      await tx.contributionExtra.deleteMany({ where: { contributionId } });
+    }
+    await tx.sessionContribution.update({ where: { id: contributionId }, data: { roleDefinitionId } });
+
+    const links = await tx.setSession.findMany({ where: { sessionId: c.sessionId }, select: { setId: true } });
+    for (const l of links) await rebuildSetParticipantsFromContributions(tx, l.setId);
+    return { droppedActs };
   });
 }
 

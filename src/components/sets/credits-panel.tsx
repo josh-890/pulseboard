@@ -13,6 +13,8 @@ type CreditItem = {
   roleDefinitionId: string | null;
   roleName: string | null;
   roleGroupName: string | null;
+  /** ON_CAMERA or BEHIND_CAMERA — what the credit resolves to (2026-10-24) */
+  roleGroupKind: string | null;
   rawName: string;
   resolutionStatus: "UNRESOLVED" | "RESOLVED" | "IGNORED";
   resolvedAlias: { id: string; name: string } | null;
@@ -34,6 +36,7 @@ type RoleDefinitionOption = {
   id: string;
   name: string;
   groupName: string;
+  groupKind?: string;
 };
 
 type CreditsPanelProps = {

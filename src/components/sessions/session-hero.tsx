@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, FolderKanban } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
+import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
 import { SessionInlineTitle } from "@/components/sessions/session-detail-header";
@@ -33,7 +34,7 @@ function ContributorAvatars({
   if (contributions.length === 0) return null;
 
   const MAX_VISIBLE = 5;
-  const visible = contributions.slice(0, MAX_VISIBLE);
+  const visible = leadsFirst(contributions).slice(0, MAX_VISIBLE);
   const overflow = contributions.length - MAX_VISIBLE;
 
   return (
@@ -51,12 +52,17 @@ function ContributorAvatars({
           sessionDatePrecision,
           sessionDateIsConfirmed,
         );
-        const title = creditedAs ? `${name} (credited as: ${creditedAs})` : name;
+        const support = isSupport(c);
+        const title = `${creditedAs ? `${name} (credited as: ${creditedAs})` : name}${support ? " — appearing" : ""}`;
         return (
           <Link
             key={c.personId}
             href={`/people/${c.personId}`}
-            className="flex flex-col items-center gap-0.5 transition-transform hover:scale-105"
+            className={cn(
+              "flex flex-col items-center gap-0.5 transition-transform hover:scale-105",
+              // Someone only appearing: after the models, smaller and quieter
+              support && "scale-[0.8] self-end opacity-60 hover:scale-[0.85] hover:opacity-100",
+            )}
             style={{ width: 56 }}
             title={title}
           >

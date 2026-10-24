@@ -8,7 +8,7 @@ import { mergeSessionsRecord } from "./session-service";
 import { rebuildSetParticipantsFromContributions } from "./contribution-service";
 import { refreshPersonAffiliations } from "./view-service";
 import { pruneArchiveUploadFailed } from "./archive-upload-failed";
-import { contributorKindForRoleGroup } from "./session-contributors";
+import { contributorKindForRoleGroup, LEAD_ROLE, ON_CAMERA_ROLE } from "./session-contributors";
 
 export type SetSort =
   | "date-desc"
@@ -32,6 +32,8 @@ export type SetFilters = {
   labelIds?: string[];
   channelIds?: string[];
   personId?: string;
+  /** With personId: also sets they only appear in (support, 2026-10-24) — leads only by default */
+  personInclSupport?: boolean;
   // Multi-select cast-size buckets: a set matches if its distinct-person count
   // falls in ANY selected bucket ("5plus" = ≥5). Empty/absent = no filter.
   castCounts?: CastCountBucket[];
@@ -147,13 +149,14 @@ function getSetOrderBy(sort?: SetSort): Prisma.SetOrderByWithRelationInput[] {
 }
 
 /**
- * Set IDs whose cast (distinct persons — a person with multiple roles counts
+ * Set IDs whose lead cast (distinct persons — a person with multiple roles counts
  * once) matches a size bucket. Prisma can't filter by relation count in a
  * `where`, so we aggregate SetParticipant here and intersect the IDs into the
  * query (same shape as the `ids` duplicates filter).
  */
 async function setIdsByCastCounts(buckets: CastCountBucket[]): Promise<string[]> {
-  const pairs = await prisma.setParticipant.groupBy({ by: ["setId", "personId"] });
+  // The leads: someone only appearing doesn't make a set a duo (2026-10-24)
+  const pairs = await prisma.setParticipant.groupBy({ by: ["setId", "personId"], where: { roleDefinition: LEAD_ROLE } });
   const counts = new Map<string, number>();
   for (const p of pairs) counts.set(p.setId, (counts.get(p.setId) ?? 0) + 1);
   const want5plus = buckets.includes("5plus");
@@ -214,7 +217,7 @@ export async function getSetsPaginated(
   }
 
   if (personId) {
-    where.participants = { some: { personId } };
+    where.participants = { some: { personId, roleDefinition: filters.personInclSupport ? ON_CAMERA_ROLE : LEAD_ROLE } };
   }
 
   if (releaseDateFrom || releaseDateTo) {
@@ -479,7 +482,11 @@ export async function getSetFacetCounts(
     if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
     if (merged.channelIds && merged.channelIds.length > 0) w.channelId = { in: merged.channelIds };
     if (merged.labelIds && merged.labelIds.length > 0) w.channel = { labelId: { in: merged.labelIds } };
-    if (filters.personId) w.participants = { some: { personId: filters.personId } };
+    if (filters.personId) {
+      w.participants = {
+        some: { personId: filters.personId, roleDefinition: filters.personInclSupport ? ON_CAMERA_ROLE : LEAD_ROLE },
+      };
+    }
     if (filters.hasMedia) w.setMediaItems = { some: {} };
     if (filters.noArchiveLink) w.archiveLinks = { none: { status: ArchiveLinkStatus.CONFIRMED } };
     if (merged.ratings && merged.ratings.length > 0) {
@@ -934,9 +941,9 @@ export async function resolveCreditRaw(
     // ADR-0021: behind-camera credits resolve to an Artist, never a Person.
     const before = await tx.setCreditRaw.findUniqueOrThrow({
       where: { id: creditId },
-      select: { roleDefinition: { select: { group: { select: { name: true } } } } },
+      select: { roleDefinition: { select: { group: { select: { kind: true } } } } },
     });
-    if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.name) === "artist") {
+    if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.kind) === "artist") {
       throw new Error("Behind-camera credits resolve to an Artist, not a Person (ADR-0021).");
     }
 
@@ -1013,9 +1020,9 @@ export async function resolveCreditAsArtistRaw(creditId: string, artistId: strin
   // ADR-0021: on-camera credits resolve to a Person, never an Artist.
   const before = await prisma.setCreditRaw.findUniqueOrThrow({
     where: { id: creditId },
-    select: { roleDefinition: { select: { group: { select: { name: true } } } } },
+    select: { roleDefinition: { select: { group: { select: { kind: true } } } } },
   });
-  if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.name) === "person") {
+  if (before.roleDefinition && contributorKindForRoleGroup(before.roleDefinition.group.kind) === "person") {
     throw new Error("On-camera credits resolve to a Person, not an Artist (ADR-0021).");
   }
   return prisma.setCreditRaw.update({

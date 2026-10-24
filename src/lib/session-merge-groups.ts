@@ -1,4 +1,5 @@
 import type { GalleryItem, SessionMergeSet } from "@/lib/types";
+import { imageShows } from "@/lib/image-shown";
 
 // The compare page shows a session's photos set by set (2026-10-20) — the sets
 // in the card's order (earliest release first), a photo in two sets under both,
@@ -12,7 +13,7 @@ export type SessionPhotoGroup = {
 };
 
 export function showsPerson(photo: GalleryItem, personId: string): boolean {
-  return (photo.sessionCastIds ?? []).includes(personId) && !(photo.hiddenPersonIds ?? []).includes(personId);
+  return imageShows(photo, personId);
 }
 
 export function groupPhotosBySet(sets: SessionMergeSet[], photos: GalleryItem[], personId: string | null = null): SessionPhotoGroup[] {

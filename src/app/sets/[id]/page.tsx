@@ -113,7 +113,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
     const releaseYear = setData.releaseDate ? new Date(setData.releaseDate).getFullYear() : null;
 
     const roleDefinitions = roleGroups.flatMap((g) =>
-      g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+      g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name, groupKind: g.kind })),
     );
 
     const credits = setData.creditsRaw.map((c) => ({
@@ -121,6 +121,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
       roleDefinitionId: c.roleDefinitionId ?? null,
       roleName: c.roleDefinition?.name ?? null,
       roleGroupName: c.roleDefinition?.group?.name ?? null,
+      roleGroupKind: c.roleDefinition?.group?.kind ?? null,
       rawName: c.rawName,
       resolutionStatus: c.resolutionStatus,
       resolvedAlias: c.resolvedAlias ? { id: c.resolvedAlias.id, name: c.resolvedAlias.name } : null,

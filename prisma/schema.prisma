@@ -356,6 +356,7 @@ model Person {
   importDeclines           ImportDeclineLog[]
   deletionTombstones       ItemDeletionTombstone[]
   hiddenInMedia            MediaItemHiddenPerson[]
+  shownInMedia             MediaItemShownPerson[]
   aliasPromotionDismissals AliasPromotionDismissal[]
 
   createdAt DateTime @default(now())
@@ -1182,6 +1183,7 @@ model MediaItem {
   comparisonItems  ComparisonItem[]
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
+  shownPersons     MediaItemShownPerson[]
   actEvidence      ContributionActMedia[]
 
   @@index([sessionId])
@@ -1706,11 +1708,26 @@ model Activity {
 
 // ─── Contribution Role Catalog ───────────────────────────────────────────────
 
+/// Whether a role group's people are in front of the camera or behind it (2026-10-24) —
+/// a fixed kind, so renaming a group never changes what it means
+enum RoleGroupKind {
+  ON_CAMERA
+  BEHIND_CAMERA
+}
+
+/// A role's part in a session: LEAD takes part (intensity, cast, career); SUPPORT only
+/// appears — no intensity, "Appears in", shown only on images linked to them (2026-10-24)
+enum RolePresence {
+  LEAD
+  SUPPORT
+}
+
 model ContributionRoleGroup {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
+  id        String        @id @default(cuid())
+  name      String        @unique
+  kind      RoleGroupKind @default(ON_CAMERA)
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
 
   definitions ContributionRoleDefinition[]
 
@@ -1724,6 +1741,7 @@ model ContributionRoleDefinition {
   name        String
   slug        String                @unique
   description String?
+  presence    RolePresence          @default(LEAD)
   sortOrder   Int                   @default(0)
   createdAt   DateTime              @default(now())
 
@@ -2083,6 +2101,20 @@ model ArchiveFolderTag {
 // Persons; a row here marks a cast member who is NOT shown in that image.
 // shown(image) = onCameraCast(image.session) \ hidden(image). Absence of rows =
 // all cast shown, so the default self-follows the live cast (no backfill).
+/// A supporting person (role presence SUPPORT) shown on this image — they count only where
+/// linked, the reverse of `media_item_hidden_person` for the lead cast (2026-10-24)
+model MediaItemShownPerson {
+  mediaItemId String
+  personId    String
+  createdAt   DateTime  @default(now())
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([mediaItemId, personId])
+  @@index([personId])
+  @@map("media_item_shown_person")
+}
+
 model MediaItemHiddenPerson {
   mediaItemId String
   personId    String

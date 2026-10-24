@@ -27,6 +27,8 @@ type RoleDefinitionOption = {
   id: string;
   name: string;
   groupName: string;
+  /** ON_CAMERA or BEHIND_CAMERA (2026-10-24) */
+  groupKind?: string;
 };
 
 type AddCreditInlineProps = {
@@ -51,7 +53,7 @@ export function AddCreditInline({ setId, roleDefinitions }: AddCreditInlineProps
 
   // Determine if active role is behind-camera (artist-type)
   const activeRole = roleDefinitions.find((rd) => rd.id === activeRoleId);
-  const isArtistRole = activeRole?.groupName === "Behind Camera";
+  const isArtistRole = activeRole?.groupKind === "BEHIND_CAMERA";
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);

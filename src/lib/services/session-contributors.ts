@@ -11,15 +11,25 @@
  * See `docs/artist-session-contributors-plan.md`.
  */
 
-/** The role group whose credits resolve to a lightweight Artist (not a Person). */
-export const BEHIND_CAMERA_GROUP = "Behind Camera";
+/**
+ * A role group's kind (2026-10-24) — fixed, so renaming a group never changes
+ * what it means. Behind-camera credits resolve to a lightweight Artist.
+ */
+export type RoleGroupKindName = "ON_CAMERA" | "BEHIND_CAMERA";
 
 export type ContributorKind = "person" | "artist";
 
 /** On-Camera → person; Behind-Camera → artist. */
-export function contributorKindForRoleGroup(groupName: string): ContributorKind {
-  return groupName === BEHIND_CAMERA_GROUP ? "artist" : "person";
+export function contributorKindForRoleGroup(kind: RoleGroupKindName | string): ContributorKind {
+  return kind === "BEHIND_CAMERA" ? "artist" : "person";
 }
+
+// Prisma `where` on a role definition (2026-10-24): who is in front of the
+// camera, who takes part (LEAD) and who only appears (SUPPORT, e.g. Appearance)
+export const ON_CAMERA_ROLE = { group: { kind: "ON_CAMERA" as const } };
+export const BEHIND_CAMERA_ROLE = { group: { kind: "BEHIND_CAMERA" as const } };
+export const LEAD_ROLE = { group: { kind: "ON_CAMERA" as const }, presence: "LEAD" as const };
+export const SUPPORT_ROLE = { group: { kind: "ON_CAMERA" as const }, presence: "SUPPORT" as const };
 
 /** An on-camera Person contribution (from `SessionContribution`). */
 export type PersonContributor = {
@@ -69,4 +79,16 @@ export function mergeSessionContributors(
     artists.push({ kind: "artist", artistId: c.artistId, roleName: c.roleName, displayName });
   }
   return [...personContribs, ...artists];
+}
+
+type WithPresence = { roleDefinition?: { presence?: string | null } | null };
+
+/** Someone only appearing (support) — shown after the leads, subtly (2026-10-24) */
+export function isSupport(p: WithPresence): boolean {
+  return p.roleDefinition?.presence === "SUPPORT";
+}
+
+/** The leads first, then support — each in its own order */
+export function leadsFirst<T extends WithPresence>(list: readonly T[]): T[] {
+  return [...list.filter((p) => !isSupport(p)), ...list.filter(isSupport)];
 }

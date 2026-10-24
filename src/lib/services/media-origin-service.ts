@@ -1,7 +1,13 @@
 import { prisma } from "@/lib/db";
 import type { MediaItemOrigin } from "@/lib/types";
 import { getDisplayName } from "@/lib/utils";
-import { getHiddenPersonsForMedia, getOnCameraCastForSessions } from "./appearance-service";
+import {
+  getHiddenPersonsForMedia,
+  getLeadCastForSessions,
+  getShownSupportForMedia,
+  getSupportCastForSessions,
+} from "./appearance-service";
+import { imageShownIds } from "@/lib/image-shown";
 
 const PERSON_NAME_SELECT = {
   id: true,
@@ -51,18 +57,24 @@ export async function getMediaItemOrigin(mediaItemId: string): Promise<MediaItem
     }
   }
 
-  const [setLinks, castBySession, hiddenByMedia] = await Promise.all([
+  const [setLinks, castBySession, hiddenByMedia, supportBySession, shownByMedia] = await Promise.all([
     prisma.setMediaItem.findMany({
       where: { mediaItemId: originId },
       select: { set: { select: { id: true, title: true, type: true } } },
       orderBy: { set: { releaseDate: { sort: "asc", nulls: "last" } } },
     }),
-    getOnCameraCastForSessions([originSessionId]),
+    getLeadCastForSessions([originSessionId]),
     getHiddenPersonsForMedia([originId]),
+    getSupportCastForSessions([originSessionId]),
+    getShownSupportForMedia([originId]),
   ]);
 
-  const hidden = new Set(hiddenByMedia.get(originId) ?? []);
-  const shownIds = (castBySession.get(originSessionId) ?? []).filter((id) => !hidden.has(id));
+  const shownIds = imageShownIds({
+    sessionCastIds: castBySession.get(originSessionId),
+    hiddenPersonIds: hiddenByMedia.get(originId),
+    supportCastIds: supportBySession.get(originSessionId),
+    shownSupportIds: shownByMedia.get(originId),
+  });
   const persons = shownIds.length
     ? await prisma.person.findMany({ where: { id: { in: shownIds } }, select: PERSON_NAME_SELECT })
     : [];

@@ -136,6 +136,9 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 | `useMergeBasket` / `mergeBasketStore` | Client | — | `merge-basket/merge-basket-store.ts`: module store on `sessionStorage` (`mergeBasket`, per tab) via `useSyncExternalStore`; `{ items, has, toggle(item), remove(...ids), clear }`. Capacity 2 — `toggle` adding a third drops the first with a toast. Cleared of a pair by `MergeConfirmBar` after the merge, of a session by `SessionActionsMenu` after delete |
 | `MergeSessionCard` | Server-safe | `card`, `badge?`, `footer?`, `compact?` | A `SessionMergeCard`: name, date · label · project, its sets (cover, title, channel · release; +N more), or 4 photos without sets, people chips, counts |
 | `MergeReasonChips` | Server-safe | `reasons` | Why a candidate is suggested: same person(s), same label (emerald), same project, released N days apart |
+| `ContributionParticipantRow` | Server | `contributionId`, `sessionId`, `roleName`, `roleId?`, `roleOptions?`, `actCount?`, `creditNameOverride`, `era`, `person`, `sessionDate` | A contributor on the session page: role pill (with `roleOptions` → `ContributionRoleSwitch`), name, era pill, at-shoot snapshot. Listed leads first (`leadsFirst`) |
+| `ContributionRoleSwitch` | Client | `contributionId`, `sessionId`, `roleId`, `roleName`, `options` (`{ id, name, presence }`), `actCount`, `personName` | ADR-0037: the role pill as a menu — Model ↔ Appearance (on-camera roles). To a SUPPORT role with acts ticked: an `AlertDialog` ("will be removed") first; `setContributionRoleAction`. Support's pill is dashed |
+| `SessionCard` / `SessionHero` avatars | Client | — | Support after the models (`leadsFirst`), smaller and dimmed (title "Appearing") |
 
 ## Sets Components (`components/sets/`)
 
@@ -147,6 +150,7 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 | `TypeFilter` | Client | — | URL-driven SetType filter (photo / video) |
 | `SetHeader` | Server | `set` | Title, type badge, release date, channel name |
 | `CastSection` | Server | `contributions` | People in the set with role badges |
+| `SetCastRail` | Client | `cast` (`CastMember[]`, `support?`) | The hero's cast chips; support (ADR-0037) after the models behind a vertical **Appearing** label, smaller chips (44 px), dimmed, `aria-label` "Name (appearing)". `SetCard` avatars: support after the models, 75 % size, dimmed |
 | `SetMeta` | Server | `set` | Description, notes, tags, session/project links |
 | `SetActionsMenu` | Client | `setId`, `setTitle`, `setType`, `sessionId?`, `onDelete`, `redirectTo?` | Set detail ⋯ menu: **Same shoot as…** (opens `SessionMergeDialog` for the set's primary session; only with `sessionId`), **Same release imported twice…** (`MergeSetSheet`), Delete — the two merges named by intent (2026-10-20) |
 | `MergeSetSheet` / `MergeSetButton` | Client | `setId`, `setTitle`, `setType` (+ `open`, `onOpenChange`) | "Same release imported twice" — folds a duplicate set into this one; the set with more data survives. Points to "Same shoot as…" for different sets from one shoot |

@@ -160,6 +160,9 @@ type GalleryInfoPanelProps = {
   // to exclude. `onSetHiddenPersons` persists the new hidden set.
   cast?: GalleryCastMember[];
   onSetHiddenPersons?: (itemId: string, hiddenPersonIds: string[]) => void;
+  // Someone only appearing (support, 2026-10-24): listed after the cast under
+  // "Appearing", not shown by default — `onSetShownSupport` persists who is.
+  onSetShownSupport?: (itemId: string, shownSupportIds: string[]) => void;
   // Where the photo comes from (galleries gathered from everywhere). When
   // `showOrigin` is set an "Origin" section leads; `origin` undefined = loading.
   showOrigin?: boolean;
@@ -186,6 +189,7 @@ export function GalleryInfoPanel({
   onCollectionCreated,
   cast,
   onSetHiddenPersons,
+  onSetShownSupport,
   showOrigin,
   origin,
 }: GalleryInfoPanelProps) {
@@ -915,16 +919,23 @@ export function GalleryInfoPanel({
       )}
 
       {/* People shown (ADR-0023) — set/production galleries; default all-shown, deselect the absent */}
-      {cast && cast.length > 0 && (item.sessionCastIds?.length ?? 0) > 0 && (() => {
+      {cast && cast.length > 0 && ((item.sessionCastIds?.length ?? 0) > 0 || (item.supportCastIds?.length ?? 0) > 0) && (() => {
         const hidden = new Set(item.hiddenPersonIds ?? []);
         const castById = new Map(cast.map((c) => [c.id, c]));
         const sessionCast = (item.sessionCastIds ?? []).filter((id) => castById.has(id));
-        if (sessionCast.length === 0) return null;
-        const shownCount = sessionCast.filter((id) => !hidden.has(id)).length;
+        const supportCast = (item.supportCastIds ?? []).filter((id) => castById.has(id) && !sessionCast.includes(id));
+        if (sessionCast.length === 0 && supportCast.length === 0) return null;
+        const shownSupport = new Set((item.shownSupportIds ?? []).filter((id) => supportCast.includes(id)));
+        const shownCount = sessionCast.filter((id) => !hidden.has(id)).length + shownSupport.size;
+        const total = sessionCast.length + supportCast.length;
+        // "Only X" and "Deselect all" mean nobody else — support included
+        const clearSupport = () => {
+          if (shownSupport.size > 0) onSetShownSupport?.(item.id, []);
+        };
         return (
           <>
             <SectionHeader
-              title={`People shown (${shownCount}/${sessionCast.length})`}
+              title={`People shown (${shownCount}/${total})`}
               icon={<Users size={14} />}
               section="people-shown"
               expanded={expandedSections.has("people-shown")}
@@ -945,7 +956,10 @@ export function GalleryInfoPanel({
                     <span className="text-white/20">·</span>
                     <button
                       type="button"
-                      onClick={() => onSetHiddenPersons?.(item.id, [...sessionCast])}
+                      onClick={() => {
+                        onSetHiddenPersons?.(item.id, [...sessionCast]);
+                        clearSupport();
+                      }}
                       className="transition-colors hover:text-white"
                     >
                       Deselect all
@@ -987,7 +1001,10 @@ export function GalleryInfoPanel({
                         {sessionCast.length > 1 && (
                           <button
                             type="button"
-                            onClick={() => onSetHiddenPersons?.(item.id, sessionCast.filter((id) => id !== pid))}
+                            onClick={() => {
+                              onSetHiddenPersons?.(item.id, sessionCast.filter((id) => id !== pid));
+                              clearSupport();
+                            }}
                             className="border-l border-white/15 px-1.5 py-1 text-[10px] uppercase tracking-wide text-white/40 transition-colors hover:bg-white/10 hover:text-white"
                             title={`Show only ${member.name}`}
                             aria-label={`Show only ${member.name}`}
@@ -999,6 +1016,43 @@ export function GalleryInfoPanel({
                     );
                   })}
                 </div>
+                {supportCast.length > 0 && (
+                  <div className="space-y-1 pt-0.5">
+                    <p className="px-0.5 text-[10px] uppercase tracking-wide text-white/40">Appearing</p>
+                    <div className="flex flex-wrap gap-1">
+                      {supportCast.map((pid) => {
+                        const member = castById.get(pid)!;
+                        const isShown = shownSupport.has(pid);
+                        return (
+                          <button
+                            key={pid}
+                            type="button"
+                            onClick={() => {
+                              const next = new Set(shownSupport);
+                              if (isShown) next.delete(pid);
+                              else next.add(pid);
+                              onSetShownSupport?.(item.id, [...next]);
+                            }}
+                            aria-pressed={isShown}
+                            title={
+                              isShown
+                                ? `${member.name} — shown here (click to unmark)`
+                                : `${member.name} — only appears in the session; click if this image shows them`
+                            }
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                              isShown
+                                ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
+                                : "border-dashed border-white/15 bg-transparent text-white/45 hover:bg-white/10 hover:text-white/75",
+                            )}
+                          >
+                            {member.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

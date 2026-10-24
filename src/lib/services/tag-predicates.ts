@@ -11,7 +11,6 @@ import {
 import type { TaggableEntity } from "@/lib/tag-domains";
 import { intensityCap } from "@/lib/intensity";
 import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
-import { BEHIND_CAMERA_GROUP } from "./session-contributors";
 
 // Non-tag conditions of the query language (ADR-0033, S5): is:fav,
 // is:untagged, has:workflow, rating>=N, person:ICG-ID, persontag:tag,
@@ -61,7 +60,8 @@ export async function resolvePredicates(
           r = { kind: "type", value: value.toLowerCase() as "photo" | "video" };
         }
         break;
-      case "person": {
+      case "person":
+      case "cast": {
         const persons = await prisma.person.findMany({
           where: { icgId: { equals: value, mode: "insensitive" } },
           select: { id: true },
@@ -70,7 +70,7 @@ export async function resolvePredicates(
           problems.push(`No person with ICG-ID “${value}”`);
           continue;
         }
-        r = { kind: "person", personIds: persons.map((x) => x.id) };
+        r = { kind: p.key, personIds: persons.map((x) => x.id) };
         break;
       }
       case "persontag": {
@@ -165,29 +165,48 @@ export async function resolvePredicates(
 
 const RATING_OPS = new Set([">=", "<=", ">", "<", "="]);
 
-/** People shown in image `x` (ADR-0023): on-camera cast minus hidden, or linked directly */
-function imageShows(x: Prisma.Sql, people: Prisma.Sql): Prisma.Sql {
+/**
+ * People shown in image `x` (ADR-0023): a lead of its session not hidden on it, someone
+ * only appearing (support) marked shown on it, or linked directly — `imageShownIds`.
+ * `leadsOnly` (person:) leaves the support out; cast: takes them in.
+ */
+function imageShows(x: Prisma.Sql, people: Prisma.Sql, leadsOnly = false): Prisma.Sql {
   return Prisma.sql`(
     EXISTS (
       SELECT 1 FROM "MediaItem" mi
       JOIN "SessionContribution" sc ON sc."sessionId" = mi."sessionId"
       JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
       JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
-      WHERE mi.id = ${x} AND sc."personId" IN (${people}) AND rg.name <> ${BEHIND_CAMERA_GROUP}
-        AND NOT EXISTS (SELECT 1 FROM media_item_hidden_person h WHERE h."mediaItemId" = ${x} AND h."personId" = sc."personId")
+      WHERE mi.id = ${x} AND sc."personId" IN (${people}) AND rg.kind = 'ON_CAMERA'
+        ${leadsOnly ? Prisma.sql`AND rd.presence = 'LEAD'` : Prisma.empty}
+        AND CASE rd.presence
+          WHEN 'LEAD' THEN NOT EXISTS (SELECT 1 FROM media_item_hidden_person h WHERE h."mediaItemId" = ${x} AND h."personId" = sc."personId")
+          ELSE EXISTS (SELECT 1 FROM media_item_shown_person s WHERE s."mediaItemId" = ${x} AND s."personId" = sc."personId")
+        END
     )
     OR EXISTS (SELECT 1 FROM "PersonMediaLink" pml WHERE pml."mediaItemId" = ${x} AND pml."personId" IN (${people}))
   )`;
 }
 
-function castIncludes(entity: TaggableEntity, x: Prisma.Sql, people: Prisma.Sql): Prisma.Sql {
+/**
+ * The cast includes one of `people`: the leads by default (person:, persontag:) —
+ * with `support` (cast:) also someone only appearing (2026-10-24). On camera either way.
+ */
+function castIncludes(entity: TaggableEntity, x: Prisma.Sql, people: Prisma.Sql, support = false): Prisma.Sql {
+  const presence = support ? Prisma.empty : Prisma.sql`AND rd.presence = 'LEAD'`;
   switch (entity) {
     case "MEDIA_ITEM":
-      return imageShows(x, people);
+      return imageShows(x, people, !support);
     case "SET":
-      return Prisma.sql`EXISTS (SELECT 1 FROM "SetParticipant" sp WHERE sp."setId" = ${x} AND sp."personId" IN (${people}))`;
+      return Prisma.sql`EXISTS (SELECT 1 FROM "SetParticipant" sp
+        JOIN "ContributionRoleDefinition" rd ON rd.id = sp."roleDefinitionId"
+        JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+        WHERE sp."setId" = ${x} AND sp."personId" IN (${people}) AND rg.kind = 'ON_CAMERA' ${presence})`;
     case "SESSION":
-      return Prisma.sql`EXISTS (SELECT 1 FROM "SessionContribution" sc WHERE sc."sessionId" = ${x} AND sc."personId" IN (${people}))`;
+      return Prisma.sql`EXISTS (SELECT 1 FROM "SessionContribution" sc
+        JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
+        JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+        WHERE sc."sessionId" = ${x} AND sc."personId" IN (${people}) AND rg.kind = 'ON_CAMERA' ${presence})`;
     case "PERSON":
       return Prisma.sql`${x} IN (${people})`;
     case "PROJECT":
@@ -367,6 +386,8 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
     }
     case "person":
       return castIncludes(entity, x, Prisma.join(p.personIds));
+    case "cast":
+      return castIncludes(entity, x, Prisma.join(p.personIds), true);
     case "persontag":
       return castIncludes(entity, x, Prisma.sql`SELECT "personId" FROM person_tag WHERE "tagDefinitionId" IN (${Prisma.join(p.tagIds)})`);
     case "label": {

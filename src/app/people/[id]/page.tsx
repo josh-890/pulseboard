@@ -134,7 +134,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   // Ensure system entity categories exist before loading category data
   await ensureEntityCategories();
 
-  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog, personActEvidence] =
+  const [person, workHistory, connectionsData, relationshipRoles, refSession, categoryGroups, populatedCounts, aliasesWithChannels, sessionWorkHistory, productionSessions, entityMediaMap, physicalAttributeGroups, personEntityTags, digitalIdentities, researchEntries, stagingWorkHistory, eraContributionsMap, careerTimeline, careerAppearsIn, careerStats, careerFacetCounts, careerChannels, careerEras, importHistory, aliasPromotionQueue, showcase, knownFor, personIntensity, intensityCatalog, personActEvidence] =
     await Promise.all([
       getPersonWithDetails(id),
       getPersonWorkHistory(id),
@@ -154,6 +154,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
       getStagingWorkHistoryForPerson(id),
       getPersonEraContributions(id),
       getCareerTimeline(id, careerFilters),
+      getCareerTimeline(id, { presence: "SUPPORT" }),
       getCareerStats(id),
       getCareerFacetCounts(id, careerFilters),
       getCareerChannelsForPerson(id),
@@ -294,6 +295,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
         importHistory={importHistory}
         stagingWorkHistory={stagingWorkHistory}
         careerTimeline={careerTimeline}
+        careerAppearsIn={careerAppearsIn}
         careerStats={careerStats}
         careerFacetCounts={careerFacetCounts}
         careerChannels={careerChannels}

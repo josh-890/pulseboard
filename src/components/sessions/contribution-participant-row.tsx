@@ -3,6 +3,7 @@ import { Pencil } from "lucide-react";
 import { deriveAppearanceAtShoot } from "@/lib/services/person-service";
 import { EditContributionEraDialog } from "@/components/sessions/edit-contribution-era-dialog";
 import { splitOptionLabel } from "@/lib/utils";
+import { ContributionRoleSwitch, type ContributionRoleOption } from "@/components/sessions/contribution-role-switch";
 
 type EraInfo = {
   id: string;
@@ -22,6 +23,10 @@ type ContributionParticipantRowProps = {
   contributionId: string;
   sessionId: string;
   roleName: string;
+  /** With the on-camera roles: the role pill switches Model ↔ Appearance (2026-10-24) */
+  roleId?: string;
+  roleOptions?: ContributionRoleOption[];
+  actCount?: number;
   creditNameOverride: string | null;
   era: EraInfo | null;
   person: ContributionPerson;
@@ -37,6 +42,9 @@ export function ContributionParticipantRow({
   contributionId,
   sessionId,
   roleName,
+  roleId,
+  roleOptions = [],
+  actCount = 0,
   creditNameOverride,
   era,
   person,
@@ -104,9 +112,21 @@ export function ContributionParticipantRow({
     <li key={contributionId}>
       <div className="group flex flex-col gap-1 rounded-lg border border-transparent px-3 py-1.5 transition-all hover:border-white/15 hover:bg-card/60">
         <div className="flex flex-wrap items-center gap-2.5">
-          <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
-            {roleName}
-          </span>
+          {roleId && roleOptions.some((o) => o.id === roleId) ? (
+            <ContributionRoleSwitch
+              contributionId={contributionId}
+              sessionId={sessionId}
+              roleId={roleId}
+              roleName={roleName}
+              options={roleOptions}
+              actCount={actCount}
+              personName={`${displayName} (${person.icgId})`}
+            />
+          ) : (
+            <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
+              {roleName}
+            </span>
+          )}
           <Link
             href={`/people/${person.id}`}
             className="text-sm font-medium text-foreground/90 hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"

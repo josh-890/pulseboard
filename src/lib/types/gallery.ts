@@ -64,9 +64,14 @@ export type GalleryItem = {
    * `sessionCastIds` = the default cast for this image's session (on-camera Persons);
    * `hiddenPersonIds` = the exclusions. shown = sessionCastIds \ hiddenPersonIds.
    * The subset badge shows only when hiddenPersonIds is non-empty.
+   * Support (2026-10-24): `supportCastIds` = the session's people only appearing,
+   * `shownSupportIds` = who of them this image shows (default: none). The whole
+   * rule is `imageShownIds` in `@/lib/image-shown`.
    */
   sessionCastIds?: string[];
   hiddenPersonIds?: string[];
+  supportCastIds?: string[];
+  shownSupportIds?: string[];
   /**
    * Provenance for "copy production image → reference session" copies
    * (ADR-0009 follow-up). Populated by reference-session galleries; lets

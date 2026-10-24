@@ -12,7 +12,7 @@ import { prisma } from '@/lib/db'
 import type { FilePerson } from '@/lib/archive-people-file'
 import { normalizeForSearch } from '@/lib/normalize'
 import type { TxClient } from './cascade-helpers'
-import { BEHIND_CAMERA_GROUP } from './session-contributors'
+import { LEAD_ROLE } from './session-contributors'
 
 export type CastEntry = { title: string; cast: FilePerson[] }
 
@@ -102,7 +102,7 @@ export async function syncPromotedStagingCasts(tx: TxClient, setId: string): Pro
   if (staged.length === 0) return 0
 
   const cast = await tx.setParticipant.findMany({
-    where: { setId, roleDefinition: { group: { name: { not: BEHIND_CAMERA_GROUP } } } },
+    where: { setId, roleDefinition: LEAD_ROLE },
     select: {
       person: {
         select: {

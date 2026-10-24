@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { rebuildSetParticipantsFromContributions } from "@/lib/services/contribution-service";
-import { BEHIND_CAMERA_GROUP } from "@/lib/services/session-contributors";
+import { BEHIND_CAMERA_ROLE, LEAD_ROLE } from "@/lib/services/session-contributors";
 
 // A promoted staging set follows its Set's cast (2026-10-17): "City Of Beauty" was
 // staged with one Alisa, the Set recast to another, and the staged sets view kept
@@ -24,8 +24,8 @@ beforeAll(async () => {
   await person("gold", "Alisa");
   await person("amore", "Alisa Amore");
   await person("photographer", "Dan");
-  ids.onCamera = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: { not: BEHIND_CAMERA_GROUP } } } })).id;
-  ids.behind = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: { group: { name: BEHIND_CAMERA_GROUP } } })).id;
+  ids.onCamera = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: LEAD_ROLE })).id;
+  ids.behind = (await prisma.contributionRoleDefinition.findFirstOrThrow({ where: BEHIND_CAMERA_ROLE })).id;
 
   const session = await prisma.session.create({ data: { name: `${RUN} session` } });
   const set = await prisma.set.create({ data: { type: "photo", title: `${RUN} City Of Beauty` } });
