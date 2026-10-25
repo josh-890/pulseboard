@@ -17,6 +17,7 @@ import { confirmArchiveFolderLinkAction, rejectArchiveSuggestionAction } from '@
 import { acceptDateSuggestionAction, dismissDateSuggestionAction, confirmAndApproveStagingSetAction } from '@/lib/actions/staging-set-actions'
 import { channelDisplay } from '@/lib/channel-label'
 import { ArchiveFolderPicker } from './archive-folder-picker'
+import { ArchiveKeyPopover } from './archive-key-popover'
 import { StagingSetCoverUpload } from './staging-set-cover-upload'
 import { StagingSetStatusMenu } from './staging-set-status-menu'
 
@@ -598,6 +599,8 @@ export const StagingSetRow = memo(function StagingSetRow({
                   <X size={10} />
                 </button>
               </span>
+            ) : ss.releaseDate && dateStr ? (
+              <ArchiveKeyPopover stagingSetId={ss.id} label={dateStr} onLinked={onArchiveChange} />
             ) : (
               <span className="shrink-0">{dateStr}</span>
             )}

@@ -23,6 +23,7 @@ import {
 } from '@/lib/services/archive-service'
 import type { WorkspaceFilters, WorkspacePage, ChannelSummary, WorkspaceCounts, SearchFolderResult } from '@/lib/services/archive-service'
 import { clearArchiveFolderCover } from '@/lib/services/archive-cover-service'
+import { getArchiveKeyFolders, type ArchiveKeyView } from '@/lib/services/archive-key-service'
 import { dismissArchiveUploadFailed } from '@/lib/services/archive-upload-failed'
 import type { SimpleActionResult } from '@/lib/types'
 
@@ -178,6 +179,18 @@ export async function confirmArchiveFolderLinkAction(
     } catch (err) {
       console.error('[archive-actions] Failed to confirm link', err)
       return { success: false, error: 'Failed to confirm link' }
+    }
+  })
+}
+
+/** The folders sharing a staged set's day and channel, and its near misses. */
+export async function getArchiveKeyFoldersAction(stagingSetId: string): Promise<ArchiveKeyView | null> {
+  return withTenantFromHeaders(async () => {
+    try {
+      return await getArchiveKeyFolders(stagingSetId, getCurrentTenantId())
+    } catch (err) {
+      console.error('[archive-actions] Failed to load the folders for an archive key', err)
+      return null
     }
   })
 }

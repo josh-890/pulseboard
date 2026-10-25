@@ -75,6 +75,17 @@ async function cleanupTestData() {
       )`;
     if (r) console.log(`  PersonMediaLink (test session media): ${r}`);
 
+    // Everything else that points at those media items without a cascade — a test
+    // that fails half-way leaves tags or a hidden person behind, and the delete
+    // below then stops the whole suite (2026-10-25)
+    for (const table of ["media_item_tag", "media_item_hidden_person", "SetMediaItem", "MediaCollectionItem", "ComparisonItem"]) {
+      r = await tx.$executeRawUnsafe(
+        `DELETE FROM "${table}" WHERE "mediaItemId" IN (
+          SELECT id FROM "MediaItem" WHERE "sessionId" IN (SELECT id FROM "Session" WHERE name LIKE 'Test Session %'))`,
+      );
+      if (r) console.log(`  ${table} (test session media): ${r}`);
+    }
+
     r = await tx.$executeRaw`
       DELETE FROM "MediaItem" WHERE "sessionId" IN (
         SELECT id FROM "Session" WHERE name LIKE 'Test Session %'

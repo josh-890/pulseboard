@@ -1716,6 +1716,17 @@ Suggestions are **person-aware**: the matcher reads the person from the folder n
 
 Channels are compared by their **owning Label**, not their code. If you file several channels of one producer under a single archive branch — NubileFilms sets under `NBL-Nubiles`, for example — a NubileFilms set still finds its `NBL` folder. A folder from a *different* channel of the same Label is only suggested when the release **day** matches; a similar title alone is only enough within the set's own channel.
 
+### The folders around a set's date (archive key)
+
+Title and name drift between the import and the archive; the **day and channel** — the archive key, `2017-10-05-MA` — rarely do. Hover the **date** of a staged set (or click it, or tab to it and press Enter) and a popover lists every archive folder with that key, in the archive's own form `2017-10-05-MA Nancy A - Artica`:
+
+- **Same day** — folders of the set's channel and of the other channels of its Label. What agrees with this set is green (the person, the title); the folders agreeing most come first.
+- **Near misses** — the same channel ±2 days (`+1 day` in amber) and the day with day and month swapped (`day/month swapped`), where a typing slip usually lands.
+- Each folder says whose it is: *free*, *suggested here*, *suggested to "Chilea"* or *linked to "…"* (greyed — a confirmed folder is never taken).
+- **Link** confirms that folder for this set at once — also one the matcher suggested elsewhere. When the set already has its folder the list is for reading only.
+
+Use it when the suggestion is wrong but you know the set is in the archive: the right folder is usually in this list, one click away.
+
 ### Archive Folder Picker
 
 A search sheet for manually linking an unlinked archive folder:
