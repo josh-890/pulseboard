@@ -232,11 +232,18 @@ export function pickBestArchiveCandidate(
  * the day is sitting unlinked. Two of the four blocked cases found by hand were
  * five months and four months off.
  *
- * Only a **categorical** improvement displaces an incumbent:
+ * Only a **categorical** improvement displaces an incumbent, in this order:
  *
  *   - the challenger shares the release day and the incumbent does not, or
  *   - the day is equally (un)matched and the challenger carries a person you
- *     confirmed while the incumbent does not.
+ *     confirmed while the incumbent does not, or
+ *   - day and person are equal and the challenger is HIGH where the incumbent is
+ *     MEDIUM. On the same day that is the difference between "the person or the
+ *     title agrees" and "nothing but the day does" — not a few trigram points.
+ *     Without it the first same-day folder to arrive kept the set: on xpulse
+ *     `2017-10-05-MA Ginger Frost - Chilea` held the staged set *Artica* (Nancy A,
+ *     same day) against `2017-10-05-MA Nancy A - Artica`, and that folder was
+ *     pushed onto another set or left with none (2026-10-25).
  *
  * A better title similarity never displaces anything. That is the signal this
  * codebase has already been burned by — "Feel Good" against "Feels Good", five
@@ -247,11 +254,12 @@ export function pickBestArchiveCandidate(
  * order-independent: no pair can take a set back and forth.
  */
 export function beatsIncumbent(
-  challenger: { isExactDay: boolean; personConfirmed?: boolean },
-  incumbent: { isExactDay: boolean; personConfirmed?: boolean },
+  challenger: { isExactDay: boolean; personConfirmed?: boolean; confidence?: ArchiveMatchConfidence },
+  incumbent: { isExactDay: boolean; personConfirmed?: boolean; confidence?: ArchiveMatchConfidence },
 ): boolean {
   if (challenger.isExactDay !== incumbent.isExactDay) return challenger.isExactDay
-  return !!challenger.personConfirmed && !incumbent.personConfirmed
+  if (!!challenger.personConfirmed !== !!incumbent.personConfirmed) return !!challenger.personConfirmed
+  return challenger.confidence === 'HIGH' && incumbent.confidence === 'MEDIUM'
 }
 
 /**
@@ -298,7 +306,13 @@ export function rankArchiveCandidates(
  */
 async function firstClaimable(
   ranked: { id: string; confidence: 'HIGH' | 'MEDIUM'; isExactDay: boolean; personConfirmed: boolean }[],
-  rows: { id: string; release_date: Date | null; participant_icg_ids: string[]; held_by: string | null }[],
+  rows: {
+    id: string
+    release_date: Date | null
+    participant_icg_ids: string[]
+    held_by: string | null
+    held_confidence: string | null
+  }[],
 ): Promise<{ id: string; confidence: 'HIGH' | 'MEDIUM' } | null> {
   const rowById = new Map(rows.map((r) => [r.id, r]))
   const contestedFolderIds = [
@@ -334,6 +348,7 @@ async function firstClaimable(
     const beaten = beatsIncumbent(candidate, {
       isExactDay: sameDay(incumbent.parsedDate, row.release_date),
       personConfirmed: (row.participant_icg_ids ?? []).some((icg) => claims.has(icg)),
+      confidence: row.held_confidence === 'HIGH' || row.held_confidence === 'MEDIUM' ? row.held_confidence : null,
     })
     if (beaten) return { id: candidate.id, confidence: candidate.confidence }
   }
@@ -1978,6 +1993,7 @@ export async function runMatchingPass(
       participant_icg_ids: string[]
       release_date: Date | null
       held_by: string | null
+      held_confidence: string | null
     }
     const stagingCands = await prisma.$queryRaw<StagingCandRow[]>`
       SELECT ss.id,
@@ -1990,7 +2006,12 @@ export async function runMatchingPass(
                WHERE al."stagingSetId" = ss.id
                  AND al.status = 'SUGGESTED'
                  AND al."archiveFolderId" <> ${folder.id}
-               LIMIT 1) AS held_by
+               LIMIT 1) AS held_by,
+             (SELECT al.confidence FROM "ArchiveLink" al
+               WHERE al."stagingSetId" = ss.id
+                 AND al.status = 'SUGGESTED'
+                 AND al."archiveFolderId" <> ${folder.id}
+               LIMIT 1) AS held_confidence
       FROM staging_set ss
       JOIN "Channel" c ON c.id = ss."channelId"
       WHERE LOWER(c."shortName") IN (${sameLabelChannelCodes(Prisma.sql`${folder.parsedShortName}`)})
@@ -2054,11 +2075,30 @@ export async function runMatchingPass(
 
     // ── Promoted sets ──
     const setTypeStr = folder.isVideo ? 'video' : 'photo'
-    type SetCandRow = { id: string; sim: number; is_exact_day: boolean }
+    type SetCandRow = {
+      id: string
+      sim: number
+      is_exact_day: boolean
+      participant_icg_ids: string[]
+      release_date: Date | null
+      held_by: string | null
+      held_confidence: string | null
+    }
+    // A set held by another folder's suggestion is contested, as staged sets are
+    // (firstClaimable) — it used to be skipped, so the first folder to arrive kept it.
     const setCands = await prisma.$queryRaw<SetCandRow[]>`
       SELECT s.id,
              similarity(${ptNorm}, s."titleNorm") AS sim,
-             (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}) AS is_exact_day
+             (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}) AS is_exact_day,
+             ARRAY(SELECT p."icgId" FROM "SetParticipant" sp JOIN "Person" p ON p.id = sp."personId"
+                   WHERE sp."setId" = s.id) AS participant_icg_ids,
+             s."releaseDate" AS release_date,
+             (SELECT al."archiveFolderId" FROM "ArchiveLink" al
+               WHERE al."setId" = s.id AND al.status = 'SUGGESTED' AND al."archiveFolderId" <> ${folder.id}
+               LIMIT 1) AS held_by,
+             (SELECT al.confidence FROM "ArchiveLink" al
+               WHERE al."setId" = s.id AND al.status = 'SUGGESTED' AND al."archiveFolderId" <> ${folder.id}
+               LIMIT 1) AS held_confidence
       FROM "Set" s
       JOIN "Channel" c ON c.id = s."channelId"
       WHERE LOWER(c."shortName") IN (${sameLabelChannelCodes(Prisma.sql`${folder.parsedShortName}`)})
@@ -2067,7 +2107,8 @@ export async function runMatchingPass(
         AND NOT EXISTS (
           SELECT 1 FROM "ArchiveLink" al
           WHERE al."setId" = s.id
-            AND (al.status = 'CONFIRMED' OR (al.status = 'SUGGESTED' AND al."archiveFolderId" <> ${folder.id}))
+            AND al.status = 'CONFIRMED'
+            AND al."archiveFolderId" <> ${folder.id}
         )
         AND (
           (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd})
@@ -2080,13 +2121,15 @@ export async function runMatchingPass(
 
     if (setCands.length > 0) {
       const namesBySet = await _aliasNormsBySetId(setCands.map((c) => c.id))
+      const claimed = new Set(folder.attributions.map((a) => a.icgId))
       const scored: ScoredArchiveCandidate[] = setCands.map((c) => ({
         id: c.id,
         titleSim: Number(c.sim) || 0,
         nameMatch: folderPersonMatches(folderPersonNorm, namesBySet.get(c.id) ?? []),
         isExactDay: c.is_exact_day === true,
+        personConfirmed: (c.participant_icg_ids ?? []).some((icg) => claimed.has(icg)),
       }))
-      const best = pickBestArchiveCandidate(scored)
+      const best = await firstClaimable(rankArchiveCandidates(scored), setCands)
       if (best) {
         await prisma.archiveLink.upsert({
           where: { archiveFolderId: folder.id },

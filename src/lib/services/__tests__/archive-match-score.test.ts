@@ -205,6 +205,21 @@ describe("beatsIncumbent", () => {
     ).toBe(false);
   });
 
+  // Same day, same person evidence: "the person or the title agrees" (HIGH) beats
+  // "only the day agrees" (MEDIUM) — the Artica case (2026-10-25)
+  it("gives a set held on the day alone to a same-day HIGH", () => {
+    expect(beatsIncumbent({ isExactDay: true, confidence: "HIGH" }, { isExactDay: true, confidence: "MEDIUM" })).toBe(true);
+    expect(beatsIncumbent({ isExactDay: true, confidence: "MEDIUM" }, { isExactDay: true, confidence: "HIGH" })).toBe(false);
+    expect(beatsIncumbent({ isExactDay: true, confidence: "HIGH" }, { isExactDay: true, confidence: "HIGH" })).toBe(false);
+  });
+
+  it("ranks the day and a confirmed person above the confidence", () => {
+    expect(beatsIncumbent({ isExactDay: false, confidence: "HIGH" }, { isExactDay: true, confidence: "MEDIUM" })).toBe(false);
+    expect(
+      beatsIncumbent({ isExactDay: true, confidence: "HIGH" }, { isExactDay: true, confidence: "MEDIUM", personConfirmed: true }),
+    ).toBe(false);
+  });
+
   // Equal evidence leaves the incumbent alone, so no two folders can trade a set
   // back and forth and the pass does not depend on the order folders arrive in.
   it("is stable: two folders with identical evidence cannot swap the set", () => {
