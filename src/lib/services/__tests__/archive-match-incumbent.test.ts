@@ -111,6 +111,35 @@ describe("a same-day incumbent that agrees on nothing else", () => {
     expect(await linkOf(wrong.id)).toBeNull();
   });
 
+  it("gives another channel of the Label nothing on the day alone, and a set with the person", async () => {
+    const label = await prisma.label.create({ data: { name: `${PREFIX} Label` } });
+    await prisma.channel.update({ where: { id: channelId }, data: { labelId: label.id } });
+    const sibling = await prisma.channel.create({ data: { name: `${PREFIX} GoddessNudes`, shortName: "INCG", labelId: label.id } });
+    await prisma.stagingSet.create({
+      data: { title: "Set 8", titleNorm: "set 8", channelName: `${PREFIX} set`, channelId: sibling.id, releaseDate: DAY, isVideo: false, participantNamesNorm: "lena" },
+    });
+    const nancy = await prisma.stagingSet.create({
+      data: { title: "Elsewhere", titleNorm: "elsewhere", channelName: `${PREFIX} set`, channelId: sibling.id, releaseDate: DAY, isVideo: false, participantNamesNorm: "nancy a" },
+    });
+    const folder = await seedFolder("Nancy A", "Artica");
+
+    try {
+      await runMatchingPass(TENANT);
+      // Not "Set 8": nothing but the day; the sibling's Nancy A set: the person agrees
+      expect(await linkOf(folder.id)).toMatchObject({ stagingSetId: nancy.id, confidence: "HIGH" });
+      await prisma.archiveLink.deleteMany({ where: { archiveFolderId: folder.id } });
+      await prisma.stagingSet.delete({ where: { id: nancy.id } });
+      await runMatchingPass(TENANT);
+      expect(await linkOf(folder.id)).toBeNull();
+    } finally {
+      await prisma.archiveLink.deleteMany({ where: { archiveFolderId: folder.id } });
+      await prisma.stagingSet.deleteMany({ where: { channelId: sibling.id } });
+      await prisma.channel.delete({ where: { id: sibling.id } });
+      await prisma.channel.update({ where: { id: channelId }, data: { labelId: null } });
+      await prisma.label.delete({ where: { id: label.id } });
+    }
+  });
+
   it("gives a promoted set up too — it used to skip any set another folder held", async () => {
     const set = await prisma.set.create({
       data: { title: `${PREFIX} Numira`, titleNorm: normalizeForSearch(`${PREFIX} Numira`), type: "photo", channelId, releaseDate: DAY },

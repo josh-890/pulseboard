@@ -158,13 +158,21 @@ export function scoreArchiveMatch(args: {
   titleSim: number
   nameMatch: boolean
   isExactDay: boolean
+  /**
+   * The candidate's channel is another channel of the folder's Label. The day
+   * alone says little there: a Label publishes several sets a day, and on xpulse
+   * `2017-10-05-MA Nancy A - Artica` went to GoddessNudes' "Set 8" and
+   * `SA … Hitchhikers` to MetArt's "Hallou" on nothing but the day (2026-10-25).
+   * So a sibling needs the person or the title too — it is never MEDIUM.
+   */
+  isSibling?: boolean
 }): ArchiveMatchConfidence {
   const strongTitle = args.titleSim >= HIGH_TITLE_THRESHOLD
 
   if (args.isExactDay) {
     // The day already agrees; a name or a decent title makes it confident.
     if (args.nameMatch || strongTitle) return 'HIGH'
-    return 'MEDIUM'
+    return args.isSibling ? null : 'MEDIUM'
   }
 
   // No date agreement — the title has to carry it alone, and weakly is not enough.
@@ -179,6 +187,8 @@ export type ScoredArchiveCandidate = {
   nameMatch: boolean
   /** Exact release-date == folder date match (preferred tiebreaker over the year window). */
   isExactDay: boolean
+  /** Another channel of the folder's Label — needs the person or the title (see scoreArchiveMatch) */
+  isSibling?: boolean
   /**
    * The candidate credits somebody you confirmed on this folder (by ICG-ID).
    *
@@ -202,7 +212,7 @@ export function pickBestArchiveCandidate(
     | { id: string; confidence: 'HIGH' | 'MEDIUM'; rank: number; exact: number; person: number; sim: number }
     | null = null
   for (const c of candidates) {
-    const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay })
+    const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay, isSibling: c.isSibling })
     if (!conf) continue
     const rank = conf === 'HIGH' ? 1 : 0
     const exact = c.isExactDay ? 1 : 0
@@ -275,7 +285,7 @@ export function rankArchiveCandidates(
 ): { id: string; confidence: 'HIGH' | 'MEDIUM'; isExactDay: boolean; personConfirmed: boolean }[] {
   return candidates
     .flatMap((c) => {
-      const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay })
+      const conf = scoreArchiveMatch({ titleSim: c.titleSim, nameMatch: c.nameMatch, isExactDay: c.isExactDay, isSibling: c.isSibling })
       return conf
         ? [{
             id: c.id,
@@ -1989,6 +1999,7 @@ export async function runMatchingPass(
       id: string
       sim: number
       is_exact_day: boolean
+      is_sibling: boolean
       participant_names_norm: string | null
       participant_icg_ids: string[]
       release_date: Date | null
@@ -1999,6 +2010,7 @@ export async function runMatchingPass(
       SELECT ss.id,
              similarity(${ptNorm}, ss."titleNorm") AS sim,
              (ss."releaseDate" >= ${dateStart} AND ss."releaseDate" < ${dateEnd}) AS is_exact_day,
+             (LOWER(c."shortName") <> LOWER(${folder.parsedShortName})) AS is_sibling,
              ss."participantNamesNorm" AS participant_names_norm,
              ss."participantIcgIds" AS participant_icg_ids,
              ss."releaseDate" AS release_date,
@@ -2050,6 +2062,7 @@ export async function runMatchingPass(
           titleSim: Number(c.sim) || 0,
           nameMatch: folderPersonMatches(folderPersonNorm, names),
           isExactDay: c.is_exact_day === true,
+          isSibling: c.is_sibling === true,
           personConfirmed: (c.participant_icg_ids ?? []).some((icg) => claimed.has(icg)),
         }
       })
@@ -2079,6 +2092,7 @@ export async function runMatchingPass(
       id: string
       sim: number
       is_exact_day: boolean
+      is_sibling: boolean
       participant_icg_ids: string[]
       release_date: Date | null
       held_by: string | null
@@ -2090,6 +2104,7 @@ export async function runMatchingPass(
       SELECT s.id,
              similarity(${ptNorm}, s."titleNorm") AS sim,
              (s."releaseDate" >= ${dateStart} AND s."releaseDate" < ${dateEnd}) AS is_exact_day,
+             (LOWER(c."shortName") <> LOWER(${folder.parsedShortName})) AS is_sibling,
              ARRAY(SELECT p."icgId" FROM "SetParticipant" sp JOIN "Person" p ON p.id = sp."personId"
                    WHERE sp."setId" = s.id) AS participant_icg_ids,
              s."releaseDate" AS release_date,
@@ -2127,6 +2142,7 @@ export async function runMatchingPass(
         titleSim: Number(c.sim) || 0,
         nameMatch: folderPersonMatches(folderPersonNorm, namesBySet.get(c.id) ?? []),
         isExactDay: c.is_exact_day === true,
+        isSibling: c.is_sibling === true,
         personConfirmed: (c.participant_icg_ids ?? []).some((icg) => claimed.has(icg)),
       }))
       const best = await firstClaimable(rankArchiveCandidates(scored), setCands)
@@ -2253,12 +2269,13 @@ export async function runMatchingPassForItem(
   // (folder name carries the person) and title trigram similarity; gate via
   // scoreArchiveMatch so a same-date collision with a different person/title is
   // no longer auto-suggested as HIGH.
-  type FolderCandRow = { id: string; folder_name: string; sim: number; is_exact_day: boolean }
+  type FolderCandRow = { id: string; folder_name: string; sim: number; is_exact_day: boolean; is_sibling: boolean }
   const rows = await prisma.$queryRaw<FolderCandRow[]>`
     SELECT af.id,
            af."folderName" AS folder_name,
            similarity(${titleCmp}, COALESCE(af."parsedTitle", '')) AS sim,
-           (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}) AS is_exact_day
+           (af."parsedDate" >= ${dateStart} AND af."parsedDate" < ${dateEnd}) AS is_exact_day,
+           (LOWER(af."parsedShortName") <> LOWER(${shortName})) AS is_sibling
     FROM archive_folder af
     WHERE af.tenant = ${tenant}
       AND LOWER(af."parsedShortName") IN (${sameLabelChannelCodes(Prisma.sql`${shortName}`)})
@@ -2295,6 +2312,7 @@ export async function runMatchingPassForItem(
     titleSim: Number(r.sim) || 0,
     nameMatch: folderPersonMatches(parseFolderParticipant(r.folder_name), entityNameNorms),
     isExactDay: r.is_exact_day === true,
+    isSibling: r.is_sibling === true,
     personConfirmed: confirmedFolderIds.has(r.id),
   }))
   const best = pickBestArchiveCandidate(scored)

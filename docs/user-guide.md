@@ -1714,7 +1714,7 @@ Each staging set row shows its archive status as a compact strip below the main 
 
 Suggestions are **person-aware**: the matcher reads the person from the folder name (`…-CODE Person - Title`) and matches it against the set's people — using *any* recorded alias, plus the names from the import — alongside title similarity. A folder that only shares the date and channel but has a different person and title is no longer offered as a HIGH suggestion, which cuts false positives on channels that publish many sets per day. When neither the person nor the title is a good enough match, no suggestion is made and you link the folder manually via the picker.
 
-Channels are compared by their **owning Label**, not their code. If you file several channels of one producer under a single archive branch — NubileFilms sets under `NBL-Nubiles`, for example — a NubileFilms set still finds its `NBL` folder. A folder from a *different* channel of the same Label is only suggested when the release **day** matches; a similar title alone is only enough within the set's own channel.
+Channels are compared by their **owning Label**, not their code. If you file several channels of one producer under a single archive branch — NubileFilms sets under `NBL-Nubiles`, for example — a NubileFilms set still finds its `NBL` folder. A folder from a *different* channel of the same Label is only suggested when the release **day** matches **and** the person or the title agrees — a Label publishes several sets a day, so the day alone is not enough across channels. A similar title alone is only enough within the set's own channel.
 
 ### The folders around a set's date (archive key)
 

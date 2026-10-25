@@ -72,6 +72,15 @@ describe("folderPersonMatches", () => {
 });
 
 describe("scoreArchiveMatch", () => {
+  // Another channel of the Label: the day alone is not enough (2026-10-25)
+  it("gives a sibling channel nothing on the day alone, HIGH with the person or the title", () => {
+    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: false, isExactDay: true, isSibling: true })).toBeNull();
+    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: true, isExactDay: true, isSibling: true })).toBe("HIGH");
+    expect(scoreArchiveMatch({ titleSim: HIGH_TITLE_THRESHOLD, nameMatch: false, isExactDay: true, isSibling: true })).toBe("HIGH");
+    // The own channel keeps its MEDIUM on the day
+    expect(scoreArchiveMatch({ titleSim: 0.1, nameMatch: false, isExactDay: true, isSibling: false })).toBe("MEDIUM");
+  });
+
   // Every suggestion must agree in at least one hard field. Measured on 2,733 live
   // suggestions under the old rule: 14% agreed on neither date nor title.
   it("a name match alone is NOT evidence", () => {
