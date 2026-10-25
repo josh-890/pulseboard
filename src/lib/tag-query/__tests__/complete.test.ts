@@ -23,7 +23,9 @@ describe("completionsFor", () => {
 
   it("only offers predicates the browser can answer", () => {
     expect(completionsFor("rat", "", GROUPS, "MEDIA_ITEM")).toEqual([]);
-    expect(completionsFor("rat", "", GROUPS, "SET").map((x) => x.insert)).toEqual(["rating>="]);
+    expect(completionsFor("rat", "", GROUPS, "SET").map((x) => x.insert)).toEqual(["rating>=", "rated:unrated", "rated:review", "rated:done"]);
+    // rated: is for sessions and sets (2026-10-25)
+    expect(completionsFor("rated", "", GROUPS, "PERSON")).toEqual([]);
   });
 
   it("completes inside a group and predicate values", () => {

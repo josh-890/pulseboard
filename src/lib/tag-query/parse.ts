@@ -15,12 +15,13 @@ import type { QueryPredicate, TagClause, TagQuery, TagSourceFilter, TagTerm } fr
 //                          rating>=N (> < <= =) · person:ICG-ID (the leads) ·
 //                          cast:ICG-ID (also someone only appearing) · persontag:tag ·
 //                          label:name · type:photo|video · act:name|scenario/name ·
-//                          intensity>=N (> < <= =) · intensity:scenario>=N
+//                          intensity>=N (> < <= =) · intensity:scenario>=N ·
+//                          rated:unrated|review|done
 //
 // Prefix order: [-|~] [@level:] [=] reference. Unparseable tokens are reported,
 // never silently dropped into a different meaning.
 
-export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "cast", "persontag", "label", "type", "act", "intensity"]);
+export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "cast", "persontag", "label", "type", "act", "intensity", "rated"]);
 
 const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", session: "session" };
 

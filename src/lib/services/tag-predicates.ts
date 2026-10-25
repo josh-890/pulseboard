@@ -149,6 +149,11 @@ export async function resolvePredicates(
         r = { kind: "intensity", op: op as "=", value: n, scenarioIds, max };
         break;
       }
+      case "rated": {
+        const v = value.toLowerCase();
+        if (v === "unrated" || v === "review" || v === "done") r = { kind: "rated", value: v };
+        break;
+      }
     }
     if (!r) {
       problems.push(`Cannot read “${text(p)}”`);
@@ -364,6 +369,37 @@ function intensitySql(entity: TaggableEntity, p: Extract<ResolvedPredicate, { ki
   return Prisma.sql`(SELECT max(v.value) FROM (${acts}${sessionMax}) v) ${op} ${p.value}`;
 }
 
+/**
+ * The models (on camera, lead) behind a session or a set's sessions, each with
+ * whether their intensity is confirmed (`r`) and whether anything is recorded (`rec`)
+ */
+function leadReview(entity: "SESSION" | "SET", x: Prisma.Sql): Prisma.Sql {
+  const sessions =
+    entity === "SESSION" ? Prisma.sql`sc."sessionId" = ${x}` : Prisma.sql`sc."sessionId" IN (SELECT "sessionId" FROM "SetSession" WHERE "setId" = ${x})`;
+  return Prisma.sql`SELECT sc."intensityReviewedAt" IS NOT NULL AS r,
+      (EXISTS (SELECT 1 FROM "ContributionAct" ca WHERE ca."contributionId" = sc.id)
+        OR EXISTS (SELECT 1 FROM "ContributionExtra" ce WHERE ce."contributionId" = sc.id)) AS rec
+    FROM "SessionContribution" sc
+    JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
+    JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+    WHERE ${sessions} AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD'`;
+}
+
+/**
+ * Where the models' intensity stands, as `sessionReview` in `src/lib/intensity.ts`:
+ * done = every one confirmed, unrated = none has anything nor is confirmed,
+ * review = the rest. No models → none of them.
+ */
+export function ratedSql(entity: "SESSION" | "SET", value: "unrated" | "review" | "done", x: Prisma.Sql): Prisma.Sql {
+  const leads = leadReview(entity, x);
+  const open = Prisma.sql`EXISTS (SELECT 1 FROM (${leads}) l WHERE NOT l.r)`;
+  const touched = Prisma.sql`EXISTS (SELECT 1 FROM (${leads}) l WHERE l.r OR l.rec)`;
+  const any = Prisma.sql`EXISTS (${leads})`;
+  if (value === "done") return Prisma.sql`(${any} AND NOT ${open})`;
+  if (value === "unrated") return Prisma.sql`(${any} AND NOT ${touched})`;
+  return Prisma.sql`(${open} AND ${touched})`;
+}
+
 /** SQL for one resolved predicate on row `x` of the entity */
 export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Prisma.Sql): Prisma.Sql {
   switch (p.kind) {
@@ -409,5 +445,7 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
       return actSql(entity, Prisma.join(p.actIds), x);
     case "intensity":
       return intensitySql(entity, p, x);
+    case "rated":
+      return entity === "SESSION" || entity === "SET" ? ratedSql(entity, p.value, x) : Prisma.sql`FALSE`;
   }
 }

@@ -164,6 +164,11 @@ fix the deltas, confirm, go on** — and whatever was filled in for you stays vi
    scenario as pills 1–9, under a scenario switch that starts on the suggestion and changes it in one click, since the suggestion can be wrong. A preset shows the value it gives (`presetValue`: highest act with its extras).
 4. A value is the **highest** act, so the check that matters after a preset is "anything above it?": the panel lists
    the acts above the preset's highest first while someone is to review.
-5. Next: a rating queue on the session page (by channel, then date — the **Channel**, not the Label, carries a house
-   style), a status filter, "like last time" (the person's previous session, same channel first), a preset suggested
-   per channel, and bulk apply from /sessions and /sets.
+5. **The rating queue and the status filter** (2026-10-25): `rated:unrated|review|done` in the query language and a
+   *Rated* facet on /sessions and /sets (leads only; a set's sessions together; `ratedSql` mirrors `sessionReview`).
+   **Rate these** walks the list as filtered — the same parameters, parsed once in `list-filters.ts` — session by
+   session (`/sessions/[id]?rate=sessions?…`), only those still to rate, ordered by the primary set's **Channel**
+   (not the Label: a label is an umbrella over channels of different styles), then date. The session on screen
+   stays in the queue once confirmed, so Prev/Next keep their place; **Confirm all & next** confirms every model.
+6. Next: "like last time" (the person's previous session, same channel first), a preset suggested per channel, and
+   bulk apply from /sessions and /sets.

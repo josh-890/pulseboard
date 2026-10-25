@@ -17,6 +17,7 @@ export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity
   type: ["MEDIA_ITEM", "SET"],
   act: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
   intensity: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
+  rated: ["SET", "SESSION"],
 };
 
 /** Completions the query box offers for predicates, per browser */
@@ -39,9 +40,14 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
       hint: entity === "PERSON" ? "peak intensity ≥ N (also > < <= =)" : entity === "MEDIA_ITEM" ? "evidence for an act valued ≥ N" : "intensity ≥ N (also > < <= =)",
     },
     { kind: "intensity", insert: "intensity:", hint: "within a scenario — scenario>=N" },
+    { kind: "rated", insert: "rated:unrated", hint: "no model's intensity recorded yet" },
+    { kind: "rated", insert: "rated:review", hint: "intensity to review — not all confirmed" },
+    { kind: "rated", insert: "rated:done", hint: "every model's intensity confirmed" },
   ];
   return all.filter((s) => PREDICATE_SUPPORT[s.kind].includes(entity)).map(({ insert, hint }) => ({ insert, hint }));
 }
+
+const RATED_TEXT: Record<string, string> = { unrated: "Not rated yet", review: "Intensity to review", done: "Intensity confirmed" };
 
 const OP_TEXT: Record<string, string> = { ">=": "≥", "<=": "≤", ">": ">", "<": "<", "=": "=", ":": "=" };
 
@@ -72,6 +78,8 @@ export function predicateLabel(p: QueryPredicate): string {
       if (!m) return `Intensity ${OP_TEXT[p.op] ?? p.op} ${v}`;
       return m[1].trim() ? `${m[1].trim()} intensity ${OP_TEXT[m[2]]} ${m[3]}` : `Intensity ${OP_TEXT[m[2]]} ${m[3]}`;
     }
+    case "rated":
+      return RATED_TEXT[v.toLowerCase()] ?? `rated ${v}`;
     default:
       return `${p.key}${p.op}${v}`;
   }

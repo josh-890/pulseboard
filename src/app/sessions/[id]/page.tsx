@@ -37,6 +37,7 @@ import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import {
   IntensityPanelProvider,
   IntensityPanelToggle,
+  RatingQueueBar,
   IntensitySummary,
   sessionIntensityCatalog,
   SessionIntensityPanel,
@@ -46,6 +47,8 @@ import {
 } from "@/components/sessions/intensity";
 import { cookies } from "next/headers";
 import { getSessionIntensity } from "@/lib/services/intensity-service";
+import { getRatingQueue } from "@/lib/services/rating-queue-service";
+import { rateHref } from "@/lib/rating-queue";
 import type { GalleryIntensity } from "@/components/intensity";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
@@ -56,7 +59,7 @@ export const dynamic = "force-dynamic";
 
 type SessionDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; tags?: string }>;
+  searchParams: Promise<{ tab?: string; tags?: string; rate?: string }>;
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -256,6 +259,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
     ? await Promise.all([getSessionIntensity(id), getIntensityCatalog()])
     : [[], null];
   const intensityCatalog: SessionIntensityCatalog | null = sessionIntensityCatalog(intensityCatalogFull);
+  // The rating queue (2026-10-25): a list walked session by session, the panel open
+  const rate = resolvedSearchParams.rate;
+  const ratingQueue = intensityCatalog && rate ? await getRatingQueue(rate, id) : null;
   // ADR-0036, 3b: the gallery's acts to link photos to, and which photos already are evidence
   const galleryIntensity: GalleryIntensity | undefined = intensityCatalog
     ? (() => {
@@ -321,15 +327,20 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   return (
     <div className="space-y-6">
+      {/* In the rating queue its bar leads, in place of the browse nav */}
+      {ratingQueue && rate && <RatingQueueBar queue={ratingQueue} rate={rate} />}
+
       {/* Back link + browse nav + actions row */}
       <div className="grid grid-cols-3 items-center gap-4">
         <div className="flex items-center">
           <SessionBrowseBackLink />
         </div>
         <div className="flex justify-center">
-          <Suspense fallback={null}>
-            <SessionBrowseNavBar sessionId={id} />
-          </Suspense>
+          {!ratingQueue && (
+            <Suspense fallback={null}>
+              <SessionBrowseNavBar sessionId={id} />
+            </Suspense>
+          )}
         </div>
         {!isReference && (
           <div className="flex items-center justify-end gap-2">
@@ -394,9 +405,19 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       {/* 2-column layout for production sessions: gallery left; sidebar
           (contributors, sets, tags) right — or the intensity panel, beside the photos */}
       {!isReference && (
-        <IntensityPanelProvider initialOpen={intensityPanelOpen}>
+        <IntensityPanelProvider initialOpen={intensityPanelOpen || !!ratingQueue}>
         <SessionWorkspace
-          panel={intensityCatalog ? <SessionIntensityPanel sessionId={id} contributions={intensityRows} catalog={intensityCatalog} /> : null}
+          panel={
+            intensityCatalog ? (
+              <SessionIntensityPanel
+                key={id}
+                sessionId={id}
+                contributions={intensityRows}
+                catalog={intensityCatalog}
+                queue={ratingQueue && rate ? { nextHref: ratingQueue.nextId ? rateHref(ratingQueue.nextId, rate) : ratingQueue.listHref } : undefined}
+              />
+            ) : null
+          }
           main={<>
             <SectionCard
               title={`Media (${mediaCount})`}

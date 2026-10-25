@@ -313,3 +313,16 @@ export function presetValue(
   const counted = extras.filter((e) => countsIn(e, scenarioId));
   return sessionIntensity(levels.map((l) => actValue(l, counted, max)), counted, max);
 }
+
+/** The browsers' Rated filter (2026-10-25): where the models' intensity stands */
+export const RATED_FILTER_OPTIONS = [
+  { value: "unrated", label: "Not rated yet" },
+  { value: "review", label: "To review" },
+  { value: "done", label: "Confirmed" },
+] as const;
+
+/** The `rated=` URL parameter added to the `tags=` query text, as `withIntensityFilter` */
+export function withRatedFilter(tags: string | undefined, rated: string | undefined): string | undefined {
+  if (!rated || !RATED_FILTER_OPTIONS.some((o) => o.value === rated)) return tags;
+  return [tags?.trim(), `rated:${rated}`].filter(Boolean).join(" ");
+}

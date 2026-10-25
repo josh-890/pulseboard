@@ -3,23 +3,22 @@ import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
 import { ImageIcon } from "lucide-react";
 import { getSetsPaginated, getChannelsWithLabelMaps, getRecentChannels, getLastUsedSetType, getSetFacetCounts } from "@/lib/services/set-service";
+import { getTagFacets } from "@/lib/services/tag-filter-service";
 import { getSuggestedFoldersForSets } from "@/lib/services/archive-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
-import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
-import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
-import { intensityFilterOptions, withIntensityFilter } from "@/lib/intensity";
-import type { SetSort, SetFilters, CastCountBucket } from "@/lib/services/set-service";
+import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { intensityFilterOptions, RATED_FILTER_OPTIONS } from "@/lib/intensity";
+import { setListFilters } from "@/lib/services/list-filters";
 import { getCoverPhotosForSets, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
-import type { SetType } from "@/lib/types";
 import { SetGrid } from "@/components/sets/set-grid";
 import { setIntensityPeaks } from "@/lib/services/tag-predicates";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSetSheet } from "@/components/sets/add-set-sheet";
+import { RateTheseButton } from "@/components/sessions/intensity";
 import { ratingFilterOptions } from "@/components/shared/rating-filter-options";
-import { parsePartialDateBound } from "@/lib/utils";
 import { PivotScopeProvider } from "@/components/shared/pivot";
 
 export const dynamic = "force-dynamic";
@@ -49,15 +48,9 @@ type SetsPageProps = {
     groupBy?: string;
     tags?: string;
     intensity?: string;
+    rated?: string;
   }>;
 };
-
-const VALID_TYPES = new Set<string>(["photo", "video"]);
-const VALID_CAST_COUNTS = new Set<string>(["1", "2", "3", "4", "5plus"]);
-const VALID_SORTS = new Set<string>([
-  "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
-  "rating-desc", "rating-asc",
-]);
 
 const VALID_GROUP_BYS = new Set<string>([
   "none", "year", "channel", "channel_year", "label", "youngest_age",
@@ -71,14 +64,6 @@ const SETS_GROUP_OPTIONS = [
   { value: "label", label: "Label" },
   { value: "youngest_age", label: "Youngest participant" },
 ];
-
-function isSetType(value: string): value is SetType {
-  return VALID_TYPES.has(value);
-}
-
-function isSetSort(value: string): value is SetSort {
-  return VALID_SORTS.has(value);
-}
 
 const SORT_OPTIONS = [
   { value: "date-desc", label: "Newest release" },
@@ -94,23 +79,8 @@ const SORT_OPTIONS = [
 
 export default async function SetsPage({ searchParams }: SetsPageProps) {
   return withTenantFromHeaders(async () => {
-    const {
-      q, type, loaded, sort: sortParam,
-      channel: channelParam, label: labelParam,
-      personId,
-      personSupport,
-      castCount: castCountParam,
-      hasMedia: hasMediaParam,
-      archiveFilter: archiveFilterParam,
-      noArchiveLink: noArchiveLinkParam,
-      duplicates: duplicatesParam,
-      releaseDateFrom: releaseDateFromParam,
-      releaseDateTo: releaseDateToParam,
-      rating: ratingParam,
-      groupBy: groupByParam,
-      tags: tagsParam,
-      intensity: intensityParam,
-    } = await searchParams;
+    const params = await searchParams;
+    const { loaded, personId, groupBy: groupByParam } = params;
 
   const groupBy = groupByParam && VALID_GROUP_BYS.has(groupByParam) ? groupByParam : "none";
 
@@ -118,71 +88,9 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
     ? MAX_LOADED
     : Math.min(Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE), MAX_LOADED);
 
-  // Default to photosets: absent type → "photo"; explicit "all" → no type filter.
-  const resolvedType: SetType | "all" =
-    type === "all" ? "all" : type && isSetType(type) ? type : "photo";
-  const resolvedSort = sortParam && isSetSort(sortParam) ? sortParam : undefined;
-
-  const VALID_ARCHIVE_FILTERS = new Set(['noArchive', 'verified', 'changed', 'missing', 'notImported'])
-  const archiveFilter = archiveFilterParam && VALID_ARCHIVE_FILTERS.has(archiveFilterParam)
-    ? (archiveFilterParam as SetFilters['archiveFilter'])
-    : undefined
-
-  const duplicatesOnly = duplicatesParam === 'true';
-  // Year-granular: "2016" → Jan 1 (from) / Dec 31 (to); full date kept as-is.
-  const releaseDateFrom = parsePartialDateBound(releaseDateFromParam, "start");
-  const releaseDateTo = parsePartialDateBound(releaseDateToParam, "end");
-
-  // When filtering by duplicates, get the pairs first to obtain the set IDs
-  const duplicatePairs = duplicatesOnly ? await getPotentialDuplicatePairs() : [];
-  const duplicateSetIds = duplicatesOnly
-    ? [...new Set(duplicatePairs.flatMap((p) => [p.idA, p.idB]))]
-    : undefined;
-  // Map each set ID to the ID of its pair partner (for badge display)
-  const duplicatePairMap = new Map<string, string>(
-    duplicatePairs.flatMap((p) => [[p.idA, p.idB], [p.idB, p.idA]]),
-  );
-
-  // ADR-0033: tag filter → matching set ids (within the duplicates view when on).
-  // The set filters read an empty id list as "no restriction", so no match is
-  // passed as an id that cannot exist.
-  // The Intensity filter rides on the same query (ADR-0036, slice 4)
-  const intensityMax = await getIntensityMax();
-  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam, intensityMax), "SET");
-  const tagMatchIds = tagFilter ? await findTagMatchIds("SET", tagFilter.resolved, duplicateSetIds) : undefined;
-  const restrictIds = tagMatchIds ? (tagMatchIds.length > 0 ? tagMatchIds : ["__no_tag_match__"]) : duplicateSetIds;
-
-  // Parse rating multifacet param: comma-separated "1".."5" + "unrated".
-  const resolvedRatings = ratingParam
-    ? ratingParam.split(",").filter(Boolean).map((v) => (v === "unrated" ? ("unrated" as const) : parseInt(v, 10)))
-        .filter((v): v is number | "unrated" => v === "unrated" || (typeof v === "number" && v >= 1 && v <= 5 && !isNaN(v)))
-    : undefined;
-
-  const castCounts = castCountParam
-    ? castCountParam.split(",").filter((v): v is CastCountBucket => VALID_CAST_COUNTS.has(v))
-    : [];
-
-  // Channel / Label are multi-select: comma-separated id lists.
-  const selectedChannelIds = channelParam ? channelParam.split(",").filter(Boolean) : [];
-  const selectedLabelIds = labelParam ? labelParam.split(",").filter(Boolean) : [];
-
-  const filters: SetFilters = {
-    q: q?.trim() || undefined,
-    type: resolvedType,
-    labelIds: selectedLabelIds.length > 0 ? selectedLabelIds : undefined,
-    channelIds: selectedChannelIds.length > 0 ? selectedChannelIds : undefined,
-    personId: personId || undefined,
-    personInclSupport: personSupport === "true" || undefined,
-    castCounts: castCounts.length > 0 ? castCounts : undefined,
-    hasMedia: hasMediaParam === "true" ? true : undefined,
-    sort: resolvedSort,
-    archiveFilter,
-    noArchiveLink: noArchiveLinkParam === 'true' ? true : undefined,
-    ids: restrictIds,
-    ratings: resolvedRatings,
-    releaseDateFrom,
-    releaseDateTo,
-  };
+  const { filters, tagFilter, intensityMax, duplicatesOnly, duplicatePairs, duplicatePairMap } = await setListFilters(params);
+  const selectedChannelIds = filters.channelIds ?? [];
+  const selectedLabelIds = filters.labelIds ?? [];
 
   const [paginated, channels, recentChannelIds, lastType, roleGroups, hasIntensity] = await Promise.all([
     getSetsPaginated(filters, undefined, limit),
@@ -361,6 +269,12 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       label: "Intensity",
       options: intensityFilterOptions(intensityMax),
     });
+    filterGroups.push({
+      type: "facet",
+      param: "rated",
+      label: "Rated",
+      options: [...RATED_FILTER_OPTIONS],
+    });
   }
 
   filterGroups.push({
@@ -401,14 +315,21 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
             </p>
           </div>
         </div>
-        <AddSetSheet
-          channels={channels}
-          recentChannelIds={recentChannelIds}
-          defaultType={lastType}
-          roleDefinitions={roleGroups.flatMap((g) =>
-            g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+        <div className="flex items-center gap-2">
+          {hasIntensity && (
+            <Suspense>
+              <RateTheseButton from="sets" />
+            </Suspense>
           )}
-        />
+          <AddSetSheet
+            channels={channels}
+            recentChannelIds={recentChannelIds}
+            defaultType={lastType}
+            roleDefinitions={roleGroups.flatMap((g) =>
+              g.definitions.map((d) => ({ id: d.id, name: d.name, groupName: g.name })),
+            )}
+          />
+        </div>
       </div>
 
       {/* Saved views */}

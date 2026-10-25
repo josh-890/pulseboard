@@ -3,21 +3,20 @@ import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
 import { Clapperboard } from "lucide-react";
 import { getSessionsPaginated, getSessionFacetCounts } from "@/lib/services/session-service";
-import type { SessionSort } from "@/lib/services/session-service";
 import { getCoverPhotosForSessions, getHeadshotsForPersons } from "@/lib/services/media-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
 import { SessionGrid } from "@/components/sessions/session-grid";
-import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
-import { getIntensityMax, hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
-import { intensityFilterOptions, withIntensityFilter } from "@/lib/intensity";
+import { getTagFacets } from "@/lib/services/tag-filter-service";
+import { hasIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { intensityFilterOptions, RATED_FILTER_OPTIONS } from "@/lib/intensity";
+import { sessionListFilters } from "@/lib/services/list-filters";
 import { BrowserToolbar } from "@/components/shared/browser-toolbar";
 import type { BrowserToolbarConfig, FilterGroup } from "@/components/shared/browser-toolbar";
 import { SavedViewsBar } from "@/components/shared/saved-views-bar";
 import { AddSessionSheet } from "@/components/sessions/add-session-sheet";
-import type { SessionStatus } from "@/lib/types";
+import { RateTheseButton } from "@/components/sessions/intensity";
 import { PivotScopeProvider } from "@/components/shared/pivot";
-import { parsePartialDateBound } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -41,18 +40,9 @@ type SessionsPageProps = {
     loaded?: string;
     tags?: string;
     intensity?: string;
+    rated?: string;
   }>;
 };
-
-const VALID_STATUSES = new Set<string>(["DRAFT", "CONFIRMED"]);
-const VALID_SORTS = new Set<string>([
-  "newest", "date-desc", "date-asc", "name-asc", "name-desc",
-  "media-desc", "updated", "contributors-desc", "sets-desc",
-]);
-
-function isSessionSort(value: string): value is SessionSort {
-  return VALID_SORTS.has(value);
-}
 
 const SORT_OPTIONS = [
   { value: "newest", label: "Recently created" },
@@ -68,53 +58,15 @@ const SORT_OPTIONS = [
 
 export default async function SessionsPage({ searchParams }: SessionsPageProps) {
   return withTenantFromHeaders(async () => {
-    const {
-      q, status, sort: sortParam,
-      label: labelId, project: projectId,
-      personId,
-      personSupport,
-      dateFrom: dateFromParam, dateTo: dateToParam,
-      createdFrom: createdFromParam, createdTo: createdToParam,
-      loaded,
-      tags: tagsParam,
-      intensity: intensityParam,
-    } = await searchParams;
+    const params = await searchParams;
+    const { loaded, personId } = params;
 
   const limit = Math.min(
     Math.max(PAGE_SIZE, parseInt(loaded ?? "", 10) || PAGE_SIZE),
     MAX_LOADED,
   );
 
-  const resolvedStatus = status && VALID_STATUSES.has(status) ? (status as SessionStatus) : undefined;
-  const resolvedSort = sortParam && isSessionSort(sortParam) ? sortParam : undefined;
-  // yyyy / yyyy-mm / yyyy-mm-dd, the "to" bound to the period's last instant —
-  // so a card's month (dateFrom = dateTo = 2016-08) covers all of August
-  const dateFrom = parsePartialDateBound(dateFromParam, "start");
-  const dateTo = parsePartialDateBound(dateToParam, "end");
-  const createdFrom = parsePartialDateBound(createdFromParam, "start");
-  const createdTo = parsePartialDateBound(createdToParam, "end");
-
-  // ADR-0033: tag filter → matching session ids, ANDed with the other filters
-  // The Intensity filter rides on the same query (ADR-0036, slice 4)
-  const intensityMax = await getIntensityMax();
-  const tagFilter = await resolveTagFilterParam(withIntensityFilter(tagsParam, intensityParam, intensityMax), "SESSION");
-  const tagMatchIds = tagFilter ? await findTagMatchIds("SESSION", tagFilter.resolved) : undefined;
-
-  const filters = {
-    ids: tagMatchIds,
-    q: q?.trim() || undefined,
-    status: resolvedStatus ?? ("all" as const),
-    type: "PRODUCTION" as const,
-    labelId: labelId || undefined,
-    projectId: projectId || undefined,
-    personId: personId || undefined,
-    personInclSupport: personSupport === "true" || undefined,
-    dateFrom,
-    dateTo,
-    createdFrom,
-    createdTo,
-    sort: resolvedSort,
-  };
+  const { filters, tagFilter, intensityMax } = await sessionListFilters(params);
 
   const [paginated, labels, projects, facetCounts, tagFacets, hasIntensity] = await Promise.all([
     getSessionsPaginated(filters, undefined, limit),
@@ -210,6 +162,12 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
       label: "Intensity",
       options: intensityFilterOptions(intensityMax),
     });
+    filterGroups.push({
+      type: "facet",
+      param: "rated",
+      label: "Rated",
+      options: [...RATED_FILTER_OPTIONS],
+    });
   }
 
   filterGroups.push({
@@ -247,7 +205,14 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
             </p>
           </div>
         </div>
-        <AddSessionSheet labels={labelOptions} projects={projectOptions} />
+        <div className="flex items-center gap-2">
+          {hasIntensity && (
+            <Suspense>
+              <RateTheseButton from="sessions" />
+            </Suspense>
+          )}
+          <AddSessionSheet labels={labelOptions} projects={projectOptions} />
+        </div>
       </div>
 
       {/* Saved views */}

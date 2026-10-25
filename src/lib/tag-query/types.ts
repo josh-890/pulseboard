@@ -55,4 +55,6 @@ export type ResolvedPredicate =
   | { kind: "type"; value: "photo" | "video" }
   | { kind: "act"; actIds: string[] }
   /** Intensity compared with a value — overall, or within scenarios (no session-wide Max there) */
-  | { kind: "intensity"; op: ">=" | "<=" | ">" | "<" | "="; value: number; scenarioIds: string[] | null; max: number };
+  | { kind: "intensity"; op: ">=" | "<=" | ">" | "<" | "="; value: number; scenarioIds: string[] | null; max: number }
+  /** Where the models' intensity stands (2026-10-25): none recorded, to review, confirmed — leads only */
+  | { kind: "rated"; value: "unrated" | "review" | "done" };

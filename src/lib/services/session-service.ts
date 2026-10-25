@@ -129,12 +129,9 @@ export type PaginatedSessions = {
   totalCount: number;
 };
 
-export async function getSessionsPaginated(
-  filters: SessionFilters = {},
-  cursor?: string,
-  limit = 50,
-): Promise<PaginatedSessions> {
-  const { q, status, type, labelId, projectId, personId, dateFrom, dateTo, createdFrom, createdTo, sort } = filters;
+/** The /sessions list's filters as a where clause — the list and the rating queue share it */
+export function buildSessionWhere(filters: Omit<SessionFilters, "sort">): Prisma.SessionWhereInput {
+  const { q, status, type, labelId, projectId, personId, dateFrom, dateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SessionWhereInput = {};
 
@@ -182,6 +179,18 @@ export async function getSessionsPaginated(
       ...(createdTo ? { lte: createdTo } : {}),
     };
   }
+
+  return where;
+}
+
+export async function getSessionsPaginated(
+  filters: SessionFilters = {},
+  cursor?: string,
+  limit = 50,
+): Promise<PaginatedSessions> {
+  const { sort } = filters;
+
+  const where = buildSessionWhere(filters);
 
   const orderBy = getSessionOrderBy(sort);
 

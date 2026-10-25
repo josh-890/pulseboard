@@ -171,12 +171,9 @@ function andClause(where: Prisma.SetWhereInput, clause: Prisma.SetWhereInput) {
   where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), clause];
 }
 
-export async function getSetsPaginated(
-  filters: SetFilters = {},
-  cursor?: string,
-  limit = 50,
-): Promise<PaginatedSets> {
-  const { q, type, labelIds, channelIds, personId, castCounts, hasMedia, sort, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
+/** The /sets list's filters as a where clause — the list and the rating queue share it */
+export async function buildSetWhere(filters: Omit<SetFilters, "sort">): Promise<Prisma.SetWhereInput> {
+  const { q, type, labelIds, channelIds, personId, castCounts, hasMedia, archiveFilter, noArchiveLink, ids, ratings, releaseDateFrom, releaseDateTo, createdFrom, createdTo } = filters;
 
   const where: Prisma.SetWhereInput = {};
 
@@ -252,6 +249,18 @@ export async function getSetsPaginated(
   if (hasMedia === true) {
     where.setMediaItems = { some: {} };
   }
+
+  return where;
+}
+
+export async function getSetsPaginated(
+  filters: SetFilters = {},
+  cursor?: string,
+  limit = 50,
+): Promise<PaginatedSets> {
+  const { sort } = filters;
+
+  const where = await buildSetWhere(filters);
 
   const orderBy = getSetOrderBy(sort);
 

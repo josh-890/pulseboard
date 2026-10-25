@@ -303,7 +303,18 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
 - Recording happens on the session, in the Intensity panel beside the photos — or on a set, where the same panel saves on its session.
 - **Filtering** (once the catalog has acts): /people has a **Peak intensity** filter, /sessions and /sets an
   **Intensity** filter — *Anything recorded*, ≥ 3, ≥ 5, ≥ 7, ≥ 9, *10 · Max*. For any value or a scenario use
-  the query box: `intensity>=6.5`, `intensity:G-G>=5`, `act:Topless`.
+  the query box: `intensity>=6.5`, `intensity:G-G>=5`, `act:Topless`. Next to it, **Rated** (2026-10-25) —
+  *Not rated yet* (no model has anything recorded), *To review* (something recorded or partly confirmed),
+  *Confirmed* (every model confirmed); in the query box `rated:unrated`, `rated:review`, `rated:done`. Only the
+  models count, not someone only appearing; a set takes its sessions together.
+- **Rating a backlog — Rate these** (2026-10-25): on /sessions or /sets, filter the list as you like and click
+  **Rate these** (top right). The list's sessions whose models are not rated yet or to review open one after
+  the other — ordered by **channel** (the primary set's; a channel keeps a style, so the same presets keep
+  fitting), then by date. A bar on top reads *Rating 3 / 120 · Channel* with **Prev** / **Next** (keys **[** and
+  **]**; Next skips without confirming) and **List** to leave. The intensity panel opens by itself; apply a
+  preset (its digit), fix the deltas, then **Confirm all & next** (or **⏎** while the focus is in the panel)
+  confirms everyone in the session and goes on. Confirmed sessions leave the queue, so the count shrinks as you
+  go; after the last one you are back on the list. From /sets the queue walks the sessions of the listed sets.
 
 **Overview**
 - **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,
@@ -1004,6 +1015,7 @@ In the image viewer:
 | `act:Topless`, `act:"G-G/Kiss on the lips"` | an intensity act by name, or scenario/name: images linked to it as evidence; sessions, sets and people where it was ticked |
 | `intensity>=6` (also `>`, `<=`, `<`, `=`) | by intensity: a session's (its best person), a set's (its sessions'), a person's **peak**; an image's best act it is evidence for. Max counts as 10. Nothing recorded never matches |
 | `intensity:G-G>=5`, `intensity:"Special one<3"` | the same within a scenario — only acts there count (a session's Max does not) |
+| `rated:unrated`, `rated:review`, `rated:done` | where the models' intensity stands (sessions, sets): nothing recorded · to review · every model confirmed |
 
 A condition that does not apply to the page (`type:video` on /people) shows as a warning chip and is ignored. So does an unknown ICG-ID, tag or label.
 

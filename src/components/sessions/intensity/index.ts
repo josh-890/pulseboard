@@ -8,3 +8,5 @@ export { sessionIntensityCatalog } from "./catalog-view";
 export { SetIntensityPanel } from "./set-intensity-panel";
 export type { SetRelease } from "./session-intensity-panel";
 export { SetIntensitySummary } from "./set-intensity-summary";
+export { RatingQueueBar } from "./rating-queue-bar";
+export { RateTheseButton } from "./rate-these-button";

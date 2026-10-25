@@ -2,6 +2,7 @@
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { Check, ChevronRight, Copy, Search, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { IntensityExtrasPicker } from "@/components/intensity/intensity-extras-picker";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
@@ -47,6 +48,8 @@ export type SessionIntensityPanelProps = {
    * a session split into several sets, each ticked act can be left out of this one
    */
   release?: SetRelease;
+  /** In the rating queue (2026-10-25): where "Confirm all & next" goes — the next session, or back to the list */
+  queue?: { nextHref: string };
 };
 
 export type SetRelease = {
@@ -63,8 +66,9 @@ export type SetRelease = {
 // camera as chips — one or several selected — over a single editor. With
 // several selected, every change applies to all of them; a half tick (−) says
 // only some have an act, and names them. Changes show at once and save behind.
-export function SessionIntensityPanel({ sessionId, contributions, catalog, release }: SessionIntensityPanelProps) {
+export function SessionIntensityPanel({ sessionId, contributions, catalog, release, queue }: SessionIntensityPanelProps) {
   const { setOpen } = useIntensityPanel();
+  const router = useRouter();
   // The set's left-out acts, changed at once and saved behind; follows the server's copy
   const [leftOut, setLeftOut] = useState(() => new Set(release?.excluded ?? []));
   const [seenLeftOut, setSeenLeftOut] = useState(release?.excluded);
@@ -274,7 +278,14 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
     send({ kind: "review", contributionIds: ids, reviewed }, () => setIntensityReviewedAction(ids, reviewed));
   }
 
-  // Digits apply a preset, ⏎ confirms — while the panel has focus, not while typing or on a button
+  // The rating queue: everyone in the session confirmed, then the next one
+  function confirmNext() {
+    if (!queue) return;
+    const ids = people.map((c) => c.id);
+    send({ kind: "review", contributionIds: ids, reviewed: true }, () => setIntensityReviewedAction(ids, true), () => router.push(queue.nextHref));
+  }
+
+  // Digits apply a preset, ⏎ confirms (in the queue: everyone, and goes on) — while the panel has focus, not while typing or on a button
   function onPanelKey(e: React.KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement;
@@ -287,7 +298,8 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
       applyPreset(preset.id);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      review(true);
+      if (queue) confirmNext();
+      else review(true);
     }
   }
 
@@ -501,6 +513,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
           people={chosen.map((c) => ({ label: c.label, review: reviewOf(c.id) }))}
           onConfirm={() => review(true)}
           onReopen={() => review(false)}
+          onConfirmNext={queue ? confirmNext : undefined}
         />
       </div>
 
