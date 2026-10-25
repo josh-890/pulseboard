@@ -61,8 +61,13 @@ test("hovering the date lists the key's folders; Link confirms the right one", a
   await expect(rows.nth(0)).toContainText(RIGHT.name);
   await expect(rows.nth(0)).toContainText("free");
   await expect(rows.nth(1)).toContainText("suggested here");
+  // The other side of the day: this staged set, holding the wrong folder
+  const sets = pop.getByRole("region", { name: "Sets on this day (1)" });
+  await expect(sets).toContainText(SS.title);
+  await expect(sets).toContainText("this set");
+  await expect(sets).toContainText(`suggested: ${WRONG.name}`);
   await expect(pop.getByText("Near misses")).toBeVisible();
-  await expect(rows.nth(2)).toContainText("+1 day");
+  await expect(rows.filter({ hasText: NEAR.name })).toContainText("+1 day");
 
   await pop.getByRole("button", { name: `Link ${RIGHT.name} to this set` }).click();
   await expect

@@ -127,6 +127,42 @@ describe("getArchiveKeyFolders", () => {
     expect(first).toMatchObject({ personMatches: true, titleMatches: true, link: { state: "suggested", here: false, targetTitle: "Chilea" } });
     expect(second).toMatchObject({ personMatches: false, titleMatches: false, link: { state: "suggested", here: true, targetTitle: "Artica" } });
     expect(view.folders[2]!.link).toEqual({ state: "free" });
+
+    // The other side of the day: this set first, then by whether it has a folder
+    expect(view.sets.map((e) => [e.title, e.kind, e.here, e.folder?.name ?? null, e.folder?.state ?? null])).toEqual([
+      ["Artica", "staged", true, "2017-10-05-AKMA Ginger Frost - Chilea", "suggested"],
+      ["Chilea", "staged", false, "2017-10-05-AKMA Nancy A - Artica", "suggested"],
+    ]);
+  });
+
+  it("lists the day's Sets with their people as Name (ICG-ID), a promoted staged set as its Set", async () => {
+    const person = await prisma.person.create({ data: { icgId: `AKEY-${Date.now().toString(36)}`.toUpperCase(), sexAtBirth: "female" } });
+    await prisma.personAlias.create({ data: { personId: person.id, name: "Nancy A", isCommon: true } });
+    const set = await prisma.set.create({ data: { title: `${PREFIX} Sormi`, type: "photo", channelId: own, releaseDate: DAY } });
+    await prisma.setParticipant.create({ data: { setId: set.id, personId: person.id, roleDefinitionId: "crd_model" } });
+    const ss = await prisma.stagingSet.create({
+      data: { title: "Sormi", channelName: `${PREFIX} set`, channelId: own, releaseDate: DAY, isVideo: false, status: "PROMOTED", promotedSetId: set.id },
+    });
+    await prisma.stagingSet.create({
+      data: { title: "Open", channelName: `${PREFIX} set`, channelId: own, releaseDate: DAY, isVideo: false, participants: [{ name: "Lena", icgId: "LX-1" }, { name: "Nameless" }] },
+    });
+    const f = await folder("2017-10-05", "AKMA", "Nancy A", "Sormi");
+    await prisma.archiveLink.create({ data: { archiveFolderId: f.id, setId: set.id, status: "CONFIRMED", tenant: TENANT } });
+
+    try {
+      const view = await getArchiveKeyFolders(ss.id, TENANT);
+      expect(view.sets).toEqual([
+        { id: set.id, kind: "set", title: `${PREFIX} Sormi`, status: null, people: [`Nancy A (${person.icgId})`], here: true, folder: { name: f.folderName, state: "confirmed" } },
+        expect.objectContaining({ title: "Open", kind: "staged", status: "PENDING", people: ["Lena (LX-1)", "Nameless"], here: false, folder: null }),
+      ]);
+    } finally {
+      await prisma.archiveLink.deleteMany({ where: { setId: set.id } });
+      await prisma.setParticipant.deleteMany({ where: { setId: set.id } });
+      await prisma.stagingSet.deleteMany({ where: { promotedSetId: set.id } });
+      await prisma.set.delete({ where: { id: set.id } });
+      await prisma.personAlias.deleteMany({ where: { personId: person.id } });
+      await prisma.person.delete({ where: { id: person.id } });
+    }
   });
 
   it("knows when the set already has its folder", async () => {
@@ -142,6 +178,6 @@ describe("getArchiveKeyFolders", () => {
 
   it("has nothing to look up without a date or a channel code", async () => {
     const ss = await prisma.stagingSet.create({ data: { title: "Undated", channelName: `${PREFIX} set`, channelId: own, isVideo: false } });
-    expect(await getArchiveKeyFolders(ss.id, TENANT)).toEqual({ key: null, hasConfirmed: false, folders: [] });
+    expect(await getArchiveKeyFolders(ss.id, TENANT)).toEqual({ key: null, hasConfirmed: false, folders: [], sets: [] });
   });
 });

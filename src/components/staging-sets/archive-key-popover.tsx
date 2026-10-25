@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import { Check, FolderOpen, Link2, Loader2 } from 'lucide-react'
+import { Check, FolderOpen, Inbox, Layers, Link2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { describeArchiveKeyDay } from '@/lib/archive-key'
 import { confirmArchiveFolderLinkAction, getArchiveKeyFoldersAction } from '@/lib/actions/archive-actions'
-import type { ArchiveKeyFolder, ArchiveKeyView } from '@/lib/services/archive-key-service'
+import type { ArchiveKeyEntity, ArchiveKeyFolder, ArchiveKeyView } from '@/lib/services/archive-key-service'
 
 export type ArchiveKeyPopoverProps = {
   stagingSetId: string
@@ -136,7 +136,7 @@ export function ArchiveKeyPopover({ stagingSetId, label, onLinked }: ArchiveKeyP
         <div className="border-b px-3 py-2 text-xs">
           <span className="font-medium">Archive · </span>
           <span className="font-mono">{view?.key ?? label}</span>
-          <span className="text-muted-foreground"> — same day and channel, then ±2 days and day/month swapped</span>
+          <span className="text-muted-foreground"> — the folders and sets of this day and channel, then ±2 days and day/month swapped</span>
         </div>
         <div className="max-h-80 overflow-y-auto py-1">
           {!view && !failed && (
@@ -159,6 +159,13 @@ export function ArchiveKeyPopover({ stagingSetId, label, onLinked }: ArchiveKeyP
             <p className="px-3 py-3 text-xs text-muted-foreground">No folder on this day or near it.</p>
           )}
           {same.length > 0 && <Section title="Same day">{same.map(row)}</Section>}
+          {view && view.sets.length > 0 && (
+            <Section title={`Sets on this day (${view.sets.length})`}>
+              {view.sets.map((e) => (
+                <SetLine key={`${e.kind}-${e.id}`} entity={e} />
+              ))}
+            </Section>
+          )}
           {near.length > 0 && <Section title="Near misses">{near.map(row)}</Section>}
         </div>
       </PopoverContent>
@@ -204,7 +211,7 @@ export function ArchiveKeyPopover({ stagingSetId, label, onLinked }: ArchiveKeyP
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section>
+    <section aria-label={title}>
       <h3 className="px-3 pb-0.5 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
       <ul>{children}</ul>
     </section>
@@ -235,4 +242,31 @@ function LinkState({ link }: { link: ArchiveKeyFolder['link'] }) {
     )
   }
   return <span>{link.state === 'confirmed' ? `linked to ${target}` : `suggested to ${target}`}</span>
+}
+
+/** A staged set or Set of the same day, with the folder it holds. */
+function SetLine({ entity: e }: { entity: ArchiveKeyEntity }) {
+  const Icon = e.kind === 'set' ? Layers : Inbox
+  return (
+    <li className={cn('flex items-start gap-2 px-3 py-1.5 text-xs', e.here && 'bg-primary/5')}>
+      <Icon size={12} className="mt-0.5 shrink-0 text-muted-foreground" aria-label={e.kind === 'set' ? 'Set' : 'Staged set'} />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate font-medium">{e.title}</span>
+          {e.here && <span className="shrink-0 text-[10px] text-primary">this set</span>}
+          {e.status && <span className="shrink-0 text-[10px] lowercase text-muted-foreground">{e.status}</span>}
+        </div>
+        {e.people.length > 0 && <div className="truncate text-[10px] text-muted-foreground">{e.people.join(', ')}</div>}
+        <div className="truncate text-[10px]">
+          {e.folder ? (
+            <span className={cn('font-mono', e.folder.state === 'confirmed' ? 'text-green-700 dark:text-green-400' : 'text-amber-600 dark:text-amber-400')}>
+              {e.folder.state === 'confirmed' ? 'linked' : 'suggested'}: {e.folder.name}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">no folder</span>
+          )}
+        </div>
+      </div>
+    </li>
+  )
 }

@@ -32,13 +32,54 @@ export type ArchiveKeyFolder = {
     | { state: 'suggested' | 'confirmed'; here: boolean; targetTitle: string | null }
 }
 
+/** A staged set or Set released under the same key — the other side of the day. */
+export type ArchiveKeyEntity = {
+  id: string
+  kind: 'staged' | 'set'
+  title: string
+  /** The staged set's status; null for a Set */
+  status: string | null
+  /** `Name (ICG-ID)`, or the name alone when the import gave none */
+  people: string[]
+  /** The set the popover was opened on (or its promoted Set) */
+  here: boolean
+  folder: { name: string; state: 'suggested' | 'confirmed' } | null
+}
+
 export type ArchiveKeyView = {
   /** The set's key as the archive writes it: YYYY-MM-DD-CODE */
   key: string | null
   /** The set already has a confirmed folder: nothing more can be linked */
   hasConfirmed: boolean
   folders: ArchiveKeyFolder[]
+  /** Every staged set and Set with the same day and channel, this one included */
+  sets: ArchiveKeyEntity[]
 }
+
+type EntityRow = {
+  id: string
+  title: string
+  status: string | null
+  participants: unknown
+  link_status: 'SUGGESTED' | 'CONFIRMED' | null
+  folder_name: string | null
+}
+
+/** `Name (ICG-ID)` from a staged set's imported participants. */
+function stagedPeople(participants: unknown): string[] {
+  if (!Array.isArray(participants)) return []
+  return participants.flatMap((p: unknown) => {
+    if (!p || typeof p !== 'object') return []
+    const { name, icgId } = p as { name?: unknown; icgId?: unknown }
+    if (typeof name !== 'string' || !name) return []
+    return [typeof icgId === 'string' && icgId ? `${name} (${icgId})` : name]
+  })
+}
+
+const entityFolder = (r: EntityRow): ArchiveKeyEntity['folder'] =>
+  r.link_status && r.folder_name
+    ? { name: r.folder_name, state: r.link_status === 'CONFIRMED' ? 'confirmed' : 'suggested' }
+    : null
 
 type Row = {
   id: string
@@ -68,7 +109,7 @@ export async function getArchiveKeyFolders(stagingSetId: string, tenant: string)
     },
   })
   const shortName = ss?.channel?.shortName ?? null
-  if (!ss || !ss.releaseDate || !shortName) return { key: null, hasConfirmed: false, folders: [] }
+  if (!ss || !ss.releaseDate || !shortName) return { key: null, hasConfirmed: false, folders: [], sets: [] }
 
   // After promotion the archive link lives on the Set
   const targetSetId = ss.status === 'PROMOTED' ? ss.promotedSetId : null
@@ -80,8 +121,20 @@ export async function getArchiveKeyFolders(stagingSetId: string, tenant: string)
     return Prisma.sql`(af."parsedDate" >= ${start} AND af."parsedDate" < ${end})`
   })
   const titleNorm = ss.titleNorm ?? normalizeForSearch(ss.title)
+  const codes = sameLabelChannelCodes(Prisma.sql`${shortName}`)
+  const dayStart = new Date(`${days[0]!.day}T00:00:00.000Z`)
+  const dayEnd = new Date(dayStart.getTime() + 86_400_000)
+  // A link's folder: the confirmed one if there is one
+  const linkOf = (id: Prisma.Sql, fk: '"stagingSetId"' | '"setId"') => Prisma.sql`
+    LEFT JOIN LATERAL (
+      SELECT al.status::text AS link_status, af."folderName" AS folder_name
+      FROM "ArchiveLink" al JOIN archive_folder af ON af.id = al."archiveFolderId"
+      WHERE al.${Prisma.raw(fk)} = ${id}
+      ORDER BY (al.status = 'CONFIRMED') DESC
+      LIMIT 1
+    ) l ON true`
 
-  const [rows, confirmedCount, aliases] = await Promise.all([
+  const [rows, confirmedCount, aliases, stagedRows, setRows] = await Promise.all([
     prisma.$queryRaw<Row[]>`
       SELECT af.id,
              af."folderName" AS folder_name,
@@ -115,6 +168,36 @@ export async function getArchiveKeyFolders(stagingSetId: string, tenant: string)
           select: { nameNorm: true },
         })
       : Promise.resolve([]),
+    // The staged sets of the day; a promoted one is listed as its Set
+    prisma.$queryRaw<EntityRow[]>`
+      SELECT ss.id, ss.title, ss.status::text AS status, ss.participants, l.link_status, l.folder_name
+      FROM staging_set ss
+      JOIN "Channel" c ON c.id = ss."channelId"
+      ${linkOf(Prisma.sql`ss.id`, '"stagingSetId"')}
+      WHERE LOWER(c."shortName") IN (${codes})
+        AND ss."releaseDate" >= ${dayStart} AND ss."releaseDate" < ${dayEnd}
+        AND ss."isVideo" = ${ss.isVideo}
+        AND ss.status <> 'PROMOTED'
+      ORDER BY ss.title
+      LIMIT 50
+    `,
+    prisma.$queryRaw<EntityRow[]>`
+      SELECT s.id, s.title, NULL AS status,
+             (SELECT json_agg(json_build_object('name', COALESCE(pa.name, p."icgId"), 'icgId', p."icgId"))
+                FROM "SetParticipant" sp
+                JOIN "Person" p ON p.id = sp."personId"
+                LEFT JOIN "PersonAlias" pa ON pa."personId" = p.id AND pa."isCommon" = true
+               WHERE sp."setId" = s.id) AS participants,
+             l.link_status, l.folder_name
+      FROM "Set" s
+      JOIN "Channel" c ON c.id = s."channelId"
+      ${linkOf(Prisma.sql`s.id`, '"setId"')}
+      WHERE LOWER(c."shortName") IN (${codes})
+        AND s."releaseDate" >= ${dayStart} AND s."releaseDate" < ${dayEnd}
+        AND s.type = ${ss.isVideo ? 'video' : 'photo'}::"SetType"
+      ORDER BY s.title
+      LIMIT 50
+    `,
   ])
 
   const names = [
@@ -150,6 +233,29 @@ export async function getArchiveKeyFolders(stagingSetId: string, tenant: string)
       a.folderName.localeCompare(b.folderName),
   )
 
+  const sets: ArchiveKeyEntity[] = [
+    ...stagedRows.map((r): ArchiveKeyEntity => ({
+      id: r.id,
+      kind: 'staged',
+      title: r.title,
+      status: r.status,
+      people: stagedPeople(r.participants),
+      here: r.id === stagingSetId,
+      folder: entityFolder(r),
+    })),
+    ...setRows.map((r): ArchiveKeyEntity => ({
+      id: r.id,
+      kind: 'set',
+      title: r.title,
+      status: null,
+      people: stagedPeople(r.participants),
+      here: r.id === targetSetId,
+      folder: entityFolder(r),
+    })),
+  ]
+  // This set first, then the ones still without a folder
+  sets.sort((a, b) => Number(b.here) - Number(a.here) || Number(!!a.folder) - Number(!!b.folder) || a.title.localeCompare(b.title))
+
   const key = `${ss.releaseDate.toISOString().slice(0, 10)}-${shortName}`
-  return { key, hasConfirmed: confirmedCount > 0, folders }
+  return { key, hasConfirmed: confirmedCount > 0, folders, sets }
 }

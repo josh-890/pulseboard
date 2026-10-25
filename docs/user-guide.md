@@ -1721,6 +1721,7 @@ Channels are compared by their **owning Label**, not their code. If you file sev
 Title and name drift between the import and the archive; the **day and channel** — the archive key, `2017-10-05-MA` — rarely do. Hover the **date** of a staged set (or click it, or tab to it and press Enter) and a popover lists every archive folder with that key, in the archive's own form `2017-10-05-MA Nancy A - Artica`:
 
 - **Same day** — folders of the set's channel and of the other channels of its Label. What agrees with this set is green (the person, the title); the folders agreeing most come first.
+- **Sets on this day** — the other side: every staged set and Set with the same day and channel (this one marked *this set*), with its people as `Name (ICG-ID)` and the folder it holds — *linked* (green), *suggested* (amber) or *no folder*. Two sets that swapped their folders, or a set holding the folder of another, show here at a glance.
 - **Near misses** — the same channel ±2 days (`+1 day` in amber) and the day with day and month swapped (`day/month swapped`), where a typing slip usually lands.
 - Each folder says whose it is: *free*, *suggested here*, *suggested to "Chilea"* or *linked to "…"* (greyed — a confirmed folder is never taken).
 - **Link** confirms that folder for this set at once — also one the matcher suggested elsewhere. When the set already has its folder the list is for reading only.
