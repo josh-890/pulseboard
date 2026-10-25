@@ -140,6 +140,31 @@ describe("a same-day incumbent that agrees on nothing else", () => {
     }
   });
 
+  it("drops a stored suggestion the current rules no longer make", async () => {
+    const label = await prisma.label.create({ data: { name: `${PREFIX} Label2` } });
+    await prisma.channel.update({ where: { id: channelId }, data: { labelId: label.id } });
+    const sibling = await prisma.channel.create({ data: { name: `${PREFIX} Sibling2`, shortName: "INCH", labelId: label.id } });
+    const set8 = await prisma.stagingSet.create({
+      data: { title: "Set 8", titleNorm: "set 8", channelName: `${PREFIX} set`, channelId: sibling.id, releaseDate: DAY, isVideo: false, participantNamesNorm: "lena" },
+    });
+    const folder = await seedFolder("Nancy A", "Artica");
+    // What the looser rule left: a sibling on the day alone
+    await prisma.archiveLink.create({
+      data: { archiveFolderId: folder.id, stagingSetId: set8.id, status: "SUGGESTED", confidence: "MEDIUM", tenant: TENANT },
+    });
+    try {
+      const res = await runMatchingPass(TENANT);
+      expect(await linkOf(folder.id)).toBeNull();
+      expect(res.cleared).toBeGreaterThanOrEqual(1);
+    } finally {
+      await prisma.archiveLink.deleteMany({ where: { archiveFolderId: folder.id } });
+      await prisma.stagingSet.deleteMany({ where: { channelId: sibling.id } });
+      await prisma.channel.delete({ where: { id: sibling.id } });
+      await prisma.channel.update({ where: { id: channelId }, data: { labelId: null } });
+      await prisma.label.delete({ where: { id: label.id } });
+    }
+  });
+
   it("gives a promoted set up too — it used to skip any set another folder held", async () => {
     const set = await prisma.set.create({
       data: { title: `${PREFIX} Numira`, titleNorm: normalizeForSearch(`${PREFIX} Numira`), type: "photo", channelId, releaseDate: DAY },

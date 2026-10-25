@@ -1921,7 +1921,7 @@ async function _computeRelativePath(fullPath: string, isVideo: boolean): Promise
 export async function runMatchingPass(
   tenant: string,
   onProgress?: (p: { processed: number; total: number; suggested: number }) => Promise<void> | void,
-): Promise<{ linked: number; suggested: number }> {
+): Promise<{ linked: number; suggested: number; cleared: number }> {
   // Load folders that have no CONFIRMED ArchiveLink yet
   const folders = await prisma.archiveFolder.findMany({
     where: {
@@ -1953,7 +1953,7 @@ export async function runMatchingPass(
   const photoRoots = parseRoots(rawPhotoRoots)
   const videoRoots = parseRoots(rawVideoRoots)
 
-  const linked = 0; let suggested = 0
+  const linked = 0; let suggested = 0; let cleared = 0
 
   // Every ~100 folders, which is a few seconds — often enough for a progress bar
   // to move, rare enough that the heartbeat write is noise next to the pass.
@@ -2156,14 +2156,24 @@ export async function runMatchingPass(
           where: { setId: best.id, status: ArchiveLinkStatus.SUGGESTED, archiveFolderId: { not: folder.id } },
         })
         suggested++
+        continue
       }
     }
+
+    // Nothing qualifies any more: a suggestion stored by an earlier pass (or an
+    // earlier rule) is a guess the current rules no longer make — drop it, or a
+    // stricter rule would never clear what the looser one left (2026-10-25).
+    // A CONFIRMED link is not touched (the pass only loads unconfirmed folders).
+    const dropped = await prisma.archiveLink.deleteMany({
+      where: { archiveFolderId: folder.id, status: ArchiveLinkStatus.SUGGESTED },
+    })
+    cleared += dropped.count
   }
 
   await onProgress?.({ processed, total: folders.length, suggested })
 
   // linked is always 0 now — we no longer do exact path matching
-  return { linked, suggested }
+  return { linked, suggested, cleared }
 }
 
 function _normPath(p: string): string {
