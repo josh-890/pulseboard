@@ -265,3 +265,51 @@ export function intensityTextColor(value: number, max: number): string {
   const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
   return luminance > 0.3 ? "rgb(17, 24, 39)" : "rgb(255, 255, 255)";
 }
+
+/**
+ * Where a person's intensity in a session stands (presets, 2026-10-24):
+ * unrated — nothing recorded and not confirmed; to review — recorded (by hand,
+ * a preset or a copy) but not confirmed; done — confirmed, with or without acts.
+ */
+export type IntensityReview = "unrated" | "review" | "done";
+
+export function intensityReview(p: { reviewed: boolean; acts: number; extras: number }): IntensityReview {
+  if (p.reviewed) return "done";
+  return p.acts > 0 || p.extras > 0 ? "review" : "unrated";
+}
+
+/** A session's state from its models': done when all are, unrated when none has anything, else to review */
+export function sessionReview(people: IntensityReview[]): IntensityReview {
+  if (people.length > 0 && people.every((r) => r === "done")) return "done";
+  return people.every((r) => r === "unrated") ? "unrated" : "review";
+}
+
+/**
+ * What a preset does to one person: the acts they lack, and its extras laid over
+ * theirs — a grouped extra replaces their choice in its group, the rest stays.
+ */
+export function presetAdditions(
+  person: { actIds: string[]; extraIds: string[] },
+  preset: { actIds: string[]; extraIds: string[] },
+  groupOf: (extraId: string) => string | null,
+): { actIds: string[]; extraIds: string[] } {
+  const has = new Set(person.actIds);
+  return {
+    actIds: preset.actIds.filter((id) => !has.has(id)),
+    extraIds: applySharedExtras(person.extraIds, [], preset.extraIds, groupOf),
+  };
+}
+
+/**
+ * What a preset alone gives a model (2026-10-25): its highest act with its
+ * extras — those counting in its scenario — or null without acts
+ */
+export function presetValue(
+  levels: number[],
+  extras: IntensityExtraRef[],
+  scenarioId: string,
+  max: number,
+): number | null {
+  const counted = extras.filter((e) => countsIn(e, scenarioId));
+  return sessionIntensity(levels.map((l) => actValue(l, counted, max)), counted, max);
+}

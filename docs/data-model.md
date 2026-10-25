@@ -237,8 +237,15 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   exactly one `isMax` extra (partial unique index) sets 10.
 - **SetActExclusion** — a ticked act (`ContributionAct`) a set of its session does not show (2026-10-24; a session
   split into several releases); cascade both ways. A set otherwise inherits its sessions' acts.
+- **IntensityPreset** (2026-10-24) — a bundle for a kind of session, for one scenario (`scenarioId`, cascade,
+  2026-10-25): `name` (unique per scenario), `description?`, `sortOrder` (within its scenario — the panel's digits 1–9); **IntensityPresetAct** / **IntensityPresetExtra** — its acts and session extras (composite PKs,
+  cascade both ways; only acts of its scenario and extras counting there, ≤1 per group — checked in the service, pruned
+  when an act moves scenario or an extra stops counting). A copy: applying it writes ordinary ticks.
 - **ContributionExtra** — an extra set for a person in a session (`SessionContribution`, cascade).
-  **ContributionAct** — an act ticked for a person in a session, unique per (contribution, act).
+  **ContributionAct** — an act ticked for a person in a session, unique per (contribution, act); `presetId?` — the
+  preset that ticked it (provenance, `SetNull` when the preset goes).
+  **SessionContribution.intensityReviewedAt?** — the person's intensity there was confirmed as checked; a preset or a
+  copy clears it (unrated / to review / done are derived).
   **ContributionActExtra** — an act's departure from the inherited extras (`mode` ADD | DROP). Values are computed.
   **ContributionActMedia** (slice 3b) — a photo as evidence for a ticked act: PK (contributionActId, mediaItemId), both FKs cascade; only photos of the act's session (checked in the service).
 

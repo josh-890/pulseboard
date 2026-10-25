@@ -25,6 +25,12 @@ import {
   createIntensityExtra,
   updateIntensityExtra,
   deleteIntensityExtra,
+  createIntensityPreset,
+  updateIntensityPreset,
+  setIntensityPresetActs,
+  setIntensityPresetExtras,
+  moveIntensityPreset,
+  deleteIntensityPreset,
 } from "@/lib/services/intensity-catalog-service";
 import type { IntensityActPlace } from "@/lib/services/intensity-catalog-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -138,4 +144,30 @@ export async function updateIntensityExtraAction(
 }
 export async function deleteIntensityExtraAction(id: string) {
   return run(() => deleteIntensityExtra(id));
+}
+
+// ─── Presets (2026-10-24) ──
+
+/** Returns the new preset's id, so it opens right away */
+export async function createIntensityPresetAction(scenarioId: string, name: string): Promise<SimpleActionResult & { id?: string }> {
+  let id: string | undefined;
+  const result = await run(async () => {
+    id = await createIntensityPreset(scenarioId, name);
+  });
+  return { ...result, id };
+}
+export async function updateIntensityPresetAction(id: string, data: { name?: string; description?: string }) {
+  return run(() => updateIntensityPreset(id, data));
+}
+export async function setIntensityPresetActsAction(id: string, actIds: string[]) {
+  return run(() => setIntensityPresetActs(id, actIds));
+}
+export async function setIntensityPresetExtrasAction(id: string, extraIds: string[]) {
+  return run(() => setIntensityPresetExtras(id, extraIds));
+}
+export async function moveIntensityPresetAction(id: string, direction: -1 | 1) {
+  return run(() => moveIntensityPreset(id, direction));
+}
+export async function deleteIntensityPresetAction(id: string) {
+  return run(() => deleteIntensityPreset(id));
 }

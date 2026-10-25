@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { actValue, applySharedExtras, formatPoints, isPointsStep, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds } from "@/lib/intensity";
+import { actValue, applySharedExtras, formatPoints, isPointsStep, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds, presetAdditions, intensityReview, sessionReview, presetValue } from "@/lib/intensity";
 
 const semi = { id: "semi", points: 1, groupId: "loc", isMax: false };
 const pub = { id: "pub", points: 2, groupId: "loc", isMax: false };
@@ -192,5 +192,41 @@ describe("negative points (2026-10-23)", () => {
     expect(formatPoints(-1)).toBe("−1");
     expect(formatPoints(0.5)).toBe("+0.5");
     expect(formatPoints(0)).toBe("±0");
+  });
+});
+
+describe("presets and review (2026-10-24)", () => {
+  const groups: Record<string, string> = { semi: "where", pub: "where" };
+  const groupOf = (id: string) => groups[id] ?? null;
+
+  it("a preset adds the acts a person lacks and lays its extras over theirs", () => {
+    const add = presetAdditions({ actIds: ["a"], extraIds: ["semi", "first"] }, { actIds: ["a", "b"], extraIds: ["pub"] }, groupOf);
+    expect(add.actIds).toEqual(["b"]);
+    // public replaces semi in its group; first time stays
+    expect(add.extraIds.sort()).toEqual(["first", "pub"]);
+  });
+
+  it("a person is unrated, to review or done; a session done only when all are", () => {
+    expect(intensityReview({ reviewed: false, acts: 0, extras: 0 })).toBe("unrated");
+    expect(intensityReview({ reviewed: false, acts: 2, extras: 0 })).toBe("review");
+    expect(intensityReview({ reviewed: false, acts: 0, extras: 1 })).toBe("review");
+    expect(intensityReview({ reviewed: true, acts: 0, extras: 0 })).toBe("done"); // nothing to rate
+    expect(sessionReview(["done", "done"])).toBe("done");
+    expect(sessionReview(["done", "unrated"])).toBe("review");
+    expect(sessionReview(["unrated", "unrated"])).toBe("unrated");
+    expect(sessionReview([])).toBe("unrated");
+  });
+});
+
+describe("presetValue", () => {
+  const pub = { id: "pub", points: 1, groupId: null, isMax: false };
+  const partner = { id: "partner", points: 2, groupId: null, isMax: false, offIn: ["solo"] };
+  it("is the highest act with the extras counting in its scenario", () => {
+    expect(presetValue([2, 5], [pub, partner], "solo", 10)).toBe(6);
+    expect(presetValue([2, 5], [pub, partner], "gb", 10)).toBe(8);
+  });
+  it("is null without acts, Max with a Max extra", () => {
+    expect(presetValue([], [pub], "solo", 10)).toBeNull();
+    expect(presetValue([], [{ id: "m", points: 0, groupId: null, isMax: true }], "solo", 10)).toBe(10);
   });
 });

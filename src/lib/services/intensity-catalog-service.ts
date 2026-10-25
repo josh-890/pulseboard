@@ -74,7 +74,7 @@ export async function setIntensityMax(next: number) {
 }
 
 export async function getIntensityCatalog() {
-  const [max, scale, boundaries, scenarios, groupRows, extraRows] = await Promise.all([
+  const [max, scale, boundaries, scenarios, groupRows, extraRows, presets] = await Promise.all([
     getIntensityMax(),
     prisma.intensityScaleStep.findMany({ orderBy: { value: "asc" }, select: { value: true, title: true, description: true } }),
     prisma.intensityBoundary.findMany({
@@ -102,6 +102,7 @@ export async function getIntensityCatalog() {
         scenariosOff: { select: { scenarioId: true } },
       },
     }),
+    getIntensityPresets(),
   ]);
   // Where each counts not (2026-10-23): a group for all its extras, an extra without a group on its own; Max always counts
   const groups = groupRows.map(({ scenariosOff, ...g }) => ({ ...g, offIn: scenariosOff.map((o) => o.scenarioId) }));
@@ -110,7 +111,23 @@ export async function getIntensityCatalog() {
     ...e,
     offIn: e.isMax ? [] : e.groupId ? (groupOff.get(e.groupId) ?? []) : scenariosOff.map((o) => o.scenarioId),
   }));
-  return { max, scale, boundaries, scenarios, groups, extras };
+  return { max, scale, boundaries, scenarios, groups, extras, presets };
+}
+
+/**
+ * A preset holds only extras that count in its scenario (2026-10-25): after a
+ * change to where extras count, or an extra moved into a group, the others leave it.
+ */
+async function prunePresetExtras(tx: Prisma.TransactionClient) {
+  await tx.$executeRaw`
+    DELETE FROM "IntensityPresetExtra" pe
+    USING "IntensityExtra" e, "IntensityPreset" p
+    WHERE e.id = pe."extraId" AND p.id = pe."presetId" AND NOT e."isMax" AND (
+      (e."groupId" IS NOT NULL AND EXISTS (
+        SELECT 1 FROM "IntensityExtraGroupScenarioOff" o WHERE o."groupId" = e."groupId" AND o."scenarioId" = p."scenarioId"))
+      OR (e."groupId" IS NULL AND EXISTS (
+        SELECT 1 FROM "IntensityExtraScenarioOff" o WHERE o."extraId" = e.id AND o."scenarioId" = p."scenarioId"))
+    )`;
 }
 
 /** The scenarios an extra's group's extras do not count in — none: all of them */
@@ -120,6 +137,7 @@ export async function setIntensityGroupScenariosOff(groupId: string, scenarioIds
     if (scenarioIds.length) {
       await tx.intensityExtraGroupScenarioOff.createMany({ data: [...new Set(scenarioIds)].map((scenarioId) => ({ groupId, scenarioId })) });
     }
+    await prunePresetExtras(tx);
   });
 }
 
@@ -133,6 +151,7 @@ export async function setIntensityExtraScenariosOff(extraId: string, scenarioIds
     if (scenarioIds.length) {
       await tx.intensityExtraScenarioOff.createMany({ data: [...new Set(scenarioIds)].map((scenarioId) => ({ extraId, scenarioId })) });
     }
+    await prunePresetExtras(tx);
   });
 }
 
@@ -331,6 +350,8 @@ export async function moveIntensityActs(ids: string[], to: IntensityActPlace) {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true },
     });
+    // An act in another scenario leaves the presets of its old one (2026-10-25)
+    await tx.intensityPresetAct.deleteMany({ where: { actId: { in: moving }, preset: { scenarioId: { not: to.scenarioId } } } });
     const order = stay.map((a) => a.id);
     const at = to.beforeId ? order.indexOf(to.beforeId) : -1;
     order.splice(at < 0 ? order.length : at, 0, ...moving);
@@ -464,13 +485,17 @@ export async function updateIntensityExtra(
   }
   if (data.points !== undefined) checkPoints(data.points);
   if (data.groupId) await checkGroupStaysSingle(id, data.groupId);
-  return prisma.intensityExtra.update({
-    where: { id },
-    data: {
-      ...(data.name !== undefined && { name: cleanName(data.name) }),
-      ...(data.points !== undefined && { points: data.points }),
-      ...(data.groupId !== undefined && { groupId: data.groupId }),
-    },
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.intensityExtra.update({
+      where: { id },
+      data: {
+        ...(data.name !== undefined && { name: cleanName(data.name) }),
+        ...(data.points !== undefined && { points: data.points }),
+        ...(data.groupId !== undefined && { groupId: data.groupId }),
+      },
+    });
+    if (data.groupId !== undefined) await prunePresetExtras(tx);
+    return updated;
   });
 }
 
@@ -483,4 +508,110 @@ export async function deleteIntensityExtra(id: string) {
   const used = extra._count.contributions + extra._count.actOverrides;
   if (used > 0) throw new Error(`Used ${used} ${used === 1 ? "time" : "times"} in sessions.`);
   await prisma.intensityExtra.delete({ where: { id } });
+}
+
+// ─── Presets (2026-10-24; one scenario each, 2026-10-25) ─────────────────────
+// A bundle of acts and session extras for a kind of session, for one scenario:
+// its acts are that scenario's, its extras those that count there. Applied on a
+// session it ticks them for the selected models (intensity-service). The panel
+// offers those of the cast's scenario first, numbered 1–9 in this order.
+
+export async function getIntensityPresets() {
+  const rows = await prisma.intensityPreset.findMany({
+    orderBy: [{ scenario: { sortOrder: "asc" } }, { sortOrder: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      scenarioId: true,
+      name: true,
+      description: true,
+      acts: { select: { actId: true } },
+      extras: { select: { extraId: true } },
+      _count: { select: { ticks: true } },
+    },
+  });
+  return rows.map(({ acts, extras, _count, ...p }) => ({
+    ...p,
+    actIds: acts.map((a) => a.actId),
+    extraIds: extras.map((e) => e.extraId),
+    ticks: _count.ticks,
+  }));
+}
+
+export type IntensityPresetRow = Awaited<ReturnType<typeof getIntensityPresets>>[number];
+
+/** Returns the new preset's id */
+export async function createIntensityPreset(scenarioId: string, name: string): Promise<string> {
+  const sortOrder = await nextSortOrder(prisma.intensityPreset.aggregate({ where: { scenarioId }, _max: { sortOrder: true } }));
+  return (await prisma.intensityPreset.create({ data: { scenarioId, name: cleanName(name), sortOrder } })).id;
+}
+
+export async function updateIntensityPreset(id: string, data: { name?: string; description?: string }) {
+  await prisma.intensityPreset.update({
+    where: { id },
+    data: {
+      ...(data.name !== undefined && { name: cleanName(data.name) }),
+      ...(data.description !== undefined && { description: data.description.trim() || null }),
+    },
+  });
+}
+
+/** Only acts of the preset's scenario */
+export async function setIntensityPresetActs(id: string, actIds: string[]) {
+  const unique = [...new Set(actIds)];
+  const preset = await prisma.intensityPreset.findUniqueOrThrow({ where: { id }, select: { scenarioId: true, scenario: { select: { name: true } } } });
+  const acts = await prisma.intensityAct.findMany({ where: { id: { in: unique } }, select: { name: true, scenarioId: true } });
+  if (acts.length !== unique.length) throw new Error("Unknown act.");
+  const stray = acts.find((a) => a.scenarioId !== preset.scenarioId);
+  if (stray) throw new Error(`“${stray.name}” is not an act of ${preset.scenario.name}.`);
+  await prisma.$transaction(async (tx) => {
+    await tx.intensityPresetAct.deleteMany({ where: { presetId: id } });
+    if (unique.length) await tx.intensityPresetAct.createMany({ data: unique.map((actId) => ({ presetId: id, actId })) });
+  });
+}
+
+/** At most one extra per group, as on a session, and only extras that count in the preset's scenario */
+export async function setIntensityPresetExtras(id: string, extraIds: string[]) {
+  const unique = [...new Set(extraIds)];
+  const preset = await prisma.intensityPreset.findUniqueOrThrow({ where: { id }, select: { scenarioId: true, scenario: { select: { name: true } } } });
+  const extras = await prisma.intensityExtra.findMany({
+    where: { id: { in: unique } },
+    select: {
+      name: true,
+      groupId: true,
+      isMax: true,
+      scenariosOff: { select: { scenarioId: true } },
+      group: { select: { scenariosOff: { select: { scenarioId: true } } } },
+    },
+  });
+  if (extras.length !== unique.length) throw new Error("Unknown extra.");
+  const groups = extras.map((e) => e.groupId).filter((g): g is string => g !== null);
+  if (new Set(groups).size !== groups.length) throw new Error("Only one extra per group.");
+  const off = extras.find(
+    (e) => !e.isMax && (e.group ?? { scenariosOff: e.scenariosOff }).scenariosOff.some((o) => o.scenarioId === preset.scenarioId),
+  );
+  if (off) throw new Error(`${off.name} does not count in ${preset.scenario.name}.`);
+  await prisma.$transaction(async (tx) => {
+    await tx.intensityPresetExtra.deleteMany({ where: { presetId: id } });
+    if (unique.length) await tx.intensityPresetExtra.createMany({ data: unique.map((extraId) => ({ presetId: id, extraId })) });
+  });
+}
+
+/** Up or down among the presets of its scenario */
+export async function moveIntensityPreset(id: string, direction: -1 | 1) {
+  await prisma.$transaction(async (tx) => {
+    const { scenarioId } = await tx.intensityPreset.findUniqueOrThrow({ where: { id }, select: { scenarioId: true } });
+    const all = await tx.intensityPreset.findMany({ where: { scenarioId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], select: { id: true } });
+    const i = all.findIndex((p) => p.id === id);
+    const j = i + direction;
+    if (i < 0 || j < 0 || j >= all.length) return;
+    [all[i], all[j]] = [all[j]!, all[i]!];
+    for (const [sortOrder, p] of all.entries()) {
+      await tx.intensityPreset.update({ where: { id: p.id }, data: { sortOrder } });
+    }
+  });
+}
+
+/** The ticks it made stay — they only forget where they came from */
+export async function deleteIntensityPreset(id: string) {
+  await prisma.intensityPreset.delete({ where: { id } });
 }

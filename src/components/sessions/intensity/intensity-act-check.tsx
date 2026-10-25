@@ -38,6 +38,8 @@ export type IntensityActCheckProps = {
    * set leaves the act out, and a hint when its evidence photos are all elsewhere
    */
   release?: { excluded: boolean; noEvidenceHere: boolean; onToggle: () => void };
+  /** Ticked by this preset and not yet confirmed (2026-10-24) — marked, so it gets a look */
+  preset?: string | null;
 };
 
 // One act to tick, read left to right in one glance: ☐ level · title · value ·
@@ -45,7 +47,7 @@ export type IntensityActCheckProps = {
 // whether all, some (− and who) or none have it; ticking sets it for all. Notes
 // and an act's own extras belong to one person, so they need one selected.
 export function IntensityActCheck(props: IntensityActCheckProps) {
-  const { act, state, holders, value, scaleMax, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote, release } = props;
+  const { act, state, holders, value, scaleMax, explain, single, effective, inherited, saved, note, photos, onPhotos, extras, groups, onTick, onExtras, onNote, release, preset } = props;
   const [open, setOpen] = useState(false);
   const [writing, setWriting] = useState(false);
   const [draft, setDraft] = useState("");
@@ -98,6 +100,15 @@ export function IntensityActCheck(props: IntensityActCheckProps) {
             {act.name}
           </button>
         </IntensityHoverText>
+        {ticked && preset && (
+          <span
+            className="shrink-0 text-[11px] leading-none text-amber-600 dark:text-amber-400"
+            title={`Ticked by the preset ${preset} — check it against the photos`}
+            aria-label={`from the preset ${preset}`}
+          >
+            ◇
+          </span>
+        )}
         {valueText && (
           <IntensityHoverText side="top" text={explain} className="shrink-0">
             <span

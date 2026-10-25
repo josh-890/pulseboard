@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { ChevronRight, Copy, Search, X } from "lucide-react";
+import { Check, ChevronRight, Copy, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { IntensityExtrasPicker } from "@/components/intensity/intensity-extras-picker";
 import { IntensityHoverText } from "@/components/intensity/intensity-hover-text";
@@ -13,8 +13,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  applyIntensityPresetAction,
   copyContributionIntensityAction,
   restoreContributionActsAction,
+  setIntensityReviewedAction,
+  undoIntensityPresetAction,
   setContributionActExtrasAction,
   setActEvidenceAction,
   setContributionActNoteAction,
@@ -22,13 +25,15 @@ import {
   setContributionsExtrasAction,
   setSetActExcludedAction,
 } from "@/lib/actions/intensity-actions";
-import { applySharedExtras, countsIn, formatIntensity, overridesFor } from "@/lib/intensity";
+import { applySharedExtras, countsIn, formatIntensity, intensityReview, overridesFor, presetAdditions, presetValue, type IntensityReview } from "@/lib/intensity";
 import { IntensityValue } from "@/components/intensity/intensity-value";
 import type { SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ActEvidencePicker } from "./act-evidence-picker";
 import { IntensityActCheck } from "./intensity-act-check";
+import { ALL_PRESETS, IntensityPresetBar } from "./intensity-preset-bar";
+import { IntensityReviewBar } from "./intensity-review-bar";
 import { initialPanelState, personView, reducePanel, type PanelChange, type RestoreItem } from "./panel-state";
 import { useIntensityPanel } from "./intensity-panel-provider";
 import type { SessionIntensityCatalog } from "./types";
@@ -72,6 +77,8 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
   const [selected, setSelected] = useState<string[]>(() => (contributions[0] ? [contributions[0].id] : []));
   const [query, setQuery] = useState("");
   const [openScenarios, setOpenScenarios] = useState<Set<string> | null>(null);
+  // The scenario picked for the preset bar, for this selection only
+  const [presetPick, setPresetPick] = useState<{ selection: string; scenarioId: string } | null>(null);
   const [picking, setPicking] = useState<{ contributionId: string; actId: string; contributionActId: string; title: string; mediaIds: string[] } | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -187,6 +194,103 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
     send({ kind: "copy", fromId, toId: single.id }, () => copyContributionIntensityAction(fromId, single.id));
   }
 
+  // ── Presets and review (2026-10-24) ──
+  const reviewOf = (id: string) => {
+    const p = state[id]!;
+    return intensityReview({ reviewed: p.reviewed, acts: p.acts.length, extras: p.extraIds.length });
+  };
+  const presetName = new Map(catalog.presets.map((p) => [p.id, p.name]));
+  const target = single ? single.label : `${chosen.length} people`;
+  // A preset is for one scenario (2026-10-25): the bar shows one scenario's
+  // presets, starting on the scenario every selected person's cast suggests
+  // (someone without a suggestion takes any), else the first that has presets
+  const extraById = new Map(catalog.extras.map((e) => [e.id, e]));
+  const fits = (scenarioId: string) => chosen.every((c) => c.suggestedScenarioIds.length === 0 || c.suggestedScenarioIds.includes(scenarioId));
+  const presetTabs = catalog.scenarios
+    .map((sc) => ({
+      id: sc.id,
+      name: sc.name,
+      suggested: chosen.some((c) => c.suggestedScenarioIds.includes(sc.id)),
+      presets: catalog.presets
+        .filter((p) => p.scenarioId === sc.id)
+        .map((p) => ({
+          ...p,
+          value: presetValue(
+            p.actIds.flatMap((id) => acts.get(id)?.level ?? []),
+            p.extraIds.flatMap((id) => extraById.get(id) ?? []),
+            sc.id,
+            catalog.max,
+          ),
+        })),
+    }))
+    .filter((sc) => sc.presets.length > 0);
+  const selection = selected.join(",");
+  const presetScenarioId =
+    (presetPick?.selection === selection ? presetPick.scenarioId : undefined) ??
+    presetTabs.find((sc) => sc.suggested && fits(sc.id))?.id ??
+    presetTabs[0]?.id ??
+    null;
+  const barPresets =
+    presetScenarioId === ALL_PRESETS && presetTabs.length > 1
+      ? presetTabs.flatMap((sc) => sc.presets)
+      : (presetTabs.find((sc) => sc.id === presetScenarioId)?.presets ?? presetTabs[0]?.presets ?? []);
+
+  function applyPreset(presetId: string) {
+    const preset = catalog.presets.find((p) => p.id === presetId);
+    if (!preset) return;
+    const ids = chosen.map((c) => c.id);
+    const entries = chosen.map((c) => {
+      const p = state[c.id]!;
+      return { contributionId: c.id, ...presetAdditions({ actIds: p.acts.map((a) => a.actId), extraIds: p.extraIds }, preset, groupOf) };
+    });
+    startTransition(async () => {
+      apply({ kind: "preset", presetId, entries });
+      const result = await applyIntensityPresetAction(ids, presetId);
+      if (!result.success || !result.undo) {
+        toast.error(result.error ?? "Could not apply the preset");
+        return;
+      }
+      const undo = result.undo;
+      const added = undo.people.reduce((n, p) => n + p.actIds.length, 0);
+      toast(`${preset.name}: ${added} act${added === 1 ? "" : "s"} for ${chosen.map((c) => c.label).join(", ")} — to review`, {
+        action: {
+          label: "Undo",
+          onClick: () =>
+            send(
+              {
+                kind: "unpreset",
+                presetId,
+                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds, reviewed: p.reviewedAt !== null })),
+              },
+              () => undoIntensityPresetAction(undo),
+            ),
+        },
+      });
+    });
+  }
+
+  function review(reviewed: boolean) {
+    const ids = chosen.map((c) => c.id);
+    send({ kind: "review", contributionIds: ids, reviewed }, () => setIntensityReviewedAction(ids, reviewed));
+  }
+
+  // Digits apply a preset, ⏎ confirms — while the panel has focus, not while typing or on a button
+  function onPanelKey(e: React.KeyboardEvent) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target as HTMLElement;
+    const tick = t instanceof HTMLInputElement && t.type === "checkbox";
+    if (!tick && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName))) return;
+    if (/^[1-9]$/.test(e.key)) {
+      const preset = barPresets[Number(e.key) - 1];
+      if (!preset) return;
+      e.preventDefault();
+      applyPreset(preset.id);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      review(true);
+    }
+  }
+
   // ── Scenarios and search ──
   const q = query.trim().toLowerCase();
   const matches = (a: { name: string; description: string | null }) =>
@@ -207,9 +311,107 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
     });
   }
   const firstMatch = q ? scenarios[0]?.acts[0] : undefined;
+  // Picking a scenario for the presets opens its acts below too
+  function pickPresetScenario(sid: string) {
+    setPresetPick({ selection, scenarioId: sid });
+    if (sid !== ALL_PRESETS && !isOpen(sid)) toggleScenario(sid);
+  }
+
+  type ScenarioView = (typeof catalog.scenarios)[number];
+  function actRow(s: ScenarioView, a: ScenarioView["acts"][number], key?: string) {
+    const holding = chosen.filter((c) => views.get(c.id)!.ticked.has(a.id));
+    const st = holding.length === 0 ? "none" : holding.length === chosen.length ? "all" : "some";
+    const vals = holding.map((c) => views.get(c.id)!.ticked.get(a.id)!);
+    const mine = single ? views.get(single.id)!.ticked.get(a.id) : undefined;
+    // Ticked by a preset for someone not yet confirmed: marked
+    const fromPreset =
+      holding
+        .map((c) => {
+          const t = state[c.id]!.acts.find((x) => x.actId === a.id);
+          return t?.presetId && !state[c.id]!.reviewed ? presetName.get(t.presetId) : undefined;
+        })
+        .find(Boolean) ?? null;
+    return (
+      <IntensityActCheck
+        key={key ?? a.id}
+        act={a}
+        state={st}
+        holders={st === "some" ? `only ${holding.map((c) => c.person.name).join(", ")}` : null}
+        value={vals.length ? { min: Math.min(...vals.map((v) => v.value)), max: Math.max(...vals.map((v) => v.value)) } : null}
+        scaleMax={catalog.max}
+        explain={
+          vals.length === 0
+            ? null
+            : single
+              ? vals[0]!.explain
+              : holding.map((c, i) => `${c.person.name}: ${vals[i]!.explain}`).join("\n")
+        }
+        single={!!single}
+        release={
+          release?.shared && mine?.id
+            ? {
+                excluded: leftOut.has(mine.id),
+                noEvidenceHere: mine.mediaIds.length > 0 && !release.evidenceInSet.includes(mine.id),
+                onToggle: () => leaveOut(mine.id!, !leftOut.has(mine.id!)),
+              }
+            : undefined
+        }
+        effective={mine?.effective ?? []}
+        inherited={single ? state[single.id]!.extraIds : []}
+        saved={!!mine?.id}
+        note={mine?.notes ?? null}
+        photos={mine?.mediaIds.length ?? 0}
+        onPhotos={() => {
+          if (!single || !mine?.id) return;
+          setPicking({
+            contributionId: single.id,
+            actId: a.id,
+            contributionActId: mine.id,
+            title: `${a.name} — ${single.label}: photos as evidence`,
+            mediaIds: mine.mediaIds,
+          });
+        }}
+        extras={catalog.extras.filter((e) => countsIn(e, s.id))}
+        groups={catalog.groups}
+        preset={fromPreset}
+        onTick={(on) => tick(a.id, on)}
+        onExtras={(extraIds) => {
+          if (!single || !mine?.id) return;
+          const overrides = overridesFor(state[single.id]!.extraIds, extraIds);
+          send({ kind: "actExtras", contributionId: single.id, actId: a.id, overrides }, () =>
+            setContributionActExtrasAction(mine.id!, extraIds),
+          );
+        }}
+        onNote={(text) => {
+          if (!single || !mine?.id) return;
+          send({ kind: "note", contributionId: single.id, actId: a.id, notes: text.trim() || null }, () =>
+            setContributionActNoteAction(mine.id!, text),
+          );
+        }}
+      />
+    );
+  }
+
+  // "Above the preset?" (2026-10-24): the value is the highest act, so the check that
+  // matters after a preset is whether anything above its acts happened — those acts first
+  const presetTicks = chosen.flatMap((c) =>
+    state[c.id]!.reviewed ? [] : state[c.id]!.acts.filter((t) => t.presetId).map((t) => acts.get(t.actId)).filter((x) => x !== undefined),
+  );
+  const presetTop = presetTicks.length ? Math.max(...presetTicks.map((t) => t.level)) : null;
+  const presetScenarios = new Set(presetTicks.map((t) => t.scenarioId));
+  const above =
+    presetTop === null || q
+      ? []
+      : catalog.scenarios.flatMap((sc) =>
+          presetScenarios.has(sc.id)
+            ? sc.acts
+                .filter((a) => a.level > presetTop && !chosen.every((c) => views.get(c.id)!.ticked.has(a.id)))
+                .map((a) => ({ s: sc, a }))
+            : [],
+        );
 
   return (
-    <PanelFrame onClose={() => setOpen(false)}>
+    <PanelFrame onClose={() => setOpen(false)} onKeyDown={onPanelKey}>
       {/* People: chips with their session value; several can be selected */}
       <div className="space-y-1.5">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="People on camera">
@@ -232,6 +434,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
                       <IntensityValue value={v.total} max={catalog.max} />
                     </span>
                   </IntensityHoverText>
+                  <ReviewMark review={reviewOf(c.id)} />
                 </button>
                 {people.length > 1 && (
                   <button
@@ -285,6 +488,22 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
         </div>
       </div>
 
+      <div className="space-y-1.5">
+        <IntensityPresetBar
+          scenarios={presetTabs}
+          scenarioId={presetScenarioId}
+          onScenario={pickPresetScenario}
+          target={target}
+          max={catalog.max}
+          onApply={applyPreset}
+        />
+        <IntensityReviewBar
+          people={chosen.map((c) => ({ label: c.label, review: reviewOf(c.id) }))}
+          onConfirm={() => review(true)}
+          onReopen={() => review(false)}
+        />
+      </div>
+
       <div className="space-y-1">
         <p className="text-[11px] font-medium text-muted-foreground">Extras in this session — every act inherits them</p>
         <IntensityExtrasPicker
@@ -325,6 +544,16 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
 
       <ul className="space-y-1">
         {scenarios.length === 0 && <li className="px-1 text-sm text-muted-foreground">No act matches “{query}”.</li>}
+        {above.length > 0 && (
+          <li className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/5">
+            <p className="px-2 pt-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+              Above the preset? — the value is the highest act, so check these first
+            </p>
+            <ul className="space-y-0.5 px-1 pb-1.5" aria-label="Acts above the preset">
+              {above.map(({ s: sc, a }) => actRow(sc, a, `above-${a.id}`))}
+            </ul>
+          </li>
+        )}
         {scenarios.map((s) => {
           const open = isOpen(s.id);
           const here = s.acts.filter((a) => chosen.some((c) => views.get(c.id)!.ticked.has(a.id)));
@@ -348,70 +577,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
               </button>
               {open && (
                 <ul className="space-y-0.5 px-1 pb-1.5" aria-label={`Acts in ${s.name}`}>
-                  {s.acts.map((a) => {
-                    const holding = chosen.filter((c) => views.get(c.id)!.ticked.has(a.id));
-                    const st = holding.length === 0 ? "none" : holding.length === chosen.length ? "all" : "some";
-                    const vals = holding.map((c) => views.get(c.id)!.ticked.get(a.id)!);
-                    const mine = single ? views.get(single.id)!.ticked.get(a.id) : undefined;
-                    return (
-                      <IntensityActCheck
-                        key={a.id}
-                        act={a}
-                        state={st}
-                        holders={st === "some" ? `only ${holding.map((c) => c.person.name).join(", ")}` : null}
-                        value={vals.length ? { min: Math.min(...vals.map((v) => v.value)), max: Math.max(...vals.map((v) => v.value)) } : null}
-                        scaleMax={catalog.max}
-                        explain={
-                          vals.length === 0
-                            ? null
-                            : single
-                              ? vals[0]!.explain
-                              : holding.map((c, i) => `${c.person.name}: ${vals[i]!.explain}`).join("\n")
-                        }
-                        single={!!single}
-                        release={
-                          release?.shared && mine?.id
-                            ? {
-                                excluded: leftOut.has(mine.id),
-                                noEvidenceHere: mine.mediaIds.length > 0 && !release.evidenceInSet.includes(mine.id),
-                                onToggle: () => leaveOut(mine.id!, !leftOut.has(mine.id!)),
-                              }
-                            : undefined
-                        }
-                        effective={mine?.effective ?? []}
-                        inherited={single ? state[single.id]!.extraIds : []}
-                        saved={!!mine?.id}
-                        note={mine?.notes ?? null}
-                        photos={mine?.mediaIds.length ?? 0}
-                        onPhotos={() => {
-                          if (!single || !mine?.id) return;
-                          setPicking({
-                            contributionId: single.id,
-                            actId: a.id,
-                            contributionActId: mine.id,
-                            title: `${a.name} — ${single.label}: photos as evidence`,
-                            mediaIds: mine.mediaIds,
-                          });
-                        }}
-                        extras={catalog.extras.filter((e) => countsIn(e, s.id))}
-                        groups={catalog.groups}
-                        onTick={(on) => tick(a.id, on)}
-                        onExtras={(extraIds) => {
-                          if (!single || !mine?.id) return;
-                          const overrides = overridesFor(state[single.id]!.extraIds, extraIds);
-                          send({ kind: "actExtras", contributionId: single.id, actId: a.id, overrides }, () =>
-                            setContributionActExtrasAction(mine.id!, extraIds),
-                          );
-                        }}
-                        onNote={(text) => {
-                          if (!single || !mine?.id) return;
-                          send({ kind: "note", contributionId: single.id, actId: a.id, notes: text.trim() || null }, () =>
-                            setContributionActNoteAction(mine.id!, text),
-                          );
-                        }}
-                      />
-                    );
-                  })}
+                  {s.acts.map((a) => actRow(s, a))}
                 </ul>
               )}
             </li>
@@ -435,9 +601,19 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
   );
 }
 
-function PanelFrame({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+function PanelFrame({
+  onClose,
+  onKeyDown,
+  children,
+}: {
+  onClose: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  children: React.ReactNode;
+}) {
   return (
+    // The keys of the presets and of Confirm work while focus is in here
     <section
+      onKeyDown={onKeyDown}
       aria-label="Intensity panel"
       className="space-y-3 rounded-2xl border border-white/20 bg-card/80 p-3 shadow-md backdrop-blur-md dark:border-white/10"
     >
@@ -454,5 +630,15 @@ function PanelFrame({ onClose, children }: { onClose: () => void; children: Reac
       </header>
       {children}
     </section>
+  );
+}
+
+/** Where a person stands, beside their value: confirmed ✓, to review (amber), nothing while unrated */
+function ReviewMark({ review }: { review: IntensityReview }) {
+  if (review === "unrated") return null;
+  return review === "done" ? (
+    <Check size={11} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-label="confirmed" />
+  ) : (
+    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" role="img" aria-label="to review" />
   );
 }

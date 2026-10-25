@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { IntensityActCell } from "./intensity-act-cell";
 import { IntensityAddInput } from "./intensity-add-input";
 import { IntensityExtrasPanel } from "./intensity-extras-panel";
+import { IntensityPresetsPanel } from "./intensity-presets-panel";
 import { IntensityScaleCell } from "./intensity-scale-cell";
 import { IntensityScenarioHeader } from "./intensity-scenario-header";
 import { useCatalogCall } from "./use-catalog-call";
@@ -495,6 +496,22 @@ export function IntensityCatalogEditor({
           extras={extras}
           scaleMax={max}
           scenarios={scenarios.map((s) => ({ id: s.id, name: s.name }))}
+        />
+      </div>
+
+      <div id="presets" className="scroll-mt-4 space-y-2">
+        <h2 className="text-base font-semibold">Presets</h2>
+        <p className="text-muted-foreground max-w-2xl text-sm">
+          A bundle of acts and session extras for a kind of session you rate often. On a session, a preset ticks its
+          acts for the selected models — nothing is taken away — and they stay <em>to review</em> until you confirm.
+          The first nine are the keys 1–9 in the panel. A preset is a copy: editing it later changes no session.
+        </p>
+        <IntensityPresetsPanel
+          presets={catalog.presets}
+          scenarios={scenarios}
+          groups={groups}
+          extras={extras}
+          max={max}
         />
       </div>
     </div>

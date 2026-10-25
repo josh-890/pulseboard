@@ -145,3 +145,25 @@ of it and shows its sessions' intensity: a sidebar box, the same panel beside th
 session), a heat pill on the set card, and the /sets filter. For a session split into several sets (16 of 1106 in
 xpulse) a set can leave a ticked act out (`SetActExclusion`, per person and act), hinted at when the act's evidence
 photos all lie in another set. A person's peak stays the sessions' — what they did, not what a release shows.
+
+## Amendment 2026-10-24 — presets and review
+
+On xpulse about 1,200 on-camera contributions waited to be rated, and sessions of one kind (e.g. artistic nudes) repeat
+nearly the same acts. Compared with order sets in clinical software, Lightroom/Photo Mechanic presets, pre-labels in
+labelling tools, the review inbox of budgeting apps and the Stash tagger, the pattern is the same: **apply a bundle,
+fix the deltas, confirm, go on** — and whatever was filled in for you stays visibly unchecked until you sign off.
+
+1. A **preset** (`IntensityPreset`) bundles acts of any scenario and session extras. Applied to the selected models
+   it ticks the acts each lacks — ordinary ticks that count at once, marked with the preset (`ContributionAct.presetId`)
+   — and lays its extras over theirs (a grouped one replaces their choice). Nothing is taken away. It is a **copy**:
+   editing or deleting a preset changes no session (deleted, its ticks only forget it).
+2. **Review per model**: `SessionContribution.intensityReviewedAt`. A person is *unrated*, *to review* or *done*;
+   applying a preset or copying (Same as…) clears it, hand edits don't. Confirming with no acts means "nothing to rate".
+3. **One scenario per preset** (2026-10-25, the user: a partner preset makes no sense for someone alone): its acts
+   are that scenario's and its extras those counting there. The panel offers the presets of the cast's suggested
+   scenario as pills 1–9, under a scenario switch that starts on the suggestion and changes it in one click, since the suggestion can be wrong. A preset shows the value it gives (`presetValue`: highest act with its extras).
+4. A value is the **highest** act, so the check that matters after a preset is "anything above it?": the panel lists
+   the acts above the preset's highest first while someone is to review.
+5. Next: a rating queue on the session page (by channel, then date — the **Channel**, not the Label, carries a house
+   style), a status filter, "like last time" (the person's previous session, same channel first), a preset suggested
+   per channel, and bulk apply from /sessions and /sets.

@@ -3,6 +3,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
+  applyIntensityPreset,
   copyContributionIntensity,
   getContributionActSessionId,
   getContributionActsSessionId,
@@ -15,6 +16,9 @@ import {
   setActEvidence,
   setActsEvidence,
   setSetActExcluded,
+  setIntensityReviewed,
+  undoIntensityPreset,
+  type PresetUndo,
 } from "@/lib/services/intensity-service";
 import { prisma } from "@/lib/db";
 import type { SimpleActionResult } from "@/lib/types";
@@ -109,5 +113,34 @@ export async function setSetActExcludedAction(setId: string, contributionActId: 
   return run(
     () => getContributionActSessionId(contributionActId),
     () => setSetActExcluded(setId, contributionActId, excluded),
+  );
+}
+
+/** Applies a preset to models of one session; returns what to take back for Undo (2026-10-24) */
+export async function applyIntensityPresetAction(
+  contributionIds: string[],
+  presetId: string,
+): Promise<SimpleActionResult & { undo?: PresetUndo }> {
+  let undo: PresetUndo | undefined;
+  const result = await run(
+    () => getContributionsSessionId(contributionIds),
+    async () => {
+      undo = await applyIntensityPreset(contributionIds, presetId);
+    },
+  );
+  return { ...result, undo };
+}
+
+export async function undoIntensityPresetAction(undo: PresetUndo) {
+  return run(
+    () => getContributionsSessionId(undo.people.map((p) => p.contributionId)),
+    () => undoIntensityPreset(undo),
+  );
+}
+
+export async function setIntensityReviewedAction(contributionIds: string[], reviewed: boolean) {
+  return run(
+    () => getContributionsSessionId(contributionIds),
+    () => setIntensityReviewed(contributionIds, reviewed),
   );
 }

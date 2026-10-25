@@ -14,6 +14,7 @@ export function sessionIntensityCatalog(full: IntensityCatalog | null): SessionI
       acts: s.acts.map((a) => ({ id: a.id, name: a.name, description: a.description, level: a.level })),
     })),
     max: full.max,
+    presets: full.presets.map((p) => ({ id: p.id, scenarioId: p.scenarioId, name: p.name, description: p.description, actIds: p.actIds, extraIds: p.extraIds })),
     groups: full.groups.map((g) => ({ id: g.id, name: g.name })),
     extras: full.extras.map((e) => ({
       id: e.id,

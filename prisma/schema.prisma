@@ -1258,8 +1258,10 @@ model SessionContribution {
   eraId              String?
   era                Era?                       @relation(fields: [eraId], references: [id], onDelete: SetNull)
 
-  intensityExtras ContributionExtra[]
-  intensityActs   ContributionAct[]
+  intensityExtras     ContributionExtra[]
+  intensityActs       ContributionAct[]
+  /// The person's intensity here was checked and confirmed (2026-10-24); a preset or a copy clears it
+  intensityReviewedAt DateTime?
 
   @@unique([sessionId, personId, roleDefinitionId])
   @@index([resolvedAliasId])
@@ -1786,23 +1788,25 @@ model IntensityScenario {
   name           String                           @unique
   sortOrder      Int                              @default(0)
   acts           IntensityAct[]
+  presets        IntensityPreset[]
   extrasOff      IntensityExtraScenarioOff[]
   extraGroupsOff IntensityExtraGroupScenarioOff[]
   createdAt      DateTime                         @default(now())
 }
 
 model IntensityAct {
-  id            String            @id @default(cuid())
+  id            String               @id @default(cuid())
   scenarioId    String
-  scenario      IntensityScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  scenario      IntensityScenario    @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
   name          String
   description   String?
   /// In 0.5 steps
   level         Float
   /// Manual order within its cell (scenario × level), from 0
-  sortOrder     Int               @default(0)
+  sortOrder     Int                  @default(0)
   contributions ContributionAct[]
-  createdAt     DateTime          @default(now())
+  presets       IntensityPresetAct[]
+  createdAt     DateTime             @default(now())
 
   @@unique([scenarioId, name])
   @@index([scenarioId])
@@ -1852,6 +1856,7 @@ model IntensityExtra {
   actOverrides  ContributionActExtra[]
   /// Scenarios it does not count in, while it has no group (2026-10-23)
   scenariosOff  IntensityExtraScenarioOff[]
+  presets       IntensityPresetExtra[]
   createdAt     DateTime                    @default(now())
 }
 
@@ -1877,6 +1882,9 @@ model ContributionAct {
   extras         ContributionActExtra[]
   media          ContributionActMedia[]
   setExclusions  SetActExclusion[]
+  /// Ticked by this preset (provenance, 2026-10-24) — null: by hand
+  presetId       String?
+  preset         IntensityPreset?       @relation(fields: [presetId], references: [id], onDelete: SetNull)
   createdAt      DateTime               @default(now())
 
   @@unique([contributionId, actId])
@@ -2921,4 +2929,43 @@ model AgentRun {
 
   @@index([agent, finishedAt])
   @@map("agent_run")
+}
+
+/// A bundle of acts and session extras for a kind of session (2026-10-24): applying it ticks them for the
+/// selected models, who stay "to review" until confirmed. A copy — editing it later changes no session.
+model IntensityPreset {
+  id          String                 @id @default(cuid())
+  /// The scenario it is for (2026-10-25) — its acts are that scenario's, its extras those counting there
+  scenarioId  String
+  scenario    IntensityScenario      @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  sortOrder   Int                    @default(0)
+  acts        IntensityPresetAct[]
+  extras      IntensityPresetExtra[]
+  ticks       ContributionAct[]
+  createdAt   DateTime               @default(now())
+
+  @@unique([scenarioId, name])
+  @@index([scenarioId])
+}
+
+model IntensityPresetAct {
+  presetId String
+  preset   IntensityPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  actId    String
+  act      IntensityAct    @relation(fields: [actId], references: [id], onDelete: Cascade)
+
+  @@id([presetId, actId])
+  @@index([actId])
+}
+
+model IntensityPresetExtra {
+  presetId String
+  preset   IntensityPreset @relation(fields: [presetId], references: [id], onDelete: Cascade)
+  extraId  String
+  extra    IntensityExtra  @relation(fields: [extraId], references: [id], onDelete: Cascade)
+
+  @@id([presetId, extraId])
+  @@index([extraId])
 }
