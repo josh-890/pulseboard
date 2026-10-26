@@ -16,7 +16,8 @@ import { renameInTagQuery, type CatalogRename } from "@/lib/tag-query";
 // points, optionally in groups (at most one per group), and Max, which sets 10.
 // The scale says in the user's words what each value means.
 
-const MAX_KEY = "intensity-max";
+export const INTENSITY_MAX_KEY = "intensity-max";
+const MAX_KEY = INTENSITY_MAX_KEY;
 
 /** The top of this tenant's scale (2026-10-23): a whole number, 10 unless set */
 export async function getIntensityMax(): Promise<number> {
@@ -181,7 +182,7 @@ function checkPoints(value: number) {
  * Saved filters and Smart Collections name acts and scenarios in their `tags=`
  * query; a rename rewrites them in the same transaction, so none goes empty.
  */
-async function rewriteSavedQueries(tx: Prisma.TransactionClient, rename: CatalogRename) {
+export async function rewriteSavedQueries(tx: Prisma.TransactionClient, rename: CatalogRename) {
   const rows = await tx.savedFilter.findMany({ where: { params: { contains: "tags=" } }, select: { id: true, params: true } });
   for (const row of rows) {
     const params = new URLSearchParams(row.params);

@@ -33,6 +33,11 @@ import {
   deleteIntensityPreset,
 } from "@/lib/services/intensity-catalog-service";
 import type { IntensityActPlace } from "@/lib/services/intensity-catalog-service";
+import {
+  applyCatalogImport,
+  previewCatalogImport,
+  type CatalogImportPreview,
+} from "@/lib/services/intensity-catalog-transfer-service";
 import type { SimpleActionResult } from "@/lib/types";
 
 // The intensity catalog editor (ADR-0036). Every action revalidates the
@@ -170,4 +175,38 @@ export async function moveIntensityPresetAction(id: string, direction: -1 | 1) {
 }
 export async function deleteIntensityPresetAction(id: string) {
   return run(() => deleteIntensityPreset(id));
+}
+
+// ─── Export / import (2026-10-26) ─────────────────────────────────────────────
+
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+async function fileBuffer(form: FormData): Promise<Buffer> {
+  const file = form.get("file");
+  if (!(file instanceof File) || file.size === 0) throw new Error("Choose an Excel file (.xlsx).");
+  if (file.size > MAX_FILE_BYTES) throw new Error("The file is larger than 5 MB — that is not a catalog.");
+  return Buffer.from(await file.arrayBuffer());
+}
+
+/** What the file would change — nothing is written */
+export async function previewIntensityCatalogImportAction(
+  form: FormData,
+): Promise<{ success: true; preview: CatalogImportPreview } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      return { success: true as const, preview: await previewCatalogImport(await fileBuffer(form)) };
+    } catch (err) {
+      console.error("intensity catalog import preview", err);
+      return { success: false as const, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+/** Applies the file the preview showed, if the catalog is still as it was then */
+export async function applyIntensityCatalogImportAction(form: FormData) {
+  return run(async () => {
+    const fingerprint = form.get("fingerprint");
+    if (typeof fingerprint !== "string") throw new Error("Open the preview first.");
+    await applyCatalogImport(await fileBuffer(form), fingerprint);
+  });
 }
