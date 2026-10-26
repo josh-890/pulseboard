@@ -13,7 +13,6 @@
 import 'dotenv/config'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { BEHIND_CAMERA_GROUP } from '../src/lib/services/session-contributors'
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) })
 
@@ -25,7 +24,7 @@ async function main() {
       resolutionStatus: true,
       resolvedPersonId: true,
       resolvedArtistId: true,
-      roleDefinition: { select: { name: true, group: { select: { name: true } } } },
+      roleDefinition: { select: { name: true, group: { select: { kind: true } } } },
     },
   })
 
@@ -40,11 +39,11 @@ async function main() {
 
   // B. Behind-Camera resolved to a Person
   const bcToPerson = credits.filter(
-    (c) => c.roleDefinition?.group.name === BEHIND_CAMERA_GROUP && c.resolvedPersonId,
+    (c) => c.roleDefinition?.group.kind === 'BEHIND_CAMERA' && c.resolvedPersonId,
   )
   // C. On-Camera resolved to an Artist
   const ocToArtist = credits.filter(
-    (c) => c.roleDefinition && c.roleDefinition.group.name !== BEHIND_CAMERA_GROUP && c.resolvedArtistId,
+    (c) => c.roleDefinition && c.roleDefinition.group.kind !== 'BEHIND_CAMERA' && c.resolvedArtistId,
   )
 
   console.log(`Total credits: ${credits.length}`)
