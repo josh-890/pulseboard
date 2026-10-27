@@ -10,3 +10,4 @@ export type { SetRelease } from "./session-intensity-panel";
 export { SetIntensitySummary } from "./set-intensity-summary";
 export { RatingQueueBar } from "./rating-queue-bar";
 export { RateTheseButton } from "./rate-these-button";
+export { BulkIntensityPresetButton } from "./bulk-intensity-preset-button";

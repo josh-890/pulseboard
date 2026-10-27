@@ -236,6 +236,7 @@ export default async function SessionsPage({ searchParams }: SessionsPageProps) 
           nextCursor={paginated.nextCursor}
           totalCount={paginated.totalCount}
           filters={filters}
+          intensity={hasIntensity}
         />
       </PivotScopeProvider>
     </div>

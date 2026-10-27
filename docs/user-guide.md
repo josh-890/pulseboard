@@ -315,6 +315,13 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
   preset (its digit), fix the deltas, then **Confirm all & next** (or **⏎** while the focus is in the panel)
   confirms everyone in the session and goes on. Confirmed sessions leave the queue, so the count shrinks as you
   go; after the last one you are back on the list. From /sets the queue walks the sessions of the listed sets.
+- **A preset for many sessions at once** (2026-10-27): on /sessions or /sets, click **Select**, pick the cards
+  (or **All N**), then **Intensity preset…** in the selection bar. Pick a preset; the dialog says whom it reaches —
+  *Artistic nude (Solo) for 38 models in 35 sessions* — and whom it leaves alone: models **already confirmed**, and
+  models whose **cast suggests another scenario** (a Solo preset never lands on a couple). From /sets it takes the
+  sets' sessions. **Apply** ticks its acts and sets its extras for them — nothing is taken away — and they land
+  *to review*, their ticks marked ◇; the toast offers **Undo**. Then go through them with **Rate these** and the
+  *To review* filter. If someone rated meanwhile, Apply refuses — open the dialog again.
 
 **Overview**
 - **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,

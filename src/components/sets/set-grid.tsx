@@ -18,6 +18,7 @@ import type { SetFilters } from "@/lib/services/set-service";
 import { setFiltersToParams } from "@/lib/sets/set-browse-filters";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
+import { BulkIntensityPresetButton } from "@/components/sessions/intensity/bulk-intensity-preset-button";
 import type { SuggestedFolderInfo } from "@/lib/services/archive-service";
 import {
   saveBrowseContext,
@@ -564,6 +565,7 @@ export function SetGrid({
           onClear={bulk.clear}
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(sets.map((s) => s.id))}
+          actions={initialIntensity ? <BulkIntensityPresetButton entity="SET" ids={[...bulk.selectedIds]} /> : undefined}
         />
       )}
     </div>

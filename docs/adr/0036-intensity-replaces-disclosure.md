@@ -177,4 +177,9 @@ fix the deltas, confirm, go on** — and whatever was filled in for you stays vi
    `presetId` null). *Usual for {channel}* is the preset whose ticks the most confirmed models of the channel carry
    (`usualPreset`; the session itself not counted), the first pill — never applied by itself. Same channel as the
    queue: the primary set's. No schema change.
-7. Next: bulk apply from /sessions and /sets.
+7. **Bulk from /sessions and /sets** (2026-10-27): *Intensity preset…* in the selection bar applies a preset to
+   the models of the selected sessions (from sets: their sessions) — only those **not confirmed** (a bulk action must
+   not undo checked work) and whose **cast fits** the preset's scenario (`suggestScenarioIds`; no suggestion fits
+   any). The dialog previews the reach and what it leaves alone; Apply re-plans and refuses when the reach changed,
+   then applies in pieces of 50 models (`applyIntensityPreset`), each landing to review; Undo in the same pieces.
+   The presets-and-queue plan is complete.

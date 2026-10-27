@@ -15,6 +15,7 @@ import type { getSessions } from "@/lib/services/session-service";
 import type { SessionFilters } from "@/lib/services/session-service";
 import { useBulkSelection } from "@/hooks/use-bulk-selection";
 import { BulkSelectionBar } from "@/components/shared/bulk-selection-bar";
+import { BulkIntensityPresetButton } from "@/components/sessions/intensity/bulk-intensity-preset-button";
 import { useMergeBasket } from "@/components/sessions/merge-basket";
 import {
   saveBrowseContext,
@@ -63,6 +64,8 @@ type SessionGridProps = {
   nextCursor: string | null;
   totalCount: number;
   filters: SessionFilters;
+  /** The intensity catalog has acts — the selection bar offers a preset (2026-10-27) */
+  intensity?: boolean;
 };
 
 function hasActiveFilters(filters: SessionFilters): boolean {
@@ -86,6 +89,7 @@ export function SessionGrid({
   nextCursor: initialCursor,
   totalCount,
   filters,
+  intensity = false,
 }: SessionGridProps) {
   const { density } = useDensity();
   const { sessionsLayout, sessionsCoverAspect } = useBrowserLayout();
@@ -334,21 +338,24 @@ export function SessionGrid({
           totalCount={totalCount}
           onSelectAll={() => bulk.selectAll(sessions.map((s) => s.id))}
           actions={
-            <span title={canCompare ? "Compare the two side by side, then merge" : "Select exactly 2 sessions to merge"}>
-              <button
-                type="button"
-                onClick={compareSelected}
-                disabled={!canCompare}
-                className={cn(
-                  "flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors",
-                  "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
-                )}
-              >
-                <GitMerge className="h-3 w-3" aria-hidden="true" />
-                Compare &amp; merge
-              </button>
-            </span>
+            <>
+              {intensity && <BulkIntensityPresetButton entity="SESSION" ids={[...bulk.selectedIds]} />}
+              <span title={canCompare ? "Compare the two side by side, then merge" : "Select exactly 2 sessions to merge"}>
+                <button
+                  type="button"
+                  onClick={compareSelected}
+                  disabled={!canCompare}
+                  className={cn(
+                    "flex items-center gap-1 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-colors",
+                    "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+                  )}
+                >
+                  <GitMerge className="h-3 w-3" aria-hidden="true" />
+                  Compare &amp; merge
+                </button>
+              </span>
+            </>
           }
         />
       )}

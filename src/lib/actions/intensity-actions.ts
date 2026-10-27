@@ -21,6 +21,13 @@ import {
   undoIntensityPreset,
   type PresetUndo,
 } from "@/lib/services/intensity-service";
+import {
+  applyBulkIntensityPreset,
+  getBulkPresetChoices,
+  planBulkIntensityPreset,
+  undoBulkIntensityPreset,
+  type BulkEntity,
+} from "@/lib/services/intensity-bulk-service";
 import { prisma } from "@/lib/db";
 import type { SimpleActionResult } from "@/lib/types";
 
@@ -158,4 +165,50 @@ export async function copyIntensityLikeLastTimeAction(
     },
   );
   return { ...result, undo };
+}
+
+// ─── A preset in bulk from /sessions and /sets (2026-10-27) ──────────────────
+
+async function runBulk<T>(fn: () => Promise<T>): Promise<{ success: true; data: T } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      return { success: true as const, data: await fn() };
+    } catch (err) {
+      console.error("intensity bulk", err);
+      return { success: false as const, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+function revalidateRated() {
+  for (const path of ["/sessions", "/sets"]) revalidatePath(path);
+  revalidatePath("/sessions/[id]", "page");
+  revalidatePath("/sets/[id]", "page");
+}
+
+export async function getBulkPresetChoicesAction() {
+  return runBulk(() => getBulkPresetChoices());
+}
+
+/** Whom the preset would reach — nothing is written */
+export async function planBulkIntensityPresetAction(entity: BulkEntity, ids: string[], presetId: string) {
+  return runBulk(async () => {
+    const { contributionIds, ...plan } = await planBulkIntensityPreset(entity, ids, presetId);
+    return { ...plan, models: contributionIds.length };
+  });
+}
+
+export async function applyBulkIntensityPresetAction(entity: BulkEntity, ids: string[], presetId: string, expected: number) {
+  return runBulk(async () => {
+    const { undo } = await applyBulkIntensityPreset(entity, ids, presetId, expected);
+    revalidateRated();
+    return undo;
+  });
+}
+
+export async function undoBulkIntensityPresetAction(undo: PresetUndo) {
+  return runBulk(async () => {
+    await undoBulkIntensityPreset(undo);
+    revalidateRated();
+  });
 }
