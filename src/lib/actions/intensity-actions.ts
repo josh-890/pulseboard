@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import {
   applyIntensityPreset,
   copyContributionIntensity,
+  copyIntensityLikeLastTime,
   getContributionActSessionId,
   getContributionActsSessionId,
   getContributionsSessionId,
@@ -143,4 +144,18 @@ export async function setIntensityReviewedAction(contributionIds: string[], revi
     () => getContributionsSessionId(contributionIds),
     () => setIntensityReviewed(contributionIds, reviewed),
   );
+}
+
+/** "Like last time" (2026-10-27): each model's own earlier confirmed session copied in; returns what to take back */
+export async function copyIntensityLikeLastTimeAction(
+  pairs: { fromId: string; toId: string }[],
+): Promise<SimpleActionResult & { undo?: PresetUndo }> {
+  let undo: PresetUndo | undefined;
+  const result = await run(
+    () => getContributionsSessionId(pairs.map((p) => p.toId)),
+    async () => {
+      undo = await copyIntensityLikeLastTime(pairs);
+    },
+  );
+  return { ...result, undo };
 }

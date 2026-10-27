@@ -37,7 +37,8 @@ export type PanelChange =
   | { kind: "restore"; items: RestoreItem[] }
   | { kind: "copy"; fromId: string; toId: string }
   | { kind: "preset"; presetId: string; entries: { contributionId: string; actIds: string[]; extraIds: string[] }[] }
-  | { kind: "unpreset"; presetId: string; entries: { contributionId: string; actIds: string[]; extraIds: string[]; reviewed: boolean }[] }
+  | { kind: "lastTime"; entries: { contributionId: string; acts: { actId: string; overrides: ActExtraOverride[] }[]; extraIds: string[] }[] }
+  | { kind: "unpreset"; presetId: string | null; entries: { contributionId: string; actIds: string[]; extraIds: string[]; reviewed: boolean }[] }
   | { kind: "review"; contributionIds: string[]; reviewed: boolean };
 
 export function initialPanelState(contributions: SessionIntensity): PanelState {
@@ -111,6 +112,18 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
             const added = e.actIds
               .filter((id) => !has.has(id))
               .map((actId) => ({ id: null, actId, presetId: change.presetId, notes: null, overrides: [], mediaIds: [] }));
+            return { reviewed: false, extraIds: e.extraIds, acts: [...p.acts, ...added] };
+          }),
+        state,
+      );
+    case "lastTime":
+      return change.entries.reduce(
+        (s, e) =>
+          withPerson(s, e.contributionId, (p) => {
+            const has = new Set(p.acts.map((a) => a.actId));
+            const added = e.acts
+              .filter((a) => !has.has(a.actId))
+              .map((a) => ({ id: null, actId: a.actId, presetId: null, notes: null, overrides: a.overrides, mediaIds: [] }));
             return { reviewed: false, extraIds: e.extraIds, acts: [...p.acts, ...added] };
           }),
         state,

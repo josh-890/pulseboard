@@ -19,6 +19,8 @@ export type IntensityPresetBarProps = {
   /** Who it applies to, for the buttons' labels */
   target: string;
   max: number;
+  /** The channel's usual preset (2026-10-27): the first pill, whichever scenario is picked — never applied by itself */
+  usual?: { channel: string; models: number; preset: BarPreset };
   onApply: (presetId: string) => void;
 };
 
@@ -27,7 +29,7 @@ export type IntensityPresetBarProps = {
 // models and lays its extras over theirs. Nothing is taken away. A preset is for
 // one scenario (2026-10-25): the switch above the pills picks it, starting on
 // the cast's suggestion — which can be wrong, so the others are one click away.
-export function IntensityPresetBar({ scenarios, scenarioId, onScenario, target, max, onApply }: IntensityPresetBarProps) {
+export function IntensityPresetBar({ scenarios, scenarioId, onScenario, target, max, usual, onApply }: IntensityPresetBarProps) {
   if (scenarios.length === 0) {
     return (
       <p className="text-[11px] text-muted-foreground">
@@ -91,6 +93,30 @@ export function IntensityPresetBar({ scenarios, scenarioId, onScenario, target, 
         )}
       </div>
       <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Presets">
+        {usual && (
+          <button
+            type="button"
+            onClick={() => onApply(usual.preset.id)}
+            aria-label={`Apply ${usual.preset.name}, usual for ${usual.channel}, to ${target}`}
+            title={`${usual.models} confirmed model${usual.models === 1 ? "" : "s"} of ${usual.channel} carry it\n${hint(usual.preset)}`}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md border border-dashed border-primary/60 bg-primary/5 px-1.5 py-0.5 text-xs transition-colors",
+              "hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            )}
+          >
+            <span className="text-[10px] text-muted-foreground">Usual for {usual.channel}:</span>
+            {usual.preset.name}
+            {usual.preset.value !== null && (
+              <span
+                className="rounded px-1 text-[10px] font-semibold tabular-nums"
+                style={{ backgroundColor: intensityColor(usual.preset.value, max), color: intensityTextColor(usual.preset.value, max) }}
+                aria-hidden="true"
+              >
+                {formatIntensity(usual.preset.value)}
+              </span>
+            )}
+          </button>
+        )}
         {pills.map((p, i) => (
           <button
             key={p.id}

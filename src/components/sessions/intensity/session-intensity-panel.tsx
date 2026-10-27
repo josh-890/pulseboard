@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { Check, ChevronRight, Copy, Search, X } from "lucide-react";
+import { Check, ChevronRight, Copy, History, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { IntensityExtrasPicker } from "@/components/intensity/intensity-extras-picker";
@@ -11,11 +11,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   applyIntensityPresetAction,
   copyContributionIntensityAction,
+  copyIntensityLikeLastTimeAction,
   restoreContributionActsAction,
   setIntensityReviewedAction,
   undoIntensityPresetAction,
@@ -28,9 +30,9 @@ import {
 } from "@/lib/actions/intensity-actions";
 import { applySharedExtras, countsIn, formatIntensity, intensityReview, overridesFor, presetAdditions, presetValue, type IntensityReview } from "@/lib/intensity";
 import { IntensityValue } from "@/components/intensity/intensity-value";
-import type { SessionIntensity } from "@/lib/services/intensity-service";
+import type { IntensityHints, SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatPartialDate } from "@/lib/utils";
 import { ActEvidencePicker } from "./act-evidence-picker";
 import { IntensityActCheck } from "./intensity-act-check";
 import { ALL_PRESETS, IntensityPresetBar } from "./intensity-preset-bar";
@@ -43,6 +45,8 @@ export type SessionIntensityPanelProps = {
   sessionId: string;
   contributions: SessionIntensity;
   catalog: SessionIntensityCatalog;
+  /** Each model's last confirmed session and the channel's usual preset (2026-10-27) */
+  hints?: IntensityHints;
   /**
    * Opened on a set (2026-10-24): values count only the acts the set shows; with
    * a session split into several sets, each ticked act can be left out of this one
@@ -66,7 +70,7 @@ export type SetRelease = {
 // camera as chips — one or several selected — over a single editor. With
 // several selected, every change applies to all of them; a half tick (−) says
 // only some have an act, and names them. Changes show at once and save behind.
-export function SessionIntensityPanel({ sessionId, contributions, catalog, release, queue }: SessionIntensityPanelProps) {
+export function SessionIntensityPanel({ sessionId, contributions, catalog, hints, release, queue }: SessionIntensityPanelProps) {
   const { setOpen } = useIntensityPanel();
   const router = useRouter();
   // The set's left-out acts, changed at once and saved behind; follows the server's copy
@@ -239,6 +243,13 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
       ? presetTabs.flatMap((sc) => sc.presets)
       : (presetTabs.find((sc) => sc.id === presetScenarioId)?.presets ?? presetTabs[0]?.presets ?? []);
 
+  // The channel's usual preset (2026-10-27) — offered first, never applied by itself; only where it fits the cast
+  const usualPreset = hints?.usual ? presetTabs.flatMap((sc) => sc.presets).find((p) => p.id === hints.usual!.presetId) : undefined;
+  const usual =
+    usualPreset && hints?.channel && fits(usualPreset.scenarioId)
+      ? { channel: hints.channel.name, models: hints.usual!.models, preset: usualPreset }
+      : undefined;
+
   function applyPreset(presetId: string) {
     const preset = catalog.presets.find((p) => p.id === presetId);
     if (!preset) return;
@@ -264,6 +275,56 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
               {
                 kind: "unpreset",
                 presetId,
+                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds, reviewed: p.reviewedAt !== null })),
+              },
+              () => undoIntensityPresetAction(undo),
+            ),
+        },
+      });
+    });
+  }
+
+  // "Like last time" (2026-10-27): each model's own earlier confirmed session — same channel first
+  const lastTimeOf = (id: string) => hints?.lastTime[id] ?? null;
+  const lastValue = (id: string) => {
+    const lt = lastTimeOf(id);
+    if (!lt) return null;
+    const p = { reviewed: true, extraIds: lt.extraIds, acts: lt.acts.map((a) => ({ id: null, presetId: null, notes: null, mediaIds: [], ...a })) };
+    return personView(p, catalog, acts).total;
+  };
+  const withLastTime = chosen.filter((c) => lastTimeOf(c.id));
+
+  function likeLastTime(targets: typeof chosen) {
+    const pairs = targets.flatMap((c) => {
+      const lt = lastTimeOf(c.id);
+      return lt ? [{ fromId: lt.contributionId, toId: c.id }] : [];
+    });
+    if (pairs.length === 0) return;
+    const entries = targets.flatMap((c) => {
+      const lt = lastTimeOf(c.id);
+      if (!lt) return [];
+      const p = state[c.id]!;
+      const extraIds = presetAdditions({ actIds: [], extraIds: p.extraIds }, { actIds: [], extraIds: lt.extraIds }, groupOf).extraIds;
+      return [{ contributionId: c.id, acts: lt.acts, extraIds }];
+    });
+    const who = targets.filter((c) => lastTimeOf(c.id));
+    startTransition(async () => {
+      apply({ kind: "lastTime", entries });
+      const result = await copyIntensityLikeLastTimeAction(pairs);
+      if (!result.success || !result.undo) {
+        toast.error(result.error ?? "Could not copy last time");
+        return;
+      }
+      const undo = result.undo;
+      const added = undo.people.reduce((n, p) => n + p.actIds.length, 0);
+      toast(`Like last time: ${added} act${added === 1 ? "" : "s"} for ${who.map((c) => c.label).join(", ")} — to review`, {
+        action: {
+          label: "Undo",
+          onClick: () =>
+            send(
+              {
+                kind: "unpreset",
+                presetId: null,
                 entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds, reviewed: p.reviewedAt !== null })),
               },
               () => undoIntensityPresetAction(undo),
@@ -476,6 +537,53 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
           <p className="text-[11px] text-muted-foreground">
             {single ? `Editing ${single.label}` : `${chosen.length} selected — every change applies to all of them`}
           </p>
+          <span className="flex shrink-0 items-center gap-0.5">
+          {hints && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  disabled={withLastTime.length === 0}
+                  title={withLastTime.length === 0 ? `No earlier confirmed session for ${target}` : undefined}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <History size={11} aria-hidden="true" /> Like last time…
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-w-sm">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  Take the acts and extras of each one&apos;s last confirmed session — same channel first; no notes or photos
+                </DropdownMenuLabel>
+                {withLastTime.length > 1 && (
+                  <>
+                    <DropdownMenuItem onSelect={() => likeLastTime(chosen)}>For all {withLastTime.length} selected</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {chosen.map((c) => {
+                  const lt = lastTimeOf(c.id);
+                  if (!lt) {
+                    return (
+                      <DropdownMenuItem key={c.id} disabled className="text-xs">
+                        {c.label}: no earlier confirmed session
+                      </DropdownMenuItem>
+                    );
+                  }
+                  const other = hints.channel !== null && lt.channelId !== hints.channel.id;
+                  return (
+                    <DropdownMenuItem key={c.id} onSelect={() => likeLastTime([c])} className="flex-col items-start gap-0.5">
+                      <span className="text-xs font-medium">{c.label}</span>
+                      <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        {formatPartialDate(lt.date, lt.datePrecision)} · {lt.channel ?? "no channel"}
+                        {other && <span className="text-amber-700 dark:text-amber-300">(other channel)</span>}
+                        <IntensityValue value={lastValue(c.id)} max={catalog.max} />
+                      </span>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {single && people.length > 1 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -497,6 +605,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
               </DropdownMenuContent>
             </DropdownMenu>
           )}
+          </span>
         </div>
       </div>
 
@@ -507,6 +616,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, relea
           onScenario={pickPresetScenario}
           target={target}
           max={catalog.max}
+          usual={usual}
           onApply={applyPreset}
         />
         <IntensityReviewBar

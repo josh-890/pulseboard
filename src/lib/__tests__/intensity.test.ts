@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { actValue, applySharedExtras, formatPoints, isPointsStep, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds, presetAdditions, intensityReview, sessionReview, presetValue } from "@/lib/intensity";
+import { actValue, applySharedExtras, formatPoints, isPointsStep, intensityColor, intensityFilterOptions, intensityTextColor, withIntensityFilter, effectiveExtras, explainActValue, formatIntensity, intensityRows, isIntensityStep, overridesFor, sessionIntensity, suggestScenarioIds, presetAdditions, intensityReview, sessionReview, presetValue, pickLastTime, usualPreset } from "@/lib/intensity";
 
 const semi = { id: "semi", points: 1, groupId: "loc", isMax: false };
 const pub = { id: "pub", points: 2, groupId: "loc", isMax: false };
@@ -228,5 +228,39 @@ describe("presetValue", () => {
   it("is null without acts, Max with a Max extra", () => {
     expect(presetValue([], [pub], "solo", 10)).toBeNull();
     expect(presetValue([], [{ id: "m", points: 0, groupId: null, isMax: true }], "solo", 10)).toBe(10);
+  });
+});
+
+describe("pickLastTime (2026-10-27)", () => {
+  const d = (s: string) => new Date(s);
+  const c = (id: string, date: string | null, channelId: string | null) => ({ id, date: date ? d(date) : null, channelId });
+  const all = [c("a-2019", "2019-05-01", "A"), c("b-2023", "2023-01-01", "B"), c("a-2025", "2025-01-01", "A"), c("undated", null, "A")];
+  it("prefers the same channel over a nearer session elsewhere", () => {
+    expect(pickLastTime({ date: d("2024-06-01"), channelId: "A" }, all)?.id).toBe("a-2019");
+  });
+  it("takes the nearest earlier one in any channel when the channel has none", () => {
+    expect(pickLastTime({ date: d("2024-06-01"), channelId: "C" }, all)?.id).toBe("b-2023");
+    expect(pickLastTime({ date: d("2024-06-01"), channelId: null }, all)?.id).toBe("b-2023");
+  });
+  it("never looks ahead, never takes an undated one; an undated session takes the latest", () => {
+    expect(pickLastTime({ date: d("2018-01-01"), channelId: "A" }, all)).toBeNull();
+    expect(pickLastTime({ date: null, channelId: "A" }, all)?.id).toBe("a-2025");
+    expect(pickLastTime({ date: d("2024-06-01"), channelId: "A" }, [c("undated", null, "A")])).toBeNull();
+  });
+  it("counts the same day as earlier", () => {
+    expect(pickLastTime({ date: d("2023-01-01"), channelId: "B" }, all)?.id).toBe("b-2023");
+  });
+});
+
+describe("usualPreset (2026-10-27)", () => {
+  it("counts models, not ticks; ties go to catalog order", () => {
+    const uses = [
+      { presetId: "p2", contributionId: "x" },
+      { presetId: "p2", contributionId: "x" },
+      { presetId: "p1", contributionId: "y" },
+    ];
+    expect(usualPreset(uses, ["p1", "p2"])).toEqual({ presetId: "p1", models: 1 });
+    expect(usualPreset([...uses, { presetId: "p2", contributionId: "z" }], ["p1", "p2"])).toEqual({ presetId: "p2", models: 2 });
+    expect(usualPreset([], ["p1"])).toBeNull();
   });
 });

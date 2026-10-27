@@ -301,6 +301,40 @@ export function presetAdditions(
 }
 
 /**
+ * "Like last time" (2026-10-27): of a person's confirmed sessions, the one to
+ * copy from — the latest up to this session's date in the same channel, else
+ * the latest up to it in any. Undated sessions are never "last time"; an
+ * undated session takes the latest dated one.
+ */
+export function pickLastTime<T extends { date: Date | null; channelId: string | null }>(
+  here: { date: Date | null; channelId: string | null },
+  candidates: T[],
+): T | null {
+  const earlier = candidates
+    .filter((c): c is T & { date: Date } => c.date !== null && (here.date === null || c.date <= here.date))
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
+  return (here.channelId ? earlier.find((c) => c.channelId === here.channelId) : undefined) ?? earlier[0] ?? null;
+}
+
+/**
+ * The channel's usual preset (2026-10-27): the one whose ticks the most
+ * confirmed models carry, ties in catalog order; null when none has any
+ */
+export function usualPreset(uses: { presetId: string; contributionId: string }[], order: string[]): { presetId: string; models: number } | null {
+  const models = new Map<string, Set<string>>();
+  for (const u of uses) {
+    if (!models.has(u.presetId)) models.set(u.presetId, new Set());
+    models.get(u.presetId)!.add(u.contributionId);
+  }
+  let best: { presetId: string; models: number } | null = null;
+  for (const presetId of order) {
+    const n = models.get(presetId)?.size ?? 0;
+    if (n > 0 && (best === null || n > best.models)) best = { presetId, models: n };
+  }
+  return best;
+}
+
+/**
  * What a preset alone gives a model (2026-10-25): its highest act with its
  * extras — those counting in its scenario — or null without acts
  */

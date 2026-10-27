@@ -45,6 +45,7 @@ export function SetIntensityPanel({ setId, intensity, catalog }: SetIntensityPan
         sessionId={session.id}
         contributions={session.contributions}
         catalog={catalog}
+        hints={session.hints}
         release={{ setId, shared: session.shared, excluded: intensity.excluded, evidenceInSet: intensity.evidenceInSet }}
       />
     </div>

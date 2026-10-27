@@ -46,7 +46,7 @@ import {
   type SessionIntensityCatalog,
 } from "@/components/sessions/intensity";
 import { cookies } from "next/headers";
-import { getSessionIntensity } from "@/lib/services/intensity-service";
+import { getIntensityHints, getSessionIntensity } from "@/lib/services/intensity-service";
 import { getRatingQueue } from "@/lib/services/rating-queue-service";
 import { rateHref } from "@/lib/rating-queue";
 import type { GalleryIntensity } from "@/components/intensity";
@@ -255,9 +255,9 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   // Intensity (ADR-0036) — shown once the catalog has acts; the panel opens as it was left
   const intensityPanelOpen = (await cookies()).get(INTENSITY_PANEL_COOKIE)?.value === "1";
-  const [intensityRows, intensityCatalogFull] = !isReference
-    ? await Promise.all([getSessionIntensity(id), getIntensityCatalog()])
-    : [[], null];
+  const [intensityRows, intensityCatalogFull, intensityHints] = !isReference
+    ? await Promise.all([getSessionIntensity(id), getIntensityCatalog(), getIntensityHints(id)])
+    : [[], null, null];
   const intensityCatalog: SessionIntensityCatalog | null = sessionIntensityCatalog(intensityCatalogFull);
   // The rating queue (2026-10-25): a list walked session by session, the panel open
   const rate = resolvedSearchParams.rate;
@@ -414,6 +414,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 sessionId={id}
                 contributions={intensityRows}
                 catalog={intensityCatalog}
+                hints={intensityHints ?? undefined}
                 queue={ratingQueue && rate ? { nextHref: ratingQueue.nextId ? rateHref(ratingQueue.nextId, rate) : ratingQueue.listHref } : undefined}
               />
             ) : null

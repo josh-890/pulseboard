@@ -170,5 +170,11 @@ fix the deltas, confirm, go on** — and whatever was filled in for you stays vi
    session (`/sessions/[id]?rate=sessions?…`), only those still to rate, ordered by the primary set's **Channel**
    (not the Label: a label is an umbrella over channels of different styles), then date. The session on screen
    stays in the queue once confirmed, so Prev/Next keep their place; **Confirm all & next** confirms every model.
-6. Next: "like last time" (the person's previous session, same channel first), a preset suggested per channel, and
-   bulk apply from /sessions and /sets.
+6. **Like last time and the channel's usual preset** (2026-10-27): *Like last time…* copies a model's own latest
+   confirmed session up to this date — same channel first, else any; undated sessions never count (`pickLastTime`).
+   The menu names it (date, channel, value) before copying; it adds acts with their departures (no notes, no photos),
+   lays its extras over as a preset does, and puts the model to review — Undo as for a preset (`PresetUndo` with
+   `presetId` null). *Usual for {channel}* is the preset whose ticks the most confirmed models of the channel carry
+   (`usualPreset`; the session itself not counted), the first pill — never applied by itself. Same channel as the
+   queue: the primary set's. No schema change.
+7. Next: bulk apply from /sessions and /sets.
