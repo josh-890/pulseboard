@@ -422,20 +422,10 @@ async function main() {
     },
   });
 
-  await prisma.sessionContribution.upsert({
-    where: {
-      sessionId_personId_roleDefinitionId: {
-        sessionId: session.id,
-        personId: person2.id,
-        roleDefinitionId: "crd_photographer",
-      },
-    },
-    update: {},
-    create: {
-      sessionId: session.id,
-      personId: person2.id,
-      roleDefinitionId: "crd_photographer",
-    },
+  // ADR-0021: behind camera is an Artist, never a Person — the photographer is
+  // credited on the set (below); older seeds made Marcus Reed one, so drop that
+  await prisma.sessionContribution.deleteMany({
+    where: { sessionId: session.id, personId: person2.id, roleDefinitionId: "crd_photographer" },
   });
 
   // ─── MediaItems ─────────────────────────────────────────────────────────────
@@ -656,9 +646,16 @@ async function main() {
     },
   });
 
+  // The photographer resolves to an Artist (ADR-0021); the update repairs older seeds
+  const photographer = await prisma.artist.upsert({
+    where: { id: "seed-artist-1" },
+    update: {},
+    create: { id: "seed-artist-1", name: "M. Reed", nameNorm: "m. reed" },
+  });
+
   await prisma.setCreditRaw.upsert({
     where: { id: "seed-credit-raw-2" },
-    update: {},
+    update: { resolvedPersonId: null, resolvedArtistId: photographer.id },
     create: {
       id: "seed-credit-raw-2",
       setId: set.id,
@@ -666,7 +663,7 @@ async function main() {
       rawName: "M. Reed",
       nameNorm: "m. reed",
       resolutionStatus: "RESOLVED",
-      resolvedPersonId: person2.id,
+      resolvedArtistId: photographer.id,
     },
   });
 
@@ -697,16 +694,9 @@ async function main() {
     },
   });
 
-  await prisma.setParticipant.upsert({
-    where: {
-      setId_personId_roleDefinitionId: { setId: set.id, personId: person2.id, roleDefinitionId: "crd_photographer" },
-    },
-    update: {},
-    create: {
-      setId: set.id,
-      personId: person2.id,
-      roleDefinitionId: "crd_photographer",
-    },
+  // Set participants are people on camera — the photographer is the Artist credit above
+  await prisma.setParticipant.deleteMany({
+    where: { setId: set.id, personId: person2.id, roleDefinitionId: "crd_photographer" },
   });
 
   // ─── SetSession (link sets to sessions) ────────────────────────────────────
