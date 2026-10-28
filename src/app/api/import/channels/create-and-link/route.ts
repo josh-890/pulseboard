@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { createChannelRecord, addChannelImportAlias } from '@/lib/services/channel-service'
+import { createChannelRecord, addChannelImportAlias, ImportAliasTakenError } from '@/lib/services/channel-service'
 import { computeDependencies } from '@/lib/services/import/staging-service'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 
@@ -14,6 +14,15 @@ export async function POST(request: Request) {
 
     if (!itemId || !name || !labelId || !importName) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Refuse before creating anything when the name already links elsewhere
+    const taken = await prisma.channel.findFirst({
+      where: { importAliases: { has: String(importName).trim() } },
+      select: { name: true },
+    })
+    if (taken) {
+      return NextResponse.json({ error: new ImportAliasTakenError(importName, taken.name).message }, { status: 409 })
     }
 
     // Create the channel with label

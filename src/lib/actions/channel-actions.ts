@@ -9,7 +9,9 @@ import {
   deleteChannelRecord,
   addChannelImportAlias,
   removeChannelImportAlias,
+  ImportAliasTakenError,
 } from "@/lib/services/channel-service";
+import { rejectNameOnlyLink } from "@/lib/services/channel-check-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
 export async function createChannel(raw: unknown): Promise<CrudActionResult> {
@@ -82,8 +84,11 @@ export async function addImportAlias(channelId: string, alias: string): Promise<
     try {
       await addChannelImportAlias(channelId, alias);
       revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/channels/check");
       return { success: true };
-    } catch {
+    } catch (err) {
+      if (err instanceof ImportAliasTakenError) return { success: false, error: err.message };
+      console.error("[addImportAlias]", err);
       return { success: false, error: "Failed to add import alias" };
     }
   });
@@ -94,6 +99,7 @@ export async function removeImportAlias(channelId: string, alias: string): Promi
     try {
       await removeChannelImportAlias(channelId, alias);
       revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/channels/check");
       return { success: true };
     } catch {
       return { success: false, error: "Failed to remove import alias" };
@@ -110,9 +116,46 @@ export async function updateChannelFolderAction(
       await updateChannelRecord(channelId, { channelFolder: folderName || null });
       revalidatePath(`/channels/${channelId}`);
       revalidatePath("/channels");
+      revalidatePath("/channels/check");
       return { success: true };
     } catch {
       return { success: false, error: "Failed to update archive folder name" };
+    }
+  });
+}
+
+// ── Channel check (ADR-0038) ────────────────────────────────────────────────
+
+export type ChannelLinkResult = { success: true; count: number } | { success: false; error: string };
+
+/** Link a channel name to a channel by recording it as an import alias; connects waiting staged sets. */
+export async function linkChannelNameAction(channelId: string, channelName: string): Promise<ChannelLinkResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { connected } = await addChannelImportAlias(channelId, channelName);
+      revalidatePath("/channels/check");
+      revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/staging-sets");
+      return { success: true, count: connected };
+    } catch (err) {
+      if (err instanceof ImportAliasTakenError) return { success: false, error: err.message };
+      console.error("[linkChannelNameAction]", err);
+      return { success: false, error: "Failed to link the channel name" };
+    }
+  });
+}
+
+/** "Not this one": open staged sets that took the channel under this name lose it. */
+export async function rejectNameOnlyLinkAction(channelId: string, channelName: string): Promise<ChannelLinkResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { disconnected } = await rejectNameOnlyLink(channelId, channelName);
+      revalidatePath("/channels/check");
+      revalidatePath("/staging-sets");
+      return { success: true, count: disconnected };
+    } catch (err) {
+      console.error("[rejectNameOnlyLinkAction]", err);
+      return { success: false, error: "Failed to disconnect the channel name" };
     }
   });
 }

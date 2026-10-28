@@ -29,13 +29,21 @@ import {
   type CreateChannelFormValues,
   type CreateChannelInput,
 } from "@/lib/validations/channel";
-import { createChannel } from "@/lib/actions/channel-actions";
+import { createChannel, linkChannelNameAction } from "@/lib/actions/channel-actions";
 import { cn } from "@/lib/utils";
 import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 
 type AddChannelSheetProps = {
   labels: { id: string; name: string }[];
   defaultLabelId?: string;
+  /** Prefill the form (Channel check: from an archive folder or an import name) */
+  initialValues?: { name?: string; shortName?: string; channelFolder?: string };
+  /** Recorded as the new channel's import alias — the link (ADR-0038, channels) */
+  importAlias?: string;
+  /** Replaces the default "Add Channel" button */
+  triggerLabel?: string;
+  /** Stay on the page instead of opening the new channel */
+  onCreated?: () => void;
 };
 
 function SectionHeader({ children }: { children: React.ReactNode }) {
@@ -47,10 +55,17 @@ function SectionHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps) {
+export function AddChannelSheet({
+  labels,
+  defaultLabelId,
+  initialValues,
+  importAlias,
+  triggerLabel,
+  onCreated,
+}: AddChannelSheetProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [isSuggestion, setIsSuggestion] = useState(true);
+  const [isSuggestion, setIsSuggestion] = useState(!initialValues?.shortName);
   const [shortNameAvailable, setShortNameAvailable] = useState<boolean | null>(null);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -58,9 +73,9 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
     resolver: zodResolver(createChannelSchema),
     defaultValues: {
       labelId: defaultLabelId ?? "",
-      name: "",
-      shortName: "",
-      channelFolder: "",
+      name: initialValues?.name ?? "",
+      shortName: initialValues?.shortName ?? "",
+      channelFolder: initialValues?.channelFolder ?? "",
       platform: "",
       url: "",
       tier: "NORMAL",
@@ -111,12 +126,19 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
       (values.shortName && values.name ? `${values.shortName}-${values.name}` : undefined)
     const result = await createChannel({ ...values, channelFolder });
     if (result.success) {
-      toast.success("Channel created");
+      let message = "Channel created";
+      if (importAlias) {
+        const linked = await linkChannelNameAction(result.id, importAlias);
+        if (!linked.success) toast.error(linked.error);
+        else message = `Channel created — ${linked.count} staged set${linked.count === 1 ? "" : "s"} connected`;
+      }
+      toast.success(message);
       form.reset();
-      setIsSuggestion(true);
+      setIsSuggestion(!initialValues?.shortName);
       setShortNameAvailable(null);
       setOpen(false);
-      router.push(`/channels/${result.id}`);
+      if (onCreated) onCreated();
+      else router.push(`/channels/${result.id}`);
       return;
     }
     const err = typeof result.error === "string" ? result.error : "Failed to create channel";
@@ -125,15 +147,20 @@ export function AddChannelSheet({ labels, defaultLabelId }: AddChannelSheetProps
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <Button size="sm" onClick={() => setOpen(true)}>
+      <Button size="sm" variant={triggerLabel ? "outline" : "default"} onClick={() => setOpen(true)}>
         <Plus size={16} />
-        Add Channel
+        {triggerLabel ?? "Add Channel"}
       </Button>
       <SheetContent side="right" className="flex w-full flex-col sm:max-w-lg">
         <SheetHeader className="border-b pb-4 px-4">
           <SheetTitle className="text-lg font-semibold">Add Channel</SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
             Create a new distribution channel.
+            {importAlias && (
+              <>
+                {" "}Import alias: <span className="font-medium text-foreground">{importAlias}</span>
+              </>
+            )}
           </SheetDescription>
         </SheetHeader>
 

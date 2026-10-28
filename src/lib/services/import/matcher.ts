@@ -122,10 +122,23 @@ export async function matchPerson(icgId: string, name: string): Promise<PersonMa
 
 // ─── Channel Matching ───────────────────────────────────────────────────────
 
+/**
+ * A channel name links to a channel ONLY through an import alias the user set
+ * (ADR-0038, channels). That link is made by hand and deliberately — a name on
+ * the wrong channel is chaos — so nothing else counts as a match:
+ *
+ * - an exact name match ("METART" / "MetArt") is a SUGGESTION: confidence below
+ *   1.0, so the item is PROBABLE, nothing depending on it resolves, and staged
+ *   sets do not take the channel until the user confirms it (which records the
+ *   import alias);
+ * - there is no fuzzy tier — "Team Skeet" must never land on "Team Skeet Extras".
+ */
+export const CHANNEL_NAME_SUGGESTION_CONFIDENCE = 0.9
+
 export async function matchChannel(channelName: string): Promise<ChannelMatchResult> {
   const nameNorm = normalizeForMatch(channelName)
 
-  // Tier 0: Exact match on importAliases
+  // Tier 0: an import alias the user set — the only link
   const aliasMatch = await prisma.channel.findFirst({
     where: { importAliases: { has: channelName } },
     select: { id: true, name: true },
@@ -140,7 +153,7 @@ export async function matchChannel(channelName: string): Promise<ChannelMatchRes
     }
   }
 
-  // Tier 1: Exact nameNorm match
+  // Tier 1: same name — a suggestion to confirm, never a link
   const exactMatch = await prisma.channel.findFirst({
     where: { nameNorm },
     select: { id: true, name: true },
@@ -149,30 +162,9 @@ export async function matchChannel(channelName: string): Promise<ChannelMatchRes
   if (exactMatch) {
     return {
       matchedEntityId: exactMatch.id,
-      matchConfidence: 1.0,
-      matchDetails: `Exact name match: "${exactMatch.name}"`,
+      matchConfidence: CHANNEL_NAME_SUGGESTION_CONFIDENCE,
+      matchDetails: `Same name as "${exactMatch.name}" — a suggestion: confirm it to record the import alias`,
       existingName: exactMatch.name,
-    }
-  }
-
-  // Tier 2: Fuzzy match via pg_trgm (return best match)
-  const fuzzyResults = await prisma.$queryRaw<
-    Array<{ id: string; name: string; sim: number }>
-  >`
-    SELECT id, name, similarity("nameNorm", ${nameNorm}) AS sim
-    FROM "Channel"
-    WHERE similarity("nameNorm", ${nameNorm}) > 0.5
-    ORDER BY sim DESC
-    LIMIT 1
-  `
-
-  if (fuzzyResults.length > 0) {
-    const r = fuzzyResults[0]
-    return {
-      matchedEntityId: r.id,
-      matchConfidence: Number(r.sim),
-      matchDetails: `Fuzzy name match: "${r.name}" (similarity: ${Number(r.sim).toFixed(2)})`,
-      existingName: r.name,
     }
   }
 

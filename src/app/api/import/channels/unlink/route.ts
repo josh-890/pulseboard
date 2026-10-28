@@ -10,9 +10,9 @@ import { withTenantFromHeaders } from '@/lib/tenant-context'
  * alias the link added on that channel, so a subsequent refresh won't silently
  * re-derive the wrong channel via the alias.
  *
- * Note: this only sticks when the import name does NOT exactly match a channel
- * name. For an exact-name match the auto-matcher (Tier 1) will re-derive it on
- * the next refresh — there is nothing to "unlink" in that case.
+ * Removing the alias also disconnects open staged sets that took the channel
+ * under that name. A channel whose name equals the import name comes back on
+ * the next refresh only as a suggestion (ADR-0038) — never as a link.
  *
  * Body: { itemId: string }
  */

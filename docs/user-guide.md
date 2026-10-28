@@ -1307,9 +1307,11 @@ Click **"Add Label"** to open the creation form:
 
 ## 8. Channels
 
-**Routes:** `/channels`, `/channels/[id]`
+**Routes:** `/channels`, `/channels/[id]`, `/channels/check`
 
 Channels are distribution outlets belonging to labels (e.g. a label's website, social media, etc.).
+
+**Import aliases are the link.** An import file names a channel by name only (`TEAM SKEET`); that name links to a channel only when it is one of the channel's **import aliases** — set by hand and deliberately. One name belongs to one channel (a name already used by another channel is refused). Adding an import alias connects the open staged sets waiting under that name; removing it disconnects them again.
 
 ### Channels List
 
@@ -1327,6 +1329,16 @@ Channel cards show: name, parent label, and set count.
 | Name | Yes | |
 | Label | Yes | Parent label |
 | Notes | No | |
+
+### Channel check
+
+**Route:** `/channels/check` — the **Channel check** button on `/channels` (with a count of open items).
+
+Everything that does not hold to "linked only through an import alias", one item at a time:
+
+- **Archive folders no channel claims** — channel folders in your archive (`SB-ShowyBeauty`) that no channel has as its *Archive folder*. Each lists the channels with the same Shortname (`SB`) or the same name (`ShowyBeauty`) as hints, showing their current archive folder: **Set as its archive folder** (or **Replace its archive folder**). **Create channel…** opens the channel form with Name, Short Name and Archive Folder filled in from the folder name; you pick the Label.
+- **Linked by name only** — channel names whose staged sets got a channel because the names were alike, with no import alias behind it (`METART → MetArt`). **Add as import alias** anchors it; **Not this one** disconnects the open staged sets under that name (promoted sets keep their channel) — they then wait under the next section.
+- **Sets and staged sets without a channel** — the rule (no archived set, no open staged set, no set without a channel) with a tick or a warning. Archived sets without a channel are listed with their folder. Each channel name of staged sets without a channel can be **linked to an existing channel** (adds the import alias, connects them) or used to **Create channel…** with that name as the import alias.
 
 ### Channel Detail
 
@@ -1626,7 +1638,7 @@ The workspace has a split-panel layout:
 Matching runs automatically on every page load (dynamic sync). If you create an entity in the regular app, refreshing the import page will detect it.
 
 - **Person/Co-Model**: **Exact ICG-ID only** — a different ICG-ID means a different person. There is no name fallback; the trigram tier was removed after it silently merged different people whose names looked alike. When nothing matches, an unmatched person is shown in **amber** with a *possible match* note if someone with a self-assigned ICG-ID shares the name — that's a pointer, not a match. Fix it by correcting that person's ICG-ID (Edit → Change ICG-ID) and refreshing, not by importing over them.
-- **Channel**: Exact normalized name, then trigram (>0.7)
+- **Channel**: **only an import alias links** — the name in the file must be one of the channel's import aliases. A channel with the same name is a **suggestion** (Probable): what depends on it (aliases, sets) waits, staged sets take no channel, and **Import all** leaves it alone — confirm it on its own (Import, or Link) and the name is recorded as an import alias, which links every later file and connects the staged sets waiting under that name. There is no fuzzy matching.
 - **Set**: Exact external ID, then title + channel + date (within 30 days), then title-only (>0.8)
 - **Label**: Exact normalized name only
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { addChannelImportAlias } from '@/lib/services/channel-service'
+import { addChannelImportAlias, ImportAliasTakenError } from '@/lib/services/channel-service'
 import { computeDependencies } from '@/lib/services/import/staging-service'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 
@@ -16,8 +16,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Save the import alias on the channel
-    await addChannelImportAlias(channelId, importName)
+    // Save the import alias on the channel — the link itself (ADR-0038)
+    try {
+      await addChannelImportAlias(channelId, importName)
+    } catch (err) {
+      if (err instanceof ImportAliasTakenError) return NextResponse.json({ error: err.message }, { status: 409 })
+      throw err
+    }
 
     // Mark the channel import item as matched
     const item = await prisma.importItem.update({

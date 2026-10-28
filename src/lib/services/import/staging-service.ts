@@ -575,10 +575,11 @@ async function createStagingSetsForBatch(
       summary.byMatchType.none++
     }
 
-    // Resolve channel if already matched
+    // Resolve channel if already linked — through an import alias only; a
+    // same-name suggestion waits for the user (ADR-0038, channels)
     const channelName = set.channelName.toUpperCase()
     const channelMatch = matches.channels.get(channelName)
-    const channelId = channelMatch?.matchedEntityId ?? null
+    const channelId = linkedChannelId(channelMatch)
 
     // Parse release date — guard against Invalid Date (e.g. 0000-00-00 slipping through)
     const parsedDate = set.date ? new Date(set.date) : null
@@ -991,6 +992,11 @@ export async function refreshBatchMatches(batchId: string): Promise<ImportBatchW
   })
 }
 
+/** The channel a staged set may take: a linked one only, never a suggestion. */
+function linkedChannelId(match: { matchedEntityId: string | null; matchConfidence: number | null } | null | undefined): string | null {
+  return match?.matchedEntityId && match.matchConfidence === 1.0 ? match.matchedEntityId : null
+}
+
 async function refreshStagingSets(
   batchId: string,
   parsed: ReturnType<typeof parseImportFile>,
@@ -1029,7 +1035,7 @@ async function refreshStagingSets(
         matchConfidence: setMatch?.matchConfidence ?? null,
         matchDetails: setMatch?.matchDetails ?? null,
         // Don't change user-controlled status — only update match data
-        channelId: channelMatch?.matchedEntityId ?? null,
+        channelId: linkedChannelId(channelMatch),
         subjectPersonId: person?.id ?? null,
       },
     })
@@ -1076,7 +1082,10 @@ export async function computeDependencies(batchId: string): Promise<void> {
         break
     }
 
-    if (key && (item.status === 'MATCHED' || item.status === 'IMPORTED' || item.matchedEntityId)) {
+    // A channel resolves only when linked (import alias, or confirmed by the
+    // user) — a same-name suggestion keeps what depends on it waiting
+    const channelSuggestion = item.type === 'CHANNEL' && item.status === 'PROBABLE'
+    if (key && !channelSuggestion && (item.status === 'MATCHED' || item.status === 'IMPORTED' || item.matchedEntityId)) {
       resolved.add(key)
     }
   }

@@ -45,6 +45,11 @@ const TAB_CONFIG: Array<{ type: EntityTab; label: string; icon: React.ReactNode 
   { type: 'CO_MODEL', label: 'Co-Models', icon: <Users size={14} /> },
 ]
 
+function isBulkImportable(item: { type: string; status: string }): boolean {
+  if (item.type === 'CHANNEL' && item.status === 'PROBABLE') return false
+  return item.status === 'NEW' || item.status === 'PROBABLE'
+}
+
 export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<EntityTab>('PERSON')
@@ -173,8 +178,9 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
 
   // Import all ready items in the current tab
   const handleImportAllInTab = useCallback(async () => {
+    // A same-name channel suggestion is decided on its own, never in bulk
     const readyItems = currentItems
-      .filter((i) => i.status === 'NEW' || i.status === 'PROBABLE')
+      .filter(isBulkImportable)
       .sort((a, b) => a.sortOrder - b.sortOrder)
 
     if (readyItems.length === 0) return
@@ -204,7 +210,7 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
 
   // Count importable items in current tab
   const tabReadyCount = useMemo(
-    () => currentItems.filter((i) => i.status === 'NEW' || i.status === 'PROBABLE').length,
+    () => currentItems.filter(isBulkImportable).length,
     [currentItems],
   )
 

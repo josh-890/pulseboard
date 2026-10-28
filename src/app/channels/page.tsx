@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
-import { Radio } from "lucide-react";
+import Link from "next/link";
+import { Radio, ShieldCheck } from "lucide-react";
 import { getChannels } from "@/lib/services/channel-service";
+import { countChannelCheckItems } from "@/lib/services/channel-check-service";
 import { getLabels } from "@/lib/services/label-service";
 import { ChannelList } from "@/components/channels/channel-list";
 import { ChannelSearch } from "@/components/channels/channel-search";
@@ -18,12 +20,13 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
   return withTenantFromHeaders(async () => {
     const { q, labelId } = await searchParams;
 
-    const [channels, labels] = await Promise.all([
+    const [channels, labels, checkItems] = await Promise.all([
       getChannels({
         q: q?.trim() || undefined,
         labelId: labelId || undefined,
       }),
       getLabels(),
+      countChannelCheckItems(),
     ]);
 
     const labelOptions = labels.map(({ id, name }) => ({ id, name }));
@@ -43,7 +46,21 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
               </p>
             </div>
           </div>
-          <AddChannelSheet labels={labelOptions} />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/channels/check"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/15 bg-card/40 px-3 text-sm font-medium transition-colors hover:border-white/30 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ShieldCheck size={16} aria-hidden />
+              Channel check
+              {checkItems > 0 && (
+                <span className="rounded-full bg-amber-500/20 px-1.5 text-xs tabular-nums text-amber-600 dark:text-amber-400">
+                  {checkItems}
+                </span>
+              )}
+            </Link>
+            <AddChannelSheet labels={labelOptions} />
+          </div>
         </div>
 
         {/* Filters */}

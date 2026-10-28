@@ -48,10 +48,10 @@ afterEach(async () => {
 /** The state a developed archive folder leaves behind: a stub plus a claim. */
 async function seedArchiveSide() {
   const channel = await prisma.channel.create({
-    // nameNorm is what `matchChannel` matches on: without it the import cannot
-    // resolve the channel, channelId stays null, and there is no collision key at
-    // all. Lower-casing is that matcher's normalisation for an unaccented name.
-    data: { name: CHANNEL, nameNorm: CHANNEL.toLowerCase() },
+    // The import alias is what links the file's channel name to this channel
+    // (ADR-0038): without it the channel stays a suggestion, channelId stays null,
+    // and there is no collision key at all. matchAllEntities upper-cases names.
+    data: { name: CHANNEL, nameNorm: CHANNEL.toLowerCase(), importAliases: [CHANNEL.toUpperCase()] },
   });
   const folder = await prisma.archiveFolder.create({
     data: {
@@ -153,7 +153,9 @@ describe("an import landing on a set the archive already holds", () => {
   });
 
   it("creates normally when the archive holds nothing", async () => {
-    await prisma.channel.create({ data: { name: CHANNEL, nameNorm: CHANNEL.toLowerCase() } });
+    await prisma.channel.create({
+      data: { name: CHANNEL, nameNorm: CHANNEL.toLowerCase(), importAliases: [CHANNEL.toUpperCase()] },
+    });
 
     await createBatch(`${PREFIX}-subject2.txt`, importFile("ZZ-97@SU2"));
 

@@ -83,6 +83,7 @@ Media path:
 | `/atlas/[id]` | `getAtlasGridForCategory()` | `AtlasGrid` — every person's Aligned image in one locus, ordered by person, with a person-name filter; tiles link to the person |
 | `/projects/[id]` | `getProjectById()`, `getProjectSessions()` | `ProjectDetail`, `EditProjectSheet` |
 | `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
+| `/channels/check` | `getUnclaimedArchiveFolders()`, `getNameOnlyLinks()`, `getChannelIntegrity()`, `getChannels()`, `getLabels()` | Channel check (ADR-0038): `ChannelCheckFolders`, `ChannelCheckNameLinks`, `ChannelCheckIntegrity` (+ `ChannelCheckStagedRow`); `/channels` header shows `countChannelCheckItems()` |
 | `/channels/[id]` | `getChannelById()`, `getChannelPipeline()` | `ChannelDetail`, `EditChannelSheet`; **In pipeline** section — staged sets of the channel not yet promoted, deep-linked into `/staging-sets` (`channelId`, `channelLabel`, `channelTier`, `status`, `type`, `select`) |
 | `/artists/[id]` | `getArtistById()`, `getArtistStats()`, `getArtistCareer()` | `ArtistDetailHeader`, `EditArtistSheet` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
@@ -159,7 +160,9 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 
 ### Entity Services
 
-**`label-service.ts`**, **`network-service.ts`**, **`channel-service.ts`**, **`project-service.ts`** — Standard CRUD for each entity. `channel-service.ts` also has `getChannelPipeline(channelId, take)` → `{ total, photo, video, byStatus, items }`: the channel's StagingSets in `CHANNEL_PIPELINE_STATUSES` (APPROVED/REVIEWING/PENDING). `getChannelById().sets` holds **promoted** Sets only, so without it a channel whose work is all staged reads as empty. The predicate deliberately equals the `/staging-sets` default view (duplicates included, no match filter) so the counts equal what the deep link lists; the link carries the channel's own tier because the workspace's default tier filter (A/B/C) would otherwise hide a Low/Trash channel. The staging workspace reads `channelTier` and `channelLabel` from the URL and shows a removable channel chip in the filter bar
+**`channel-check-service.ts`** — read-only detection behind `/channels/check` (ADR-0038, channels): archive channel folders no `Channel.channelFolder` claims (with hints by Shortname prefix / name via `channelHintsForFolder`), staged-set channel names linked to a channel with no matching import alias (`getNameOnlyLinks`, raw SQL over `staging_set`), the integrity rule (sets / archived sets / open staged sets without a channel); `rejectNameOnlyLink` disconnects open staged sets of a name.
+
+**`label-service.ts`**, **`network-service.ts`**, **`channel-service.ts`**, **`project-service.ts`** — Standard CRUD for each entity. `channel-service.ts`: **an import alias is the only link** of an import-file channel name to a channel — `addChannelImportAlias` refuses a name another channel carries (`ImportAliasTakenError`) and connects open staged sets waiting under it (`{ connected }`); `removeChannelImportAlias` disconnects them (`{ disconnected }`). The import matcher (`matchChannel`) links by import alias only; an exact name is a suggestion (`CHANNEL_NAME_SUGGESTION_CONFIDENCE` 0.9 → PROBABLE: dependants stay blocked, staged sets take no channel, *Import all* skips it); no fuzzy tier. `channel-service.ts` also has `getChannelPipeline(channelId, take)` → `{ total, photo, video, byStatus, items }`: the channel's StagingSets in `CHANNEL_PIPELINE_STATUSES` (APPROVED/REVIEWING/PENDING). `getChannelById().sets` holds **promoted** Sets only, so without it a channel whose work is all staged reads as empty. The predicate deliberately equals the `/staging-sets` default view (duplicates included, no match filter) so the counts equal what the deep link lists; the link carries the channel's own tier because the workspace's default tier filter (A/B/C) would otherwise hide a Low/Trash channel. The staging workspace reads `channelTier` and `channelLabel` from the URL and shows a removable channel chip in the filter bar
 
 **`artist-service.ts`** — Artist CRUD, search, stats (set/channel/media counts from resolved credits), career listing (sets grouped by channel). Artists are lightweight behind-camera entities (name, nationality, bio) separate from the deep Person model. Linked via `SetCreditRaw.resolvedArtistId` — bypass SessionContribution chain entirely.
 
@@ -392,7 +395,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 | `physical-attribute-catalog-actions.ts` | Physical attribute group/definition CRUD |
 | `contribution-role-actions.ts` | Role group/definition CRUD |
 | `setting-actions.ts` | App setting updates |
-| `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD |
+| `label-actions.ts`, `network-actions.ts`, `channel-actions.ts`, `project-actions.ts` | Entity CRUD; `channel-actions.ts` also `linkChannelNameAction` (import alias + connect) and `rejectNameOnlyLinkAction` (Channel check) |
 | `import-actions.ts` | `getImportBatchesAction`, `deleteImportBatchAction`, `updateImportItemStatusAction`, `importSingleItemAction`, `refreshBatchMatchesAction` |
 | `/archive/conflicts` | The contradiction session (ADR-0028). Same shell as the workbench — `LoupeView`, `WorkbenchFilmstrip`, the shared `useViewPrefs` store — but a different question: which of the two claims is the person on this cover. Three answers per folder: `1` the set is right (`rejectCandidate` — the claim goes, the person joins `rejectedIcgIds`, identity closes only with the last claim), `2` I am right (`addStagingSetParticipant`), `3` wrong link (`unlinkArchiveFolder`, claim intact). On a **promoted Set** `2` is a link to the set instead of a key: `SetParticipant` is a cache rebuilt from `SessionContribution`. The list is derived from `getAttributionLinkAudit()`, so an answered folder simply stops appearing |
 | `/archive/workbench?folder=…` | The same workbench about **one folder**, opened from the pencil in the archive list. `getWorkbenchFolderSession` → `getWorkbenchFolder`, **the only loader that does not apply `UNSETTLED_FOLDER`** — a folder whose link was confirmed is reachable nowhere else, and that is exactly the one you open this way (guarded by `folder-people-editing.test.ts`). No group behind it: no votes, no progress bar, no filter tabs, no filmstrip/grid, person-led mode off (it needs a candidate carrying ≥60 % of a group). `Esc` returns to `/archive?highlight=…` |
@@ -468,7 +471,7 @@ components/
 ├── sessions/         # 15+ files: list/detail, contributions, merge, status
 ├── projects/         # ProjectList, ProjectCard, add/edit sheets
 ├── labels/           # LabelList, LabelCard, add/edit sheets
-├── channels/         # ChannelList, ChannelCard, add/edit sheets
+├── channels/         # ChannelList, ChannelCard, add/edit sheets, Channel check sections
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
 ├── staging-sets/     # StagingSetsWorkspace, StagingSetFilterBar, StagingSetGrid, StagingSetRow (inline archive section), ArchiveFolderPicker (sheet for linking unlinked folders), ArchiveKeyPopover (the folders around a set's date)

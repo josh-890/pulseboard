@@ -81,6 +81,8 @@ async function resolveEntityId(
   })
 
   for (const item of items) {
+    // A same-name channel suggestion is not a link until the user confirms it
+    if (type === 'CHANNEL' && item.status === 'PROBABLE') continue
     const data = item.data as ItemData
     let itemKey: string | null = null
 
@@ -154,7 +156,9 @@ async function rememberChannelSpelling(channelId: string, rawName: string): Prom
     })
     if (!channel) return
     const spelling = rawName.trim()
-    if (!spelling || spelling === channel.name || channel.importAliases.includes(spelling)) return
+    // Recorded even when it equals the channel's own name: a name match is only a
+    // suggestion, so the import alias is what links the next file (ADR-0038)
+    if (!spelling || channel.importAliases.includes(spelling)) return
     await addChannelImportAlias(channelId, spelling)
   } catch (err) {
     console.error('[importChannel] could not record the import spelling:', err)

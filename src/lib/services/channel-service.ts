@@ -5,6 +5,9 @@ import { generateChannelShortName } from "@/lib/utils";
 import { refreshPersonAffiliations } from "@/lib/services/view-service";
 import { pickOwnerLabelId } from "@/lib/services/label-resolution";
 
+/** Staged sets past the point where their channel may still change */
+const CLOSED_STAGING_STATUSES = ["PROMOTED", "INACTIVE", "SKIPPED"] as const
+
 export async function getChannels(filters?: { q?: string; labelId?: string; tier?: ChannelTier[] }) {
   const where: Prisma.ChannelWhereInput = {};
 
@@ -93,16 +96,32 @@ export async function getChannelPipeline(channelId: string, take = 50) {
   return { total: photo + video, photo, video, byStatus, items };
 }
 
-export async function removeChannelImportAlias(channelId: string, alias: string) {
+/**
+ * Remove an import alias. The alias was the link (ADR-0038, channels), so open
+ * staged sets that took this channel under that name lose it again — unless the
+ * channel still carries the name in another spelling of the alias.
+ */
+export async function removeChannelImportAlias(
+  channelId: string,
+  alias: string,
+): Promise<{ disconnected: number }> {
   const channel = await prisma.channel.findUniqueOrThrow({
     where: { id: channelId },
     select: { importAliases: true },
   })
-  return prisma.channel.update({
-    where: { id: channelId },
-    data: {
-      importAliases: channel.importAliases.filter((a) => a !== alias),
-    },
+  const remaining = channel.importAliases.filter((a) => a !== alias)
+  return prisma.$transaction(async (tx) => {
+    await tx.channel.update({ where: { id: channelId }, data: { importAliases: remaining } })
+    if (remaining.some((a) => a.trim().toUpperCase() === alias.trim().toUpperCase())) return { disconnected: 0 }
+    const { count } = await tx.stagingSet.updateMany({
+      where: {
+        channelId,
+        channelName: { equals: alias.trim(), mode: "insensitive" },
+        status: { notIn: [...CLOSED_STAGING_STATUSES] },
+      },
+      data: { channelId: null },
+    })
+    return { disconnected: count }
   })
 }
 
@@ -304,27 +323,61 @@ export async function deleteChannelRecord(id: string) {
 }
 
 /** Add an import alias to a channel (idempotent) */
-export async function addChannelImportAlias(channelId: string, alias: string) {
+/**
+ * Add an import alias — the only link between a channel name in an import file
+ * and a channel (ADR-0038, channels). One name belongs to one channel: an alias
+ * another channel already carries is refused. Open staged sets waiting under
+ * that name (no channel yet) take the channel at once.
+ */
+export async function addChannelImportAlias(
+  channelId: string,
+  alias: string,
+): Promise<{ connected: number }> {
+  const spelling = alias.trim()
+  if (!spelling) return { connected: 0 }
   const channel = await prisma.channel.findUniqueOrThrow({
     where: { id: channelId },
     select: { importAliases: true },
   })
-
-  if (channel.importAliases.includes(alias)) return // already exists
-
-  return prisma.channel.update({
-    where: { id: channelId },
-    data: {
-      importAliases: { push: alias },
-    },
+  const others = await prisma.$queryRaw<{ name: string }[]>`
+    SELECT name FROM "Channel"
+    WHERE id <> ${channelId}
+      AND EXISTS (SELECT 1 FROM unnest("importAliases") a WHERE upper(trim(a)) = upper(${spelling}))
+    LIMIT 1`
+  if (others.length) {
+    throw new ImportAliasTakenError(spelling, others[0].name)
+  }
+  return prisma.$transaction(async (tx) => {
+    if (!channel.importAliases.includes(spelling)) {
+      await tx.channel.update({ where: { id: channelId }, data: { importAliases: { push: spelling } } })
+    }
+    const { count } = await tx.stagingSet.updateMany({
+      where: {
+        channelId: null,
+        channelName: { equals: spelling, mode: "insensitive" },
+        status: { notIn: [...CLOSED_STAGING_STATUSES] },
+      },
+      data: { channelId },
+    })
+    return { connected: count }
   })
+}
+
+export class ImportAliasTakenError extends Error {
+  constructor(
+    readonly alias: string,
+    readonly channelName: string,
+  ) {
+    super(`"${alias}" is already an import alias of ${channelName}`)
+    this.name = "ImportAliasTakenError"
+  }
 }
 
 /** Search channels by name for the resolution UI */
 export async function searchChannelsForResolution(query: string) {
   return prisma.channel.findMany({
     where: {
-      name: { contains: query, mode: 'insensitive' },
+      name: { contains: query, mode: "insensitive" },
     },
     select: {
       id: true,
