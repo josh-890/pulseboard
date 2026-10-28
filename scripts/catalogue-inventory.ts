@@ -330,11 +330,16 @@ function writeWorkbook(inv: Inventory, meta: { decoder: string; walkedAt: string
   }
   if (inv.staged) {
     head('Payoff — set promotion')
-    line('Open staged sets', inv.staged.open)
-    line('… with a cast member the app does not know', inv.staged.withUnknown, pct(inv.staged.withUnknown, inv.staged.open))
-    line('Unknown cast members (distinct)', inv.staged.unknownMembers)
-    line('… the catalogue makes known', inv.staged.becomeKnown, pct(inv.staged.becomeKnown, inv.staged.unknownMembers))
-    line('Sets whose whole cast becomes known', inv.staged.setsFullyKnown, pct(inv.staged.setsFullyKnown, inv.staged.withUnknown))
+    const st = inv.staged
+    line('Open staged sets', st.open)
+    line('… whole cast developed Persons (ready today)', st.readyToday, pct(st.readyToday, st.open))
+    line('… with a cast member who is not a Person (waiting)', st.waiting, pct(st.waiting, st.open))
+    line('… no cast listed', st.noCast)
+    line('Non-Person cast members (distinct)', st.nonPersonMembers, 'a thin Contact is not recognisable')
+    line('… recognisable from the catalogue', st.recognisable, pct(st.recognisable, st.nonPersonMembers))
+    line('…… of those with a portrait', st.withFace, pct(st.withFace, st.recognisable))
+    line('Waiting sets whose whole cast becomes recognisable', st.setsUnblocked, pct(st.setsUnblocked, st.waiting))
+    line('Waiting sets still blocked (someone not in the catalogue)', st.waiting - st.setsUnblocked, 'see sheet Staged casts')
   }
   if (inv.archive) {
     head('Payoff — archive')
@@ -343,6 +348,7 @@ function writeWorkbook(inv: Inventory, meta: { decoder: string; walkedAt: string
     line('… matching an app channel alias today', inv.archive.knownToday)
     line('… that get a catalogue name to match', inv.archive.gainName, pct(inv.archive.gainName, inv.archive.withToken))
     line('… of those, ambiguous (2+ people)', inv.archive.ambiguous, 'a suggestion to decide, never a link')
+    line('Note', 'by name only', 'catalogue-join matches by set (date + title) without any bulk import — ADR-0027')
   }
   if (inv.network) {
     head('Payoff — network')
@@ -394,13 +400,21 @@ function writeWorkbook(inv: Inventory, meta: { decoder: string; walkedAt: string
   if (inv.staged?.sets.length) {
     const ws = sheet(wb, 'Staged casts', [
       { header: 'Staged set', key: 'title', width: 44 },
-      { header: 'Unknown today', key: 'unknown', width: 40 },
-      { header: 'Known via catalogue', key: 'resolved', width: 40 },
-      { header: 'Whole cast known', key: 'full', width: 16 },
+      { header: 'Not a Person', key: 'nonPersons', width: 40 },
+      { header: 'Recognisable via catalogue', key: 'recognisable', width: 40 },
+      { header: 'Not in the catalogue', key: 'missing', width: 30 },
+      { header: 'Unblocked', key: 'full', width: 11 },
       { header: 'Id', key: 'id', width: 28 },
     ])
     for (const s of inv.staged.sets) {
-      ws.addRow({ title: s.title, unknown: s.unknown.join(', '), resolved: s.resolved.join(', '), full: s.resolved.length === s.unknown.length ? 'yes' : 'no', id: s.id })
+      ws.addRow({
+        title: s.title,
+        nonPersons: s.nonPersons.join(', '),
+        recognisable: s.recognisable.join(', '),
+        missing: s.missing.join(', '),
+        full: s.missing.length === 0 ? 'yes' : 'no',
+        id: s.id,
+      })
     }
   }
 
@@ -482,6 +496,9 @@ async function main() {
       getJson<InventoryContext>('/api/catalogue/inventory-context'),
       getJson<InventoryWorklist>('/api/archive/attribution-worklist'),
     ])
+    if (!Array.isArray(context.staged?.waiting)) {
+      throw new Error('the app answers in an older shape — rebuild prod with the latest code, then run again')
+    }
     console.log(`${context.persons.length.toLocaleString()} persons, ${context.contacts.length.toLocaleString()} contacts, ${worklist.orphans.length.toLocaleString()} orphan folders`)
   }
 
@@ -495,7 +512,7 @@ async function main() {
   console.log(`  clean        ${inv.health.clean.toLocaleString()}  (${pct(inv.health.clean, inv.folders)})`)
   console.log(`  partial      ${inv.health.partial.toLocaleString()}  (${pct(inv.health.partial, inv.folders)})`)
   console.log(`  quarantined  ${inv.health.quarantined.toLocaleString()}  (${pct(inv.health.quarantined, inv.folders)})  ${inv.noGo.quarantine ? 'NO-GO' : 'ok'}`)
-  if (inv.staged) console.log(`  staged cast  ${inv.staged.becomeKnown}/${inv.staged.unknownMembers} unknown members become known`)
+  if (inv.staged) console.log(`  staged sets  ${inv.staged.setsUnblocked.toLocaleString()} of ${inv.staged.waiting.toLocaleString()} waiting get a recognisable cast`)
   console.log(`\nWorkbook: ${path.resolve(OUT)}`)
 }
 

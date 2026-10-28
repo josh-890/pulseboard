@@ -445,8 +445,14 @@ export type InventoryContext = {
   avatars: { icgId: string; ok: boolean; error: string | null }[]
   staged: {
     open: number
-    /** Open staged sets with a cast member the app does not know (neither Person nor Contact) */
-    withUnknown: { id: string; title: string; unknown: string[] }[]
+    /** Open staged sets that list no cast at all */
+    noCast: number
+    /**
+     * Open staged sets with a cast member who is not a developed Person — the sets
+     * the user leaves alone today. A thin Contact (ICG-ID and name, made by the
+     * import for every co-model) does not count as recognisable (ADR-0038 §1).
+     */
+    waiting: { id: string; title: string; nonPersons: string[] }[]
   }
   size: { databaseBytes: number; contactBytes: number; contactRows: number; avatarRows: number }
 }
@@ -483,11 +489,19 @@ export type Inventory = {
   portraits: { found: number; stored: number; refused: number; notYetSent: number } | null
   staged: {
     open: number
-    withUnknown: number
-    unknownMembers: number
-    becomeKnown: number
-    setsFullyKnown: number
-    sets: { id: string; title: string; unknown: string[]; resolved: string[] }[]
+    noCast: number
+    /** Every cast member a developed Person */
+    readyToday: number
+    /** A cast member who is not a Person */
+    waiting: number
+    nonPersonMembers: number
+    /** In the catalogue with a valid identity: name, aliases, ICG-ID */
+    recognisable: number
+    /** … and a portrait */
+    withFace: number
+    /** Whole cast a Person or recognisable */
+    setsUnblocked: number
+    sets: { id: string; title: string; nonPersons: string[]; recognisable: string[]; missing: string[] }[]
   } | null
   archive: {
     orphans: number
@@ -602,20 +616,28 @@ export function buildInventory(
       coModelsBecomeKnown: [...coUnknown].filter((id) => catalogueIds.has(id)).length,
     }
 
-    const unknownAll = new Set<string>()
-    const resolvedAll = new Set<string>()
-    const sets = context.staged.withUnknown.map((s) => {
-      const resolved = s.unknown.filter((id) => catalogueIds.has(id))
-      s.unknown.forEach((id) => unknownAll.add(id))
-      resolved.forEach((id) => resolvedAll.add(id))
-      return { ...s, resolved }
+    const faces = new Set(
+      identities.filter((r) => portraitReady(r) && avatarOf.get(r.icgId!)?.ok !== false).map((r) => r.icgId!),
+    )
+    const members = new Set<string>()
+    const sets = context.staged.waiting.map((s) => {
+      s.nonPersons.forEach((id) => members.add(id))
+      return {
+        ...s,
+        recognisable: s.nonPersons.filter((id) => catalogueIds.has(id)),
+        missing: s.nonPersons.filter((id) => !catalogueIds.has(id)),
+      }
     })
+    const recognisable = [...members].filter((id) => catalogueIds.has(id))
     staged = {
       open: context.staged.open,
-      withUnknown: sets.length,
-      unknownMembers: unknownAll.size,
-      becomeKnown: resolvedAll.size,
-      setsFullyKnown: sets.filter((s) => s.resolved.length === s.unknown.length).length,
+      noCast: context.staged.noCast,
+      readyToday: context.staged.open - context.staged.noCast - sets.length,
+      waiting: sets.length,
+      nonPersonMembers: members.size,
+      recognisable: recognisable.length,
+      withFace: recognisable.filter((id) => faces.has(id)).length,
+      setsUnblocked: sets.filter((s) => s.missing.length === 0).length,
       sets,
     }
   }

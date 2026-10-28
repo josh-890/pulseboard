@@ -474,8 +474,11 @@ node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.j
 
 **The workbook.** *Summary* holds the go/no-go numbers: data health, overlap with the app
 (already a Person → hint only, a Contact → enriched, an ignored Contact, new), payoff for set
-promotion (unknown staged cast members that become known), for the archive (orphan folders
-whose person token gets a catalogue name) and the network, and the projected cost. Then one
+promotion (open staged sets waiting on a cast member who is not a developed Person — a thin
+Contact made by the import does not count — and how many of those become recognisable, with or
+without a portrait), for the archive (orphan folders whose person token gets a catalogue name,
+by name only — `catalogue-join` matches by set) and the network, and the projected cost. A cached
+run needs no re-walk to pick up a newer app; an app too old for the agent stops it with a message. Then one
 sheet per problem kind — the fix-list — plus *Persons (hint only)*, *Staged casts*,
 *Archive names* and *All folders*.
 

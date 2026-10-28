@@ -38,7 +38,7 @@ const context = (over: Partial<InventoryContext> = {}): InventoryContext => ({
   persons: [],
   contacts: [],
   avatars: [],
-  staged: { open: 0, withUnknown: [] },
+  staged: { open: 0, noCast: 0, waiting: [] },
   size: { databaseBytes: 1_000_000, contactBytes: 0, contactRows: 0, avatarRows: 0 },
   ...over,
 });
@@ -182,13 +182,46 @@ describe("the aggregate", () => {
     expect(fresh.noGo.quarantine).toBe(true);
   });
 
-  it("payoff: unknown staged cast members the catalogue makes known", () => {
+  it("payoff: a staged set waits on non-Persons; the catalogue makes them recognisable", () => {
     const inv = buildInventory(
-      [anna],
-      context({ staged: { open: 3, withUnknown: [{ id: "s1", title: "Bonjour", unknown: ["AY-006S"] }, { id: "s2", title: "X", unknown: ["ZZ-00ZZ"] }] } }),
+      [anna, callie],
+      context({
+        persons: ["MB-003G"],
+        contacts: [{ icgId: "AY-006S", ignored: false, hasThumb: false }],
+        staged: {
+          open: 5,
+          noCast: 1,
+          waiting: [
+            { id: "s1", title: "Bonjour", nonPersons: ["AY-006S"] },
+            { id: "s2", title: "X", nonPersons: ["AY-006S", "ZZ-00ZZ"] },
+          ],
+        },
+      }),
       null,
     );
-    expect(inv.staged).toMatchObject({ open: 3, withUnknown: 2, unknownMembers: 2, becomeKnown: 1, setsFullyKnown: 1 });
+    expect(inv.staged).toMatchObject({
+      open: 5,
+      noCast: 1,
+      readyToday: 2,
+      waiting: 2,
+      nonPersonMembers: 2,
+      recognisable: 1,
+      withFace: 1,
+      setsUnblocked: 1,
+    });
+    expect(inv.staged?.sets[1]).toMatchObject({ recognisable: ["AY-006S"], missing: ["ZZ-00ZZ"] });
+  });
+
+  it("payoff: a recognisable member whose portrait the app refused has no face", () => {
+    const inv = buildInventory(
+      [anna],
+      context({
+        avatars: [{ icgId: "AY-006S", ok: false, error: "bad" }],
+        staged: { open: 1, noCast: 0, waiting: [{ id: "s1", title: "B", nonPersons: ["AY-006S"] }] },
+      }),
+      null,
+    );
+    expect(inv.staged).toMatchObject({ recognisable: 1, withFace: 0, setsUnblocked: 1 });
   });
 
   it("payoff: an orphan folder token gets a catalogue name; one the app already has is not counted", () => {
