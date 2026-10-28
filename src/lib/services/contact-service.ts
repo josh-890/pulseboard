@@ -18,6 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { buildUrl } from "@/lib/media-url";
 import { minioClient, getMinioBucket } from "@/lib/minio";
+import { resolvePersonReferences } from "@/lib/services/person-reference-service";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -156,6 +157,67 @@ export async function contactAvatarUrls(
   for (const c of contacts) {
     const key = c.portraitKey ?? (c.icgId ? byIcg.get(c.icgId) : undefined);
     if (key && c.icgId) out.set(c.icgId, buildUrl(key));
+  }
+  return out;
+}
+
+/** "UKR · 1998" — what tells namesakes apart in a list (ADR-0038) */
+export function lookupAids(c: { nationality: string | null; birthYear: number | null }): string | null {
+  return [c.nationality, c.birthYear].filter(Boolean).join(" · ") || null;
+}
+
+// ── Who is in a cast ─────────────────────────────────────────────────────────
+
+export type CastIdentity = {
+  icgId: string;
+  kind: "person" | "contact" | "unknown";
+  /** Person or Contact id */
+  id: string | null;
+  name: string | null;
+  aids: string | null;
+  avatarUrl: string | null;
+};
+
+/**
+ * For each ICG-ID of a cast: a developed Person, a Contact (recognisable or thin),
+ * or unknown to the app — what the staged set's cast shows before promotion.
+ */
+export async function identifyCast(icgIds: string[]): Promise<Record<string, CastIdentity>> {
+  const ids = [...new Set(icgIds.filter(Boolean))];
+  if (ids.length === 0) return {};
+  const [persons, contacts] = await Promise.all([
+    prisma.person.findMany({
+      where: { icgId: { in: ids } },
+      select: { id: true, icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
+    }),
+    prisma.contact.findMany({
+      where: { icgId: { in: ids } },
+      select: { id: true, icgId: true, name: true, birthYear: true, nationality: true, portraitKey: true },
+    }),
+  ]);
+  const refs = await resolvePersonReferences(ids);
+  const out: Record<string, CastIdentity> = {};
+  for (const icgId of ids) out[icgId] = { icgId, kind: "unknown", id: null, name: null, aids: null, avatarUrl: refs.get(icgId)?.avatarUrl ?? null };
+  for (const c of contacts) {
+    out[c.icgId!] = {
+      icgId: c.icgId!,
+      kind: "contact",
+      id: c.id,
+      name: c.name,
+      aids: lookupAids(c),
+      avatarUrl: c.portraitKey ? buildUrl(c.portraitKey) : (refs.get(c.icgId!)?.avatarUrl ?? null),
+    };
+  }
+  // A Person wins over a stale Contact with the same ICG-ID
+  for (const p of persons) {
+    out[p.icgId] = {
+      icgId: p.icgId,
+      kind: "person",
+      id: p.id,
+      name: p.aliases[0]?.name ?? p.icgId,
+      aids: null,
+      avatarUrl: refs.get(p.icgId)?.avatarUrl ?? null,
+    };
   }
   return out;
 }

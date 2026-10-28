@@ -8,6 +8,8 @@ import { createPersonRecord } from "@/lib/services/person-service";
 import { linkContactToPerson, setContactIgnored, getContactsPage } from "@/lib/services/relationship-service";
 import {
   clearContactPortrait,
+  identifyCast,
+  type CastIdentity,
   renameContact,
   setContactNote,
   setContactPortrait,
@@ -163,4 +165,9 @@ export async function clearContactPortraitAction(contactId: string): Promise<Sim
       return { success: false, error: "Could not reset the portrait" };
     }
   });
+}
+
+/** Who each ICG-ID of a cast is: Person, Contact or unknown */
+export async function identifyCastAction(icgIds: string[]): Promise<Record<string, CastIdentity>> {
+  return withTenantFromHeaders(() => identifyCast(icgIds.slice(0, 200)));
 }

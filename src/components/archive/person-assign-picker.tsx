@@ -4,15 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PersonIdentity } from '@/components/shared/person-identity'
+import { IdentityAvatar } from '@/components/shared/identity-avatar'
 import { searchAssignablePeopleAction } from '@/lib/actions/attribution-actions'
 
-export type AssignablePerson = {
-  icgId: string
-  name: string
-  kind: 'person' | 'contact'
-  avatarUrl: string | null
-  personId: string | null
-}
+export type { AssignablePerson } from '@/lib/services/attribution-confirm-service'
+import type { AssignablePerson } from '@/lib/services/attribution-confirm-service'
 
 type PersonAssignPickerProps = {
   open: boolean
@@ -150,21 +146,8 @@ export function PersonAssignPicker({ open, targetLabel, onAssign, onClose }: Per
                     i === cursor ? 'bg-primary text-primary-foreground' : 'hover:bg-muted',
                   )}
                 >
-                  {p.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- MinIO-signed URL
-                    <img src={p.avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
-                  ) : (
-                    <span className="h-8 w-8 shrink-0 rounded bg-muted" />
-                  )}
-                  <PersonIdentity name={p.name} icgId={p.icgId} className="min-w-0 flex-1" />
-                  <span
-                    className={cn(
-                      'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
-                      i === cursor ? 'bg-primary-foreground/20' : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {p.kind}
-                  </span>
+                  <IdentityAvatar name={p.name} avatarUrl={p.avatarUrl} kind={p.kind} size="md" />
+                  <PersonIdentity name={p.name} icgId={p.icgId} kind={p.kind} aids={p.aids} className="min-w-0 flex-1" />
                 </button>
               </li>
             ))

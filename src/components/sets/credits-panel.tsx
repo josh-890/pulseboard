@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PersonIdentity } from "@/components/shared/person-identity";
 import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { AddCreditInline } from "@/components/sets/add-credit-inline";
 import { CreditResolutionPanel } from "@/components/sets/credit-resolution-panel";
@@ -29,7 +30,8 @@ type CreditItem = {
    * as "Name (ICG-ID)" so the canonical key stays visible instead of the credit
    * reading as an anonymous raw string.
    */
-  resolvedContact: { id: string; name: string; icgId: string | null } | null;
+  /** A Contact (ADR-0038): known by ICG-ID, not developed — becomes a linked credit once she is */
+  resolvedContact: { id: string; name: string; icgId: string | null; aids: string | null } | null;
 };
 
 type RoleDefinitionOption = {
@@ -69,31 +71,45 @@ function CreditRow({ credit }: { credit: CreditItem }) {
           {roleLabel}
         </span>
       )}
-      <span
-        className={cn(
-          "text-sm font-medium truncate",
-          isUnresolved
-            ? "text-muted-foreground/60 italic"
-            : "text-foreground/90",
-        )}
-      >
-        {displayName}
-      </span>
+      {contact?.icgId && !credit.resolvedPerson ? (
+        <PersonIdentity
+          name={contact.name}
+          icgId={contact.icgId}
+          kind="contact"
+          aids={contact.aids}
+          className="min-w-0 text-sm font-medium text-foreground/90"
+        />
+      ) : (
+        <span
+          className={cn(
+            "text-sm font-medium truncate",
+            isUnresolved
+              ? "text-muted-foreground/60 italic"
+              : "text-foreground/90",
+          )}
+        >
+          {displayName}
+        </span>
+      )}
       {creditedAs && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">
           as {creditedAs}
         </span>
       )}
-      {contact && !credit.resolvedPerson && (
-        <span
-          className="shrink-0 rounded-full bg-muted/50 px-1.5 py-0.5 text-[10px] text-muted-foreground/70"
-          title="Known by ICG-ID; becomes a linked credit as soon as the person is created"
-        >
-          not yet curated
-        </span>
-      )}
+
     </>
   );
+
+  if (contact && !credit.resolvedPerson) {
+    return (
+      <Link
+        href={`/people/contacts/${contact.id}`}
+        className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-1 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        {inner}
+      </Link>
+    );
+  }
 
   if (personId) {
     return (

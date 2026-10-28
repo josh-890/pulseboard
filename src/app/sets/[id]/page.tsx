@@ -139,7 +139,12 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         ? { id: c.resolvedArtist.id, name: c.resolvedArtist.name }
         : null,
       resolvedContact: c.resolvedContact
-        ? { id: c.resolvedContact.id, name: c.resolvedContact.name, icgId: c.resolvedContact.icgId }
+        ? {
+            id: c.resolvedContact.id,
+            name: c.resolvedContact.name,
+            icgId: c.resolvedContact.icgId,
+            aids: [c.resolvedContact.nationality, c.resolvedContact.birthYear].filter(Boolean).join(" · ") || null,
+          }
         : null,
     }));
 

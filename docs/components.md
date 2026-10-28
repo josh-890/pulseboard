@@ -188,6 +188,20 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 
 ---
 
+## Contact Components (`components/people/contact/`, ADR-0038)
+
+| Component | Type | Props | Description |
+|---|---|---|---|
+| `ContactPortrait` | Client | `contactId`, `name`, `avatarUrl`, `hasChosenPortrait`, `hasCataloguePortrait` | Face in the dashed Contact frame; **Change portrait** (file → `setContactPortraitAction`), **Catalogue portrait** reset |
+| `ContactName` | Client | `contactId`, `name`, `catalogueName`, `nameSetByUser` | Name with inline **Rename** (sticks); "Your name — her catalogue file says X · Use it" |
+| `ContactActionsBar` | Client | `contactId`, `name`, `icgId`, `ignored` | **Add as Person**, **Link…** (`ContactLinkPicker`), **Ignore / Restore** |
+| `ContactCatalogueSets` | Server | `sets`, `total`, `linkedChannels` | Catalogue sets with date, channel (linked through import alias, else muted), title, cast size and *in your archive / in the app / catalogue only* |
+| `ContactNote` | Client | `contactId`, `note` | Note with Save |
+
+Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link…" to a Person, also in the register); `IdentityAvatar` (`components/shared/`, props `name`, `avatarUrl`, `kind`, `size?`) — solid frame for a Person, dashed for a Contact, amber dashed for unknown; `PersonIdentity` gained `kind?` (Contact / Unknown label) and `aids?`.
+
+---
+
 ## Channel Components (`components/channels/`)
 
 | Component | Type | Props | Description |

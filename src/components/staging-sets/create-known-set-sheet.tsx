@@ -6,6 +6,10 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PersonIdentity } from "@/components/shared/person-identity";
+import { IdentityAvatar } from "@/components/shared/identity-avatar";
+import { searchAssignablePeopleAction } from "@/lib/actions/attribution-actions";
+import type { AssignablePerson } from "@/lib/services/attribution-confirm-service";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Sheet,
@@ -42,6 +46,9 @@ type ParticipantEntry = {
   name: string;
   icgId?: string;
   personId?: string;
+  /** Picked as a Contact (ADR-0038): known by ICG-ID, not developed */
+  kind?: "person" | "contact";
+  aids?: string | null;
   // The alias this person appeared under in THIS set (ADR-0024), distinct from
   // their identity `name`. Pre-filled from the archive folder name, editable.
   usedName?: string;
@@ -108,7 +115,7 @@ export function CreateKnownSetSheet({
 
   // Person search
   const [personQuery, setPersonQuery] = useState("");
-  const [personResults, setPersonResults] = useState<PersonSearchResult[]>([]);
+  const [personResults, setPersonResults] = useState<AssignablePerson[]>([]);
   const [personSearching, setPersonSearching] = useState(false);
   const [manualName, setManualName] = useState("");
 
@@ -273,10 +280,10 @@ export function CreateKnownSetSheet({
     }
     const timer = setTimeout(async () => {
       setPersonSearching(true);
+      // Persons first, then Contacts — a recognisable Contact is enough to cast (ADR-0038)
       try {
-        const res = await fetch(`/api/people/search?q=${encodeURIComponent(q)}`);
-        const data: PersonSearchResult[] = await res.json();
-        setPersonResults(data.slice(0, 8));
+        const res = await searchAssignablePeopleAction(q);
+        setPersonResults(res.success ? res.data.slice(0, 8) : []);
       } catch {
         setPersonResults([]);
       } finally {
@@ -286,8 +293,8 @@ export function CreateKnownSetSheet({
     return () => clearTimeout(timer);
   }, [personQuery]);
 
-  function addKnownParticipant(person: PersonSearchResult) {
-    if (participants.some((p) => p.personId === person.id)) return;
+  function addKnownParticipant(person: AssignablePerson) {
+    if (participants.some((p) => p.icgId === person.icgId)) return;
     setParticipants((prev) => {
       // When resolving a lone unresolved candidate (typically the folder-parsed
       // name), carry its used-name onto the resolved row so the alias survives
@@ -299,15 +306,17 @@ export function CreateKnownSetSheet({
         candidates.length === 1
           ? prev.filter((p) => p.personId)
           : prev.filter(
-              (p) => p.personId || p.name.toLowerCase() !== person.displayName.toLowerCase(),
+              (p) => p.personId || p.name.toLowerCase() !== person.name.toLowerCase(),
             );
       return [
         ...kept,
         {
-          key: person.id,
-          name: person.displayName,
+          key: person.icgId,
+          name: person.name,
           icgId: person.icgId,
-          personId: person.id,
+          ...(person.personId ? { personId: person.personId } : {}),
+          kind: person.kind,
+          aids: person.aids,
           usedName: carriedUsedName,
         },
       ];
@@ -514,12 +523,19 @@ export function CreateKnownSetSheet({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <span className="truncate font-medium">{p.name}</span>
-                        {p.icgId && (
-                          <span className="ml-1.5 text-xs text-muted-foreground">{p.icgId}</span>
-                        )}
-                        {!p.personId && (
-                          <span className="ml-1.5 text-xs text-amber-500/80">unresolved</span>
+                        {p.icgId ? (
+                          <PersonIdentity
+                            name={p.name}
+                            icgId={p.icgId}
+                            kind={p.personId ? "person" : p.kind}
+                            aids={p.aids}
+                            className="font-medium"
+                          />
+                        ) : (
+                          <>
+                            <span className="truncate font-medium">{p.name}</span>
+                            <span className="ml-1.5 text-xs text-amber-500/80">unresolved</span>
+                          </>
                         )}
                       </div>
                       <button
@@ -556,7 +572,7 @@ export function CreateKnownSetSheet({
                 <Input
                   value={personQuery}
                   onChange={(e) => setPersonQuery(e.target.value)}
-                  placeholder="Search existing persons..."
+                  placeholder="Search persons and contacts…"
                   className="pl-8"
                 />
                 {personSearching && (
@@ -566,19 +582,14 @@ export function CreateKnownSetSheet({
               {personResults.length > 0 && (
                 <ul className="absolute z-50 mt-1 w-full rounded-lg border border-white/15 bg-card/95 shadow-lg backdrop-blur-sm">
                   {personResults.map((r) => (
-                    <li key={r.id}>
+                    <li key={r.icgId}>
                       <button
                         type="button"
                         onClick={() => addKnownParticipant(r)}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-left"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
                       >
-                        <span className="font-medium">{r.displayName}</span>
-                        <span className="text-xs text-muted-foreground">{r.icgId}</span>
-                        {r.matchedAlias && (
-                          <span className="ml-auto text-xs text-muted-foreground/70">
-                            aka {r.matchedAlias}
-                          </span>
-                        )}
+                        <IdentityAvatar name={r.name} avatarUrl={r.avatarUrl} kind={r.kind} />
+                        <PersonIdentity name={r.name} icgId={r.icgId} kind={r.kind} aids={r.aids} className="font-medium" />
                       </button>
                     </li>
                   ))}

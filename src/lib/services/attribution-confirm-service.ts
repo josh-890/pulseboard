@@ -17,7 +17,7 @@
  */
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
-import { buildContactSearchNorm } from '@/lib/services/contact-service'
+import { buildContactSearchNorm, lookupAids } from '@/lib/services/contact-service'
 import type {
   AttributionDecision,
   FolderDevelopStatus,
@@ -1162,6 +1162,10 @@ export type AssignablePerson = {
   kind: 'person' | 'contact'
   avatarUrl: string | null
   personId: string | null
+  /** Set for a Contact — her page is /people/contacts/{contactId} */
+  contactId: string | null
+  /** Lookup aids from her catalogue file, e.g. "UKR · 1998" (ADR-0038) — tells namesakes apart */
+  aids: string | null
 }
 
 /**
@@ -1199,11 +1203,14 @@ export async function searchAssignablePeople(q: string, limit = 20): Promise<Ass
       where: {
         ignoredAt: null,
         OR: [
+          // name, AKA, channel aliases, ICG-ID (ADR-0038)
+          { searchNorm: { contains: normalizeForSearch(term) } },
           { icgId: { contains: term, mode: 'insensitive' } },
           { name: { contains: term, mode: 'insensitive' } },
         ],
       },
-      select: { icgId: true, name: true },
+      select: { id: true, icgId: true, name: true, birthYear: true, nationality: true, portraitKey: true },
+      orderBy: { nameNorm: 'asc' },
       take: limit,
     }),
   ])
@@ -1226,6 +1233,8 @@ export async function searchAssignablePeople(q: string, limit = 20): Promise<Ass
       kind: 'person',
       avatarUrl: refs.get(p.icgId)?.avatarUrl ?? null,
       personId: p.id,
+      contactId: null,
+      aids: null,
     })
   }
   for (const c of contacts) {
@@ -1235,8 +1244,11 @@ export async function searchAssignablePeople(q: string, limit = 20): Promise<Ass
       icgId: c.icgId,
       name: c.name,
       kind: 'contact',
-      avatarUrl: refs.get(c.icgId)?.avatarUrl ?? null,
+      // A portrait the user chose wins over the catalogue one
+      avatarUrl: c.portraitKey ? buildUrl(c.portraitKey) : (refs.get(c.icgId)?.avatarUrl ?? null),
       personId: null,
+      contactId: c.id,
+      aids: lookupAids(c),
     })
   }
   return out.slice(0, limit)

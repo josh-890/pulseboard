@@ -34,6 +34,12 @@ import { acceptDateSuggestionAction, dismissDateSuggestionAction, removeStagingS
 import { unlinkArchiveFolderAction, rematchItemAction } from '@/lib/actions/archive-actions'
 import { channelDisplay } from '@/lib/channel-label'
 import Link from 'next/link'
+import { PersonIdentity } from '@/components/shared/person-identity'
+import { IdentityAvatar } from '@/components/shared/identity-avatar'
+import { searchAssignablePeopleAction } from '@/lib/actions/attribution-actions'
+import { identifyCastAction } from '@/lib/actions/contact-actions'
+import type { AssignablePerson } from '@/lib/services/attribution-confirm-service'
+import type { CastIdentity } from '@/lib/services/contact-service'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -119,19 +125,28 @@ function PanelContent({
   const [duplicateCandidates, setDuplicateCandidates] = useState<DuplicateCandidate[]>([])
   // Add-participant search
   const [partQuery, setPartQuery] = useState('')
-  const [partResults, setPartResults] = useState<{ id: string; displayName: string; icgId: string }[]>([])
+  // Persons first, then Contacts (ADR-0038): a recognisable Contact is enough to cast
+  const [partResults, setPartResults] = useState<AssignablePerson[]>([])
 
   useEffect(() => {
     const q = partQuery.trim()
     if (q.length < 2) { setPartResults([]); return }
     const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/people/search?q=${encodeURIComponent(q)}`)
-        setPartResults(((await res.json()) as { id: string; displayName: string; icgId: string }[]).slice(0, 6))
-      } catch { setPartResults([]) }
+      const res = await searchAssignablePeopleAction(q)
+      setPartResults(res.success ? res.data.slice(0, 8) : [])
     }, 250)
     return () => clearTimeout(t)
   }, [partQuery])
+
+  // Who each cast member is to the app: Person, Contact or unknown
+  const castKey = ((stagingSet.participants as Array<{ icgId: string }> | null) ?? []).map((p) => p.icgId).filter(Boolean).join(',')
+  const [cast, setCast] = useState<Record<string, CastIdentity>>({})
+  useEffect(() => {
+    if (!castKey) return
+    let cancelled = false
+    identifyCastAction(castKey.split(',')).then((r) => { if (!cancelled) setCast(r) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [castKey])
 
   const hasDuplicateFlag = (stagingSet.isDuplicate || !!stagingSet.duplicateGroupId) && stagingSet.status !== 'SKIPPED'
 
@@ -540,10 +555,37 @@ function PanelContent({
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Participants ({participants.length})
             </h3>
-            {participants.map((p, i) => (
+            {participants.map((p, i) => {
+              const who = p.icgId ? cast[p.icgId] : undefined
+              const href = who?.kind === 'person' ? `/people/${who.id}` : who?.kind === 'contact' ? `/people/contacts/${who.id}` : null
+              const label = (
+                <PersonIdentity
+                  name={who?.name ?? p.name}
+                  icgId={p.icgId}
+                  kind={who?.kind}
+                  aids={who?.aids}
+                  className="text-xs"
+                />
+              )
+              return (
               <div key={i} className="group flex items-center gap-2 py-1">
-                <span className="text-xs">{p.name}</span>
-                <span className="text-[10px] text-muted-foreground">{p.icgId ? `(${p.icgId})` : <span className="text-amber-500">unresolved</span>}</span>
+                {p.icgId ? (
+                  <>
+                    <IdentityAvatar name={who?.name ?? p.name} avatarUrl={who?.avatarUrl ?? null} kind={who?.kind ?? 'unknown'} />
+                    {href ? (
+                      <Link href={href} className="min-w-0 hover:underline focus-visible:underline focus-visible:outline-none">
+                        {label}
+                      </Link>
+                    ) : (
+                      <span className="min-w-0">{label}</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs">{p.name}</span>
+                    <span className="text-[10px] text-amber-500">unresolved</span>
+                  </>
+                )}
                 {!isPromoted && (
                   <button
                     type="button"
@@ -559,7 +601,8 @@ function PanelContent({
                   </button>
                 )}
               </div>
-            ))}
+              )
+            })}
 
             {/* What the archive says and this set does not.
                 Per person, never as one sweep (a set with four people is four
@@ -619,29 +662,31 @@ function PanelContent({
                 <Input
                   value={partQuery}
                   onChange={(e) => setPartQuery(e.target.value)}
-                  placeholder="Add participant — search person…"
+                  placeholder="Add participant — search person or contact…"
                   className="h-8 text-xs"
                 />
                 {partResults.length > 0 && (
                   <div className="absolute z-10 mt-1 w-full overflow-hidden rounded-md border border-border bg-popover shadow-md">
                     {partResults.map((r) => (
                       <button
-                        key={r.id}
+                        key={r.icgId}
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                         onClick={async () => {
+                          // A Contact joins by ICG-ID; she becomes a participant on promotion
+                          // once developed — until then a credit pinned to her (ADR-0027 §5)
                           const res = await addStagingSetParticipantAction(stagingSet.id, {
-                            name: r.displayName,
+                            name: r.name,
                             icgId: r.icgId,
-                            personId: r.id,
+                            ...(r.personId ? { personId: r.personId } : {}),
                           })
                           setPartQuery('')
                           setPartResults([])
                           if (res.success) onRefresh()
                         }}
                       >
-                        <span className="font-medium">{r.displayName}</span>
-                        <span className="text-[10px] text-muted-foreground">({r.icgId})</span>
+                        <IdentityAvatar name={r.name} avatarUrl={r.avatarUrl} kind={r.kind} />
+                        <PersonIdentity name={r.name} icgId={r.icgId} kind={r.kind} aids={r.aids} className="font-medium" />
                       </button>
                     ))}
                   </div>

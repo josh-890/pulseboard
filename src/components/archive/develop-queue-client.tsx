@@ -237,8 +237,12 @@ export function DevelopQueueClient({ people }: { people: DevelopPersonRow[] }) {
                   <Link href={`/people/${current.personId}`} className="underline underline-offset-2">
                     curated person
                   </Link>
+                ) : current.contactId ? (
+                  <Link href={`/people/contacts/${current.contactId}`} className="underline underline-offset-2">
+                    Contact — not developed yet
+                  </Link>
                 ) : (
-                  <span>contact only — not curated yet</span>
+                  <span>Contact — not developed yet</span>
                 )}
                 <span className="ml-auto">
                   <Kbd>←</Kbd><Kbd>→</Kbd><Kbd>↑</Kbd><Kbd>↓</Kbd> move · <Kbd>E</Kbd> develop · <Kbd>W</Kbd> wait

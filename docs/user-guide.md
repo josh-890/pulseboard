@@ -159,6 +159,45 @@ already means the per-person Reference Session.)
   - **Ignore** — hide a contact you don't intend to add (reversible via **Show ignored** → Restore).
 - **Automatic absorption:** whenever you add or import a person whose ICG-ID matches a
   contact, that contact is retired and its links move onto the real person — no manual step.
+- **Lookup aids:** once her catalogue file is loaded, a Contact shows nationality and birth year
+  (`UKR · 1998`) next to the ICG-ID — what tells the many "Sunny"s apart. Search finds a Contact by
+  name, AKA, any channel alias or ICG-ID.
+
+#### A Contact's page
+
+Click a Contact's name (in the register, a staged set's cast, a credit on a set page or the archive's
+develop queue) → `/people/contacts/<id>`. Deliberately plainer than a Person page — no career, no
+body, no timeline — and marked **Contact — not yet developed**:
+
+- **Face** in a dashed frame. **Change portrait** uploads your own (downscaled, read strictly — a
+  damaged file is refused with the reason); it **sticks**: no catalogue run replaces it.
+  **Catalogue portrait** goes back to the catalogue's.
+- **Name** with **Rename**. Your name sticks — no import or catalogue file renames her again. A
+  Contact you created by hand counts as named by you. When your name differs from her catalogue
+  file's, the page says so and **Use it** goes back to the file's name. Without a name of yours or
+  a catalogue file, the latest import's spelling is used, as before.
+- **ICG-ID · nationality · birth year**, the date of her catalogue file, and **Add as Person**,
+  **Link…**, **Ignore** (an ignored Contact is still enriched by the catalogue).
+- **In staged sets** — open staged sets whose cast includes her (click to open in Staging Sets).
+- **Known as** — AKA names, her alias on each channel (the channel links only when one of its
+  import aliases names it; otherwise shown in italics as *not linked*), how sets credit her, and
+  whose co-model she is.
+- **Catalogue sets** — her sets from the catalogue, newest first, each marked **in your archive**,
+  **in the app** or **catalogue only**.
+- **Credited in your sets**, **Archive folders** confirmed as her, and **your note**.
+
+#### Contacts everywhere else
+
+A Contact is always shown as `Name (ICG-ID)` with a small **Contact** label and a **dashed** frame
+around the face; a Person has a solid frame; someone neither a Person nor a Contact is marked
+**Unknown**. Persons always come first.
+
+- **Staged set → Participants:** each cast member links to her Person or Contact page. **Add
+  participant** searches persons **and** contacts (Persons first, then Contacts with their lookup
+  aids). A Contact joins by ICG-ID — a recognisable Contact is enough to work on the set.
+- **Create known set** (from an archive folder): the participant search offers Contacts too.
+- **Set page → Credits:** a credit pinned to a Contact shows the label and links to her page.
+- **Archive workbench → Assign someone:** rows carry the label, frame and lookup aids.
 
 ### Watchlist
 
