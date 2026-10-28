@@ -1,6 +1,6 @@
 # Agents — what runs where, and with which switches
 
-Six programs run **outside** the app, on the machines that hold the data. The app
+Seven programs run **outside** the app, on the machines that hold the data. The app
 server cannot reach the archive or the person catalogue, so everything that touches
 those filesystems is an agent that pulls work from the app and pushes small results
 back.
@@ -40,6 +40,7 @@ Common to all of them:
 | Give suggested people a face in the workbench | `.\catalogue-avatar.ps1` |
 | Propose who is in the orphan archive folders | `node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json` |
 | …and actually write those proposals into the queue | same, plus `--post` |
+| Judge the whole catalogue before it becomes Contacts (ADR-0038, read-only) | `node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.json` |
 
 ---
 
@@ -442,6 +443,56 @@ participant or a contact.
 **If a run seems to ignore `--post`, check you are running the current bundle.** An
 old `catalogue-join.mjs` sitting next to the cache file silently lacked the flag;
 the current one prints a WRITE-BACK banner when `--post` is active.
+
+---
+
+## `catalogue-inventory.ts` / `catalogue-inventory.mjs` — judge the catalogue before it becomes Contacts (ADR-0038)
+
+**Read-only.** Walks every `<Initial>\<Name_(ICG-ID)>\_meta\` folder, judges it with the
+app's **own parser** (so "clean" in the report means clean in the app), asks the app what it
+already holds (two GETs: `/api/catalogue/inventory-context` and the attribution worklist),
+and writes an **Excel workbook**. Nothing is sent to the app.
+
+```powershell
+# from a repo checkout, run from the repo ROOT
+npx tsx scripts/catalogue-inventory.ts --catalogue "H:\Models\thenude" --cache inventory.json
+
+# as one copyable file
+npm run build:agent        # → dist-agents/catalogue-inventory.mjs (and catalogue-join.mjs)
+node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.json
+```
+
+| Flag | |
+|---|---|
+| `--catalogue DIR` | Required (or `PERSON_CATALOGUE_ROOT`) |
+| `--cache FILE` | **Use it.** The walk reads every import file version and samples covers; the cache holds only what is on disk, the app side is fetched fresh every run |
+| `--rewalk` | Walk again — after the catalogue on disk changed, or after fixing quarantined folders |
+| `--out FILE` | The workbook (default `catalogue-inventory-<date>.xlsx`) |
+| `--limit N` | Only the first N person folders — a quick look; no cache is written |
+| `--offline` | Don't ask the app: data health and cost only |
+| `--base-url`, `--api-key`, `--tenant` | Default to the `ARCHIVE_*` env vars |
+
+**The workbook.** *Summary* holds the go/no-go numbers: data health, overlap with the app
+(already a Person → hint only, a Contact → enriched, an ignored Contact, new), payoff for set
+promotion (unknown staged cast members that become known), for the archive (orphan folders
+whose person token gets a catalogue name) and the network, and the projected cost. Then one
+sheet per problem kind — the fix-list — plus *Persons (hint only)*, *Staged casts*,
+*Archive names* and *All folders*.
+
+| Kind | Meaning |
+|---|---|
+| Q1–Q5 **quarantine** (no Contact) | no import file · unreadable · no/malformed ICG-ID · folder / file name / file ICG-IDs disagree · the same ICG-ID in several folders. A quarantined folder lists only why; its flags show on the run after it is fixed |
+| F1–F6 **flag** (identity taken, part marked) | polluted header · section cut off, or the biography claims far more sets than listed · mangled name · portrait missing, ambiguous or refused by the app · sampled cover unreadable · an older file version holds sets/aliases the newest lacks |
+
+**No-go:** 10 % or more quarantined → fix the scrapes first and `--rewalk`.
+
+**Portraits** are judged by the app, not the agent: it reads which ones `catalogue-avatar.ps1`
+sent and which the app refused (strict decode). Run the avatar agent first for a complete
+picture; the Summary says how many were not sent yet.
+
+**Covers** are checked on a stable ~5 % sample. With `sharp` importable (a repo checkout, or
+`npm i sharp` next to the `.mjs`) each one is fully decoded, strictly; without it only the
+structure is checked (cut off, wrong format). The Summary names which.
 
 ---
 

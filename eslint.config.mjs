@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Bundled agents (npm run build:agent) — generated, gitignored
+    "dist-agents/**",
   ]),
   // Honor the `_`-prefix convention for intentionally-unused identifiers
   // (function args, destructured props, caught errors). Common pattern when

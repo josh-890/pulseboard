@@ -49,7 +49,7 @@ anyone can be looked up, the network fills in, and the long tail is a pool to pi
 
 ## The inventory (agreed 2026-10-28)
 
-A read-only Node agent on the Windows box runs the app's own parser over every catalogue folder (so
+A read-only Node agent on the Windows box (`scripts/catalogue-inventory.ts`, see docs/agents.md) runs the app's own parser over every catalogue folder (so
 "clean" in the report means clean in the app) and compares against the app through the x-archive-key API.
 It writes nothing to the app; its result is an Excel workbook: a Summary sheet and one sheet per problem
 kind, which later serves as the fix-list.
@@ -63,7 +63,9 @@ kind, which later serves as the fix-list.
   marked): F1 polluted header, F2 section cut off or empty, F3 mangled name, F4 portrait missing,
   undecodable or ambiguous, F5 undecodable cover, F6 an older version holds more. Info: I1 is a Person,
   I2 is a Contact, I3 is an ignored Contact, I4 new.
-- **Images:** every portrait fully decoded; covers counted and about 5 % sampled.
+- **Images:** every portrait fully decoded — by the app, which already holds the strict verdict for each
+  portrait `catalogue-avatar.ps1` sent; covers counted and a stable ~5 % sampled (full decode where
+  `sharp` is available, structure check otherwise — the report says which).
 - **No-go:** about 10 % or more quarantined (fix the scrapes first), or cost too high. "Fast" means
   nothing gets slower: pages without Contacts as fast as before, search and cast pickers with all
   Contacts about as fast as now (well under half a second), proven on a full-size dev copy before prod.
