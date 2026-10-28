@@ -95,15 +95,59 @@ kind, which later serves as the fix-list.
 - **Still to prove before prod:** the real size and the speed (search and cast pickers with ~39k Contacts
   well under half a second, nothing else slower) on a full-size dev copy. Far above 150 MB → decide again.
 
+## Design (agreed 2026-10-28)
+
+**What a Contact holds.** Identity and lookup aids from the person's own file: ICG-ID, name, AKA names,
+aliases per channel, birth year, nationality (IOC), the file's source date; the face is the catalogue
+portrait. Measurements, colours, biography and links stay in the file and come with developing. The
+catalogue fields are read-only — corrections come with developing or by fixing the file. Yours on a
+Contact: the name (once you set it, it sticks; a Contact you created yourself counts as named by you), the
+portrait (sticks), the note and Ignore. The own file decides the name; how other people's files list her
+becomes AKA evidence and no longer renames her. On develop your name wins in the review; the file's name
+stays as an alias.
+
+**The catalogue set table and matching.** One row per CoverId; the cast is the union over every file
+listing the set; title, date and channel come from the newest file; disagreements are flagged on the row
+and the matcher tries every recorded date; undated sets are kept, never matched. The app takes over
+`catalogue-join` (same rules, same suggestion queue and workbench; the agent is retired) and matches after
+every archive scan (new folders) and after every catalogue run (all unmatched orphans); a confirmed or
+rejected suggestion is never reopened. When a Contact becomes a Person, every set credited to her by
+ICG-ID joins her career by itself (session contribution and set participation, role from the credit) —
+today `reconcileContacts` only repoints the credit; name-only credits stay open.
+
+**The load run.** A "Catalogue runs" page holds each run's counts, the current problem list and Undo.
+Undo works from the latest run back; it restores the catalogue data as it was before the run and never
+touches your work (a Contact you used keeps existing, only its catalogue fields revert; confirmed
+suggestions stay, unconfirmed ones from the run are withdrawn). After the first load only changes are sent
+(new folders, newer files, fixed quarantine); a folder gone from `H:\` is never deleted, its Contact is
+marked "no longer in the catalogue". The first load requires a fresh prod backup; later runs rely on Undo.
+Every run also sends each folder's newest import file, kept compressed in MinIO (~120 MB), so Develop and
+the hint on a Person ("newer file: 12 new sets, 2 changed values → Review", ADR-0009) need no upload.
+
+**Automatic from then on.** The agent runs every 15 minutes as a Windows scheduled task: it sends
+catalogue changes and delivers covers the app asked for (on Develop, or a staged set opened without a
+cover — "covers on the way"). An empty pass leaves no run entry. After the first load no manual run is
+needed.
+
+**What you see.** A light Contact page (face with Change portrait, name with Rename, ICG-ID, birth year,
+nationality, file date; Develop, Link…, Ignore; known as; catalogue sets marked in archive / in app /
+catalogue only, sets credited to her; archive folders; note) — plainer than a Person page. Everywhere:
+`Name (ICG-ID)`, a "Contact" label and lighter frame, Persons first, lookup aids in the line
+(`Sunny (SX-0036) · UKR · 1998`).
+
+**Malformed ICG-IDs.** The 40 Q3 folders stay in quarantine and `ICG_ID_RE` is not widened; they are
+fixed by hand (folder name, file name and the file's ICGID line must agree), and the next pass picks
+them up.
+
 ## Known flaws in the data
 
 Incomplete or broken scrapes (HTML junk, encoding), several file versions per folder, missing or wrong
 portraits, corrupt cover images, special characters in names that broke the scrape (no valid ICG-ID).
-Measured: 2 ICG-IDs in two folders each (JA-86IQ, MX-003I). Some Q3 IDs may be real ones `ICG_ID_RE` is
-too strict for (`A2-00XO`, `B2-00HFT`, `C2-00VIQ` — a digit in the second position): to check.
+Measured: 2 ICG-IDs in two folders each (JA-86IQ, MX-003I). The 40 Q3 IDs follow a few regular patterns
+(a digit or symbol from the name in the prefix, lowercase, a second dash, short) plus 3 `NO_ICGID`; few
+enough to fix by hand.
 
 ## Open
 
-- The prod app (Docker on Unraid) cannot read `H:\`; reading files and covers on demand needs a way in.
-- Catalogue evidence on a Contact must stay distinguishable from the user's own data.
-- One-time load or recurring sync is undecided.
+- How the agent learns that a fresh prod backup exists (`db-backup.sh` runs from WSL today).
+- Size and speed are proven on a full-size dev copy before the first load.
