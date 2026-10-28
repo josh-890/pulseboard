@@ -135,6 +135,20 @@ catalogue only, sets credited to her; archive folders; note) — plainer than a 
 `Name (ICG-ID)`, a "Contact" label and lighter frame, Persons first, lookup aids in the line
 (`Sunny (SX-0036) · UKR · 1998`).
 
+**Channels.** Import files name channels; the link to an app channel is the **import alias**, made by
+hand and deliberately (Label if needed, Channel with name, Shortname and Archive folder) — getting it
+wrong is chaos. So the catalogue links a channel name **only through an import alias**: never by name,
+never fuzzy. An unlinked name stays a name ("on `TEAM SKEET` — channel not linked"); creating or linking
+the channel connects every catalogue alias and set with that name at once, removing the import alias
+disconnects them. Measured on prod (2026-10-28): 537 channels, 0 sets, 0 archived sets and 0 open staged
+sets without a channel; 417 of 1,291 catalogue names linked (77 % of alias rows); 60 names linked by the
+import's exact-name match only (`METART` → MetArt, 3,097 staged sets); 20 archive channel folders (458
+folders) no channel claims as its Archive folder. A **Channel check** page comes first, before any load:
+archive folders no channel claims (hint by Shortname or name → set as Archive folder / create channel),
+names linked by name only (→ add as import alias), later the unlinked catalogue names ranked by what
+hangs on them (archive, waiting staged sets) — every item decided on its own, showing what it connects;
+the page also re-checks that no archived or staged set is without a channel.
+
 **Malformed ICG-IDs.** The 40 Q3 folders stay in quarantine and `ICG_ID_RE` is not widened; they are
 fixed by hand (folder name, file name and the file's ICGID line must agree), and the next pass picks
 them up.
