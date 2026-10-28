@@ -358,6 +358,29 @@ function writeWorkbook(inv: Inventory, meta: { decoder: string; walkedAt: string
     line('… the catalogue makes known', inv.network.coModelsBecomeKnown, pct(inv.network.coModelsBecomeKnown, inv.network.coModelsUnknown))
   }
 
+  if (inv.channels) {
+    const ch = inv.channels
+    const it = ch.integrity
+    head('Channels — integrity')
+    line('Sets in the app', it.sets)
+    line('… without a channel', it.setsNoChannel, pct(it.setsNoChannel, it.sets))
+    line('… of those with a confirmed archive folder', it.archivedNoChannel.length, it.archivedNoChannel.length ? 'FIX — see sheet Channel integrity' : 'OK — none')
+    line('Open staged sets', it.stagedOpen)
+    line('… without a channel', it.stagedNoChannel, it.stagedNoChannel ? `FIX — ${it.stagedNames.length} channel name(s), see sheet Channel integrity` : 'OK — none')
+    line('Archive channel folders (on disk)', it.archiveChannelFolders, `${it.archiveFolders.toLocaleString()} folders`)
+    line('… no channel names as its archive folder', it.unknownFolders.length, it.unknownFolders.length ? 'see sheet Channel integrity' : 'OK — none')
+    head('Channels — the app')
+    line('Channels', ch.app.total, `${ch.app.importAliases.toLocaleString()} import aliases`)
+    line('… without a Label', ch.app.noLabel)
+    line('… without a Shortname', ch.app.noShortName)
+    line('… without an Archive folder', ch.app.noFolder)
+    head('Channels — the catalogue (linked = an import alias you set, nothing else)')
+    line('Channel names in catalogue aliases', ch.catalogue.names)
+    line('… linked through an import alias', ch.catalogue.linked, pct(ch.catalogue.linked, ch.catalogue.names))
+    line('… not linked', ch.catalogue.unlinked, 'see sheet Catalogue channels')
+    line('Alias rows on a linked channel', ch.catalogue.aliasRowsLinked, pct(ch.catalogue.aliasRowsLinked, ch.catalogue.aliasRows))
+  }
+
   head('Cost (projection)')
   line('New Contacts', inv.cost.newContacts)
   line('Channel alias rows', inv.cost.aliasRows)
@@ -430,6 +453,30 @@ function writeWorkbook(inv: Inventory, meta: { decoder: string; walkedAt: string
     }
   }
 
+  if (inv.channels) {
+    const it = inv.channels.integrity
+    const ws = sheet(wb, 'Channel integrity', [
+      { header: 'Problem', key: 'kind', width: 36 },
+      { header: 'Name', key: 'name', width: 50 },
+      { header: 'Count', key: 'count', width: 10 },
+      { header: 'Detail', key: 'detail', width: 60 },
+    ])
+    for (const s of it.archivedNoChannel) ws.addRow({ kind: 'Archived set without channel', name: s.title, count: 1, detail: `${s.folder ?? ''}  ·  ${s.id}` })
+    for (const s of it.stagedNames) ws.addRow({ kind: 'Staged sets without channel', name: s.channelName, count: s.noChannel, detail: `${s.open} open staged set(s) name it` })
+    for (const f of it.unknownFolders) ws.addRow({ kind: 'Archive folder no channel claims', name: f.chanFolderName, count: f.folders, detail: 'no channel has this as its Archive folder' })
+
+    const cs = sheet(wb, 'Catalogue channels', [
+      { header: 'Channel name (import file)', key: 'name', width: 32 },
+      { header: 'Open staged sets', key: 'staged', width: 16 },
+      { header: 'Catalogue persons', key: 'persons', width: 17 },
+      { header: 'Linked to (import alias)', key: 'linked', width: 32 },
+      { header: 'Same name as (hint, not a link)', key: 'same', width: 32 },
+    ])
+    for (const r of inv.channels.catalogue.rows) {
+      cs.addRow({ name: r.channelName, staged: r.stagedOpen, persons: r.persons, linked: r.linkedTo ?? '', same: r.sameNameAs ?? '' })
+    }
+  }
+
   const all = sheet(wb, 'All folders', [
     { header: 'Folder', key: 'path', width: 44 },
     { header: 'ICG-ID', key: 'icg', width: 14 },
@@ -496,7 +543,7 @@ async function main() {
       getJson<InventoryContext>('/api/catalogue/inventory-context'),
       getJson<InventoryWorklist>('/api/archive/attribution-worklist'),
     ])
-    if (!Array.isArray(context.staged?.waiting)) {
+    if (!Array.isArray(context.staged?.waiting) || !context.channels) {
       throw new Error('the app answers in an older shape — rebuild prod with the latest code, then run again')
     }
     console.log(`${context.persons.length.toLocaleString()} persons, ${context.contacts.length.toLocaleString()} contacts, ${worklist.orphans.length.toLocaleString()} orphan folders`)
@@ -512,6 +559,10 @@ async function main() {
   console.log(`  clean        ${inv.health.clean.toLocaleString()}  (${pct(inv.health.clean, inv.folders)})`)
   console.log(`  partial      ${inv.health.partial.toLocaleString()}  (${pct(inv.health.partial, inv.folders)})`)
   console.log(`  quarantined  ${inv.health.quarantined.toLocaleString()}  (${pct(inv.health.quarantined, inv.folders)})  ${inv.noGo.quarantine ? 'NO-GO' : 'ok'}`)
+  if (inv.channels) {
+    const it = inv.channels.integrity
+    console.log(`  channels     ${inv.channels.catalogue.linked}/${inv.channels.catalogue.names} catalogue names linked · archived sets w/o channel ${it.archivedNoChannel.length} · staged w/o channel ${it.stagedNoChannel} · unclaimed archive folders ${it.unknownFolders.length}`)
+  }
   if (inv.staged) console.log(`  staged sets  ${inv.staged.setsUnblocked.toLocaleString()} of ${inv.staged.waiting.toLocaleString()} waiting get a recognisable cast`)
   console.log(`\nWorkbook: ${path.resolve(OUT)}`)
 }

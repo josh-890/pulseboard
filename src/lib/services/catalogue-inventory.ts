@@ -455,6 +455,31 @@ export type InventoryContext = {
     waiting: { id: string; title: string; nonPersons: string[] }[]
   }
   size: { databaseBytes: number; contactBytes: number; contactRows: number; avatarRows: number }
+  channels: ChannelContext
+}
+
+/**
+ * The app's channels and the channel integrity checks. A catalogue channel name
+ * links to a channel ONLY through an import alias the user set (no name or
+ * fuzzy match) — so the report counts exactly that, and lists name look-alikes
+ * separately as a hint, never as a link.
+ */
+export type ChannelContext = {
+  channels: {
+    id: string
+    name: string
+    shortName: string | null
+    channelFolder: string | null
+    hasLabel: boolean
+    importAliases: string[]
+  }[]
+  sets: { total: number; noChannel: number }
+  /** Sets with a confirmed archive folder but no channel — should be none */
+  archivedNoChannel: { id: string; title: string; folder: string | null }[]
+  /** Open staged sets, per channel name as the import file wrote it */
+  staged: { channelName: string; open: number; noChannel: number }[]
+  /** Archive channel folders (folders on disk), per channel folder name */
+  archiveFolders: { chanFolderName: string | null; folders: number }[]
 }
 
 /** The orphan folders and channel aliases (GET /api/archive/attribution-worklist) */
@@ -523,6 +548,127 @@ export type Inventory = {
     databaseBytes: number | null
   }
   noGo: { quarantine: boolean }
+  channels: ChannelReport | null
+}
+
+export type ChannelReport = {
+  app: { total: number; noLabel: number; noShortName: number; noFolder: number; importAliases: number }
+  integrity: {
+    sets: number
+    setsNoChannel: number
+    archivedNoChannel: ChannelContext['archivedNoChannel']
+    stagedOpen: number
+    stagedNoChannel: number
+    /** Channel names of open staged sets without a channel */
+    stagedNames: { channelName: string; open: number; noChannel: number }[]
+    archiveChannelFolders: number
+    archiveFolders: number
+    /** Channel folders in the archive that no channel names as its archive folder */
+    unknownFolders: { chanFolderName: string; folders: number }[]
+  }
+  catalogue: {
+    names: number
+    linked: number
+    unlinked: number
+    aliasRows: number
+    aliasRowsLinked: number
+    rows: CatalogueChannelRow[]
+  }
+}
+
+export type CatalogueChannelRow = {
+  channelName: string
+  /** Contacts-to-be (catalogue identities) with an alias on it */
+  persons: number
+  /** Open staged sets that name it */
+  stagedOpen: number
+  linkedTo: string | null
+  /** Not linked, but an app channel carries this name — a hint, never a link */
+  sameNameAs: string | null
+}
+
+const channelKey = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+export function buildChannelReport(records: FolderRecord[], ctx: ChannelContext): ChannelReport {
+  const byAlias = new Map<string, string>()
+  const byName = new Map<string, string>()
+  for (const c of ctx.channels) {
+    for (const a of c.importAliases) byAlias.set(a.trim(), c.name)
+    byName.set(channelKey(c.name), c.name)
+  }
+  const linkOf = (name: string) => byAlias.get(name.trim()) ?? null
+
+  const persons = new Map<string, number>()
+  const aliasRowsOf = new Map<string, number>()
+  for (const r of records) {
+    if (!r.icgId) continue
+    const seen = new Set<string>()
+    for (const a of r.aliases) {
+      const ch = a.slice(0, a.indexOf('|'))
+      if (!ch) continue
+      aliasRowsOf.set(ch, (aliasRowsOf.get(ch) ?? 0) + 1)
+      if (!seen.has(ch)) {
+        seen.add(ch)
+        persons.set(ch, (persons.get(ch) ?? 0) + 1)
+      }
+    }
+  }
+  const stagedOf = new Map(ctx.staged.map((s) => [s.channelName.trim(), s]))
+  const names = new Set([...persons.keys(), ...ctx.staged.map((s) => s.channelName.trim())])
+
+  const rows: CatalogueChannelRow[] = [...names].map((channelName) => {
+    const linkedTo = linkOf(channelName)
+    return {
+      channelName,
+      persons: persons.get(channelName) ?? 0,
+      stagedOpen: stagedOf.get(channelName)?.open ?? 0,
+      linkedTo,
+      sameNameAs: linkedTo ? null : (byName.get(channelKey(channelName)) ?? null),
+    }
+  })
+  rows.sort((a, b) => b.stagedOpen - a.stagedOpen || b.persons - a.persons || a.channelName.localeCompare(b.channelName))
+
+  const catalogueNames = rows.filter((r) => r.persons > 0)
+  let aliasRows = 0
+  let aliasRowsLinked = 0
+  for (const [ch, n] of aliasRowsOf) {
+    aliasRows += n
+    if (linkOf(ch)) aliasRowsLinked += n
+  }
+
+  const folders = new Set(ctx.channels.map((c) => c.channelFolder).filter((f): f is string => Boolean(f)))
+  const unknownFolders = ctx.archiveFolders
+    .filter((f): f is { chanFolderName: string; folders: number } => Boolean(f.chanFolderName) && !folders.has(f.chanFolderName!))
+    .sort((a, b) => b.folders - a.folders)
+
+  return {
+    app: {
+      total: ctx.channels.length,
+      noLabel: ctx.channels.filter((c) => !c.hasLabel).length,
+      noShortName: ctx.channels.filter((c) => !c.shortName).length,
+      noFolder: ctx.channels.filter((c) => !c.channelFolder).length,
+      importAliases: ctx.channels.reduce((n, c) => n + c.importAliases.length, 0),
+    },
+    integrity: {
+      sets: ctx.sets.total,
+      setsNoChannel: ctx.sets.noChannel,
+      archivedNoChannel: ctx.archivedNoChannel,
+      stagedOpen: ctx.staged.reduce((n, s) => n + s.open, 0),
+      stagedNoChannel: ctx.staged.reduce((n, s) => n + s.noChannel, 0),
+      stagedNames: ctx.staged.filter((s) => s.noChannel > 0).sort((a, b) => b.noChannel - a.noChannel),
+      archiveChannelFolders: ctx.archiveFolders.filter((f) => f.chanFolderName).length,
+      archiveFolders: ctx.archiveFolders.reduce((n, f) => n + f.folders, 0),
+      unknownFolders,
+    },
+    catalogue: {
+      names: catalogueNames.length,
+      linked: catalogueNames.filter((r) => r.linkedTo).length,
+      unlinked: catalogueNames.filter((r) => !r.linkedTo).length,
+      aliasRows,
+      aliasRowsLinked,
+      rows,
+    },
+  }
 }
 
 export function buildInventory(
@@ -702,5 +848,6 @@ export function buildInventory(
       databaseBytes: context?.size.databaseBytes ?? null,
     },
     noGo: { quarantine: quarantineRate >= QUARANTINE_NO_GO },
+    channels: context ? buildChannelReport(records, context.channels) : null,
   }
 }

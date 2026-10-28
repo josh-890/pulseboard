@@ -40,6 +40,7 @@ const context = (over: Partial<InventoryContext> = {}): InventoryContext => ({
   avatars: [],
   staged: { open: 0, noCast: 0, waiting: [] },
   size: { databaseBytes: 1_000_000, contactBytes: 0, contactRows: 0, avatarRows: 0 },
+  channels: { channels: [], sets: { total: 0, noChannel: 0 }, archivedNoChannel: [], staged: [], archiveFolders: [] },
   ...over,
 });
 
@@ -244,5 +245,39 @@ describe("the aggregate", () => {
     const inv = buildInventory([anna], context({ avatars: [{ icgId: "AY-006S", ok: false, error: "VipsJpeg: premature end" }] }), null);
     expect(inv.records[0].problems).toEqual([expect.objectContaining({ code: "F4", detail: expect.stringContaining("premature end") })]);
     expect(inv.portraits).toMatchObject({ found: 1, refused: 1 });
+  });
+
+  it("channels: linked only through an import alias; a same-name channel is a hint, never a link", () => {
+    const inv = buildInventory(
+      [anna],
+      context({
+        channels: {
+          channels: [
+            { id: "c1", name: "MetArt", shortName: "MA", channelFolder: "MA-MetArt", hasLabel: true, importAliases: [] },
+            { id: "c2", name: "Femjoy", shortName: null, channelFolder: null, hasLabel: false, importAliases: ["FEMJOY"] },
+          ],
+          sets: { total: 10, noChannel: 2 },
+          archivedNoChannel: [{ id: "s9", title: "Lost", folder: "2001-01-01-XX Lost" }],
+          staged: [
+            { channelName: "FEMJOY", open: 3, noChannel: 0 },
+            { channelName: "TEAM SKEET", open: 2, noChannel: 2 },
+          ],
+          archiveFolders: [
+            { chanFolderName: "MA-MetArt", folders: 40 },
+            { chanFolderName: "TS-TeamSkeet", folders: 7 },
+            { chanFolderName: null, folders: 1 },
+          ],
+        },
+      }),
+      null,
+    );
+    const ch = inv.channels!;
+    expect(ch.app).toMatchObject({ total: 2, noLabel: 1, noShortName: 1, noFolder: 1, importAliases: 1 });
+    expect(ch.integrity).toMatchObject({ setsNoChannel: 2, stagedOpen: 5, stagedNoChannel: 2, archiveChannelFolders: 2 });
+    expect(ch.integrity.unknownFolders).toEqual([{ chanFolderName: "TS-TeamSkeet", folders: 7 }]);
+    expect(ch.catalogue).toMatchObject({ names: 1, linked: 0, unlinked: 1 });
+    const metart = ch.catalogue.rows.find((r) => r.channelName === "METART");
+    expect(metart).toMatchObject({ persons: 1, linkedTo: null, sameNameAs: "MetArt" });
+    expect(ch.catalogue.rows.find((r) => r.channelName === "FEMJOY")).toMatchObject({ stagedOpen: 3, linkedTo: "Femjoy" });
   });
 });

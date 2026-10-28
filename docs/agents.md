@@ -477,7 +477,7 @@ node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.j
 promotion (open staged sets waiting on a cast member who is not a developed Person — a thin
 Contact made by the import does not count — and how many of those become recognisable, with or
 without a portrait), for the archive (orphan folders whose person token gets a catalogue name,
-by name only — `catalogue-join` matches by set) and the network, and the projected cost. A cached
+by name only — `catalogue-join` matches by set) and the network, the projected cost, and the channels: integrity (sets and open staged sets without a channel, archive channel folders no channel claims) and which catalogue channel names are linked — through an import alias only; a same-name channel is listed as a hint, never counted as a link (sheets *Channel integrity*, *Catalogue channels*). A cached
 run needs no re-walk to pick up a newer app; an app too old for the agent stops it with a message. Then one
 sheet per problem kind — the fix-list — plus *Persons (hint only)*, *Staged casts*,
 *Archive names* and *All folders*.
