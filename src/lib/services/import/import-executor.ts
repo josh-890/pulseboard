@@ -11,6 +11,7 @@ import { reconcileContacts } from '@/lib/services/relationship-service'
 import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { addChannelImportAlias, createChannelRecord } from '@/lib/services/channel-service'
+import { upsertImportedContact } from '@/lib/services/contact-service'
 import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
@@ -1610,16 +1611,8 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
         // the previous behaviour: there is nothing to hold on to.
         let resolvedContactId: string | null = null
         if (p.icgId) {
-          const contact = await tx.contact.upsert({
-            where: { icgId: p.icgId },
-            create: {
-              icgId: p.icgId,
-              name: p.name,
-              nameNorm: normalizeForSearch(p.name),
-              source: 'import',
-            },
-            update: { name: p.name, nameNorm: normalizeForSearch(p.name) },
-          })
+          // Her own name stays if the user or her catalogue file set it (ADR-0038)
+          const contact = await upsertImportedContact(tx, { icgId: p.icgId, name: p.name })
           resolvedContactId = contact.id
         }
         await tx.setCreditRaw.create({
@@ -1719,11 +1712,7 @@ export async function importCoModel(item: ImportItem): Promise<ImportResult> {
       }
       // No curated Person — record/refresh a Contact ghost, then the claim.
       if (!icgId) return // nothing addressable to record
-      const ref = await tx.contact.upsert({
-        where: { icgId },
-        create: { icgId, name, nameNorm: normalizeForSearch(name), thumbUrl, source: 'import' },
-        update: { name, nameNorm: normalizeForSearch(name), thumbUrl: thumbUrl ?? undefined },
-      })
+      const ref = await upsertImportedContact(tx, { icgId, name, thumbUrl })
       await tx.claimedCollaboration.upsert({
         where: { subjectPersonId_counterpartRefId: { subjectPersonId, counterpartRefId: ref.id } },
         create: { subjectPersonId, counterpartRefId: ref.id, sourceLabel: 'import' },

@@ -17,6 +17,7 @@
  */
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
+import { buildContactSearchNorm } from '@/lib/services/contact-service'
 import type {
   AttributionDecision,
   FolderDevelopStatus,
@@ -82,7 +83,13 @@ async function resolveIdentity(
   // `source: 'import'` — the enum has only import|manual, and this identity did
   // come from an import file (the catalogue's), just by way of the archive.
   const contact = await tx.contact.create({
-    data: { icgId, name, nameNorm: normalizeForSearch(name), source: 'import' },
+    data: {
+      icgId,
+      name,
+      nameNorm: normalizeForSearch(name),
+      searchNorm: buildContactSearchNorm({ name, icgId }),
+      source: 'import',
+    },
     select: { id: true },
   })
   return { personId: null, contactId: contact.id, created: true }

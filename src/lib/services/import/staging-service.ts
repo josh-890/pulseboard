@@ -26,6 +26,7 @@ import { buildImportItemDecisions } from './build-decisions'
 import { isEmptyDiff, type ImportItemDecisions } from './diff'
 import { resolvePlatformFromUrl } from '@/lib/services/scrape-source-service'
 import { ICG_ID_EXTERNAL_RE } from '@/lib/icg-id'
+import { upsertImportedContact } from '@/lib/services/contact-service'
 
 /**
  * Find an existing staging set that is a *probable* duplicate of an incoming one:
@@ -838,11 +839,7 @@ async function createStagingSetsForBatch(
     }
   }
   for (const [icgId, name] of contactByIcg) {
-    await prisma.contact.upsert({
-      where: { icgId },
-      create: { icgId, name, nameNorm: normalizeForSearch(name), source: 'import' },
-      update: { name, nameNorm: normalizeForSearch(name) },
-    })
+    await upsertImportedContact(prisma, { icgId, name })
   }
 
   // Store summary on the batch for quick display

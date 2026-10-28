@@ -4,6 +4,7 @@ import { normalizeForSearch } from "@/lib/normalize";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { RelationshipType } from "@/generated/prisma/client";
 import type { TxClient } from "./cascade-helpers";
+import { buildContactSearchNorm } from "@/lib/services/contact-service";
 
 // ── Held work co-occurrence ─────────────────────────────────────────────────
 // Computed (not stored): people who actually share a Set with the subject —
@@ -247,7 +248,14 @@ export async function createRelationship(input: CreateRelationshipInput): Promis
     if (!toPersonId && !toRefId && input.newRefName?.trim()) {
       const name = input.newRefName.trim();
       const ref = await tx.contact.create({
-        data: { name, nameNorm: normalizeForSearch(name), source: "manual" },
+        // Created by hand: the user named her (ADR-0038) — no file or import renames her
+        data: {
+          name,
+          nameNorm: normalizeForSearch(name),
+          searchNorm: buildContactSearchNorm({ name }),
+          source: "manual",
+          nameSetByUser: true,
+        },
       });
       toRefId = ref.id;
     }
@@ -283,6 +291,9 @@ export type ContactRow = {
   id: string;
   icgId: string | null;
   name: string;
+  /** Lookup aids from her catalogue file (ADR-0038) — tell namesakes apart */
+  birthYear: number | null;
+  nationality: string | null;
   thumbUrl: string | null;
   note: string | null;
   ignoredAt: Date | null;
@@ -356,6 +367,9 @@ type ContactWithCounts = {
   id: string;
   icgId: string | null;
   name: string;
+  birthYear: number | null;
+  nationality: string | null;
+  portraitKey: string | null;
   thumbUrl: string | null;
   note: string | null;
   ignoredAt: Date | null;
@@ -368,6 +382,8 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     id: r.id,
     icgId: r.icgId,
     name: r.name,
+    birthYear: r.birthYear,
+    nationality: r.nationality,
     thumbUrl: r.thumbUrl,
     note: r.note,
     ignoredAt: r.ignoredAt,
@@ -375,8 +391,8 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     relationshipCount: r._count.relationshipsTo,
     mentionCount: r._count.claims + r._count.relationshipsTo,
     archiveFolderCount: r._count.attributions,
-    // Filled in by withCatalogueAvatars — see the note on the field.
-    avatarUrl: null,
+    // A portrait the user chose wins; else withCatalogueAvatars fills it in.
+    avatarUrl: r.portraitKey ? buildUrl(r.portraitKey) : null,
     unlocksSetCount: unlock,
     subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
   };
@@ -396,9 +412,12 @@ function contactSearchWhere(q?: string, includeIgnored?: boolean) {
   const t = q?.trim();
   return {
     ...(includeIgnored ? {} : { ignoredAt: null }),
+    // searchNorm holds name, AKA, channel aliases and ICG-ID (trigram index);
+    // name and ICG-ID stay for Contacts written before it existed
     ...(t
       ? {
           OR: [
+            { searchNorm: { contains: normalizeForSearch(t) } },
             { name: { contains: t, mode: "insensitive" as const } },
             { icgId: { contains: t, mode: "insensitive" as const } },
           ],

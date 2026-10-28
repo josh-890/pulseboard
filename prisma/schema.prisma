@@ -628,6 +628,9 @@ model Contact {
   catalogueDate       DateTime? @db.Date
   /// Her folder is gone from the catalogue — the Contact stays, marked
   goneFromCatalogueAt DateTime?
+  /// A portrait the user chose (MinIO key) — sticks: no catalogue run replaces it,
+  /// and it becomes the headshot when she is developed. Else the catalogue portrait.
+  portraitKey         String?
   /// Normalised name, AKA, channel aliases and ICG-ID in one string for search
   /// (trigram GIN index, see migration 20261028120000_catalogue_contacts)
   searchNorm          String?
