@@ -4,12 +4,15 @@ export default function ContactsLoading() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex items-center gap-3">
-        <Skeleton className="h-10 w-10 rounded-xl" />
-        <div>
-          <Skeleton className="h-7 w-32" />
-          <Skeleton className="mt-1 h-4 w-64" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-xl" />
+          <div>
+            <Skeleton className="h-7 w-32" />
+            <Skeleton className="mt-1 h-4 w-64" />
+          </div>
         </div>
+        <Skeleton className="h-8 w-36 rounded-md" />
       </div>
 
       {/* Toolbar */}

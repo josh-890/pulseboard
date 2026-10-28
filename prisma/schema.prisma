@@ -631,6 +631,8 @@ model Contact {
   /// A portrait the user chose (MinIO key) — sticks: no catalogue run replaces it,
   /// and it becomes the headshot when she is developed. Else the catalogue portrait.
   portraitKey         String?
+  /// The catalogue run that created her — Undo of that run removes her unless you used her
+  catalogueRunId      String?
   /// Normalised name, AKA, channel aliases and ICG-ID in one string for search
   /// (trigram GIN index, see migration 20261028120000_catalogue_contacts)
   searchNorm          String?
@@ -643,6 +645,7 @@ model Contact {
 
   @@index([nameNorm])
   @@index([ignoredAt])
+  @@index([catalogueRunId])
   @@map("PersonRef")
 }
 
@@ -681,9 +684,99 @@ model CatalogueSet {
   castIcgIds  String[]
   /// What the files disagree on, e.g. { "title": ["A", "B"] }
   disagreements Json?
+  /// Date of the newest file that gave title, date and channel — newest wins
+  sourceDate  DateTime?  @db.Date
+  /// The run that first brought it — Undo of that run removes it
+  createdRunId String?
 
   @@index([date])
+  @@index([createdRunId])
   @@map("catalogue_set")
+}
+
+enum CatalogueRunStatus {
+  RUNNING
+  DONE
+  FAILED
+  UNDONE
+}
+
+/// One catalogue run (ADR-0038 S3): what it did, what went wrong, and Undo.
+model CatalogueRun {
+  id         String             @id @default(cuid())
+  startedAt  DateTime           @default(now())
+  finishedAt DateTime?
+  status     CatalogueRunStatus @default(RUNNING)
+  /// "first" (the first load), "changes" (only what changed) or "all" (a full pass)
+  mode       String
+  /// new / enriched / unchanged / persons / quarantined / flagged / sets / gone …
+  counts     Json               @default("{}")
+  undoneAt   DateTime?
+
+  changes CatalogueRunChange[]
+
+  @@index([status])
+  @@map("catalogue_run")
+}
+
+/// A catalogue person folder as last loaded — the state change detection and
+/// the problem list hang off. Never a Person, never a Contact by itself.
+model CatalogueFolder {
+  /// `<Initial>\<Name_(ICG-ID)>` relative to the catalogue root
+  path       String    @id
+  /// Valid identity, or null when quarantined
+  icgId      String?
+  name       String
+  /// "contact", "person" (a developed Person — hint only) or "quarantined"
+  kind       String
+  /// Import file names, sizes and times plus image names — what changed means re-sent
+  signature  String
+  newestFile String?
+  newestDate DateTime? @db.Date
+  /// The newest import file in MinIO (gzip) — Develop and the Person hint read it
+  fileKey    String?
+  firstRunId String
+  lastRunId  String
+  goneAt     DateTime?
+  updatedAt  DateTime  @updatedAt
+
+  problems CatalogueProblem[]
+
+  @@index([icgId])
+  @@index([firstRunId])
+  @@map("catalogue_folder")
+}
+
+/// The current problem list (Q1–Q5 quarantine, F1–F6 flags): replaced for a
+/// folder each time it is loaded, so a fixed file drops off by itself.
+model CatalogueProblem {
+  id         String          @id @default(cuid())
+  folderPath String
+  folder     CatalogueFolder @relation(fields: [folderPath], references: [path], onDelete: Cascade)
+  code       String
+  detail     String
+  line       Int?
+  example    String?
+
+  @@index([code])
+  @@index([folderPath])
+  @@map("catalogue_problem")
+}
+
+/// What a run changed that existed before it — restored by Undo. Rows a run
+/// created are tagged with the run instead (Contact.catalogueRunId,
+/// CatalogueSet.createdRunId, CatalogueFolder.firstRunId).
+model CatalogueRunChange {
+  id     String       @id @default(cuid())
+  runId  String
+  run    CatalogueRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// "contact", "set" or "folder"
+  entity String
+  key    String
+  before Json
+
+  @@unique([runId, entity, key])
+  @@map("catalogue_run_change")
 }
 
 // Stored "worked-with" evidence asserted by an import file: subject Person

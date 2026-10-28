@@ -1,6 +1,6 @@
 # Agents — what runs where, and with which switches
 
-Seven programs run **outside** the app, on the machines that hold the data. The app
+Eight programs run **outside** the app, on the machines that hold the data. The app
 server cannot reach the archive or the person catalogue, so everything that touches
 those filesystems is an agent that pulls work from the app and pushes small results
 back.
@@ -41,6 +41,7 @@ Common to all of them:
 | Propose who is in the orphan archive folders | `node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json` |
 | …and actually write those proposals into the queue | same, plus `--post` |
 | Judge the whole catalogue before it becomes Contacts (ADR-0038, read-only) | `node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.json` |
+| Load the catalogue into the app as Contacts and catalogue sets (ADR-0038) | `node catalogue-load.mjs` (first time: a prod backup first) |
 
 ---
 
@@ -498,6 +499,48 @@ picture; the Summary says how many were not sent yet.
 structure is checked (cut off, wrong format). The Summary names which.
 
 ---
+
+## `catalogue-load.ts` / `catalogue-load.mjs` — load the catalogue (ADR-0038)
+
+Every catalogue identity becomes a **Contact** (never a Person), every set goes into the catalogue
+set table, each folder's newest import file is kept in MinIO (for Develop), and what is wrong lands on
+the runs page — **/people/contacts/runs** — where the latest run can be **undone**.
+
+```powershell
+# the very first load — on the WSL side, a backup the app checks (≤ 24 h old):
+#   bash scripts/tenant-backup.sh xpulse
+node catalogue-load.mjs --dry-run      # how many folders would be sent
+node catalogue-load.mjs --limit 200    # a first look (nothing is marked gone)
+node catalogue-load.mjs                # the load
+```
+
+It reads `PERSON_CATALOGUE_ROOT`, `ARCHIVE_BASE_URL`, `ARCHIVE_API_KEY`, `ARCHIVE_TENANT` from the `.env`
+next to it. The app does all judging with its own parser — the agent only reads files.
+
+| Flag | What it does |
+|---|---|
+| `--catalogue DIR` | Catalogue root, else `PERSON_CATALOGUE_ROOT` |
+| `--all` | Send every folder, changed or not (a full pass) |
+| `--limit N` | Only the first N folders; folders not seen are **not** marked gone |
+| `--batch N` | Folders per request (default 25) |
+| `--dry-run` | Count what would be sent; open no run |
+
+- **Only changes are sent.** The app answers the folder index with what it holds; a folder whose
+  import files (name, size, time) and image names are unchanged is skipped. A run that changes
+  nothing leaves no entry.
+- **The first load is refused** without a prod backup from the last 24 hours —
+  `bash scripts/tenant-backup.sh xpulse` records it (`Setting backup.lastAt`) once the dump is complete.
+- **One folder fails alone:** it comes back as *failed* with its error, the run goes on.
+- **A folder gone from the catalogue** is never deleted: its Contact is marked "no longer in the
+  catalogue" (only on a run without `--limit`).
+- **Persons are never written** — their folder, file and sets are kept as a hint.
+- **Q1–Q5 quarantine** (no Contact), **F1–F6 flags** (Contact taken, part marked) — the same
+  taxonomy as the inventory. Fix a file on the drive and run again: it drops off the list.
+- **Undo** (runs page): latest run first. Removes what the run created and restores what it
+  changed; a Contact you worked with (name, portrait, note, ignored, credits, links, archive
+  folders) stays, only her catalogue data goes. Stored files stay in MinIO (harmless).
+- If a run is interrupted it stays *running*; the next run, two hours later at the earliest,
+  marks it failed (it can still be undone).
 
 ## When you have added new sets to the archive
 

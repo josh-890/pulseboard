@@ -262,9 +262,9 @@ export function inCoverSample(file: string): boolean {
 
 export const nameKey = (v: string) => normalizeTitle(v)
 
-type Version = { name: string; date: string; nameIcg: string | null; file: ImportFileInput }
+export type Version = { name: string; date: string; nameIcg: string | null; file: ImportFileInput }
 
-function versionsOf(files: ImportFileInput[]): Version[] {
+export function versionsOf(files: ImportFileInput[]): Version[] {
   return files
     .flatMap((f) => {
       const meta = parseFilename(f.name)
@@ -273,7 +273,7 @@ function versionsOf(files: ImportFileInput[]): Version[] {
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
 
-function tryParse(content: string): ParsedImportData | null {
+export function tryParse(content: string): ParsedImportData | null {
   try {
     return parseImportFile(content)
   } catch {

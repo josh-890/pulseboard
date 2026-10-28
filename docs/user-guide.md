@@ -163,6 +163,25 @@ already means the per-person Reference Session.)
   (`UKR · 1998`) next to the ICG-ID — what tells the many "Sunny"s apart. Search finds a Contact by
   name, AKA, any channel alias or ICG-ID.
 
+#### Catalogue runs
+
+**Route:** `/people/contacts/runs` — **Catalogue runs** on the Contacts header.
+
+The person catalogue is loaded into the app by the `catalogue-load` agent on the machine that holds
+it (see `docs/agents.md`). Each run is listed with what it did — folders, new and enriched Contacts,
+Persons (only noted, never changed), quarantined and flagged folders, sets new and updated, folders
+gone from the catalogue. Below, **Problems now** lists what is wrong in the loaded catalogue by kind
+(Q1–Q5: quarantined, no Contact; F1–F6: Contact taken, part marked) with folder, reason and line. Fix
+the file on the catalogue drive and run again — the folder drops off the list.
+
+**Undo run** sits on the latest run only (undo later runs first). It shows first what it will do:
+Contacts the run created are removed, **except those you worked with** (renamed, portrait, note,
+ignored, credited, linked, archive folders) — they stay and only lose the catalogue data; Contacts
+that existed get their earlier data back; catalogue sets and folders the same way.
+
+The **first** load needs a fresh prod backup (`bash scripts/tenant-backup.sh xpulse`, under 24 hours
+old) — the page shows when the last one was made.
+
 #### A Contact's page
 
 Click a Contact's name (in the register, a staged set's cast, a credit on a set page or the archive's
