@@ -164,4 +164,14 @@ enough to fix by hand.
 ## Open
 
 - How the agent learns that a fresh prod backup exists (`db-backup.sh` runs from WSL today).
-- Size and speed are proven on a full-size dev copy before the first load.
+- ~~Size and speed are proven on a full-size dev copy before the first load.~~ **Passed (S1,
+  2026-10-28)** on a copy of xpulse filled with the real 39,057 identities and 223k channel
+  aliases and 985k sets (real CoverIds and casts, synthetic titles/dates; `scripts/catalogue-proof.ts`):
+  - **Space:** +218 MB (449 → 668 MB): Contacts 20 MB, aliases 41 MB, sets 159 MB — within the
+    agreed ≲ 225 MB. The alias table uses its natural key as primary key (no surrogate id), −16 MB.
+  - **Nothing slower:** dashboard, /people, person page, /sets, set page, /staging-sets and the
+    person picker unchanged within run-to-run noise (2–70 ms medians, repeated runs).
+  - **Where Contacts appear:** S2's contact search ~5 ms per query (trigram on `searchNorm`);
+    the register's current name search 14 → 49 ms (switches to `searchNorm` in S2); unlocking head
+    46 → 52 ms. All far under 0.5 s.
+  - **Matching:** archive match ~2 ms per folder (sets on the date ± 1 day); "her sets" ~1.4 ms.

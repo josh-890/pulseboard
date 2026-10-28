@@ -125,6 +125,23 @@ Person ──┬── PersonAlias ──< PersonAliasChannel >── Channel
          └── PersonCurrentState  (cache row, 1:1)
 ```
 
+**Contacts** (`Contact`, table `PersonRef`, ADR-0022) are known-but-not-developed people,
+keyed by an optional unique ICG-ID. ADR-0038 makes the person catalogue their register:
+
+```
+Contact (PersonRef) ──< ContactChannelAlias   (channelName as written; linked to a Channel
+                                                only through Channel.importAliases, when read)
+CatalogueSet  (coverId PK, date, altDates[], channelName, title, isVideo, castIcgIds[] GIN,
+               disagreements)  — reference knowledge, never a staging set
+```
+
+Catalogue fields on a Contact are read-only evidence from her own file: `catalogueName`,
+`aka[]`, `birthYear`, `nationality` (IOC), `catalogueDate`, `goneFromCatalogueAt`.
+`nameSetByUser` (true for a hand-made Contact) keeps `name` from being changed by a file or an
+import. `searchNorm` (name, AKA, channel aliases, ICG-ID, normalised; trigram GIN) is the
+search key. Measured on a full-size xpulse copy (S1, 2026-10-28): 39k Contacts 20 MB, 223k
+aliases 41 MB, 985k sets 159 MB.
+
 `Era` is the per-person *timeline spine*: every event log row references one
 (`eraId`). The fold walks all deltas/events for a person, sorted by their own
 date, with the Era providing only its anchor date as fallback.

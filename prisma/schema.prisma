@@ -615,6 +615,24 @@ model Contact {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  // ── Catalogue evidence (ADR-0038) — read-only, from the person's own file ──
+  /// The name in her own catalogue file; `name` shows it unless `nameSetByUser`
+  catalogueName       String?
+  /// The user renamed her (or created her by hand): no file or import renames her
+  nameSetByUser       Boolean   @default(false)
+  aka                 String[]  @default([])
+  birthYear           Int?
+  /// IOC code (resolveNationalityToIoc)
+  nationality         String?
+  /// Date in the newest file's name (`YYYY-MM-DD_Name_(ICG-ID)`)
+  catalogueDate       DateTime? @db.Date
+  /// Her folder is gone from the catalogue — the Contact stays, marked
+  goneFromCatalogueAt DateTime?
+  /// Normalised name, AKA, channel aliases and ICG-ID in one string for search
+  /// (trigram GIN index, see migration 20261028120000_catalogue_contacts)
+  searchNorm          String?
+
+  channelAliases  ContactChannelAlias[]
   relationshipsTo PersonRelationship[]
   claims          ClaimedCollaboration[]     @relation("ClaimCounterpartRef")
   credits         SetCreditRaw[]             @relation("CreditContact")
@@ -623,6 +641,46 @@ model Contact {
   @@index([nameNorm])
   @@index([ignoredAt])
   @@map("PersonRef")
+}
+
+/// A Contact's alias on a channel, as her catalogue file names it (ADR-0038).
+/// The channel stays a name: it links to a Channel only through an import alias
+/// the user set, looked up when read — so linking a channel connects every alias
+/// at once and unlinking disconnects them, with nothing to rewrite.
+model ContactChannelAlias {
+  contactId   String
+  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  /// As the import file writes it ("TEAM SKEET")
+  channelName String
+  alias       String
+  aliasNorm   String
+
+  @@id([contactId, channelName, alias])
+  @@index([channelName])
+  @@index([aliasNorm])
+  @@map("contact_channel_alias")
+}
+
+/// One catalogue set (ADR-0038 §4): reference knowledge, never a staging set.
+/// Keyed by the catalogue's own set id (CoverId, globally unique). The cast is
+/// the union over every file listing the set; title, date and channel come from
+/// the newest file; disagreements between files are kept, not hidden. Read only
+/// by the archive matcher and the catalogue-sets view.
+model CatalogueSet {
+  coverId     String     @id
+  /// Release date from the newest file; null when the source says 0000-00-00
+  date        DateTime?  @db.Date
+  /// Other dates other files gave — the matcher tries every one
+  altDates    DateTime[] @db.Date
+  channelName String
+  title       String
+  isVideo     Boolean    @default(false)
+  castIcgIds  String[]
+  /// What the files disagree on, e.g. { "title": ["A", "B"] }
+  disagreements Json?
+
+  @@index([date])
+  @@map("catalogue_set")
 }
 
 // Stored "worked-with" evidence asserted by an import file: subject Person
