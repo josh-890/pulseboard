@@ -1,6 +1,6 @@
 # ADR-0027: Archive ↔ person-catalogue join, set-first attribution
 
-- **Status:** Accepted
+- **Status:** Accepted — §1 and the rejected "bulk-importing the person catalogue" superseded in part by ADR-0038 (2026-10-28): identities and a compact catalogue-set table are loaded; §4 (nothing materialises without confirmation) stands
 - **Date:** 2026-08-02
 
 ## Context
