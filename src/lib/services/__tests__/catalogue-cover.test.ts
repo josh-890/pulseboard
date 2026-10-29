@@ -9,7 +9,13 @@ import { prisma } from "@/lib/db";
 import { minioClient, getMinioBucket } from "@/lib/minio";
 import { normalizeForSearch } from "@/lib/normalize";
 import {
+  AGENT_PASS_SETTING,
+  AGENT_RUNNING_SETTING,
   deliverCover,
+  getAgentPass,
+  getAgentRunningSince,
+  recordAgentPass,
+  recordAgentPassStarted,
   getCoverRequest,
   listWantedCovers,
   reportCoversNotFound,
@@ -138,3 +144,24 @@ describe("the agent (catalogue-load --covers) against the dev server", () => {
     }
   }, 60_000);
 });
+
+describe("a scheduled pass on the runs page", () => {
+  it("shows as running from its start until it reports its end", async () => {
+    const keys = [AGENT_PASS_SETTING, AGENT_RUNNING_SETTING];
+    const before = await prisma.setting.findMany({ where: { key: { in: keys } } });
+    try {
+      await recordAgentPassStarted();
+      expect(await getAgentRunningSince()).not.toBeNull();
+      await recordAgentPass({
+        at: new Date().toISOString(), durationMs: 1000, coversDelivered: 0, coversNotFound: 0, coversFailed: 0,
+        foldersSent: 0, runId: null, error: null,
+      });
+      expect(await getAgentRunningSince()).toBeNull();
+      expect((await getAgentPass())?.durationMs).toBe(1000);
+    } finally {
+      await prisma.setting.deleteMany({ where: { key: { in: keys } } });
+      if (before.length) await prisma.setting.createMany({ data: before });
+    }
+  });
+});
+

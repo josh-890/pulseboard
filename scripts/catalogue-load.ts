@@ -313,6 +313,11 @@ type FolderResult = { path: string; outcome: string; flagged: boolean; error?: s
 /** One scheduled pass: covers first (someone is waiting for them), then catalogue changes */
 async function watchPass(): Promise<void> {
   const started = Date.now()
+  if (!COVERS_ONLY) {
+    console.log(`${new Date(started).toISOString()}  pass started`)
+    // The runs page shows the pass while it runs (the walk takes minutes)
+    await call('/api/catalogue/agent/pass', { phase: 'started' }).catch(() => {})
+  }
   const pass = { coversDelivered: 0, coversNotFound: 0, coversFailed: 0, foldersSent: 0, runId: null as string | null, error: null as string | null }
   try {
     const covers = await deliverCovers()
@@ -326,10 +331,10 @@ async function watchPass(): Promise<void> {
     if (!known) {
       // --covers: no catalogue walk
     } else if (!hasRun) {
-      pass.error = 'The first catalogue load is not done — start it by hand'
+      pass.error = 'The first catalogue load is not done - start it by hand'
     } else {
       const folders = index(CATALOGUE)
-      if (folders.length === 0) throw new Error('No folders found — is the catalogue root reachable?')
+      if (folders.length === 0) throw new Error('No folders found - is the catalogue root reachable?')
       const onDisk = new Set(folders.map((f) => f.path))
       const changed = folders.filter((f) => {
         try {
@@ -344,7 +349,7 @@ async function watchPass(): Promise<void> {
         const { runId, sent, failed } = await loadRun(folders, true)
         pass.runId = runId
         pass.foldersSent = sent
-        if (failed.length) pass.error = `${failed.length} folder(s) failed — see the runs page`
+        if (failed.length) pass.error = `${failed.length} folder(s) failed - see the runs page`
       }
     }
   } catch (err) {
@@ -355,19 +360,19 @@ async function watchPass(): Promise<void> {
     // Only a scheduled pass reports itself (it is what the runs page watches for)
     if (!COVERS_ONLY) await call('/api/catalogue/agent/pass', { ...pass, durationMs })
   } catch {
-    /* the app is away — the log line still says what happened */
+    /* the app is away - the log line still says what happened */
   }
   console.log(
     `${new Date().toISOString()}  covers ${pass.coversDelivered} delivered, ${pass.coversNotFound} not found, ${pass.coversFailed} damaged` +
-      `  ·  ${COVERS_ONLY ? 'covers only' : pass.runId ? `run ${pass.runId}: ${pass.foldersSent} folders` : 'catalogue unchanged'}` +
-      `  ·  ${(durationMs / 1000).toFixed(0)} s${pass.error ? `  ·  ERROR ${pass.error}` : ''}`,
+      `  |  ${COVERS_ONLY ? 'covers only' : pass.runId ? `run ${pass.runId}: ${pass.foldersSent} folders` : 'catalogue unchanged'}` +
+      `  |  ${(durationMs / 1000).toFixed(0)} s${pass.error ? `  |  ERROR ${pass.error}` : ''}`,
   )
   if (pass.error) process.exitCode = 1
 }
 
 async function main() {
   if (!DRY && !takeLock()) {
-    console.log(`${new Date().toISOString()}  another catalogue load is still running — this start is skipped`)
+    console.log(`${new Date().toISOString()}  another catalogue load is still running - this start is skipped`)
     return
   }
   try {

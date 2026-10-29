@@ -11,6 +11,8 @@ import type { AgentPass, CoverRequestStats, UnsettledCover } from "@/lib/service
 
 type CatalogueAgentPanelProps = {
   pass: AgentPass | null;
+  /** A pass is running now (started at), else null */
+  runningSince: string | null;
   stats: CoverRequestStats;
   unsettled: UnsettledCover[];
 };
@@ -20,12 +22,13 @@ const when = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const STALE_MS = 60 * 60_000;
 
 /** The scheduled catalogue agent and covers on request (ADR-0038 S7) */
-export function CatalogueAgentPanel({ pass, stats, unsettled }: CatalogueAgentPanelProps) {
+export function CatalogueAgentPanel({ pass, runningSince, stats, unsettled }: CatalogueAgentPanelProps) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   // Captured once per render on the server's data; good enough for "is it stale"
   const [now] = useState(() => Date.now());
-  const stale = pass ? now - new Date(pass.at).getTime() > STALE_MS : true;
+  // A pass running now is a sign of life too
+  const stale = !runningSince && (pass ? now - new Date(pass.at).getTime() > STALE_MS : true);
 
   async function retry() {
     setBusy(true);
@@ -54,6 +57,12 @@ export function CatalogueAgentPanel({ pass, stats, unsettled }: CatalogueAgentPa
           <span className="text-muted-foreground">No scheduled pass yet — set up the task on the Windows box (docs/agents.md).</span>
         )}
       </p>
+      {runningSince && (
+        <p className="inline-flex items-center gap-1.5 text-xs text-sky-600 dark:text-sky-300">
+          <Loader2 size={13} className="animate-spin" aria-hidden /> Pass running since {when(runningSince)} — the walk takes
+          a few minutes
+        </p>
+      )}
       {pass && stale && (
         <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
           <AlertTriangle size={13} aria-hidden /> No pass for over an hour — is the Windows box on and the task running?

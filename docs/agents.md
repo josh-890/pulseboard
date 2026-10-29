@@ -531,8 +531,10 @@ $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -Execution
 Register-ScheduledTask -TaskName "Pulseboard catalogue" -Action $action -Trigger $trigger -Settings $settings
 ```
 
-- Each pass writes **one line** to `logs\catalogue-load.log` and reports itself to the runs page
-  (*Scheduled agent and covers*: last pass, covers, an amber line after an hour without a pass).
+- Each pass writes **two lines** to `logs\catalogue-load.log` — `pass started` and, at its end, what it
+  did (`covers … | catalogue unchanged | 234 s`) — and reports itself to the runs page (*Scheduled agent
+  and covers*: *pass running since …* while it walks, then the last pass and covers; an amber line after
+  an hour without a pass). The walk over ~39k folders takes about 4 minutes.
 - A pass with no change opens **no run** — the runs list only shows runs that did something.
 - Same trap as the archive upload: registered like this it runs while you are logged on, which is
   what makes drive letters like `H:\` work. Box off or logged off → nothing happens until it is back.

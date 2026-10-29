@@ -187,8 +187,23 @@ export type AgentPass = {
   error: string | null
 }
 
+/** Set while a scheduled pass runs — cleared when it reports its end */
+export const AGENT_RUNNING_SETTING = 'catalogue.agent.runningSince'
+
+export async function recordAgentPassStarted(): Promise<void> {
+  await setSetting(AGENT_RUNNING_SETTING, new Date().toISOString())
+}
+
 export async function recordAgentPass(pass: AgentPass): Promise<void> {
   await setSetting(AGENT_PASS_SETTING, JSON.stringify(pass))
+  await prisma.setting.deleteMany({ where: { key: AGENT_RUNNING_SETTING } })
+}
+
+/** When the pass now running started, or null — a start older than 2 h is a pass that died */
+export async function getAgentRunningSince(): Promise<string | null> {
+  const raw = await getSetting(AGENT_RUNNING_SETTING)
+  if (!raw || Number.isNaN(Date.parse(raw))) return null
+  return Date.now() - Date.parse(raw) < 2 * 3600_000 ? raw : null
 }
 
 export async function getAgentPass(): Promise<AgentPass | null> {

@@ -14,7 +14,12 @@ import { CatalogueMatchPanel } from "@/components/catalogue/catalogue-match-pane
 import { getCatalogueMatchStatus } from "@/lib/services/catalogue-match-service";
 import { PersonHintsPanel } from "@/components/catalogue/person-hints-panel";
 import { CatalogueAgentPanel } from "@/components/catalogue/catalogue-agent-panel";
-import { getAgentPass, getCoverRequestStats, listUnsettledCovers } from "@/lib/services/catalogue-cover-service";
+import {
+  getAgentPass,
+  getAgentRunningSince,
+  getCoverRequestStats,
+  listUnsettledCovers,
+} from "@/lib/services/catalogue-cover-service";
 import {
   countUnweighedPersonFiles,
   listPersonHints,
@@ -37,7 +42,7 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function CatalogueRunsPage({ searchParams }: RunsPageProps) {
   return withTenantFromHeaders(async () => {
     const { code } = await searchParams;
-    const [runs, summary, backup, match, hints, unweighed, agentPass, coverStats, unsettledCovers] = await Promise.all([
+    const [runs, summary, backup, match, hints, unweighed, agentPass, coverStats, unsettledCovers, agentRunningSince] = await Promise.all([
       listRuns(),
       getProblemSummary(),
       getBackupStatus(),
@@ -47,6 +52,7 @@ export default async function CatalogueRunsPage({ searchParams }: RunsPageProps)
       getAgentPass(),
       getCoverRequestStats(),
       listUnsettledCovers(),
+      getAgentRunningSince(),
     ]);
     const selected = code && summary.some((s) => s.code === code) ? code : summary[0]?.code;
     const problems = selected ? await getProblems(selected) : [];
@@ -125,7 +131,12 @@ export default async function CatalogueRunsPage({ searchParams }: RunsPageProps)
             Every 15 minutes the Windows box delivers the covers the app asked for (Develop, Review, opening a staged set
             without a cover) and sends what changed in the catalogue. A pass with no change opens no run.
           </p>
-          <CatalogueAgentPanel pass={agentPass} stats={coverStats} unsettled={unsettledCovers} />
+          <CatalogueAgentPanel
+            pass={agentPass}
+            runningSince={agentRunningSince}
+            stats={coverStats}
+            unsettled={unsettledCovers}
+          />
         </section>
 
         <section aria-labelledby="match-heading" className="space-y-2">
