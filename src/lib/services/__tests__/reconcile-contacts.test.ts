@@ -40,6 +40,7 @@ function makeTx(opts: {
     // Plan slice 2: credits pinned to the contact are repointed onto the person
     // before the contact row is retired.
     setCreditRaw: {
+      findMany: vi.fn().mockResolvedValue([]),
       updateMany: calls.creditUpdateMany,
     },
     // Plan slice 5: archive attributions pinned to the contact move to the person
@@ -65,7 +66,7 @@ describe("reconcileContacts", () => {
       claims: [{ id: "claim-1", subjectPersonId: "subject-1" }],
     });
     const res = await reconcileContacts(tx, "ICG-1", "person-1");
-    expect(res).toEqual({ reconciled: true, refId: "ref-1" });
+    expect(res).toEqual({ reconciled: true, refId: "ref-1", setsJoined: 0 });
     expect(calls.claimUpdate).toHaveBeenCalledWith({
       where: { id: "claim-1" },
       data: { counterpartRefId: null, counterpartPersonId: "person-1" },

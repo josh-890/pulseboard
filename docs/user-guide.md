@@ -151,9 +151,11 @@ already means the per-person Reference Session.)
   contact is the **only** participant not yet a Person — i.e. adding them lets you promote that
   many sets immediately. (Other sorts: Most mentioned, Name A–Z.)
 - **Resolve a contact:**
-  - **Add as Person** — creates a real Person from the contact (prefilled by ICG-ID); the
-    contact is then absorbed automatically and any recorded links repoint to the new person.
-    (Only available when the contact has an ICG-ID.)
+  - **Develop** (on her page, when a catalogue run stored her file) — the full import of her newest
+    catalogue file, no upload; you review it as usual (see *Developing a Contact* below).
+  - **Add as Person** — when no catalogue file is stored: creates a real Person from the contact
+    (prefilled by ICG-ID); the contact is then absorbed automatically and any recorded links repoint
+    to the new person. (Only available when the contact has an ICG-ID.)
   - **Link…** — attach the contact to an **existing** person (for a name-only contact, or
     when the contact is really someone you already have).
   - **Ignore** — hide a contact you don't intend to add (reversible via **Show ignored** → Restore).
@@ -205,6 +207,14 @@ the Person. Several sets equally strong with different people are shown as *ambi
 for you. A suggestion still wants a look when the channel is unknown on either side, the two channels
 belong to different labels, it is ambiguous, or it matched on a date variant.
 
+**Newer files for your Persons.** A catalogue run never writes to a Person. When a Person's catalogue
+file is **newer than the newest file you imported for her**, her page shows a blue line — *Newer
+catalogue file (date): N new sets, M changed values* — and **Review** opens the usual import review of
+that file (accept or decline per value). A file not newer than yours brings no hint, so your own
+corrections never show up as "changes". After every run the app checks the files of your Persons in the
+background; this section lists everyone a newer file waits for, and **Check now** checks files not
+checked yet (after the first deploy: the Persons of the first load).
+
 #### A Contact's page
 
 Click a Contact's name (in the register, a staged set's cast, a credit on a set page or the archive's
@@ -218,8 +228,9 @@ body, no timeline — and marked **Contact — not yet developed**:
   Contact you created by hand counts as named by you. When your name differs from her catalogue
   file's, the page says so and **Use it** goes back to the file's name. Without a name of yours or
   a catalogue file, the latest import's spelling is used, as before.
-- **ICG-ID · nationality · birth year**, the date of her catalogue file, and **Add as Person**,
-  **Link…**, **Ignore** (an ignored Contact is still enriched by the catalogue).
+- **ICG-ID · nationality · birth year**, the date of her catalogue file, and **Develop** (or **Add as
+  Person** when no catalogue file is stored), **Link…**, **Ignore** (an ignored Contact is still
+  enriched by the catalogue).
 - **In staged sets** — open staged sets whose cast includes her (click to open in Staging Sets).
 - **Known as** — AKA names, her alias on each channel (the channel links only when one of its
   import aliases names it; otherwise shown in italics as *not linked*), how sets credit her, and
@@ -227,6 +238,20 @@ body, no timeline — and marked **Contact — not yet developed**:
 - **Catalogue sets** — her sets from the catalogue, newest first, each marked **in your archive**,
   **in the app** or **catalogue only**.
 - **Credited in your sets**, **Archive folders** confirmed as her, and **your note**.
+
+#### Developing a Contact
+
+**Develop** opens the import of her newest catalogue file — the one the last catalogue run stored — as
+if you had uploaded it; the review works as for any import. A blue line at the top says what carries
+over:
+
+- **Sets already in the app** credited to her (by ICG-ID) **join her career** when she is imported —
+  linked automatically, in the role of the credit (model). Credits that only carry a name stay open.
+- **Your name** stays her name; the file's spelling becomes an alias.
+- **The portrait you chose** becomes her headshot.
+
+The same joining happens whenever a Contact becomes a Person some other way (Add as Person, an upload,
+a new Person with her ICG-ID).
 
 #### Contacts everywhere else
 

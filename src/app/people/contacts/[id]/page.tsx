@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { getContactDetail } from "@/lib/services/contact-service";
+import { hasCatalogueFile } from "@/lib/services/catalogue-develop-service";
 import {
   ContactActionsBar,
   ContactCatalogueSets,
@@ -38,6 +39,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
     const c = await getContactDetail(id);
     if (!c) notFound();
     if (c.personId) redirect(`/people/${c.personId}`);
+    const hasFile = await hasCatalogueFile(c.icgId);
 
     const linkedChannels = Object.fromEntries(
       c.channelAliases.filter((a) => a.channel).map((a) => [a.channelName, a.channel!.id]),
@@ -79,7 +81,13 @@ export default async function ContactPage({ params }: ContactPageProps) {
                 {c.ignoredAt && " · ignored"}
               </p>
             </div>
-            <ContactActionsBar contactId={c.id} name={c.name} icgId={c.icgId} ignored={Boolean(c.ignoredAt)} />
+            <ContactActionsBar
+              contactId={c.id}
+              name={c.name}
+              icgId={c.icgId}
+              ignored={Boolean(c.ignoredAt)}
+              hasCatalogueFile={hasFile}
+            />
           </div>
         </header>
 

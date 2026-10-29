@@ -12,12 +12,16 @@
  * here: corrections come with developing her, or by fixing the file.
  */
 import sharp from "sharp";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { randomUUID } from "node:crypto";
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { buildUrl } from "@/lib/media-url";
 import { minioClient, getMinioBucket } from "@/lib/minio";
+import { uploadPhotoToStorage } from "@/lib/media-upload";
+import { computeDHash, computeSha256 } from "@/lib/image-hash";
+import { createMediaItemDirect } from "@/lib/services/media-service";
 import { resolvePersonReferences } from "@/lib/services/person-reference-service";
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -360,4 +364,46 @@ export async function getContactDetail(contactId: string) {
     creditedSets,
     archiveFolders: c.attributions.map((a) => a.archiveFolder),
   };
+}
+
+// ── Her name and portrait travel (ADR-0038 D1.4, decision 15) ───────────────
+
+export type ContactCarryOver = { name: string | null; portraitKey: string | null };
+
+/**
+ * Read before the Person is created — creating her retires the Contact. A name
+ * you gave her wins over the file's; a portrait you chose becomes her headshot.
+ */
+export async function contactCarryOver(icgId: string): Promise<ContactCarryOver> {
+  const c = await prisma.contact.findUnique({ where: { icgId }, select: { name: true, nameSetByUser: true, portraitKey: true } });
+  return { name: c?.nameSetByUser ? c.name : null, portraitKey: c?.portraitKey ?? null };
+}
+
+/** The chosen portrait as the Person's headshot: a profile image, representative of the avatar framing */
+export async function adoptPortraitAsHeadshot(personId: string, portraitKey: string): Promise<void> {
+  const session = await prisma.session.findFirst({ where: { personId, type: "REFERENCE" }, select: { id: true } });
+  if (!session) return;
+  const res = await minioClient.send(new GetObjectCommand({ Bucket: getMinioBucket(), Key: portraitKey }));
+  if (!res.Body) return;
+  const buffer = Buffer.from(await res.Body.transformToByteArray());
+  const upload = await uploadPhotoToStorage(buffer, "image/jpeg", "session", session.id, randomUUID());
+  const item = await createMediaItemDirect({
+    sessionId: session.id,
+    personId,
+    usage: "PROFILE",
+    filename: "portrait.jpg",
+    mimeType: "image/jpeg",
+    size: buffer.length,
+    originalWidth: upload.originalWidth,
+    originalHeight: upload.originalHeight,
+    variants: upload.variants,
+    hash: computeSha256(buffer),
+    phash: await computeDHash(buffer),
+  });
+  const avatarCat = await prisma.mediaCategory.findFirst({ where: { isAvatarSource: true }, select: { id: true } });
+  if (avatarCat) {
+    await prisma.personMediaLink.create({
+      data: { personId, mediaItemId: item.id, usage: "DETAIL", categoryId: avatarCat.id, isRepresentative: true },
+    });
+  }
 }

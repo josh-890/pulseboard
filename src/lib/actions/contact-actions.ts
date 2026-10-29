@@ -7,6 +7,7 @@ import { createPersonSchema } from "@/lib/validations/person";
 import { createPersonRecord } from "@/lib/services/person-service";
 import { linkContactToPerson, setContactIgnored, getContactsPage } from "@/lib/services/relationship-service";
 import {
+  adoptPortraitAsHeadshot,
   clearContactPortrait,
   identifyCast,
   type CastIdentity,
@@ -14,6 +15,7 @@ import {
   setContactNote,
   setContactPortrait,
 } from "@/lib/services/contact-service";
+import { developContact, DevelopRefused, reviewNewerFile } from "@/lib/services/catalogue-develop-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
 // Infinite-scroll "load more" for the paginated tail of the Contacts register.
@@ -63,6 +65,12 @@ export async function addPersonFromContactAction(refId: string): Promise<CrudAct
     if (!parsed.success) return { success: false, error: parsed.error.flatten() };
     try {
       const person = await createPersonRecord(parsed.data);
+      // A portrait you chose becomes her headshot (ADR-0038); the Contact is gone now
+      if (ref.portraitKey) {
+        await adoptPortraitAsHeadshot(person.id, ref.portraitKey).catch((err) =>
+          console.error("addPersonFromContactAction: portrait not carried over", err),
+        );
+      }
       revalidateContacts();
       return { success: true, id: person.id };
     } catch (err) {
@@ -170,4 +178,39 @@ export async function clearContactPortraitAction(contactId: string): Promise<Sim
 /** Who each ICG-ID of a cast is: Person, Contact or unknown */
 export async function identifyCastAction(icgIds: string[]): Promise<Record<string, CastIdentity>> {
   return withTenantFromHeaders(() => identifyCast(icgIds.slice(0, 200)));
+}
+
+// ── Develop and the newer-file hint (ADR-0038 S6) ───────────────────────────
+
+type BatchResult = { success: true; batchId: string } | { success: false; error: string };
+
+/** Develop a Contact: the full import from her stored catalogue file — the review follows */
+export async function developContactAction(contactId: string): Promise<BatchResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { batchId } = await developContact(contactId);
+      revalidatePath("/import");
+      return { success: true, batchId };
+    } catch (err) {
+      if (err instanceof DevelopRefused) return { success: false, error: err.message };
+      console.error("[developContactAction]", err);
+      return { success: false, error: "Could not read her catalogue file" };
+    }
+  });
+}
+
+/** Review a Person's newer catalogue file (ADR-0009 review) */
+export async function reviewNewerFileAction(personId: string): Promise<BatchResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { batchId } = await reviewNewerFile(personId);
+      revalidatePath(`/people/${personId}`);
+      revalidatePath("/people/contacts/runs");
+      return { success: true, batchId };
+    } catch (err) {
+      if (err instanceof DevelopRefused) return { success: false, error: err.message };
+      console.error("[reviewNewerFileAction]", err);
+      return { success: false, error: "Could not read her catalogue file" };
+    }
+  });
 }

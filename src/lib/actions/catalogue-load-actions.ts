@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentTenantId, withTenantFromHeaders } from "@/lib/tenant-context";
 import { requestCatalogueMatch } from "@/lib/services/catalogue-match-service";
+import { requestPersonHints } from "@/lib/services/catalogue-develop-service";
 import {
   CatalogueLoadRefused,
   previewUndo,
@@ -31,6 +32,7 @@ export async function undoRunAction(runId: string): Promise<UndoResult> {
       const preview = await undoRun(runId);
       // The sets it took back may have been what archive folders matched
       requestCatalogueMatch(getCurrentTenantId(), { kind: "all" });
+      requestPersonHints(getCurrentTenantId());
       revalidatePath("/people/contacts/runs");
       revalidatePath("/people/contacts");
       return { success: true, preview };
@@ -46,6 +48,15 @@ export async function undoRunAction(runId: string): Promise<UndoResult> {
 export async function matchArchiveNowAction(): Promise<{ success: true }> {
   return withTenantFromHeaders(async () => {
     requestCatalogueMatch(getCurrentTenantId(), { kind: "all" });
+    revalidatePath("/people/contacts/runs");
+    return { success: true };
+  });
+}
+
+/** Weigh every developed Person's catalogue file whose hint is not worked out yet, in the background */
+export async function checkPersonFilesAction(): Promise<{ success: true }> {
+  return withTenantFromHeaders(async () => {
+    requestPersonHints(getCurrentTenantId());
     revalidatePath("/people/contacts/runs");
     return { success: true };
   });

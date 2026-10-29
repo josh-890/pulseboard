@@ -5,6 +5,8 @@ import { getHeadshotsForPersons } from "@/lib/services/media-service";
 import type { RelationshipType } from "@/generated/prisma/client";
 import type { TxClient } from "./cascade-helpers";
 import { buildContactSearchNorm } from "@/lib/services/contact-service";
+import { rebuildSetParticipantsFromContributions } from "@/lib/services/contribution-service";
+import { contributorKindForRoleGroup } from "@/lib/services/session-contributors";
 
 // ── Held work co-occurrence ─────────────────────────────────────────────────
 // Computed (not stored): people who actually share a Set with the subject —
@@ -530,7 +532,8 @@ export async function setContactIgnored(refId: string, ignored: boolean): Promis
 // ref's edges repoint to the Person and the ref is retired. Deterministic —
 // keyed by the canonical ICG-ID, never fuzzy. Must run inside a transaction.
 
-export type ReconcileResult = { reconciled: boolean; refId?: string };
+/** `setsJoined`: sets credited to the Contact that entered the Person's career */
+export type ReconcileResult = { reconciled: boolean; refId?: string; setsJoined?: number };
 
 // Retire a Contact by ICG-ID: when a curated Person appears with the ref's
 // ICG-ID, repoint its edges and delete it. Exact-match only.
@@ -542,8 +545,8 @@ export async function reconcileContacts(
   if (!icgId) return { reconciled: false };
   const ref = await tx.contact.findUnique({ where: { icgId } });
   if (!ref) return { reconciled: false };
-  await repointContactToPerson(tx, ref.id, personId);
-  return { reconciled: true, refId: ref.id };
+  const setsJoined = await repointContactToPerson(tx, ref.id, personId);
+  return { reconciled: true, refId: ref.id, setsJoined };
 }
 
 // Manual variant: link a specific ref (e.g. a name-only one, or a mismatch) to
@@ -555,11 +558,11 @@ export async function linkContactToPerson(
 ): Promise<ReconcileResult> {
   const ref = await tx.contact.findUnique({ where: { id: refId } });
   if (!ref) return { reconciled: false };
-  await repointContactToPerson(tx, ref.id, personId);
-  return { reconciled: true, refId: ref.id };
+  const setsJoined = await repointContactToPerson(tx, ref.id, personId);
+  return { reconciled: true, refId: ref.id, setsJoined };
 }
 
-async function repointContactToPerson(tx: TxClient, refId: string, personId: string): Promise<void> {
+async function repointContactToPerson(tx: TxClient, refId: string, personId: string): Promise<number> {
   // Repoint claimed collaborations (subject ↔ ref) → (subject ↔ person),
   // dropping self-claims and merging into any pre-existing person-keyed claim.
   const claims = await tx.claimedCollaboration.findMany({ where: { counterpartRefId: refId } });
@@ -619,10 +622,15 @@ async function repointContactToPerson(tx: TxClient, refId: string, personId: str
   // This MUST run before the delete below. The FK is onDelete: SetNull, so
   // skipping it would not fail loudly; it would silently strip the credit back to
   // a bare name — reintroducing the exact bug this slice removes.
+  const credits = await tx.setCreditRaw.findMany({
+    where: { resolvedContactId: refId },
+    select: { setId: true, rawName: true, roleDefinitionId: true, roleDefinition: { select: { group: { select: { kind: true } } } } },
+  });
   await tx.setCreditRaw.updateMany({
     where: { resolvedContactId: refId },
     data: { resolvedContactId: null, resolvedPersonId: personId, resolutionStatus: "RESOLVED" },
   });
+  const setsJoined = credits.length ? await joinCreditedSets(tx, personId, credits) : 0;
 
   // Repoint archive attributions (plan slice 5), for exactly the same reason and
   // with exactly the same trap: the FK is onDelete: SetNull, so omitting this
@@ -636,4 +644,54 @@ async function repointContactToPerson(tx: TxClient, refId: string, personId: str
 
   // No edges reference the ref any more — retire it.
   await tx.contact.delete({ where: { id: refId } });
+  return setsJoined;
+}
+
+type ContactCredit = {
+  setId: string;
+  rawName: string;
+  roleDefinitionId: string | null;
+  roleDefinition: { group: { kind: string } } | null;
+};
+
+// ADR-0038 D2.3: a set credited to her by ICG-ID (the credit was pinned to her
+// Contact) joins her career once she is a Person — a contribution on every
+// session of the set, as resolveCreditRaw makes it, then the participant cache.
+// Role from the credit; a Contact credit carries none at promotion, so it is a
+// model credit. Name-only credits never reach here: they had no Contact.
+async function joinCreditedSets(tx: TxClient, personId: string, credits: ContactCredit[]): Promise<number> {
+  const modelRoleId = credits.some((c) => !c.roleDefinitionId)
+    ? (await tx.contributionRoleDefinition.findFirst({ where: { slug: "model" }, select: { id: true } }))?.id ?? null
+    : null;
+  const aliases = await tx.personAlias.findMany({ where: { personId }, select: { id: true, nameNorm: true } });
+  const joined = new Set<string>();
+  for (const c of credits) {
+    // Behind-camera credits resolve to an Artist, never a Person (ADR-0021)
+    if (c.roleDefinition && contributorKindForRoleGroup(c.roleDefinition.group.kind) === "artist") continue;
+    const roleDefinitionId = c.roleDefinitionId ?? modelRoleId;
+    if (!roleDefinitionId) continue;
+    const links = await tx.setSession.findMany({ where: { setId: c.setId }, select: { sessionId: true } });
+    if (!links.length) continue;
+    const norm = normalizeForSearch(c.rawName);
+    const aliasId = aliases.find((a) => a.nameNorm === norm)?.id ?? null;
+    for (const link of links) {
+      await tx.sessionContribution.upsert({
+        where: { sessionId_personId_roleDefinitionId: { sessionId: link.sessionId, personId, roleDefinitionId } },
+        create: {
+          sessionId: link.sessionId,
+          personId,
+          roleDefinitionId,
+          creditNameOverride: c.rawName,
+          confidence: "CONFIRMED",
+          confidenceSource: "CREDIT_MATCH",
+          confirmedAt: new Date(),
+          resolvedAliasId: aliasId,
+        },
+        update: {},
+      });
+    }
+    joined.add(c.setId);
+  }
+  for (const setId of joined) await rebuildSetParticipantsFromContributions(tx, setId);
+  return joined.size;
 }

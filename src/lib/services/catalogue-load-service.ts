@@ -516,11 +516,14 @@ export async function undoRun(runId: string): Promise<UndoPreview> {
       }
       for (const ch of changes.filter((c) => c.entity === 'folder')) {
         const b = ch.before as unknown as NonNullable<Awaited<ReturnType<typeof folderSnapshot>>>
-        const { problems, ...folder } = b
+        // The hint is worked out again for the file the folder goes back to (S6)
+        const { problems, hint: _hint, hintFileKey: _hintFileKey, ...folder } = b
         await tx.catalogueFolder.update({
           where: { path: ch.key },
           data: {
             ...folder,
+            hint: Prisma.DbNull,
+            hintFileKey: null,
             newestDate: folder.newestDate ? new Date(folder.newestDate) : null,
             goneAt: folder.goneAt ? new Date(folder.goneAt) : null,
             updatedAt: new Date(folder.updatedAt),

@@ -3,11 +3,13 @@ import { runWithTenant } from '@/lib/tenant-context'
 import { isAgentAuthorized, resolveAgentTenant } from '@/lib/agent-request'
 import { finishRun } from '@/lib/services/catalogue-load-service'
 import { requestCatalogueMatch } from '@/lib/services/catalogue-match-service'
+import { requestPersonHints } from '@/lib/services/catalogue-develop-service'
 
 // Agent endpoint (ADR-0038 S3): close a run. Body: { seenPaths: string[] | null }
 // — every folder the agent found (a held folder not among them is marked gone),
 // or null for a limited run that saw only part of the catalogue. Afterwards every
-// unsettled archive folder is matched against the catalogue again (S5).
+// unsettled archive folder is matched against the catalogue again (S5), and the
+// newer files of developed Persons are weighed for their hint (S6).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isAgentAuthorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
@@ -21,6 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   return runWithTenant(tenantId, async () => {
     const counts = await finishRun(id, Array.isArray(body.seenPaths) ? body.seenPaths : null)
     requestCatalogueMatch(tenantId, { kind: 'all' })
+    requestPersonHints(tenantId)
     return NextResponse.json({ counts })
   })
 }

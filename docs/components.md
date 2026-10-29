@@ -194,9 +194,11 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 |---|---|---|---|
 | `ContactPortrait` | Client | `contactId`, `name`, `avatarUrl`, `hasChosenPortrait`, `hasCataloguePortrait` | Face in the dashed Contact frame; **Change portrait** (file → `setContactPortraitAction`), **Catalogue portrait** reset |
 | `ContactName` | Client | `contactId`, `name`, `catalogueName`, `nameSetByUser` | Name with inline **Rename** (sticks); "Your name — her catalogue file says X · Use it" |
-| `ContactActionsBar` | Client | `contactId`, `name`, `icgId`, `ignored` | **Add as Person**, **Link…** (`ContactLinkPicker`), **Ignore / Restore** |
+| `ContactActionsBar` | Client | `contactId`, `name`, `icgId`, `ignored`, `hasCatalogueFile` | **Develop** (`developContactAction` → the import review of her stored catalogue file) or **Add as Person** when no file is stored, **Link…** (`ContactLinkPicker`), **Ignore / Restore** |
 | `ContactCatalogueSets` | Server | `sets`, `total`, `linkedChannels` | Catalogue sets with date, channel (linked through import alias, else muted), title, cast size and *in your archive / in the app / catalogue only* |
 | `CatalogueMatchPanel` | Client | `status` (`CatalogueMatchStatus`) | Runs page: when the archive matching last ran, scope, folders looked at, matched per tier, demoted, duration, link to the Attribution queue; **Match now** (`matchArchiveNowAction`, background) |
+| `PersonHintsPanel` | Client | `rows` (`PersonHintRow[]`), `unweighed`, `running` | Runs page (ADR-0038 S6): Persons a newer catalogue file waits for (new sets · changed values · file date, link to her page); **Check now** (`checkPersonFilesAction`, background) while files are not checked yet |
+| `PersonCatalogueHint` | Client | `personId`, `hint` (`PersonHint`) | Person page, above the tabs: *Newer catalogue file (date): N new sets, M changed values* · what you imported; **Review** → `reviewNewerFileAction` → `/import/[id]` |
 | `ContactNote` | Client | `contactId`, `note` | Note with Save |
 
 Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link…" to a Person, also in the register); `IdentityAvatar` (`components/shared/`, props `name`, `avatarUrl`, `kind`, `size?`) — solid frame for a Person, dashed for a Contact, amber dashed for unknown; `PersonIdentity` gained `kind?` (Contact / Unknown label) and `aids?`.

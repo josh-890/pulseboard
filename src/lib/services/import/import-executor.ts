@@ -11,7 +11,7 @@ import { reconcileContacts } from '@/lib/services/relationship-service'
 import type { ImportItem, Prisma } from '@/generated/prisma/client'
 import { createLabelRecord } from '@/lib/services/label-service'
 import { addChannelImportAlias, createChannelRecord } from '@/lib/services/channel-service'
-import { upsertImportedContact } from '@/lib/services/contact-service'
+import { adoptPortraitAsHeadshot, contactCarryOver, upsertImportedContact } from '@/lib/services/contact-service'
 import { createPersonRecord } from '@/lib/services/person-service'
 import { createAlias, linkAliasToChannels } from '@/lib/services/alias-service'
 import { createDigitalIdentity } from '@/lib/services/digital-identity-service'
@@ -465,11 +465,14 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
 
     const hairColor = data.hairColor as string | undefined
 
+    // Developing a Contact (ADR-0038): read before creating the Person retires her
+    const carry = await contactCarryOver(data.icgId as string)
     const person = await createPersonRecord({
       icgId: data.icgId as string,
       // Every imported ICG-ID comes from the external database (ADR-0026).
       idOrigin: 'external',
-      commonName: data.name as string,
+      // A name you gave her wins; the file's name stays as an alias (below)
+      commonName: carry.name ?? (data.name as string),
       status: 'active',
       birthdate,
       birthdatePrecision,
@@ -578,6 +581,18 @@ export async function importPerson(item: ImportItem): Promise<ImportResult> {
           },
         })
       }
+    }
+
+    if (carry.name && normalizeForSearch(carry.name) !== normalizeForSearch(data.name as string)) {
+      await prisma.personAlias.create({
+        data: { personId: person.id, name: data.name as string, nameNorm: normalizeForSearch(data.name as string), source: 'IMPORT' },
+      })
+    }
+    if (carry.portraitKey) {
+      // Never fails the import: the portrait can be set again by hand
+      await adoptPortraitAsHeadshot(person.id, carry.portraitKey).catch((err) =>
+        console.error(`[importPerson] portrait for ${person.id} not carried over:`, err),
+      )
     }
 
     await recomputePersonCurrentStateStandalone(person.id)

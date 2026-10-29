@@ -37,6 +37,8 @@ import {
   type CareerScope,
 } from "@/lib/services/career-service";
 import { PersonDetailTabs } from "@/components/people/person-detail-tabs";
+import { PersonCatalogueHint } from "@/components/catalogue/person-catalogue-hint";
+import { getPersonHint } from "@/lib/services/catalogue-develop-service";
 import { getPersonKnownFor, getPersonOverviewShowcase } from "@/lib/services/person-showcase-service";
 import { getConnectionsForPerson, getRelationshipRoles } from "@/lib/services/relationship-service";
 import { computePlausibilityIssues } from "@/lib/services/plausibility-service";
@@ -172,6 +174,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   const eraContributions = Object.fromEntries(eraContributionsMap);
 
   if (!person) notFound();
+  const catalogueHint = await getPersonHint(person.icgId);
 
   const currentState = deriveCurrentState(person);
   const affiliations = deriveAffiliations(workHistory, stagingWorkHistory);
@@ -267,6 +270,8 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
           <PersonActionsMenu personId={id} onDelete={deletePerson.bind(null, id)} redirectTo="/people" />
         </div>
       </div>
+
+      {catalogueHint && <PersonCatalogueHint personId={id} hint={catalogueHint} />}
 
       <PersonDetailTabs
         person={person}

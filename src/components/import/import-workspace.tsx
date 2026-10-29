@@ -17,6 +17,7 @@ import {
   Play,
   Check,
   AlertTriangle,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -26,12 +27,15 @@ import { ChannelResolution } from './channel-resolution'
 import { SetBatchSummary } from './set-batch-summary'
 import { BatchCoversCard } from './batch-covers-card'
 import { cn } from '@/lib/utils'
+import type { DevelopNote } from '@/lib/services/catalogue-develop-service'
 import Link from 'next/link'
 
 type ImportBatchWithItems = ImportBatch & { items: ImportItem[] }
 
 type ImportWorkspaceProps = {
   batch: ImportBatchWithItems
+  /** She is still a Contact: what carries over when she is imported (ADR-0038) */
+  developNote?: DevelopNote | null
 }
 
 type EntityTab = 'PERSON' | 'PERSON_ALIAS' | 'DIGITAL_IDENTITY' | 'CHANNEL' | 'SET' | 'CO_MODEL'
@@ -50,7 +54,7 @@ function isBulkImportable(item: { type: string; status: string }): boolean {
   return item.status === 'NEW' || item.status === 'PROBABLE'
 }
 
-export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
+export function ImportWorkspace({ batch, developNote }: ImportWorkspaceProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<EntityTab>('PERSON')
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
@@ -278,6 +282,20 @@ export function ImportWorkspace({ batch }: ImportWorkspaceProps) {
         {/* A file the parser could not fully read says so for as long as the batch
             exists. The upload modal is seen once; this is what is still here when
             the counts look wrong a week later. */}
+        {developNote && (
+          <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2">
+            <Info size={15} className="mt-0.5 shrink-0 text-sky-500" aria-hidden="true" />
+            <p className="text-xs text-sky-700 dark:text-sky-200">
+              Developing a Contact.{' '}
+              {developNote.creditedSets > 0
+                ? `Already in the app: ${developNote.creditedSets.toLocaleString()} set${developNote.creditedSets === 1 ? '' : 's'} credited to her — they join her career, linked automatically.`
+                : 'No set in the app is credited to her yet.'}
+              {developNote.nameKept && ` Your name “${developNote.nameKept}” stays; the file’s name becomes an alias.`}
+              {developNote.portraitKept && ' The portrait you chose becomes her headshot.'}
+            </p>
+          </div>
+        )}
+
         {batch.notes && (
           <div
             role="alert"

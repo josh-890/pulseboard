@@ -126,6 +126,16 @@ an exact title alone, EXACT under catalogue-join, is WEAK until its channel is l
 direction, since only EXACT is ever offered without review. Ties between different casts stay
 AMBIGUOUS; one row per CoverId means a two-person set is no longer counted as two candidates.
 
+**S6 (2026-10-29) — Develop and the Person hint.** Develop builds the import batch from the stored
+newest file (no upload); the import page states what carries over. On every Contact → Person (develop,
+Add as Person, upload, manual) the sets credited to her by ICG-ID join her career inside
+`reconcileContacts` (role from the credit, model when the credit has none — Contact credits are made
+without a role at promotion). A user-set name becomes the common alias, the file's name an alias; a
+chosen portrait becomes the headshot. The Person hint is shown only when the catalogue file's date is
+after the newest file imported for that ICG-ID — the same or an older file would only list the user's
+own corrections as changes. Hints are worked out in the background after every run (and on Check now)
+and stored on `catalogue_folder` (`hint`, `hintFileKey`; migration 20261029180000).
+
 **The load run.** A "Catalogue runs" page holds each run's counts, the current problem list and Undo.
 Undo works from the latest run back; it restores the catalogue data as it was before the run and never
 touches your work (a Contact you used keeps existing, only its catalogue fields revert; confirmed

@@ -735,6 +735,11 @@ model CatalogueFolder {
   newestDate DateTime? @db.Date
   /// The newest import file in MinIO (gzip) — Develop and the Person hint read it
   fileKey    String?
+  /// A Person's folder only: what the newer file would bring ({fileDate, newSets,
+  /// changedValues}), null when it is not newer or brings nothing (ADR-0038 S6)
+  hint        Json?
+  /// The file the hint was worked out for — differs from fileKey → work it out again
+  hintFileKey String?
   firstRunId String
   lastRunId  String
   goneAt     DateTime?

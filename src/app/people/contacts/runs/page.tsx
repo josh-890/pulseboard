@@ -12,6 +12,12 @@ import { PROBLEM_KINDS, isQuarantine, type ProblemCode } from "@/lib/services/ca
 import { CatalogueUndoButton } from "@/components/catalogue/catalogue-undo-button";
 import { CatalogueMatchPanel } from "@/components/catalogue/catalogue-match-panel";
 import { getCatalogueMatchStatus } from "@/lib/services/catalogue-match-service";
+import { PersonHintsPanel } from "@/components/catalogue/person-hints-panel";
+import {
+  countUnweighedPersonFiles,
+  listPersonHints,
+  personHintsRunning,
+} from "@/lib/services/catalogue-develop-service";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +35,13 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function CatalogueRunsPage({ searchParams }: RunsPageProps) {
   return withTenantFromHeaders(async () => {
     const { code } = await searchParams;
-    const [runs, summary, backup, match] = await Promise.all([
+    const [runs, summary, backup, match, hints, unweighed] = await Promise.all([
       listRuns(),
       getProblemSummary(),
       getBackupStatus(),
       getCatalogueMatchStatus(getCurrentTenantId()),
+      listPersonHints(),
+      countUnweighedPersonFiles(),
     ]);
     const selected = code && summary.some((s) => s.code === code) ? code : summary[0]?.code;
     const problems = selected ? await getProblems(selected) : [];
@@ -113,6 +121,17 @@ export default async function CatalogueRunsPage({ searchParams }: RunsPageProps)
             date, then channel, alias and title as evidence. Folders you decided are never reopened.
           </p>
           <CatalogueMatchPanel status={match} />
+        </section>
+
+        <section aria-labelledby="hints-heading" className="space-y-2">
+          <h2 id="hints-heading" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Newer files for your Persons
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            A run never writes to a Person. When her catalogue file is newer than the one you imported, her page says what it
+            would bring; Review there opens the usual import review.
+          </p>
+          <PersonHintsPanel rows={hints} unweighed={unweighed} running={personHintsRunning(getCurrentTenantId())} />
         </section>
 
         <section aria-labelledby="problems-heading" className="space-y-3">
