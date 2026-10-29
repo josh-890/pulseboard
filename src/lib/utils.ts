@@ -251,6 +251,17 @@ export function getInitialsFromName(name: string): string {
 }
 
 /**
+ * The archive folder of a channel, by the archive's norm: `SHORT-Channelname`,
+ * with the name's spaces and dashes dropped ("Art-Lingerie", ARTL → "ARTL-ArtLingerie").
+ * Empty when either part is missing.
+ */
+export function channelArchiveFolder(shortName: string | null | undefined, name: string | null | undefined): string {
+  const short = shortName?.trim() ?? ""
+  const rest = (name ?? "").replace(/[\s-]+/g, "")
+  return short && rest ? `${short}-${rest}` : ""
+}
+
+/**
  * Generate a short name / acronym for a channel name.
  *
  * Strategy:

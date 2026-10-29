@@ -5,7 +5,7 @@ import { Search, Link2, Check, Loader2, Plus, Unlink2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ImportItem } from '@/generated/prisma/client'
-import { cn } from '@/lib/utils'
+import { channelArchiveFolder, cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { NEW_LABEL } from '@/lib/validations/channel'
 
@@ -467,6 +467,12 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
                 )
               )}
             </div>
+            {channelArchiveFolder(newChannelShortName, newChannelName) && (
+              <p className="text-[10px] text-muted-foreground">
+                Archive folder:{' '}
+                <span className="font-medium text-foreground">{channelArchiveFolder(newChannelShortName, newChannelName)}</span>
+              </p>
+            )}
             <div className="flex items-center gap-2">
               <Button
                 size="sm"

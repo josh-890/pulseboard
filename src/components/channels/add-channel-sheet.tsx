@@ -31,7 +31,7 @@ import {
   type CreateChannelInput,
 } from "@/lib/validations/channel";
 import { createChannel, linkChannelNameAction } from "@/lib/actions/channel-actions";
-import { cn } from "@/lib/utils";
+import { channelArchiveFolder, cn } from "@/lib/utils";
 import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 
 type AddChannelSheetProps = {
@@ -67,6 +67,8 @@ export function AddChannelSheet({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSuggestion, setIsSuggestion] = useState(!initialValues?.shortName);
+  // The archive folder follows the norm `SHORT-Channelname` until you type your own
+  const [folderIsSuggestion, setFolderIsSuggestion] = useState(!initialValues?.channelFolder);
   const [shortNameAvailable, setShortNameAvailable] = useState<boolean | null>(null);
   const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,6 +90,11 @@ export function AddChannelSheet({
   const labelValue = useWatch({ control: form.control, name: "labelId" });
   const nameValue = useWatch({ control: form.control, name: "name" });
   const newLabelName = nameValue?.trim() ?? "";
+
+  useEffect(() => {
+    if (!folderIsSuggestion) return;
+    form.setValue("channelFolder", channelArchiveFolder(shortNameValue, nameValue));
+  }, [folderIsSuggestion, shortNameValue, nameValue, form]);
   const sameNameLabel =
     labelValue === NEW_LABEL && newLabelName
       ? labels.find((l) => l.name.trim().toLowerCase() === newLabelName.toLowerCase())
@@ -129,9 +136,8 @@ export function AddChannelSheet({
   }
 
   async function onSubmit(values: CreateChannelInput) {
-    // Auto-derive channelFolder if not set: "{shortName}-{name}"
-    const channelFolder = values.channelFolder?.trim() ||
-      (values.shortName && values.name ? `${values.shortName}-${values.name}` : undefined)
+    // The archive's norm when left blank: "SHORT-Channelname"
+    const channelFolder = values.channelFolder?.trim() || channelArchiveFolder(values.shortName, values.name) || undefined
     const result = await createChannel({ ...values, channelFolder });
     if (result.success) {
       let message = labelValue === NEW_LABEL ? `Label and channel ${values.name} created` : "Channel created";
@@ -143,6 +149,7 @@ export function AddChannelSheet({
       toast.success(message);
       form.reset();
       setIsSuggestion(!initialValues?.shortName);
+      setFolderIsSuggestion(!initialValues?.channelFolder);
       setShortNameAvailable(null);
       setOpen(false);
       if (onCreated) onCreated();
@@ -290,10 +297,19 @@ export function AddChannelSheet({
                             <Input
                               placeholder="e.g. SN-ChannelName"
                               {...field}
+                              className={cn(
+                                folderIsSuggestion && field.value && "italic !text-amber-500 dark:!text-amber-400 !border-amber-400/50 !bg-amber-500/5",
+                              )}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                setFolderIsSuggestion(!e.target.value.trim());
+                              }}
                             />
                           </FormControl>
                           <p className="text-[10px] text-muted-foreground">
-                            Folder name under the archive root — leave blank to auto-derive from Short Name + Name
+                            {folderIsSuggestion
+                              ? "Follows Short Name + Name (SHORT-Channelname, spaces and dashes dropped) — edit to change"
+                              : "Folder name under the archive root — clear it to follow Short Name + Name again"}
                           </p>
                           <FormMessage />
                         </FormItem>
@@ -356,7 +372,7 @@ export function AddChannelSheet({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => { form.reset(); setIsSuggestion(true); setShortNameAvailable(null); setOpen(false); }}
+                onClick={() => { form.reset(); setIsSuggestion(!initialValues?.shortName); setFolderIsSuggestion(!initialValues?.channelFolder); setShortNameAvailable(null); setOpen(false); }}
                 disabled={isSubmitting}
               >
                 Cancel

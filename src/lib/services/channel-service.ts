@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, ChannelTier, StagingSetStatus } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
-import { generateChannelShortName } from "@/lib/utils";
+import { channelArchiveFolder, generateChannelShortName } from "@/lib/utils";
 import { refreshPersonAffiliations } from "@/lib/services/view-service";
 import { pickOwnerLabelId } from "@/lib/services/label-resolution";
 
@@ -153,7 +153,8 @@ export async function createChannelRecord(data: {
         name: data.name,
         nameNorm: normalizeForSearch(data.name),
         shortName: data.shortName || null,
-        channelFolder: data.channelFolder || null,
+        // The archive's norm when none is given: "SHORT-Channelname"
+        channelFolder: data.channelFolder || channelArchiveFolder(data.shortName, data.name) || null,
         platform: data.platform,
         url: data.url,
         tier: data.tier,

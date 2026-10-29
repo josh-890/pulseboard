@@ -88,12 +88,15 @@ test("create a channel with a new label of the same name, straight from a catalo
   await sheet.getByRole("combobox", { name: /^Label/ }).selectOption({ label: "+ New label with the channel's name" });
   await sheet.getByRole("textbox", { name: /^Name/ }).fill(FRESH_CHANNEL);
   await expect(sheet).toContainText(`Creates the label ${FRESH_CHANNEL} together with the channel`);
+  // The archive folder follows the norm SHORT-Channelname (spaces dropped)
+  await sheet.getByRole("textbox", { name: "Short Name" }).fill(`ZTF${R}`);
+  await expect(sheet.getByRole("textbox", { name: "Archive Folder" })).toHaveValue(`ZTF${R}-TestFresh${R}`);
   await sheet.getByRole("button", { name: "Create Channel" }).click();
   await expect(page.getByText(`Label and channel ${FRESH_CHANNEL} created`)).toBeVisible(SLOW);
 
   const { rows } = await db.query(
-    `SELECT l.name AS label, c."importAliases" FROM "Channel" c JOIN "Label" l ON l.id = c."labelId" WHERE c.name = $1`,
+    `SELECT l.name AS label, c."importAliases", c."channelFolder" FROM "Channel" c JOIN "Label" l ON l.id = c."labelId" WHERE c.name = $1`,
     [FRESH_CHANNEL],
   );
-  expect(rows).toEqual([{ label: FRESH_CHANNEL, importAliases: [FRESH] }]);
+  expect(rows).toEqual([{ label: FRESH_CHANNEL, importAliases: [FRESH], channelFolder: `ZTF${R}-TestFresh${R}` }]);
 });
