@@ -144,6 +144,74 @@ describe("archive matching by owning Label", () => {
 
     const conflicts = await getConflictingLinks([ss.id]);
 
-    expect(conflicts.get(ss.id)?.folderName).toBe(folder.folderName);
+    expect(conflicts.get(ss.id)).toMatchObject({ kind: "taken", folderName: folder.folderName });
+  });
+});
+
+describe("folder taken: a channel with several sets on one day", () => {
+  const dayFolder = (person: string, title: string) =>
+    prisma.archiveFolder.create({
+      data: {
+        fullPath: `X:\\${PREFIX}\\LSCA-Nubiles\\2016-12-24-LSCA ${person} - ${title}`,
+        folderName: `2016-12-24-LSCA ${person} - ${title}`,
+        chanFolderName: "LSCA-Nubiles",
+        isVideo: false,
+        scannedAt: new Date(),
+        tenant: TENANT,
+        parsedDate: DAY,
+        parsedTitle: title,
+        parsedShortName: "LSCA",
+      },
+    });
+  const stagedWith = (title: string, name: string) =>
+    prisma.stagingSet.create({
+      data: {
+        title,
+        titleNorm: normalizeForSearch(title),
+        channelName: `${PREFIX} set`,
+        channelId: ownCh,
+        releaseDate: DAY,
+        isVideo: false,
+        participants: [{ name, icgId: null }],
+      },
+    });
+  const confirmTo = (folderId: string, stagingSetId: string) =>
+    prisma.archiveLink.create({ data: { archiveFolderId: folderId, stagingSetId, status: "CONFIRMED", tenant: TENANT } });
+
+  it("a sibling's taken folder is not this set's: a free folder that day is said instead", async () => {
+    const katya = await dayFolder("Katya", "Vibrator");
+    await dayFolder("Cara", "Something Else");
+    const vibrator = await stagedWith("Vibrator", "Katya");
+    const extra = await stagedWith("Extra", "Cara");
+    await confirmTo(katya.id, vibrator.id);
+
+    expect((await getConflictingLinks([extra.id])).get(extra.id)).toEqual({
+      kind: "free",
+      folderNames: ["2016-12-24-LSCA Cara - Something Else"],
+    });
+  });
+
+  it("all taken: names the one that fits her (cast name in the folder name), else only the count", async () => {
+    const katya = await dayFolder("Katya", "Vibrator");
+    const cara = await dayFolder("Cara", "Something Else");
+    const vibrator = await stagedWith("Vibrator", "Katya");
+    const wrong = await stagedWith("Teen", "Lilit");
+    const extra = await stagedWith("Extra", "Cara");
+    await confirmTo(katya.id, vibrator.id);
+    await confirmTo(cara.id, wrong.id); // the misclick
+
+    expect((await getConflictingLinks([extra.id])).get(extra.id)).toMatchObject({
+      kind: "taken",
+      folderName: cara.folderName,
+      linkedToTitle: "Teen",
+      dayFolders: 2,
+    });
+
+    const nobody = await stagedWith("Other", "Nobody");
+    expect((await getConflictingLinks([nobody.id])).get(nobody.id)).toMatchObject({
+      kind: "taken",
+      folderName: null,
+      dayFolders: 2,
+    });
   });
 });

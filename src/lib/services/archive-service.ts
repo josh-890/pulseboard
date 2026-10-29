@@ -2610,37 +2610,57 @@ export async function getSuggestedFoldersForSets(
 
 /** Why a staging set can get no suggestion: its folder is spoken for. */
 export type BlockingFolderInfo = {
-  folderName: string
+  /** The taken folder that fits the set (her name or its title); null when none of that day's does. */
+  folderName: string | null
   /** The title it is CONFIRMED to, so the operator can go and look at it. */
   linkedToTitle: string | null
   linkedToKind: 'staging' | 'set' | null
   linkedToId: string | null
+  /** How many folders that day and channel there are — all of them confirmed to something else. */
+  dayFolders: number
 }
 
+/** What the archive holds on a staging set's day, for a set with no link of its own. */
+export type DayFolderInfo =
+  | ({ kind: 'taken' } & BlockingFolderInfo)
+  /** At least one folder of that day is not confirmed to anything: it may be this one. */
+  | { kind: 'free'; folderNames: string[] }
+
 /**
- * For a batch of staging set IDs, the archive folder that would have matched but
- * is already CONFIRMED to something else.
+ * For a batch of staging set IDs without a link of their own, the folders of their
+ * day and channel (same Label's codes).
  *
- * Returns *which* folder and *what* it is linked to. The badge used to say only
- * "Folder taken · linked to another set", which tells the operator that something
- * is wrong and nothing about where to look — leaving them to search the archive
- * by hand for a folder the query had already found.
+ * "Taken" only when EVERY folder of that day is confirmed to something else — a
+ * channel that released three sets on one day has three folders, and the one
+ * linked to a sibling says nothing about this set. The folder named is the taken
+ * one that fits the set (a cast name in the folder name, or the exact title), so
+ * the operator looks where the mistake most likely is; when none fits, only the
+ * count is given. When a folder of that day is still free, that is said instead.
  */
-export async function getConflictingLinks(ids: string[]): Promise<Map<string, BlockingFolderInfo>> {
+export async function getConflictingLinks(ids: string[]): Promise<Map<string, DayFolderInfo>> {
   if (ids.length === 0) return new Map()
   const idList = Prisma.join(ids.map((id) => Prisma.sql`${id}`))
   type Row = {
     id: string
+    title: string
+    title_norm: string | null
+    participants: Prisma.JsonValue
     folder_name: string
+    parsed_title: string | null
+    confirmed: boolean
     staging_title: string | null
     staging_id: string | null
     set_title: string | null
     set_id: string | null
   }
   const rows = await prisma.$queryRaw<Row[]>`
-    SELECT DISTINCT ON (ss.id)
-           ss.id::text        AS id,
+    SELECT ss.id::text        AS id,
+           ss.title           AS title,
+           ss."titleNorm"     AS title_norm,
+           ss.participants    AS participants,
            af."folderName"    AS folder_name,
+           af."parsedTitle"   AS parsed_title,
+           (al2.status = 'CONFIRMED') IS TRUE AS confirmed,
            ss2.title          AS staging_title,
            ss2.id::text       AS staging_id,
            st.title           AS set_title,
@@ -2651,9 +2671,10 @@ export async function getConflictingLinks(ids: string[]): Promise<Map<string, Bl
            ON  af."parsedDate" >= DATE_TRUNC('day', ss."releaseDate")
            AND af."parsedDate" <  DATE_TRUNC('day', ss."releaseDate") + INTERVAL '1 day'
            AND LOWER(af."parsedShortName") IN (${sameLabelChannelCodes(Prisma.sql`c."shortName"`)})
-    JOIN   "ArchiveLink" al2 ON al2."archiveFolderId" = af.id AND al2.status = 'CONFIRMED'
-    LEFT JOIN staging_set ss2 ON ss2.id = al2."stagingSetId"
-    LEFT JOIN "Set" st ON st.id = al2."setId"
+           AND af."missingOnDisk" = false
+    LEFT JOIN "ArchiveLink" al2 ON al2."archiveFolderId" = af.id
+    LEFT JOIN staging_set ss2 ON ss2.id = al2."stagingSetId" AND al2.status = 'CONFIRMED'
+    LEFT JOIN "Set" st ON st.id = al2."setId" AND al2.status = 'CONFIRMED'
     WHERE  ss.id::text IN (${idList})
       AND  ss."releaseDate" IS NOT NULL
       AND  c."shortName" IS NOT NULL
@@ -2665,17 +2686,38 @@ export async function getConflictingLinks(ids: string[]): Promise<Map<string, Bl
            )
     ORDER BY ss.id, af."folderName"
   `
-  return new Map(
-    rows.map((r) => [
-      r.id,
-      {
-        folderName: r.folder_name,
-        linkedToTitle: r.staging_title ?? r.set_title,
-        linkedToKind: r.staging_id ? ('staging' as const) : r.set_id ? ('set' as const) : null,
-        linkedToId: r.staging_id ?? r.set_id,
-      },
-    ]),
-  )
+  const bySet = new Map<string, Row[]>()
+  for (const r of rows) bySet.set(r.id, [...(bySet.get(r.id) ?? []), r])
+
+  const out = new Map<string, DayFolderInfo>()
+  for (const [id, day] of bySet) {
+    const free = day.filter((r) => !r.confirmed)
+    if (free.length > 0) {
+      out.set(id, { kind: 'free', folderNames: free.map((r) => r.folder_name) })
+      continue
+    }
+    const first = day[0]
+    const titleNorm = first.title_norm ?? normalizeForSearch(first.title)
+    const cast = Array.isArray(first.participants)
+      ? first.participants
+          .map((p) => (p && typeof p === 'object' && !Array.isArray(p) && typeof p.name === 'string' ? normalizeForSearch(p.name) : ''))
+          .filter(Boolean)
+      : []
+    const fits = day.find((r) => {
+      const person = parseFolderParticipant(r.folder_name)
+      if (person && cast.some((n) => person.includes(n) || n.includes(person))) return true
+      return !!r.parsed_title && normalizeForSearch(r.parsed_title) === titleNorm
+    })
+    out.set(id, {
+      kind: 'taken',
+      folderName: fits?.folder_name ?? null,
+      linkedToTitle: fits ? (fits.staging_title ?? fits.set_title) : null,
+      linkedToKind: fits ? (fits.staging_id ? 'staging' : fits.set_id ? 'set' : null) : null,
+      linkedToId: fits ? (fits.staging_id ?? fits.set_id) : null,
+      dayFolders: day.length,
+    })
+  }
+  return out
 }
 
 // ─── Archive Workspace Queries ────────────────────────────────────────────────

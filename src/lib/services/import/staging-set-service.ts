@@ -76,6 +76,8 @@ export type StagingSetWithRelations = StagingSet & {
   hasLinkConflict?: boolean
   /** Which folder blocks it and what holds that folder — so "taken" is actionable */
   linkConflict?: BlockingFolderInfo | null
+  /** Folders of its day and channel that nothing is confirmed to (no link of its own) */
+  freeDayFolders?: string[] | null
 }
 
 export type ParticipantStatus = {

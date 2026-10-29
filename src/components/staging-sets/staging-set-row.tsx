@@ -983,10 +983,18 @@ export const StagingSetRow = memo(function StagingSetRow({
       {!isPromoted && !hasArchiveLink && !suggestion && ss.hasLinkConflict && (
         <div className="flex items-center gap-1.5 pl-3">
           <AlertTriangle size={11} className="shrink-0 text-amber-500" />
-          <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">Folder taken</span>
+          <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {ss.linkConflict && !ss.linkConflict.folderName ? 'No free folder' : 'Folder taken'}
+          </span>
           {/* Name the folder and what holds it. "Taken" on its own only tells the
-              operator that something is wrong, not where to look. */}
-          {ss.linkConflict ? (
+              operator that something is wrong, not where to look. Every folder of
+              the day is taken; the one named is the one that fits this set. */}
+          {ss.linkConflict && !ss.linkConflict.folderName ? (
+            <span className="min-w-0 truncate text-xs text-muted-foreground/60">
+              · {ss.linkConflict.dayFolders === 1 ? 'the one folder' : `all ${ss.linkConflict.dayFolders} folders`} of
+              that day {ss.linkConflict.dayFolders === 1 ? 'is' : 'are'} linked to other sets
+            </span>
+          ) : ss.linkConflict ? (
             <span
               className="min-w-0 truncate text-xs text-muted-foreground"
               title={`${ss.linkConflict.folderName} is already confirmed to ${
@@ -1019,8 +1027,36 @@ export const StagingSetRow = memo(function StagingSetRow({
         </div>
       )}
 
-      {/* Non-promoted: no archive link, no suggestion, no conflict */}
-      {!isPromoted && !hasArchiveLink && !suggestion && !ss.hasLinkConflict && expectedFolderName && (
+      {/* Non-promoted: no link, no suggestion, but a folder of that day nothing is confirmed to */}
+      {!isPromoted && !hasArchiveLink && !suggestion && !ss.hasLinkConflict && ss.freeDayFolders && ss.freeDayFolders.length > 0 && (
+        <div className="flex items-center gap-1.5 pl-3">
+          <FolderSearch size={11} className="shrink-0 text-sky-500" />
+          <span className="shrink-0 text-xs font-medium text-sky-600 dark:text-sky-400">
+            {ss.freeDayFolders.length === 1 ? 'Free folder that day' : `${ss.freeDayFolders.length} free folders that day`}
+          </span>
+          <span className="min-w-0 truncate text-xs text-muted-foreground" title={ss.freeDayFolders.join('\n')}>
+            · {ss.freeDayFolders.join(' · ')}
+          </span>
+          <span className="w-3 shrink-0" />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setPickerOpen(true)
+            }}
+            className={cn(
+              'flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+              'bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 dark:text-sky-400',
+            )}
+          >
+            <FolderSearch size={10} />
+            Link folder
+          </button>
+        </div>
+      )}
+
+      {/* Non-promoted: no archive link, no suggestion, no conflict, no free folder that day */}
+      {!isPromoted && !hasArchiveLink && !suggestion && !ss.hasLinkConflict && !ss.freeDayFolders?.length && expectedFolderName && (
         <div className="flex items-center gap-1.5 pl-3">
           <FolderX size={11} className="shrink-0 text-muted-foreground/40" />
           <span className="shrink-0 text-xs text-muted-foreground/50">Not in archive</span>

@@ -86,11 +86,19 @@ export async function GET(request: Request) {
           return key ? buildUrl(key) : null
         })(),
         suggestedArchiveFolder: suggestions.get(item.id) ?? null,
-        hasLinkConflict: conflicts.has(item.id),
+        hasLinkConflict: conflicts.get(item.id)?.kind === 'taken',
         // Which folder blocks it, and what that folder is linked to — a badge
         // saying only "taken" leaves the operator searching the archive by hand
         // for something this query already knows.
-        linkConflict: conflicts.get(item.id) ?? null,
+        linkConflict: (() => {
+          const c = conflicts.get(item.id)
+          return c?.kind === 'taken' ? c : null
+        })(),
+        // A folder of that day no one has confirmed: perhaps hers
+        freeDayFolders: (() => {
+          const c = conflicts.get(item.id)
+          return c?.kind === 'free' ? c.folderNames : null
+        })(),
       }))
 
       return NextResponse.json({ ...result, items: augmentedItems })

@@ -241,6 +241,7 @@ All import services in `src/lib/services/import/`.
 - `rejectArchiveSuggestion(folderId)` — clears `suggestedStagingId/SetId` + `suggestedConfidence`
 - `getSuggestedFoldersForStagingSets(ids)` → `Map<stagingSetId, SuggestedFolderInfo>` — batch query keyed by `suggestedStagingId`
 - `getSuggestedFoldersForSets(ids)` → `Map<setId, SuggestedFolderInfo>` — batch query keyed by `suggestedSetId`
+- `getConflictingLinks(ids)` → `Map<stagingSetId, DayFolderInfo>` — for staged sets with no link of their own, the folders of their day and same-Label channel codes (not missing on disk): `{ kind: 'free', folderNames }` when any is not CONFIRMED to anything; else `{ kind: 'taken', folderName, linkedTo…, dayFolders }` naming the taken folder that fits the set (cast name in the folder's person part via `parseFolderParticipant`, or exact title), `folderName: null` when none fits. `/api/staging-sets` turns it into `hasLinkConflict` / `linkConflict` / `freeDayFolders` for the row's archive strip
 - `SuggestedFolderInfo` type: `{ folderId, folderName, fileCount, parsedDate, fullPath, confidence: 'HIGH'|'MEDIUM' }`
 - `FullIngestItem.sidecarKey?: string` — optional field for scan script to report `_pulseboard.json` archiveKey, enabling cross-drive folder-move detection
 

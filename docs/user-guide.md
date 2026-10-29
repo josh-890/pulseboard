@@ -1857,10 +1857,15 @@ Each staging set row shows its archive status as a compact strip below the main 
 | **HIGH suggestion** | Amber dot + amber strip | `✓ date+code` label · folder name · file count · **Confirm** / **✗** buttons |
 | **MEDIUM suggestion** | Dimmer amber dot + muted strip | `~ title match` label · folder name · **Confirm** / **✗** buttons |
 | **No match** | Grey `○` in strip | Expected relative path · **Link folder** button |
+| **Free folder that day** | Blue strip | The folders of that day and channel nobody has confirmed — one may be this set's · **Link folder** |
+| **Folder taken** | Amber ⚠ strip | Every folder of that day is confirmed elsewhere; the one named fits this set (her name in the folder name, or the title) and `→` names the set it is linked to — a likely misclick · **Re-assign** |
+| **No free folder** | Amber ⚠ strip | Every folder of that day is linked to other sets and none fits this one — her folder is probably not in the archive · **Re-assign** |
 
 **Confirm** — links the suggested folder immediately, generating a stable `archiveKey` UUID.  
 **✗** — rejects the suggestion (folder remains unlinked, will not be re-suggested unless re-scanned).  
 **Link folder** — opens the **Archive Folder Picker** sheet.
+
+A channel that released several sets on one day has several folders that day; one linked to a sibling set says nothing about this one. So *Folder taken* only appears when **every** folder of the day is confirmed elsewhere (2026-10-30 — it used to name the first taken folder alphabetically, the same one on every set of that day).
 
 Suggestions are **person-aware**: the matcher reads the person from the folder name (`…-CODE Person - Title`) and matches it against the set's people — using *any* recorded alias, plus the names from the import — alongside title similarity. A folder that only shares the date and channel but has a different person and title is no longer offered as a HIGH suggestion, which cuts false positives on channels that publish many sets per day. When neither the person nor the title is a good enough match, no suggestion is made and you link the folder manually via the picker.
 
