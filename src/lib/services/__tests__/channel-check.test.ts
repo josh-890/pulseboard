@@ -8,7 +8,11 @@ import {
   removeChannelImportAlias,
 } from "@/lib/services/channel-service";
 import {
+  channelHintsForCatalogueName,
   channelHintsForFolder,
+  getCatalogueChannelNames,
+  sortCatalogueChannelNames,
+  type CatalogueChannelName,
   getNameOnlyLinks,
   getUnclaimedArchiveFolders,
   rejectNameOnlyLink,
@@ -33,6 +37,7 @@ afterEach(async () => {
     await prisma.importBatch.deleteMany({ where: { id: { in: ids } } });
   }
   await prisma.contact.deleteMany({ where: { icgId: { startsWith: "ZZ-96@" } } });
+  await prisma.catalogueSet.deleteMany({ where: { coverId: { startsWith: PREFIX } } });
   await prisma.channel.deleteMany({ where: { name: { startsWith: PREFIX } } });
 });
 
@@ -148,5 +153,82 @@ describe("the channel check", () => {
       ["2", "shortName"],
       ["1", "name"],
     ]);
+  });
+});
+
+describe("catalogue channel names (S4)", () => {
+  it("lists a name no import alias links, with what it connects — until it is linked", async () => {
+    const NAME = `${PREFIX} NETWORK`;
+    const owner = await channel(`${PREFIX} Net Owner`, [], { channelFolder: "CHKTESTN-Net" });
+    for (const [n, spelling, date] of [
+      ["1", NAME, "2010-05-01"],
+      ["2", NAME, "2014-02-01"],
+      ["3", `${PREFIX} Network`, "2012-01-01"],
+    ]) {
+      await prisma.catalogueSet.create({
+        data: { coverId: `${PREFIX}-${n}`, channelName: spelling, title: `${PREFIX} ${n}`, date: new Date(date), castIcgIds: [] },
+      });
+    }
+    await prisma.contact.create({
+      data: {
+        icgId: "ZZ-96@NET",
+        name: `${PREFIX} Nia`,
+        channelAliases: { create: [{ channelName: NAME, alias: "Nia", aliasNorm: "nia" }] },
+      },
+    });
+    const folder = await prisma.archiveFolder.create({
+      data: { fullPath: `X:\\${PREFIX}\\net`, folderName: `${PREFIX} net`, isVideo: false, scannedAt: new Date(), tenant: TENANT, chanFolderName: "CHKTESTN-Net" },
+    });
+    await prisma.archiveFolderSuggestion.create({
+      data: {
+        archiveFolderId: folder.id, icgId: "ZZ-96@NET", name: "Nia", source: "CATALOGUE", tier: "EXACT", score: 1, demotions: ["UNKNOWN_CHANNEL"],
+        evidence: { matchedChannel: NAME },
+      },
+    });
+    await staged("waiting", `${PREFIX} network`, null);
+
+    const mine = () => getCatalogueChannelNames().then((rows) => rows.filter((r) => r.key.startsWith(PREFIX)));
+    const [row] = await mine();
+    expect(row).toMatchObject({
+      key: NAME,
+      channelName: NAME,
+      otherSpellings: [`${PREFIX} Network`],
+      sets: 3,
+      firstYear: 2010,
+      lastYear: 2014,
+      contacts: 1,
+      archiveFolders: 1,
+      archiveChannelFolders: ["CHKTESTN-Net"],
+      openStaged: 1,
+    });
+    const all = await prisma.channel.findMany({ select: { id: true, name: true, shortName: true, channelFolder: true, label: { select: { name: true } } } });
+    expect(channelHintsForCatalogueName(row, all).map((h) => [h.id, h.by])).toEqual([[owner.id, "archive"]]);
+
+    // One alias in any spelling links every spelling, and connects the waiting staged set
+    expect(await addChannelImportAlias(owner.id, row.channelName)).toEqual({ connected: 1 });
+    expect(await mine()).toEqual([]);
+  });
+
+  it("waiting on you first; A–Z puts related names together", () => {
+    const r = (key: string, over: Partial<CatalogueChannelName> = {}): CatalogueChannelName => ({
+      key, channelName: key, otherSpellings: [], archiveFolders: 0, archiveChannelFolders: [], openStaged: 0,
+      contacts: 0, sets: 0, firstYear: null, lastYear: null, ...over,
+    });
+    const rows = [r("ATK PETITES", { contacts: 50 }), r("BIG", { sets: 900 }), r("ATK GALLERIA", { archiveFolders: 3 }), r("ZED", { openStaged: 5 })];
+    expect(sortCatalogueChannelNames(rows, "waiting").map((x) => x.key)).toEqual(["ZED", "ATK GALLERIA", "ATK PETITES", "BIG"]);
+    expect(sortCatalogueChannelNames(rows, "az").map((x) => x.key)).toEqual(["ATK GALLERIA", "ATK PETITES", "BIG", "ZED"]);
+  });
+
+  it("hints: the channel owning the matched archive folders, then same name, then Shortname", () => {
+    const channels = [
+      { id: "1", name: "Showy Beauty", shortName: "SB", channelFolder: null, label: null },
+      { id: "2", name: "Other", shortName: "OT", channelFolder: "SB-ShowyBeauty", label: null },
+      { id: "3", name: "Nope", shortName: "SHOWYBEAUTY", channelFolder: null, label: null },
+    ];
+    const hints = channelHintsForCatalogueName(
+      { channelName: "SHOWY BEAUTY", otherSpellings: ["ShowyBeauty"], archiveChannelFolders: ["SB-ShowyBeauty"] },
+      channels,
+    );
+    expect(hints.map((h) => [h.id, h.by])).toEqual([["2", "archive"], ["1", "name"], ["3", "shortName"]]);
   });
 });

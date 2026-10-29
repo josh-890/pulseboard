@@ -209,7 +209,9 @@ Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link�
 | `AddChannelSheet` | Client | `labels`, `defaultLabelId?`, `initialValues?` (`name`, `shortName`, `channelFolder`), `importAlias?`, `triggerLabel?`, `onCreated?` | Channel form in a sheet. `importAlias` is recorded on the new channel (connects waiting staged sets); `onCreated` stays on the page instead of opening the channel; `triggerLabel` turns the button into an outline "Create channel…" |
 | `ChannelCheckFolders` | Client | `folders` (`UnclaimedArchiveFolder[]`), `labels` | Archive channel folders no channel claims: hints (same Shortname / same name, current archive folder) with **Set as / Replace its archive folder**, **Create channel…** prefilled from `Shortname-Channelname` |
 | `ChannelCheckNameLinks` | Client | `links` (`NameOnlyLink[]`) | Names linked by name only: **Add as import alias** / **Not this one** (confirm dialog, disconnects open staged sets) |
-| `ChannelCheckIntegrity` | Server | `integrity`, `channels`, `labels` | The rule as ticks/warnings, archived sets without a channel, then a `ChannelCheckStagedRow` per waiting channel name |
+| `ChannelCheckIntegrity` | Server | `integrity`, `listedUnderCatalogue`, `channels`, `labels` | The rule as ticks/warnings, archived sets without a channel, then a `ChannelCheckStagedRow` per waiting channel name |
+| `ChannelCheckCatalogue` | Client | `rows`, `matching`, `sort`, `q`, `showAll`, `channels`, `labels` | Catalogue channel names no import alias links: search (`cq`), Waiting first / A–Z, Show all |
+| `ChannelCheckCatalogueRow` | Client | `row` (`CatalogueChannelName` + hints), `channels`, `labels` | One name: what it connects, other spellings, archive channel folders, hint **Link to …**, combobox link, **Create channel…** with the name as import alias |
 | `ChannelCheckStagedRow` | Client | `channelName`, `sets`, `channels`, `labels` | A waiting channel name: link to an existing channel (combobox → import alias) or **Create channel…** with the name as import alias |
 
 ---

@@ -6,6 +6,8 @@ import type { ChannelIntegrity } from "@/lib/services/channel-check-service";
 
 type ChannelCheckIntegrityProps = {
   integrity: ChannelIntegrity;
+  /** Channel names of waiting staged sets that the catalogue also writes — listed there instead */
+  listedUnderCatalogue: string[];
   channels: { id: string; label: string; description?: string }[];
   labels: { id: string; name: string }[];
 };
@@ -21,8 +23,10 @@ function Rule({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 /** The rule: no set with an archive folder, and no open staged set, without a channel */
-export function ChannelCheckIntegrity({ integrity, channels, labels }: ChannelCheckIntegrityProps) {
+export function ChannelCheckIntegrity({ integrity, listedUnderCatalogue, channels, labels }: ChannelCheckIntegrityProps) {
   const stagedWaiting = integrity.stagedNoChannel.reduce((n, s) => n + s.sets, 0);
+  const elsewhere = new Set(listedUnderCatalogue);
+  const stagedRows = integrity.stagedNoChannel.filter((s) => !elsewhere.has(s.channelName));
   return (
     <div className="space-y-3">
       <ul className="space-y-1.5 rounded-xl border border-white/15 bg-card/40 px-4 py-3">
@@ -56,9 +60,20 @@ export function ChannelCheckIntegrity({ integrity, channels, labels }: ChannelCh
         </ul>
       )}
 
-      {integrity.stagedNoChannel.length > 0 && (
+      {elsewhere.size > 0 && (
+        <p className="text-sm text-muted-foreground">
+          {elsewhere.size === 1 ? "1 of these channel names is" : `${elsewhere.size} of these channel names are`} also
+          written by the catalogue — {elsewhere.size === 1 ? "it is" : "they are"} listed under{" "}
+          <a href="#check-catalogue" className="underline-offset-4 hover:underline focus-visible:underline focus-visible:outline-none">
+            Catalogue channels
+          </a>{" "}
+          with everything linking connects there.
+        </p>
+      )}
+
+      {stagedRows.length > 0 && (
         <ul className="space-y-2" aria-label="Channel names of staged sets without a channel">
-          {integrity.stagedNoChannel.map((s) => (
+          {stagedRows.map((s) => (
             <ChannelCheckStagedRow
               key={s.channelName}
               channelName={s.channelName}

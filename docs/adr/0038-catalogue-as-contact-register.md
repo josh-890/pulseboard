@@ -149,6 +149,14 @@ names linked by name only (→ add as import alias), later the unlinked catalogu
 hangs on them (archive, waiting staged sets) — every item decided on its own, showing what it connects;
 the page also re-checks that no archived or staged set is without a channel.
 
+**S4 (2026-10-29).** The section *Catalogue channels* lists every unlinked catalogue name, spellings that
+differ only in case or spaces as one row (one import alias links them all), with what linking connects
+(orphan archive folders the catalogue matched on that channel, waiting staged sets, Contacts, catalogue
+sets, years). Waiting first by default, A–Z to see related names together; hints: the channel owning the
+matched archive folders, then same name, then Shortname. A waiting staged-set name the catalogue also
+writes is listed only there. After the full load (2026-10-29): 39,104 folders, 49 quarantined, 736
+flagged, 984,755 catalogue sets.
+
 **Malformed ICG-IDs.** The 40 Q3 folders stay in quarantine and `ICG_ID_RE` is not widened; they are
 fixed by hand (folder name, file name and the file's ICGID line must agree), and the next pass picks
 them up.

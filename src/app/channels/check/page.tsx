@@ -4,13 +4,20 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getChannels } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import {
+  channelHintsForCatalogueName,
+  filterCatalogueChannelNames,
+  getCatalogueChannelNames,
   getChannelIntegrity,
   getNameOnlyLinks,
   getUnclaimedArchiveFolders,
+  sortCatalogueChannelNames,
 } from "@/lib/services/channel-check-service";
 import { ChannelCheckFolders } from "@/components/channels/channel-check-folders";
 import { ChannelCheckNameLinks } from "@/components/channels/channel-check-name-links";
 import { ChannelCheckIntegrity } from "@/components/channels/channel-check-integrity";
+import { ChannelCheckCatalogue } from "@/components/channels/channel-check-catalogue";
+
+const CATALOGUE_PAGE = 50;
 
 export const dynamic = "force-dynamic";
 
@@ -43,15 +50,42 @@ function Section({
   );
 }
 
-export default async function ChannelCheckPage() {
+type ChannelCheckPageProps = {
+  searchParams: Promise<{ cq?: string; csort?: string; call?: string }>;
+};
+
+export default async function ChannelCheckPage({ searchParams }: ChannelCheckPageProps) {
+  const params = await searchParams;
   return withTenantFromHeaders(async () => {
-    const [folders, links, integrity, channels, labels] = await Promise.all([
+    const [folders, links, integrity, catalogueNames, channels, labels] = await Promise.all([
       getUnclaimedArchiveFolders(),
       getNameOnlyLinks(),
       getChannelIntegrity(),
+      getCatalogueChannelNames(),
       getChannels(),
       getLabels(),
     ]);
+    const q = params.cq?.trim() ?? "";
+    const sort = params.csort === "az" ? "az" : "waiting";
+    const showAll = params.call === "1";
+    const matching = sortCatalogueChannelNames(filterCatalogueChannelNames(catalogueNames, q), sort);
+    const hintChannels = channels.map((c) => ({
+      id: c.id,
+      name: c.name,
+      shortName: c.shortName,
+      channelFolder: c.channelFolder,
+      label: c.label ? { name: c.label.name } : null,
+    }));
+    const catalogueRows = (showAll ? matching : matching.slice(0, CATALOGUE_PAGE)).map((row) => ({
+      ...row,
+      hints: channelHintsForCatalogueName(row, hintChannels),
+    }));
+    const waiting = catalogueNames.filter((r) => r.archiveFolders + r.openStaged > 0).length;
+    // A catalogue name with waiting staged sets is decided once, under Catalogue channels
+    const catalogueKeys = new Set(catalogueNames.map((r) => r.key));
+    const stagedElsewhere = integrity.stagedNoChannel
+      .map((s) => s.channelName)
+      .filter((name) => catalogueKeys.has(name.trim().toUpperCase()));
     const labelOptions = labels.map(({ id, name }) => ({ id, name }));
     const channelOptions = channels.map((c) => ({
       id: c.id,
@@ -102,10 +136,32 @@ export default async function ChannelCheckPage() {
         <Section
           id="check-integrity"
           title="Sets and staged sets without a channel"
-          count={integrity.archivedNoChannel.length + integrity.stagedNoChannel.length}
+          count={integrity.archivedNoChannel.length + integrity.stagedNoChannel.length - stagedElsewhere.length}
           description="Nothing archived or staged should be without a channel."
         >
-          <ChannelCheckIntegrity integrity={integrity} channels={channelOptions} labels={labelOptions} />
+          <ChannelCheckIntegrity
+            integrity={integrity}
+            listedUnderCatalogue={stagedElsewhere}
+            channels={channelOptions}
+            labels={labelOptions}
+          />
+        </Section>
+
+        <Section
+          id="check-catalogue"
+          title="Catalogue channels"
+          count={catalogueNames.length}
+          description={`Channel names the catalogue writes that no import alias links yet — ${waiting.toLocaleString()} wait on you with archive folders or staged sets. Linking one connects its Contacts' aliases and catalogue sets at once.`}
+        >
+          <ChannelCheckCatalogue
+            rows={catalogueRows}
+            matching={matching.length}
+            sort={sort}
+            q={q}
+            showAll={showAll}
+            channels={channelOptions}
+            labels={labelOptions}
+          />
         </Section>
       </div>
     );
