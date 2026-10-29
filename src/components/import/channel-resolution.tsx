@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { ImportItem } from '@/generated/prisma/client'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { NEW_LABEL } from '@/lib/validations/channel'
 
 type Suggestion = {
   id: string
@@ -189,11 +191,18 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
       const result = await res.json()
       if (result.success) {
         onResolved()
+      } else {
+        toast.error(result.error ?? 'Failed to create the channel')
       }
     } finally {
       setIsCreating(false)
     }
   }, [item.id, channelName, newChannelName, newChannelShortName, newChannelLabelId, onResolved])
+
+  const sameNameLabel =
+    newChannelLabelId === NEW_LABEL && newChannelName.trim()
+      ? labels.find((l) => l.name.trim().toLowerCase() === newChannelName.trim().toLowerCase())
+      : undefined
 
   // Already resolved
   if (item.status === 'MATCHED' || item.status === 'IMPORTED') {
@@ -430,18 +439,39 @@ export function ChannelResolution({ item, onResolved }: ChannelResolutionProps) 
                 className="flex h-8 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Select a label</option>
+                <option value={NEW_LABEL}>+ New label with the channel&apos;s name</option>
                 {labels.map((label) => (
                   <option key={label.id} value={label.id}>
                     {label.name}
                   </option>
                 ))}
               </select>
+              {newChannelLabelId === NEW_LABEL && (
+                sameNameLabel ? (
+                  <p className="text-[10px] text-destructive">
+                    A label &ldquo;{sameNameLabel.name}&rdquo; already exists —{' '}
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => setNewChannelLabelId(sameNameLabel.id)}
+                    >
+                      select it
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">
+                    {newChannelName.trim()
+                      ? <>Creates the label <span className="font-medium text-foreground">{newChannelName.trim()}</span> together with the channel</>
+                      : 'Creates a label named like the channel, together with it'}
+                  </p>
+                )
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 onClick={handleCreateAndLink}
-                disabled={isCreating || !newChannelName.trim() || !newChannelLabelId || shortNameAvailable === false}
+                disabled={isCreating || !newChannelName.trim() || !newChannelLabelId || shortNameAvailable === false || Boolean(sameNameLabel)}
               >
                 {isCreating ? (
                   <Loader2 size={12} className="animate-spin" />

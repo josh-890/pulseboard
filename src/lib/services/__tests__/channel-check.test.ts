@@ -4,7 +4,9 @@ import { createBatch } from "@/lib/services/import/staging-service";
 import { matchChannel, CHANNEL_NAME_SUGGESTION_CONFIDENCE } from "@/lib/services/import/matcher";
 import {
   addChannelImportAlias,
+  createChannelRecord,
   ImportAliasTakenError,
+  LabelExistsError,
   removeChannelImportAlias,
 } from "@/lib/services/channel-service";
 import {
@@ -38,7 +40,9 @@ afterEach(async () => {
   }
   await prisma.contact.deleteMany({ where: { icgId: { startsWith: "ZZ-96@" } } });
   await prisma.catalogueSet.deleteMany({ where: { coverId: { startsWith: PREFIX } } });
+  await prisma.channelLabelMap.deleteMany({ where: { channel: { name: { startsWith: PREFIX } } } });
   await prisma.channel.deleteMany({ where: { name: { startsWith: PREFIX } } });
+  await prisma.label.deleteMany({ where: { name: { startsWith: PREFIX } } });
 });
 
 const channel = (name: string, importAliases: string[] = [], extra: { shortName?: string; channelFolder?: string } = {}) =>
@@ -230,5 +234,17 @@ describe("catalogue channel names (S4)", () => {
       channels,
     );
     expect(hints.map((h) => [h.id, h.by])).toEqual([["2", "archive"], ["1", "name"], ["3", "shortName"]]);
+  });
+});
+
+describe("creating a channel with a new label", () => {
+  it("creates the label named like the channel and makes it the owner; a same-named label is refused", async () => {
+    const channel = await createChannelRecord({ name: `${PREFIX} Fresh Studio`, newLabel: true });
+    const label = await prisma.label.findUniqueOrThrow({ where: { id: channel.labelId! } });
+    expect(label.name).toBe(`${PREFIX} Fresh Studio`);
+    expect(await prisma.channelLabelMap.count({ where: { channelId: channel.id, labelId: label.id } })).toBe(1);
+
+    await expect(createChannelRecord({ name: `${PREFIX} fresh studio`, newLabel: true })).rejects.toBeInstanceOf(LabelExistsError);
+    expect(await prisma.channel.count({ where: { name: `${PREFIX} fresh studio` } })).toBe(0);
   });
 });

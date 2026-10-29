@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { createChannelRecord, addChannelImportAlias, ImportAliasTakenError } from '@/lib/services/channel-service'
+import { createChannelRecord, addChannelImportAlias, ImportAliasTakenError, LabelExistsError } from '@/lib/services/channel-service'
+import { NEW_LABEL } from '@/lib/validations/channel'
 import { computeDependencies } from '@/lib/services/import/staging-service'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 
 /**
  * Create a new channel and immediately link it to an import item.
  * Body: { itemId: string, name: string, labelId: string, importName: string }
+ * labelId NEW_LABEL creates a label named like the channel, in the same transaction.
  */
 export async function POST(request: Request) {
   return withTenantFromHeaders(async () => {
@@ -25,8 +27,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: new ImportAliasTakenError(importName, taken.name).message }, { status: 409 })
     }
 
-    // Create the channel with label
-    const channel = await createChannelRecord({ name, shortName, labelId })
+    // Create the channel with label (or a new label of the same name)
+    const newLabel = labelId === NEW_LABEL
+    let channel
+    try {
+      channel = await createChannelRecord({ name, shortName, labelId: newLabel ? undefined : labelId, newLabel })
+    } catch (err) {
+      if (err instanceof LabelExistsError) return NextResponse.json({ error: err.message }, { status: 409 })
+      throw err
+    }
 
     // Always save the import alias — it's the source-system name for future imports
     await addChannelImportAlias(channel.id, importName)

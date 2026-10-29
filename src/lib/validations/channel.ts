@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** Label choice meaning "create a label named like the channel" — Label and channel share a name */
+export const NEW_LABEL = "__new_label__";
+
 const channelTierValues = ['PREMIUM', 'HIGH', 'NORMAL', 'LOW', 'TRASH'] as const;
 
 export const createChannelSchema = z.object({

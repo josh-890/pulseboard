@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/form";
 import {
   createChannelSchema,
+  NEW_LABEL,
   type CreateChannelFormValues,
   type CreateChannelInput,
 } from "@/lib/validations/channel";
@@ -84,6 +85,13 @@ export function AddChannelSheet({
 
   const { isSubmitting } = form.formState;
   const shortNameValue = useWatch({ control: form.control, name: "shortName" });
+  const labelValue = useWatch({ control: form.control, name: "labelId" });
+  const nameValue = useWatch({ control: form.control, name: "name" });
+  const newLabelName = nameValue?.trim() ?? "";
+  const sameNameLabel =
+    labelValue === NEW_LABEL && newLabelName
+      ? labels.find((l) => l.name.trim().toLowerCase() === newLabelName.toLowerCase())
+      : undefined;
 
   // Check availability when shortName changes
   useEffect(() => {
@@ -126,11 +134,11 @@ export function AddChannelSheet({
       (values.shortName && values.name ? `${values.shortName}-${values.name}` : undefined)
     const result = await createChannel({ ...values, channelFolder });
     if (result.success) {
-      let message = "Channel created";
+      let message = labelValue === NEW_LABEL ? `Label and channel ${values.name} created` : "Channel created";
       if (importAlias) {
         const linked = await linkChannelNameAction(result.id, importAlias);
         if (!linked.success) toast.error(linked.error);
-        else message = `Channel created — ${linked.count} staged set${linked.count === 1 ? "" : "s"} connected`;
+        else message = `${message} — ${linked.count} staged set${linked.count === 1 ? "" : "s"} connected`;
       }
       toast.success(message);
       form.reset();
@@ -186,6 +194,7 @@ export function AddChannelSheet({
                               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             >
                               <option value="">Select a label</option>
+                              <option value={NEW_LABEL}>+ New label with the channel&apos;s name</option>
                               {labels.map((label) => (
                                 <option key={label.id} value={label.id}>
                                   {label.name}
@@ -193,6 +202,26 @@ export function AddChannelSheet({
                               ))}
                             </select>
                           </FormControl>
+                          {labelValue === NEW_LABEL && (
+                            sameNameLabel ? (
+                              <p className="text-xs text-destructive">
+                                A label &ldquo;{sameNameLabel.name}&rdquo; already exists —{" "}
+                                <button
+                                  type="button"
+                                  className="underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => form.setValue("labelId", sameNameLabel.id, { shouldDirty: true })}
+                                >
+                                  select it
+                                </button>
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-muted-foreground">
+                                {newLabelName
+                                  ? <>Creates the label <span className="font-medium text-foreground">{newLabelName}</span> together with the channel</>
+                                  : "Creates a label named like the channel, together with it"}
+                              </p>
+                            )
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -332,7 +361,7 @@ export function AddChannelSheet({
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting || shortNameAvailable === false}>
+              <Button type="submit" disabled={isSubmitting || shortNameAvailable === false || Boolean(sameNameLabel)}>
                 {isSubmitting ? "Creating..." : "Create Channel"}
               </Button>
             </SheetFooter>

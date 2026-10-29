@@ -2,7 +2,7 @@
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
-import { createChannelSchema, updateChannelSchema } from "@/lib/validations/channel";
+import { createChannelSchema, NEW_LABEL, updateChannelSchema } from "@/lib/validations/channel";
 import {
   createChannelRecord,
   updateChannelRecord,
@@ -10,6 +10,7 @@ import {
   addChannelImportAlias,
   removeChannelImportAlias,
   ImportAliasTakenError,
+  LabelExistsError,
 } from "@/lib/services/channel-service";
 import { rejectNameOnlyLink } from "@/lib/services/channel-check-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -22,16 +23,21 @@ export async function createChannel(raw: unknown): Promise<CrudActionResult> {
     }
 
     try {
+      const newLabel = parsed.data.labelId === NEW_LABEL;
       const channel = await createChannelRecord({
         ...parsed.data,
+        labelId: newLabel ? undefined : parsed.data.labelId,
+        newLabel,
         url: parsed.data.url || undefined,
         channelFolder: parsed.data.channelFolder || undefined,
       });
       revalidatePath("/channels");
       revalidatePath("/labels");
-      revalidatePath(`/labels/${parsed.data.labelId}`);
+      if (channel.labelId) revalidatePath(`/labels/${channel.labelId}`);
       return { success: true, id: channel.id };
-    } catch {
+    } catch (err) {
+      if (err instanceof LabelExistsError) return { success: false, error: err.message };
+      console.error("[createChannel]", err);
       return { success: false, error: "Unexpected error" };
     }
 

@@ -206,7 +206,7 @@ Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link�
 
 | Component | Type | Props | Description |
 |---|---|---|---|
-| `AddChannelSheet` | Client | `labels`, `defaultLabelId?`, `initialValues?` (`name`, `shortName`, `channelFolder`), `importAlias?`, `triggerLabel?`, `onCreated?` | Channel form in a sheet. `importAlias` is recorded on the new channel (connects waiting staged sets); `onCreated` stays on the page instead of opening the channel; `triggerLabel` turns the button into an outline "Create channel…" |
+| `AddChannelSheet` | Client | `labels`, `defaultLabelId?`, `initialValues?` (`name`, `shortName`, `channelFolder`), `importAlias?`, `triggerLabel?`, `onCreated?` | Channel form in a sheet. `importAlias` is recorded on the new channel (connects waiting staged sets); `onCreated` stays on the page instead of opening the channel; `triggerLabel` turns the button into an outline "Create channel…"; the Label list offers **+ New label with the channel's name** (`NEW_LABEL`, warns and offers the existing one when that name is taken) |
 | `ChannelCheckFolders` | Client | `folders` (`UnclaimedArchiveFolder[]`), `labels` | Archive channel folders no channel claims: hints (same Shortname / same name, current archive folder) with **Set as / Replace its archive folder**, **Create channel…** prefilled from `Shortname-Channelname` |
 | `ChannelCheckNameLinks` | Client | `links` (`NameOnlyLink[]`) | Names linked by name only: **Add as import alias** / **Not this one** (confirm dialog, disconnects open staged sets) |
 | `ChannelCheckIntegrity` | Server | `integrity`, `listedUnderCatalogue`, `channels`, `labels` | The rule as ticks/warnings, archived sets without a channel, then a `ChannelCheckStagedRow` per waiting channel name |

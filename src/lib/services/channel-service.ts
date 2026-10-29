@@ -136,9 +136,18 @@ export async function createChannelRecord(data: {
   platform?: string;
   url?: string;
   labelId?: string;
+  /** Create a Label named like the channel and make it the owner */
+  newLabel?: boolean;
   tier?: ChannelTier;
 }) {
   return prisma.$transaction(async (tx) => {
+    if (data.newLabel) {
+      const nameNorm = normalizeForSearch(data.name);
+      const existing = await tx.label.findFirst({ where: { nameNorm }, select: { name: true } });
+      if (existing) throw new LabelExistsError(existing.name);
+      const label = await tx.label.create({ data: { name: data.name, nameNorm } });
+      data = { ...data, labelId: label.id };
+    }
     const channel = await tx.channel.create({
       data: {
         name: data.name,
@@ -361,6 +370,13 @@ export async function addChannelImportAlias(
     })
     return { connected: count }
   })
+}
+
+export class LabelExistsError extends Error {
+  constructor(readonly labelName: string) {
+    super(`A label "${labelName}" already exists — select it instead`)
+    this.name = "LabelExistsError"
+  }
 }
 
 export class ImportAliasTakenError extends Error {

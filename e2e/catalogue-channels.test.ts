@@ -12,6 +12,8 @@ const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 const R = RUN.toUpperCase();
 const OWNER = { id: `e2e-channel-cat-${RUN}`, name: `Test owner cat ${RUN}`, folder: `ZCT${R}-Owner` };
 const NAME = `TEST CATNAME ${R}`;
+const FRESH = `TEST CATFRESH ${R}`;
+const FRESH_CHANNEL = `Test Fresh ${R}`;
 const SLOW = { timeout: 30_000 };
 
 test.describe.configure({ timeout: 90_000, mode: "serial" });
@@ -22,6 +24,10 @@ const catalogueRows = (page: import("@playwright/test").Page) =>
 test.beforeAll(async () => {
   await db.connect();
   await db.query(`INSERT INTO "Channel" (id, name, "channelFolder") VALUES ($1, $2, $3)`, [OWNER.id, OWNER.name, OWNER.folder]);
+  await db.query(
+    `INSERT INTO catalogue_set ("coverId", "channelName", title, date, "castIcgIds") VALUES ($1, $2, 'Test fresh', '2020-01-01', '{}')`,
+    [`E2E-CAT-${R}-F`, FRESH],
+  );
   for (const n of ["1", "2"]) {
     await db.query(
       `INSERT INTO catalogue_set ("coverId", "channelName", title, date, "castIcgIds") VALUES ($1, $2, $3, $4, '{}')`,
@@ -48,7 +54,9 @@ test.afterAll(async () => {
   await db.query(`DELETE FROM archive_folder WHERE id = $1`, [`e2e-af-cat-${RUN}`]);
   await db.query(`DELETE FROM staging_set WHERE id = $1`, [`e2e-ss-cat-${RUN}`]);
   await db.query(`DELETE FROM catalogue_set WHERE "coverId" LIKE $1`, [`E2E-CAT-${R}-%`]);
-  await db.query(`DELETE FROM "Channel" WHERE id = $1`, [OWNER.id]);
+  await db.query(`DELETE FROM "ChannelLabelMap" WHERE "channelId" IN (SELECT id FROM "Channel" WHERE name = $1)`, [FRESH_CHANNEL]);
+  await db.query(`DELETE FROM "Channel" WHERE id = $1 OR name = $2`, [OWNER.id, FRESH_CHANNEL]);
+  await db.query(`DELETE FROM "Label" WHERE name = $1`, [FRESH_CHANNEL]);
   await db.end();
 });
 
@@ -70,4 +78,22 @@ test("a catalogue name shows what it connects, and its hint links it", async ({ 
   );
   expect(rows[0].importAliases).toContain(NAME);
   expect(rows[0].channelId).toBe(OWNER.id);
+});
+
+test("create a channel with a new label of the same name, straight from a catalogue name", async ({ page }) => {
+  await page.goto(`/channels/check?cq=${encodeURIComponent(FRESH)}`);
+  const row = page.getByRole("list", { name: "Catalogue channel names" }).getByRole("listitem").filter({ hasText: FRESH });
+  await row.getByRole("button", { name: "Create channel…" }).click();
+  const sheet = page.getByRole("dialog");
+  await sheet.getByRole("combobox", { name: /^Label/ }).selectOption({ label: "+ New label with the channel's name" });
+  await sheet.getByRole("textbox", { name: /^Name/ }).fill(FRESH_CHANNEL);
+  await expect(sheet).toContainText(`Creates the label ${FRESH_CHANNEL} together with the channel`);
+  await sheet.getByRole("button", { name: "Create Channel" }).click();
+  await expect(page.getByText(`Label and channel ${FRESH_CHANNEL} created`)).toBeVisible(SLOW);
+
+  const { rows } = await db.query(
+    `SELECT l.name AS label, c."importAliases" FROM "Channel" c JOIN "Label" l ON l.id = c."labelId" WHERE c.name = $1`,
+    [FRESH_CHANNEL],
+  );
+  expect(rows).toEqual([{ label: FRESH_CHANNEL, importAliases: [FRESH] }]);
 });
