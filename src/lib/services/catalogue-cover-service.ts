@@ -194,9 +194,45 @@ export async function recordAgentPassStarted(): Promise<void> {
   await setSetting(AGENT_RUNNING_SETTING, new Date().toISOString())
 }
 
+/** One line for the dashboard: "3 covers delivered · catalogue unchanged" */
+export function agentPassSummary(pass: AgentPass): string {
+  const covers = [
+    pass.coversDelivered && `${pass.coversDelivered} cover${pass.coversDelivered === 1 ? '' : 's'} delivered`,
+    pass.coversNotFound && `${pass.coversNotFound} not found`,
+    pass.coversFailed && `${pass.coversFailed} damaged`,
+  ].filter(Boolean)
+  return [
+    covers.length ? covers.join(', ') : 'no covers wanted',
+    pass.runId ? `${pass.foldersSent.toLocaleString('en')} changed folders sent` : 'catalogue unchanged',
+    pass.error,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** A pass that did something: covers, a run or an error — the others would flood the activity feed */
+export const agentPassDidSomething = (pass: AgentPass) =>
+  Boolean(pass.coversDelivered || pass.coversNotFound || pass.coversFailed || pass.runId || pass.error)
+
+/**
+ * The pass's end: kept for the runs page; a pass that did something also goes to
+ * the dashboard's activity (an agent run, like the archive agents report theirs).
+ */
 export async function recordAgentPass(pass: AgentPass): Promise<void> {
   await setSetting(AGENT_PASS_SETTING, JSON.stringify(pass))
   await prisma.setting.deleteMany({ where: { key: AGENT_RUNNING_SETTING } })
+  if (agentPassDidSomething(pass)) {
+    await prisma.agentRun.create({
+      data: {
+        agent: 'catalogue-load',
+        startedAt: new Date(Date.parse(pass.at) - pass.durationMs),
+        finishedAt: new Date(pass.at),
+        ok: !pass.error,
+        summary: agentPassSummary(pass).slice(0, 500),
+        details: JSON.parse(JSON.stringify(pass)),
+      },
+    })
+  }
 }
 
 /** When the pass now running started, or null — a start older than 2 h is a pass that died */

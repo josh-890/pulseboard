@@ -93,6 +93,10 @@ their one-line summary (green: fine, amber: something to look at). The agents re
 this themselves from the script versions of 2026-10-11 on; before that the panel
 shows when the agent's work was last seen in the data.
 
+**Catalogue (scheduled pass)** shows the newest 15-minute pass, also one that found nothing to do
+("no covers wanted · catalogue unchanged") — so you see it is alive. The activity feed lists only the
+passes that did something: covers delivered, not found or damaged, changed folders sent, or an error.
+
 ### Quick Actions
 
 A panel of shortcut buttons for fast navigation to Sessions, Sets, People, Labels, and Projects.

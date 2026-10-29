@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getDisplayName } from "@/lib/utils";
+import { agentPassSummary, getAgentPass } from "@/lib/services/catalogue-cover-service";
 import { getAttributionQueue } from "./attribution-confirm-service";
 import { getUploadWorklist } from "./archive-upload-service";
 import { countOpenTodos } from "./tag-browse-service";
@@ -69,6 +70,7 @@ const AGENT_LABEL: Record<string, string> = {
   "archive-scan": "Archive scan",
   "archive-cover": "Archive covers",
   "archive-upload": "Archive upload",
+  "catalogue-load": "Catalogue (scheduled pass)",
 };
 
 /** What happened in the last `days` days, newest day first, newest event first */
@@ -325,8 +327,19 @@ export async function getAgentStatus(): Promise<AgentStatus[]> {
     "archive-cover": covered._max.coverCheckedAt,
     "archive-upload": uploaded._max.archiveUploadDoneAt,
   };
+  // The catalogue pass reports every 15 minutes, but only passes that did something
+  // become agent runs: the newest pass, empty or not, is what says it is alive
+  const pass = await getAgentPass();
   return agents.map((agent, i) => {
     const r = runs[i];
+    if (agent === "catalogue-load" && pass && (!r || new Date(pass.at) > r.finishedAt)) {
+      return {
+        agent,
+        label: AGENT_LABEL[agent],
+        last: { finishedAt: new Date(pass.at), ok: !pass.error, summary: agentPassSummary(pass) },
+        lastSeen: null,
+      };
+    }
     return {
       agent,
       label: AGENT_LABEL[agent],

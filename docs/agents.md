@@ -23,7 +23,9 @@ Common to all of them:
 - **Each run is reported** (archive scan, cover, upload — 2026-10-11): at its end the
   agent sends a one-line summary and its counters to `/api/archive/agent-runs`; the
   dashboard's **Agents** panel and activity show it. Dry runs are reported as such and
-  not shown. A failed report never fails the run.
+  not shown. A failed report never fails the run. The scheduled catalogue pass reports to
+  `/api/catalogue/agent/pass` instead: the panel shows its newest pass, the activity only the
+  passes that did something.
 
 ---
 

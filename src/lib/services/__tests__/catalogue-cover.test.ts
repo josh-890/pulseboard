@@ -22,6 +22,7 @@ import {
   requestCovers,
   retryCoverRequests,
 } from "@/lib/services/catalogue-cover-service";
+import { getAgentStatus } from "@/lib/services/dashboard-service";
 
 // ADR-0038 S7 on the DEV database and MinIO: covers on request — asked for,
 // delivered strictly decoded, or reported missing. Throwaway rows: staged sets
@@ -149,6 +150,7 @@ describe("a scheduled pass on the runs page", () => {
   it("shows as running from its start until it reports its end", async () => {
     const keys = [AGENT_PASS_SETTING, AGENT_RUNNING_SETTING];
     const before = await prisma.setting.findMany({ where: { key: { in: keys } } });
+    const since = new Date(Date.now() - 60_000);
     try {
       await recordAgentPassStarted();
       expect(await getAgentRunningSince()).not.toBeNull();
@@ -158,7 +160,19 @@ describe("a scheduled pass on the runs page", () => {
       });
       expect(await getAgentRunningSince()).toBeNull();
       expect((await getAgentPass())?.durationMs).toBe(1000);
+
+      // An empty pass is not an agent run (96 a day would flood the activity); one that did something is
+      expect(await prisma.agentRun.count({ where: { agent: "catalogue-load", startedAt: { gte: since } } })).toBe(0);
+      await recordAgentPass({
+        at: new Date().toISOString(), durationMs: 2000, coversDelivered: 3, coversNotFound: 0, coversFailed: 0,
+        foldersSent: 0, runId: null, error: null,
+      });
+      const run = await prisma.agentRun.findFirstOrThrow({ where: { agent: "catalogue-load", startedAt: { gte: since } } });
+      expect(run).toMatchObject({ ok: true, summary: "3 covers delivered · catalogue unchanged" });
+      const row = (await getAgentStatus()).find((a) => a.agent === "catalogue-load");
+      expect(row?.last?.summary).toBe("3 covers delivered · catalogue unchanged");
     } finally {
+      await prisma.agentRun.deleteMany({ where: { agent: "catalogue-load", startedAt: { gte: since } } });
       await prisma.setting.deleteMany({ where: { key: { in: keys } } });
       if (before.length) await prisma.setting.createMany({ data: before });
     }
