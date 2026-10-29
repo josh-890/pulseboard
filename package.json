@@ -17,7 +17,7 @@
     "db:studio": "npx prisma studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:agent": "esbuild scripts/catalogue-join.ts scripts/catalogue-inventory.ts scripts/catalogue-load.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=dist-agents --out-extension:.js=.mjs"
+    "build:agent": "esbuild scripts/catalogue-inventory.ts scripts/catalogue-load.ts --bundle --platform=node --format=esm --target=node20 --external:sharp --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\" --outdir=dist-agents --out-extension:.js=.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.991.0",

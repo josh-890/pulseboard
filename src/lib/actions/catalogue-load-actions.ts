@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { getCurrentTenantId, withTenantFromHeaders } from "@/lib/tenant-context";
+import { requestCatalogueMatch } from "@/lib/services/catalogue-match-service";
 import {
   CatalogueLoadRefused,
   previewUndo,
@@ -28,6 +29,8 @@ export async function undoRunAction(runId: string): Promise<UndoResult> {
   return withTenantFromHeaders(async () => {
     try {
       const preview = await undoRun(runId);
+      // The sets it took back may have been what archive folders matched
+      requestCatalogueMatch(getCurrentTenantId(), { kind: "all" });
       revalidatePath("/people/contacts/runs");
       revalidatePath("/people/contacts");
       return { success: true, preview };
@@ -36,5 +39,14 @@ export async function undoRunAction(runId: string): Promise<UndoResult> {
       console.error("[undoRunAction]", err);
       return { success: false, error: "Undo failed — nothing was changed" };
     }
+  });
+}
+
+/** Match every unsettled archive folder against the catalogue now, in the background */
+export async function matchArchiveNowAction(): Promise<{ success: true }> {
+  return withTenantFromHeaders(async () => {
+    requestCatalogueMatch(getCurrentTenantId(), { kind: "all" });
+    revalidatePath("/people/contacts/runs");
+    return { success: true };
   });
 }

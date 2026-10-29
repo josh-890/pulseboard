@@ -1,6 +1,6 @@
 # Agents — what runs where, and with which switches
 
-Eight programs run **outside** the app, on the machines that hold the data. The app
+Seven programs run **outside** the app, on the machines that hold the data. The app
 server cannot reach the archive or the person catalogue, so everything that touches
 those filesystems is an agent that pulls work from the app and pushes small results
 back.
@@ -38,8 +38,7 @@ Common to all of them:
 | Sharpen aligned images from their full-resolution originals | `.\archive-rebake.ps1` |
 | Fill freshly promoted photo sets with their archive images | `.\archive-upload.ps1` |
 | Give suggested people a face in the workbench | `.\catalogue-avatar.ps1` |
-| Propose who is in the orphan archive folders | `node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json` |
-| …and actually write those proposals into the queue | same, plus `--post` |
+| Propose who is in the orphan archive folders | nothing to run — the app matches them after every scan and every catalogue run (ADR-0038 S5); **Match now** on `/people/contacts/runs` |
 | Judge the whole catalogue before it becomes Contacts (ADR-0038, read-only) | `node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.json` |
 | Load the catalogue into the app as Contacts and catalogue sets (ADR-0038) | `node catalogue-load.mjs` (first time: a prod backup first) |
 
@@ -393,57 +392,14 @@ consecutive failures rather than grinding through a broken share.
 
 ---
 
-## `catalogue-join.ts` / `catalogue-join.mjs` — who is in the orphan folders (ADR-0027)
+## `catalogue-join` — retired (ADR-0038 S5, 2026-10-29)
 
-The only Node agent. Walks the catalogue's
-`<Initial>/<Common_Name_(ICG-ID)>/_meta/{_Cover,_Videos}` tree, pulls the archive
-side from the app, joins the two locally on exact date + title, and proposes people
-for orphan folders.
-
-Two ways to run it:
-
-```powershell
-# from a repo checkout, run from the repo ROOT
-npx tsx scripts/catalogue-join.ts --catalogue "H:\Models\thenude" --cache catalogue.json
-
-# as one copyable file, for a machine with no checkout
-npm run build:agent        # → dist-agents/catalogue-join.mjs
-node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json
-```
-
-| Flag | |
-|---|---|
-| `--catalogue DIR` | Required (or `PERSON_CATALOGUE_ROOT`) |
-| `--cache FILE` | **Use it.** The walk over 39k person folders takes ~30 minutes; every metric recomputes from the cache in seconds |
-| `--rewalk` | Force a fresh walk even when the cache exists — see *When the cache is stale* below |
-| `--limit N` | Cap the orphans fetched — a quick first look |
-| `--examples N` | Example lines per section (default 8) |
-| `--post` | **Write the suggestions back.** Without it the run only reports |
-| `--post-batch N` | Suggestions per request (default 500) |
-| `--base-url`, `--api-key`, `--tenant` | Default to the `ARCHIVE_*` env vars |
-
-**When the cache is stale.** The cache holds one thing: the **person catalogue as parsed
-from disk**. Nothing about the app or the archive is in it — the archive side is pulled
-fresh from the app on every run. So the question is never "did I import something", it is
-"did `H:\Models\thenude` itself change":
-
-| What you did | `--rewalk`? |
-|---|---|
-| Imported a person **into Pulseboard** (uploaded a file) | **No** — the catalogue on disk is untouched by that |
-| Added new sets to the **archive** | **No** — the archive side comes fresh from the app each run |
-| **Updated or re-downloaded the catalogue** on disk | **Yes** — new person folders or new `_meta` covers are invisible until it is re-read |
-
-The run says which it did: it prints how many set rows it read from the cache, or that it is
-walking. Comparing `catalogue.json`'s timestamp with the catalogue tree's answers it too. A
-needless rewalk is never *wrong*, only expensive — about 30 minutes over 39k person folders.
-
-Report first, `--post` second. Even with `--post` nothing is materialised: the
-suggestions are a queue an operator confirms in the workbench — never a set, a
-participant or a contact.
-
-**If a run seems to ignore `--post`, check you are running the current bundle.** An
-old `catalogue-join.mjs` sitting next to the cache file silently lacked the flag;
-the current one prints a WRITE-BACK banner when `--post` is active.
+The app now matches archive folders against the catalogue itself, from the catalogue sets
+`catalogue-load.mjs` keeps current: after every archive scan (the folders it found) and after
+every catalogue run or its Undo (every folder still without a set), or on **Match now** on
+`/people/contacts/runs`. It weighs date (required), channel (import alias only), alias and
+title on an evidence ladder — see the user guide, *Archive matching*. Delete any old
+`catalogue-join.mjs` and `catalogue.json` on the Windows box; they are not used any more.
 
 ---
 
@@ -459,7 +415,7 @@ and writes an **Excel workbook**. Nothing is sent to the app.
 npx tsx scripts/catalogue-inventory.ts --catalogue "H:\Models\thenude" --cache inventory.json
 
 # as one copyable file
-npm run build:agent        # → dist-agents/catalogue-inventory.mjs (and catalogue-join.mjs)
+npm run build:agent        # → dist-agents/catalogue-inventory.mjs (and catalogue-load.mjs)
 node catalogue-inventory.mjs --catalogue "H:\Models\thenude" --cache inventory.json
 ```
 
@@ -547,17 +503,13 @@ next to it. The app does all judging with its own parser — the agent only read
 ```powershell
 .\archive-scan.ps1 -Mode Full                                              # register them
 .\archive-cover.ps1                                                        # thumbnails
-node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json          # read the report
-node catalogue-join.mjs --catalogue "H:\Models\thenude" --cache catalogue.json --post   # then write it
-.\catalogue-avatar.ps1                                                     # only if the join named faceless people
+.\catalogue-avatar.ps1                                                     # only if the matching named faceless people
 ```
+
+The scan's new folders are matched against the catalogue by the app on its own.
 
 Then in the app: **Attribution queue → workbench**, then **Develop**. After promoting
 staged sets, `.\archive-upload.ps1` fills them with their images.
-
-Use `--cache` and **not** `--rewalk`: the cache holds the *catalogue* side, which has not
-changed — only your archive grew, and the agent pulls that from the app each run. That turns a
-30-minute walk into seconds.
 
 Nothing else belongs in this sequence. `-Force` is for a file edited *inside* an unchanged
 folder, `-Path` narrows a run and switches deletion detection off, `-Baseline` and
@@ -610,9 +562,8 @@ channels, or credited under a different name in every folder.
 1. `.\archive-scan.ps1 -Mode Full` — the disk truth first; everything else works
    from what it records, and it refreshes the people files on disk.
 2. `.\archive-cover.ps1` — new folders get thumbnails so they can be judged.
-3. `node catalogue-join.mjs --catalogue … --cache catalogue.json` — report, read it,
-   then re-run with `--post`.
-4. `.\catalogue-avatar.ps1` — only when the join proposed people who have no face yet.
+3. Nothing — the app matches the new folders against the catalogue by itself.
+4. `.\catalogue-avatar.ps1` — only when the matching proposed people who have no face yet.
 5. `.\archive-rebake.ps1` — or fold it into step 1 with `-Rebake`.
 
 Then the work moves into the app: **Archive → Attribution queue** → workbench, and

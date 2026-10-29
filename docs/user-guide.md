@@ -182,6 +182,29 @@ that existed get their earlier data back; catalogue sets and folders the same wa
 The **first** load needs a fresh prod backup (`bash scripts/tenant-backup.sh xpulse`, under 24 hours
 old) — the page shows when the last one was made.
 
+**Archive matching.** The app matches archive folders without a set against the catalogue sets by
+itself — after every archive scan (the folders it found), after every catalogue run and its Undo
+(every folder still without a set), or on **Match now**. The section shows when it last ran, what it
+looked at and how many folders got a suggestion per strength; the suggestions land in the
+**Attribution queue** as before. Folders you decided are never reopened, and a hand marker in a folder
+is never touched.
+
+How strong a match is — the date is always required (the set's own, or another date one of the files
+gave it, which is then marked *date variant*), then:
+
+| Strength | Evidence |
+|---|---|
+| **Exact** | the channel agrees + the folder's name part is a known name of someone in the set (titles may differ), or the channel agrees + exactly the same title |
+| **Strong** | two of: channel agrees · known name · title similar (≥ .75) |
+| **Weak** | one of: known name · title somewhat similar (≥ .50) · the channel agrees and it is the only set on that channel that day |
+
+*The channel agrees* only when the catalogue's channel name is an **import alias** of the channel whose
+Shortname starts the folder name — every name you link on the Channel check makes matches stronger.
+*A known name* is her alias on that channel in the catalogue, her catalogue name or AKA, or an alias of
+the Person. Several sets equally strong with different people are shown as *ambiguous*, never decided
+for you. A suggestion still wants a look when the channel is unknown on either side, the two channels
+belong to different labels, it is ambiguous, or it matched on a date variant.
+
 #### A Contact's page
 
 Click a Contact's name (in the register, a staged set's cast, a credit on a set page or the archive's
@@ -2258,7 +2281,7 @@ a curated headshot is your own choice, a cover from a folder you confirmed is a 
 still be circular.
 
 > The programs that run on the archive machine — scan, covers, HD re-bake, catalogue
-> avatars, catalogue join — are collected with their switches in **`docs/agents.md`**.
+> avatars, catalogue inventory and load — are collected with their switches in **`docs/agents.md`**.
 
 ##### Finding a person's sets without the app
 
@@ -2392,8 +2415,8 @@ passed off as clean.
 
 Run **Settings → Database Maintenance → Undefined Archive Channels** to see which short codes
 in the archive have no channel behind them, and which channels are missing a short code or an
-owning label. It is read-only: define what it lists, then re-run the catalogue-join agent to
-clear the marks.
+owning label. It is read-only: define what it lists; the next archive matching (or **Match now** on
+the catalogue runs page) clears the marks.
 
 ### Linking an orphan folder
 

@@ -3,6 +3,7 @@ import { runWithTenant } from '@/lib/tenant-context'
 import { getAllTenants, isSingleTenantMode } from '@/lib/tenants'
 import { upsertArchiveFolders, runMatchingPass } from '@/lib/services/archive-service'
 import type { FullIngestItem } from '@/lib/services/archive-service'
+import { requestCatalogueMatch } from '@/lib/services/catalogue-match-service'
 
 function isAuthorized(request: Request): boolean {
   const apiKey = process.env.ARCHIVE_API_KEY
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Expected array of folder items' }, { status: 400 })
     }
 
+    const startedAt = new Date()
     const counts = await upsertArchiveFolders(items, tenantId)
 
     // Run matching pass for newly created folders asynchronously
@@ -43,6 +45,8 @@ export async function POST(request: Request) {
       runMatchingPass(tenantId).catch((err) => {
         console.error('[archive/full-ingest] matching pass failed:', err)
       })
+      // ...and the new folders against the person catalogue (ADR-0038 S5)
+      requestCatalogueMatch(tenantId, { kind: 'discoveredSince', since: startedAt })
     }
 
     return NextResponse.json({ ok: true, ...counts })

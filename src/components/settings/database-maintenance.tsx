@@ -151,7 +151,7 @@ const actions: ActionConfig[] = [
   {
     title: "Undefined Archive Channels",
     description:
-      "Which archive short codes have no Channel behind them. This is not a coverage gap — the catalogue join keys on date and title, so those folders still get suggestions. It is a guard gap: the cross-label check resolves the code to a Channel to find its owning Label, and an unresolvable code makes that check pass silently. Also flags channels missing a short code or an owning Label, which break the same guard. Read-only: define the channel, then re-run catalogue-join.ts --post.",
+      "Which archive short codes have no Channel behind them. This is not a coverage gap — the catalogue join keys on date and title, so those folders still get suggestions. It is a guard gap: the cross-label check resolves the code to a Channel to find its owning Label, and an unresolvable code makes that check pass silently. Also flags channels missing a short code or an owning Label, which break the same guard. Read-only: define the channel; the next archive matching (or Match now on the catalogue runs page) clears it.",
     icon: <RadioTower className="h-5 w-5 text-muted-foreground" />,
     action: checkUndefinedArchiveChannelsAction,
   },

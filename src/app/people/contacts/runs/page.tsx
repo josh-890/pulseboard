@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, AlertTriangle, DatabaseBackup } from "lucide-react";
-import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { getCurrentTenantId, withTenantFromHeaders } from "@/lib/tenant-context";
 import { cn } from "@/lib/utils";
 import {
   getBackupStatus,
@@ -10,6 +10,8 @@ import {
 } from "@/lib/services/catalogue-load-service";
 import { PROBLEM_KINDS, isQuarantine, type ProblemCode } from "@/lib/services/catalogue-inventory";
 import { CatalogueUndoButton } from "@/components/catalogue/catalogue-undo-button";
+import { CatalogueMatchPanel } from "@/components/catalogue/catalogue-match-panel";
+import { getCatalogueMatchStatus } from "@/lib/services/catalogue-match-service";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +29,12 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function CatalogueRunsPage({ searchParams }: RunsPageProps) {
   return withTenantFromHeaders(async () => {
     const { code } = await searchParams;
-    const [runs, summary, backup] = await Promise.all([listRuns(), getProblemSummary(), getBackupStatus()]);
+    const [runs, summary, backup, match] = await Promise.all([
+      listRuns(),
+      getProblemSummary(),
+      getBackupStatus(),
+      getCatalogueMatchStatus(getCurrentTenantId()),
+    ]);
     const selected = code && summary.some((s) => s.code === code) ? code : summary[0]?.code;
     const problems = selected ? await getProblems(selected) : [];
     const undoable = runs.find((r) => r.status !== "UNDONE");
@@ -95,6 +102,17 @@ export default async function CatalogueRunsPage({ searchParams }: RunsPageProps)
               })}
             </ul>
           )}
+        </section>
+
+        <section aria-labelledby="match-heading" className="space-y-2">
+          <h2 id="match-heading" className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Archive matching
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Archive folders without a set are matched against the catalogue sets after every scan and every catalogue run:
+            date, then channel, alias and title as evidence. Folders you decided are never reopened.
+          </p>
+          <CatalogueMatchPanel status={match} />
         </section>
 
         <section aria-labelledby="problems-heading" className="space-y-3">

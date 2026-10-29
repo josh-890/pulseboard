@@ -115,6 +115,17 @@ rejected suggestion is never reopened. When a Contact becomes a Person, every se
 ICG-ID joins her career by itself (session contribution and set participation, role from the credit) —
 today `reconcileContacts` only repoints the credit; name-only credits stay open.
 
+**S5 (2026-10-29) — the evidence ladder.** On building S5 the user corrected the carried-over rule:
+the channel is a strong indicator, not only a tiebreaker. Date stays required (own date or a recorded
+alternative → DATE_VARIANT); then channel (catalogue name linked by import alias to the channel of the
+folder's Shortname), alias (the folder's name part is a known name of a cast member — her catalogue alias
+on that channel, catalogue name, AKA, a Person alias) and title count on their own: **EXACT** = channel +
+alias (titles may differ) or channel + exact title; **STRONG** = two of channel · alias · title ≥ .75;
+**WEAK** = alias, title ≥ .50, or channel alone when it is the only set on it that day. Consequence:
+an exact title alone, EXACT under catalogue-join, is WEAK until its channel is linked — the safe
+direction, since only EXACT is ever offered without review. Ties between different casts stay
+AMBIGUOUS; one row per CoverId means a two-person set is no longer counted as two candidates.
+
 **The load run.** A "Catalogue runs" page holds each run's counts, the current problem list and Undo.
 Undo works from the latest run back; it restores the catalogue data as it was before the run and never
 touches your work (a Contact you used keeps existing, only its catalogue fields revert; confirmed

@@ -684,8 +684,8 @@ export async function checkUndefinedArchiveChannels(): Promise<MaintenanceResult
     details.push(
       `${affected.toLocaleString()} folder(s) sit behind an undefined channel. Their attribution ` +
         "suggestions carry UNKNOWN_CHANNEL because the cross-label check had nothing to compare " +
-        "against — define the channel (with its short code and owning Label) and re-run " +
-        "scripts/catalogue-join.ts --post to clear it.",
+        "against — define the channel (with its short code and owning Label); the next archive " +
+        "matching (or Match now on the catalogue runs page) clears it.",
     );
   }
   if (noCode > 0) {
