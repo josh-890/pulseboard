@@ -48,6 +48,7 @@ export function PersonCatalogueHint({ personId, hint }: PersonCatalogueHintProps
               toast.error(res.error);
               return;
             }
+            if (res.coversWanted) toast.success(`${res.coversWanted} covers on the way from the catalogue`);
             router.push(`/import/${res.batchId}`);
           })
         }

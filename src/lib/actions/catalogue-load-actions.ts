@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentTenantId, withTenantFromHeaders } from "@/lib/tenant-context";
 import { requestCatalogueMatch } from "@/lib/services/catalogue-match-service";
 import { requestPersonHints } from "@/lib/services/catalogue-develop-service";
+import { retryCoverRequests } from "@/lib/services/catalogue-cover-service";
 import {
   CatalogueLoadRefused,
   previewUndo,
@@ -59,5 +60,14 @@ export async function checkPersonFilesAction(): Promise<{ success: true }> {
     requestPersonHints(getCurrentTenantId());
     revalidatePath("/people/contacts/runs");
     return { success: true };
+  });
+}
+
+/** Ask the catalogue again for covers it did not have or that were damaged */
+export async function retryCoversAction(): Promise<{ success: true; count: number }> {
+  return withTenantFromHeaders(async () => {
+    const count = await retryCoverRequests();
+    revalidatePath("/people/contacts/runs");
+    return { success: true, count };
   });
 }

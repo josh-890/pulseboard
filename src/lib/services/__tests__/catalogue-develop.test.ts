@@ -92,7 +92,7 @@ describe("the portrait you chose", () => {
     const jpeg = await sharp({ create: { width: 256, height: 384, channels: 3, background: "#a0522d" } }).jpeg().toBuffer();
     await minioClient.send(new PutObjectCommand({ Bucket: getMinioBucket(), Key: key, Body: jpeg, ContentType: "image/jpeg" }));
     keys.push(key);
-    const person = await createPersonRecord({ icgId: ICG("PPP"), idOrigin: "external", commonName: "Pia P" });
+    const person = await createPersonRecord({ icgId: ICG("PPP"), idOrigin: "external", commonName: "Pia P", status: "active", birthdatePrecision: "UNKNOWN", birthdateModifier: "EXACT" });
 
     await adoptPortraitAsHeadshot(person.id, key);
     const avatar = (await getHeadshotsForPersons([person.id])).get(person.id);
@@ -103,7 +103,7 @@ describe("the portrait you chose", () => {
 describe("the Person hint", () => {
   it("a newer file names its new sets; once you imported that date or later, the hint is gone", async () => {
     const { icg } = await storeFolder("CCC", "Cara C", "DEV-TEST-2", "person");
-    await createPersonRecord({ icgId: icg, idOrigin: "external", commonName: "Cara C" });
+    await createPersonRecord({ icgId: icg, idOrigin: "external", commonName: "Cara C", status: "active", birthdatePrecision: "UNKNOWN", birthdateModifier: "EXACT" });
 
     // Never imported from a file: everything in it is news
     const hint = await workOutPersonHint(icg, { name: `2026-02-22_Cara_C_(${icg})`, content: fileOf(icg, "Cara C", "DEV-TEST-2") });

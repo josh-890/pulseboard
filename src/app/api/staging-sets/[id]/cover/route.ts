@@ -5,6 +5,7 @@ import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { minioClient, getMinioBucket } from '@/lib/minio'
 import { buildUrl } from '@/lib/media-url'
 import { prisma } from '@/lib/db'
+import { storeStagingCover, toCoverJpeg } from '@/lib/services/catalogue-cover-service'
 
 const MAX_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
@@ -36,44 +37,8 @@ export async function POST(
         return NextResponse.json({ error: 'Staging set not found' }, { status: 404 })
       }
 
-      // Resize to max 800px wide JPEG
-      const buffer = Buffer.from(await file.arrayBuffer())
-      const resized = await sharp(buffer)
-        .rotate() // auto-orient from EXIF
-        .resize({ width: 800, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
-        .toBuffer()
-
-      // Use a versioned key so the URL changes on every upload — prevents the
-      // browser from serving a cached copy of the old image after a replace.
-      const version = Date.now()
-      const key = `staging/${id}/cover-${version}.jpg`
-      const bucket = getMinioBucket()
-
-      // Delete any previous cover object(s) for this staging set
-      const { ListObjectsV2Command } = await import('@aws-sdk/client-s3')
-      const listed = await minioClient.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `staging/${id}/cover-` }))
-      for (const obj of listed.Contents ?? []) {
-        if (obj.Key && obj.Key !== key) {
-          await minioClient.send(new DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }))
-        }
-      }
-
-      await minioClient.send(
-        new PutObjectCommand({
-          Bucket: bucket,
-          Key: key,
-          Body: resized,
-          ContentType: 'image/jpeg',
-        }),
-      )
-
-      // Build full URL and store on record
-      const url = buildUrl(key)
-      await prisma.stagingSet.update({
-        where: { id },
-        data: { coverImageUrl: url },
-      })
+      // Downscaled to 800px wide JPEG, stored under a versioned key (catalogue-cover-service)
+      const url = await storeStagingCover(id, await toCoverJpeg(Buffer.from(await file.arrayBuffer())))
 
       return NextResponse.json({ url })
     } catch (err) {

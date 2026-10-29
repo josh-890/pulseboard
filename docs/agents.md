@@ -480,6 +480,8 @@ next to it. The app does all judging with its own parser — the agent only read
 | `--limit N` | Only the first N folders; folders not seen are **not** marked gone |
 | `--batch N` | Folders per request (default 25) |
 | `--dry-run` | Count what would be sent; open no run |
+| `--watch` | **One scheduled pass** (S7): deliver the covers the app wants, then send catalogue changes — a run is opened only when a folder changed or went; never the first load. One log line |
+| `--covers` | Only deliver the wanted covers (no catalogue walk) |
 
 - **Only changes are sent.** The app answers the folder index with what it holds; a folder whose
   import files (name, size, time) and image names are unchanged is skipped. A run that changes
@@ -497,6 +499,45 @@ next to it. The app does all judging with its own parser — the agent only read
   folders) stays, only her catalogue data goes. Stored files stay in MinIO (harmless).
 - If a run is interrupted it stays *running*; the next run, two hours later at the earliest,
   marks it failed (it can still be undone).
+- **One load at a time:** a lock file (`%TEMP%\pulseboard-catalogue-load[-tenant].lock`, holding the
+  pid) makes a second start — scheduled or by hand — print "another catalogue load is still running —
+  this start is skipped". A crashed run's lock is taken over.
+
+### Covers on request (S7)
+
+Set covers stay in `_meta\_Cover\` (photo) and `_meta\_Videos\` (video) until a set is worked on.
+**Develop**, **Review** of a newer file and **opening a staged set without a cover** record what is
+wanted; each pass looks in the catalogue folders of the set's cast (subject first) for an image whose
+name holds the **CoverId** as a whole token (`…-13850.jpg`, never `138501.jpg`), photo folder first for a
+photo set, and sends it. The app decodes it **strictly** — a damaged file is refused with the reason —
+and downscales it like an upload. Not found / damaged are listed on the runs page (**Ask again** after
+fixing it on the drive). A cover you uploaded meanwhile always stays.
+
+### Run it every 15 minutes (Windows Task Scheduler)
+
+After the first load (by hand), once, in PowerShell 7 (adjust `$dir` — the folder with
+`catalogue-load.mjs` and its `.env`):
+
+```powershell
+$dir = "C:\Pulseboard"
+$logDir = Join-Path $dir "logs"
+New-Item -ItemType Directory -Force $logDir | Out-Null
+$action = New-ScheduledTaskAction -Execute "pwsh.exe" `
+  -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -Command `"node '$dir\catalogue-load.mjs' --watch *>> '$logDir\catalogue-load.log'`"" `
+  -WorkingDirectory $dir
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 15)
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) `
+  -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName "Pulseboard catalogue" -Action $action -Trigger $trigger -Settings $settings
+```
+
+- Each pass writes **one line** to `logs\catalogue-load.log` and reports itself to the runs page
+  (*Scheduled agent and covers*: last pass, covers, an amber line after an hour without a pass).
+- A pass with no change opens **no run** — the runs list only shows runs that did something.
+- Same trap as the archive upload: registered like this it runs while you are logged on, which is
+  what makes drive letters like `H:\` work. Box off or logged off → nothing happens until it is back.
+- `-WindowStyle Hidden` keeps the console out of the way; a short flash can still show.
+- Stop it: `Unregister-ScheduledTask -TaskName "Pulseboard catalogue"`.
 
 ## When you have added new sets to the archive
 

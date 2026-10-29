@@ -182,15 +182,15 @@ export async function identifyCastAction(icgIds: string[]): Promise<Record<strin
 
 // ── Develop and the newer-file hint (ADR-0038 S6) ───────────────────────────
 
-type BatchResult = { success: true; batchId: string } | { success: false; error: string };
+type BatchResult = { success: true; batchId: string; coversWanted: number } | { success: false; error: string };
 
 /** Develop a Contact: the full import from her stored catalogue file — the review follows */
 export async function developContactAction(contactId: string): Promise<BatchResult> {
   return withTenantFromHeaders(async () => {
     try {
-      const { batchId } = await developContact(contactId);
+      const { batchId, coversWanted } = await developContact(contactId);
       revalidatePath("/import");
-      return { success: true, batchId };
+      return { success: true, batchId, coversWanted };
     } catch (err) {
       if (err instanceof DevelopRefused) return { success: false, error: err.message };
       console.error("[developContactAction]", err);
@@ -203,10 +203,10 @@ export async function developContactAction(contactId: string): Promise<BatchResu
 export async function reviewNewerFileAction(personId: string): Promise<BatchResult> {
   return withTenantFromHeaders(async () => {
     try {
-      const { batchId } = await reviewNewerFile(personId);
+      const { batchId, coversWanted } = await reviewNewerFile(personId);
       revalidatePath(`/people/${personId}`);
       revalidatePath("/people/contacts/runs");
-      return { success: true, batchId };
+      return { success: true, batchId, coversWanted };
     } catch (err) {
       if (err instanceof DevelopRefused) return { success: false, error: err.message };
       console.error("[reviewNewerFileAction]", err);

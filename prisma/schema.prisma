@@ -2593,6 +2593,7 @@ model StagingSet {
   updatedAt         DateTime              @updatedAt
   coherenceSnapshot SetCoherenceSnapshot?
   archiveLinks      ArchiveLink[]
+  coverRequest      CatalogueCoverRequest?
   basketItems       CoverBasketItem[]     @relation("BasketItemMatch")
 
   @@unique([importItemId, isVideo])
@@ -3127,4 +3128,26 @@ model IntensityPresetExtra {
 
   @@id([presetId, extraId])
   @@index([extraId])
+}
+
+/// A staged set wants its cover from the catalogue (ADR-0038 S7) — recorded on
+/// Develop, Review of a newer file, or opening a staged set without a cover; the
+/// scheduled agent delivers it from `_meta\_Cover\` / `_meta\_Videos\`.
+model CatalogueCoverRequest {
+  stagingSetId String     @id
+  stagingSet   StagingSet @relation(fields: [stagingSetId], references: [id], onDelete: Cascade)
+  coverId      String
+  isVideo      Boolean    @default(false)
+  /// Catalogue folders to look in: the subject's first, then the rest of the cast
+  folderPaths  String[]   @default([])
+  /// "develop" | "review" | "opened"
+  reason       String
+  /// "WANTED" | "DELIVERED" | "NOT_FOUND" | "FAILED"
+  status       String     @default("WANTED")
+  detail       String?
+  requestedAt  DateTime   @default(now())
+  settledAt    DateTime?
+
+  @@index([status])
+  @@map("catalogue_cover_request")
 }

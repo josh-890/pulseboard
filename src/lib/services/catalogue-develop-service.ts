@@ -7,6 +7,7 @@ import { runWithTenant } from '@/lib/tenant-context'
 import { parseFilename, parseImportFile } from '@/lib/services/import/parser'
 import { createBatch } from '@/lib/services/import/staging-service'
 import { buildImportItemDecisions } from '@/lib/services/import/build-decisions'
+import { requestCoversForBatch } from '@/lib/services/catalogue-cover-service'
 
 // ADR-0038 S6. Every catalogue run keeps each folder's newest import file in
 // MinIO (gzip). Develop reads it instead of an upload — the usual import and
@@ -42,7 +43,7 @@ export async function hasCatalogueFile(icgId: string | null): Promise<boolean> {
 }
 
 /** Develop a Contact: an import batch from her stored file — no upload; the review follows */
-export async function developContact(contactId: string): Promise<{ batchId: string }> {
+export async function developContact(contactId: string): Promise<{ batchId: string; coversWanted: number }> {
   const contact = await prisma.contact.findUnique({ where: { id: contactId }, select: { icgId: true } })
   if (!contact) throw new DevelopRefused('Contact not found')
   if (!contact.icgId) throw new DevelopRefused('She has no ICG-ID — link her to a Person instead')
@@ -52,7 +53,9 @@ export async function developContact(contactId: string): Promise<{ batchId: stri
   const file = await readCatalogueFile(contact.icgId)
   if (!file) throw new DevelopRefused('No catalogue file is stored for her — Add as Person instead')
   const batch = await createBatch(file.name, file.content)
-  return { batchId: batch.id }
+  // Her set covers come from the catalogue with the next agent pass (S7)
+  const { wanted } = await requestCoversForBatch(batch.id, 'develop')
+  return { batchId: batch.id, coversWanted: wanted }
 }
 
 /** Sets in the app credited to her by ICG-ID — they join her career when she becomes a Person (D2.3) */
@@ -227,12 +230,13 @@ export async function countUnweighedPersonFiles(): Promise<number> {
 }
 
 /** Review the newer file: an import batch from it (the ADR-0009 review) — the hint is done */
-export async function reviewNewerFile(personId: string): Promise<{ batchId: string }> {
+export async function reviewNewerFile(personId: string): Promise<{ batchId: string; coversWanted: number }> {
   const person = await prisma.person.findUnique({ where: { id: personId }, select: { icgId: true } })
   if (!person) throw new DevelopRefused('Person not found')
   const file = await readCatalogueFile(person.icgId)
   if (!file) throw new DevelopRefused('No catalogue file is stored for her')
   const batch = await createBatch(file.name, file.content)
   await prisma.catalogueFolder.updateMany({ where: { icgId: person.icgId, kind: 'person' }, data: { hint: Prisma.DbNull } })
-  return { batchId: batch.id }
+  const { wanted } = await requestCoversForBatch(batch.id, 'review')
+  return { batchId: batch.id, coversWanted: wanted }
 }

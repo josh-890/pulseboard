@@ -239,6 +239,17 @@ body, no timeline — and marked **Contact — not yet developed**:
   **in the app** or **catalogue only**.
 - **Credited in your sets**, **Archive folders** confirmed as her, and **your note**.
 
+#### Covers on request
+
+Set covers stay in the catalogue on the Windows box until a set is worked on. **Develop**, **Review**
+of a newer file, and **opening a staged set without a cover** ask for them; the scheduled agent (every
+15 minutes) delivers them. The staged set's panel says *Cover on the way from the catalogue* meanwhile,
+or that it is not in the catalogue / damaged — then upload it by hand. A cover you uploaded always
+stays. On the runs page, *Scheduled agent and covers* shows the last pass (an amber line when none came
+for an hour), the covers on the way, delivered, not found and damaged, and **Ask again** for the latter
+after fixing them on the drive. The same pass sends what changed in the catalogue — no load by hand
+after the first one.
+
 #### Developing a Contact
 
 **Develop** opens the import of her newest catalogue file — the one the last catalogue run stored — as
@@ -249,6 +260,7 @@ over:
   linked automatically, in the role of the credit (model). Credits that only carry a name stay open.
 - **Your name** stays her name; the file's spelling becomes an alias.
 - **The portrait you chose** becomes her headshot.
+- **Her set covers** are asked for from the catalogue — they arrive with the next agent pass.
 
 The same joining happens whenever a Contact becomes a Person some other way (Add as Person, an upload,
 a new Person with her ICG-ID).

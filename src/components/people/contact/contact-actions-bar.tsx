@@ -42,7 +42,9 @@ export function ContactActionsBar({ contactId, name, icgId, ignored, hasCatalogu
                 toast.error(res.error);
                 return;
               }
-              toast.success(`Import of ${name} ready to review`);
+              toast.success(
+                `Import of ${name} ready to review${res.coversWanted ? ` — ${res.coversWanted} covers on the way from the catalogue` : ""}`,
+              );
               router.push(`/import/${res.batchId}`);
             })
           }

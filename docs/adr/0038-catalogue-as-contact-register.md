@@ -136,6 +136,15 @@ after the newest file imported for that ICG-ID — the same or an older file wou
 own corrections as changes. Hints are worked out in the background after every run (and on Check now)
 and stored on `catalogue_folder` (`hint`, `hintFileKey`; migration 20261029180000).
 
+**S7 (2026-10-30) — scheduled agent and covers on request.** `catalogue-load.mjs --watch` is one
+pass of a Windows scheduled task every 15 minutes: first the covers the app wants
+(`catalogue_cover_request`, recorded on Develop, Review and opening a staged set without a cover;
+found by CoverId as a whole token in the cast's `_meta\_Cover\` / `_Videos\`; decoded strictly by
+the app), then the catalogue changes — compared against `GET /api/catalogue/load/known` so a run is
+opened only when a folder changed or went; never the first load. A lock file keeps one load at a
+time. Each pass reports itself (`catalogue.agent.lastPass`) so the runs page shows the agent is alive
+without empty run entries.
+
 **The load run.** A "Catalogue runs" page holds each run's counts, the current problem list and Undo.
 Undo works from the latest run back; it restores the catalogue data as it was before the run and never
 touches your work (a Contact you used keeps existing, only its catalogue fields revert; confirmed

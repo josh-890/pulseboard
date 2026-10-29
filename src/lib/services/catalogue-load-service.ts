@@ -110,6 +110,17 @@ export async function startRun(input: {
   }
 }
 
+/**
+ * What a scheduled pass compares against before it opens a run (S7): every held
+ * folder's signature. No run yet → the first load is still to be started by hand.
+ */
+export async function getKnownFolders(): Promise<{ hasRun: boolean; known: Record<string, string> }> {
+  const runs = await prisma.catalogueRun.count({ where: { status: { in: ['DONE', 'FAILED'] } } })
+  if (runs === 0) return { hasRun: false, known: {} }
+  const known = await prisma.catalogueFolder.findMany({ where: { goneAt: null }, select: { path: true, signature: true } })
+  return { hasRun: true, known: Object.fromEntries(known.map((k) => [k.path, k.signature])) }
+}
+
 // ── One folder ───────────────────────────────────────────────────────────────
 
 type FolderOutcome = 'new' | 'enriched' | 'person' | 'quarantined' | 'failed'

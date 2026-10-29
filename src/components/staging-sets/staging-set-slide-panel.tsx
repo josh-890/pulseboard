@@ -148,6 +148,26 @@ function PanelContent({
     return () => { cancelled = true }
   }, [castKey])
 
+  // No cover of ours yet: ask the catalogue for it (ADR-0038 S7) — the next agent pass delivers it
+  const wantsCover =
+    !stagingSet.coverImageUrl?.includes('/staging/') &&
+    !!stagingSet.externalId &&
+    stagingSet.status !== 'PROMOTED' &&
+    stagingSet.status !== 'INACTIVE'
+  const [coverRequest, setCoverRequest] = useState<{ id: string; status: string; detail: string | null } | null>(null)
+  useEffect(() => {
+    if (!wantsCover) return
+    let cancelled = false
+    fetch(`/api/staging-sets/${stagingSet.id}/cover-request`, { method: 'POST' })
+      .then((r) => r.json())
+      .then((d: { request?: { status: string; detail: string | null } | null }) => {
+        if (!cancelled && d.request) setCoverRequest({ id: stagingSet.id, ...d.request })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [stagingSet.id, wantsCover])
+  const coverState = wantsCover && coverRequest?.id === stagingSet.id ? coverRequest : null
+
   const hasDuplicateFlag = (stagingSet.isDuplicate || !!stagingSet.duplicateGroupId) && stagingSet.status !== 'SKIPPED'
 
   const hasMatch = !!stagingSet.matchedSetId
@@ -327,6 +347,19 @@ function PanelContent({
           currentUrl={stagingSet.coverImageUrl}
           onUploaded={handleCoverUploaded}
         />
+        {coverState && (
+          <p
+            role="status"
+            className={cn(
+              'text-xs',
+              coverState.status === 'WANTED' ? 'text-sky-600 dark:text-sky-300' : 'text-muted-foreground',
+            )}
+          >
+            {coverState.status === 'WANTED' && 'Cover on the way from the catalogue — with the next agent pass'}
+            {coverState.status === 'NOT_FOUND' && `Not in the catalogue${coverState.detail ? ` (${coverState.detail})` : ''} — upload it by hand`}
+            {coverState.status === 'FAILED' && `The catalogue's cover is damaged${coverState.detail ? ` (${coverState.detail})` : ''} — upload it by hand`}
+          </p>
+        )}
 
         {/* Match banners */}
         {hasMatch && isExactMatch && stagingSet.status !== 'PROMOTED' && (
