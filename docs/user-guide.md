@@ -377,7 +377,7 @@ Once a category has a template, an **Align** button (frame icon) appears next to
 
 The **Atlas** (sidebar) is the pay-off: pick a locus and see **every person's aligned image side by side** — automatically comparable because they share the template's framing. Filter the grid by person; click a tile to jump to that person. (This is the *automatic* counterpart to **Collections**, which are hand-curated.)
 
-**Avatar** (next to the filter, on by default): each image carries a small round avatar of the person it belongs to — on the tiles and in the lightbox, so you still know whose eyes or pose you are looking at while paging across people. The four arrows next to it put the avatar in a corner of your choice (top left by default). Both are remembered in this browser for every Atlas category.
+**Avatar** (next to the filter, on by default): each image carries a small round avatar of the person it belongs to — on the tiles and in the lightbox, so you still know whose eyes or pose you are looking at while paging across people. The four arrows next to it put the avatar in a corner of your choice (top left by default); **S · M · L** set its size (tiles 36 / 56 / 80 px, lightbox 80 / 128 / 192 px; S by default). All three are remembered in this browser for every Atlas category.
 
 #### Sharper aligned images from the originals (HD re-bake)
 

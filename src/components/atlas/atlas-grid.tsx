@@ -5,12 +5,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, ImageIcon, UserRound, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from "lucide-react";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import { AtlasAvatarBadge, AVATAR_CORNERS, type AvatarCorner } from "@/components/atlas/atlas-avatar-badge";
+import { AtlasAvatarBadge, AVATAR_CORNERS, AVATAR_SIZES, type AvatarCorner, type AvatarSize } from "@/components/atlas/atlas-avatar-badge";
 import { useStoredValue } from "@/lib/hooks/use-stored-value";
 import { cn } from "@/lib/utils";
 import type { AtlasTile } from "@/lib/services/atlas-service";
 
 const CORNER_ICON = { tl: ArrowUpLeft, tr: ArrowUpRight, bl: ArrowDownLeft, br: ArrowDownRight } as const;
+const SIZE_LABEL: Record<AvatarSize, string> = { s: "small", m: "medium", l: "large" };
 const CORNER_LABEL: Record<AvatarCorner, string> = {
   tl: "top left",
   tr: "top right",
@@ -30,6 +31,7 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
   // Per viewer, the same on every Atlas category and in its lightbox
   const [avatarMode, setAvatarMode] = useStoredValue<"on" | "off">("atlas.avatar", "on");
   const [corner, setCorner] = useStoredValue<AvatarCorner>("atlas.avatarCorner", "tl");
+  const [size, setSize] = useStoredValue<AvatarSize>("atlas.avatarSize", "s");
   const showAvatar = avatarMode === "on";
 
   const filtered = useMemo(() => {
@@ -103,6 +105,29 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
             );
           })}
         </div>
+
+        <div className="flex items-center overflow-hidden rounded-lg border border-white/15 bg-background/60 text-xs">
+          {AVATAR_SIZES.map((z, i) => (
+            <button
+              key={z}
+              type="button"
+              disabled={!showAvatar}
+              aria-pressed={showAvatar && size === z}
+              aria-label={`Avatar ${SIZE_LABEL[z]}`}
+              title={`Avatar ${SIZE_LABEL[z]}`}
+              onClick={() => setSize(z)}
+              className={cn(
+                "w-7 py-1.5 font-medium uppercase transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
+                i > 0 && "border-l border-white/10",
+                showAvatar && size === z
+                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                  : "text-muted-foreground enabled:hover:bg-white/10 enabled:hover:text-foreground",
+              )}
+            >
+              {z}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -125,7 +150,7 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
                     <ImageIcon size={20} className="text-muted-foreground/40" />
                   </div>
                 )}
-                {showAvatar && <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size="tile" />}
+                {showAvatar && <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size={size} place="tile" />}
               </button>
               <Link
                 href={`/people/${t.personId}`}
@@ -147,7 +172,7 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
           imageOverlay={(it) => {
             const t = tileByItem.get(it.id);
             return showAvatar && t ? (
-              <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size="lightbox" />
+              <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size={size} place="lightbox" />
             ) : null;
           }}
         />
