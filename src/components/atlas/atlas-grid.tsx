@@ -3,9 +3,20 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, ImageIcon } from "lucide-react";
+import { Search, ImageIcon, UserRound, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from "lucide-react";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
+import { AtlasAvatarBadge, AVATAR_CORNERS, type AvatarCorner } from "@/components/atlas/atlas-avatar-badge";
+import { useStoredValue } from "@/lib/hooks/use-stored-value";
+import { cn } from "@/lib/utils";
 import type { AtlasTile } from "@/lib/services/atlas-service";
+
+const CORNER_ICON = { tl: ArrowUpLeft, tr: ArrowUpRight, bl: ArrowDownLeft, br: ArrowDownRight } as const;
+const CORNER_LABEL: Record<AvatarCorner, string> = {
+  tl: "top left",
+  tr: "top right",
+  bl: "bottom left",
+  br: "bottom right",
+};
 
 type AtlasGridProps = {
   tiles: AtlasTile[];
@@ -16,6 +27,10 @@ type AtlasGridProps = {
 export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
   const [query, setQuery] = useState("");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // Per viewer, the same on every Atlas category and in its lightbox
+  const [avatarMode, setAvatarMode] = useStoredValue<"on" | "off">("atlas.avatar", "on");
+  const [corner, setCorner] = useStoredValue<AvatarCorner>("atlas.avatarCorner", "tl");
+  const showAvatar = avatarMode === "on";
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -24,6 +39,7 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
   }, [tiles, query]);
 
   const lightboxItems = useMemo(() => filtered.map((t) => t.item), [filtered]);
+  const tileByItem = useMemo(() => new Map(filtered.map((t) => [t.item.id, t])), [filtered]);
 
   if (tiles.length === 0) {
     return (
@@ -38,14 +54,55 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
 
   return (
     <div className="space-y-4">
-      <div className="relative max-w-xs">
-        <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Filter by person…"
-          className="w-full rounded-lg border border-white/15 bg-background/60 py-1.5 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by person…"
+            className="w-full rounded-lg border border-white/15 bg-background/60 py-1.5 pl-8 pr-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+
+        {/* Avatar overlay: on/off, and the corner — the corner pill stays when off, so nothing shifts */}
+        <div className="flex items-center overflow-hidden rounded-lg border border-white/15 bg-background/60 text-xs">
+          <button
+            type="button"
+            aria-pressed={showAvatar}
+            onClick={() => setAvatarMode(showAvatar ? "off" : "on")}
+            title={showAvatar ? "Hide the avatar on each image" : "Show whose image it is: the avatar on each image"}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+              showAvatar ? "bg-amber-500/15 text-amber-600 dark:text-amber-400" : "text-muted-foreground hover:bg-white/10 hover:text-foreground",
+            )}
+          >
+            <UserRound size={13} />
+            Avatar
+          </button>
+          {AVATAR_CORNERS.map((c) => {
+            const Icon = CORNER_ICON[c];
+            return (
+              <button
+                key={c}
+                type="button"
+                disabled={!showAvatar}
+                aria-pressed={showAvatar && corner === c}
+                aria-label={`Avatar ${CORNER_LABEL[c]}`}
+                title={`Avatar ${CORNER_LABEL[c]}`}
+                onClick={() => setCorner(c)}
+                className={cn(
+                  "border-l border-white/10 px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40",
+                  showAvatar && corner === c
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                    : "text-muted-foreground enabled:hover:bg-white/10 enabled:hover:text-foreground",
+                )}
+              >
+                <Icon size={13} />
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -68,6 +125,7 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
                     <ImageIcon size={20} className="text-muted-foreground/40" />
                   </div>
                 )}
+                {showAvatar && <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size="tile" />}
               </button>
               <Link
                 href={`/people/${t.personId}`}
@@ -86,6 +144,12 @@ export function AtlasGrid({ tiles, aspectW, aspectH }: AtlasGridProps) {
           items={lightboxItems}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          imageOverlay={(it) => {
+            const t = tileByItem.get(it.id);
+            return showAvatar && t ? (
+              <AtlasAvatarBadge avatar={t.avatar} personName={t.personName} corner={corner} size="lightbox" />
+            ) : null;
+          }}
         />
       )}
     </div>

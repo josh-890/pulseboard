@@ -12,7 +12,7 @@ import { TAG_CHIP_JOIN_SELECT } from "@/lib/tag-chip";
 import { prisma } from "@/lib/db";
 import { buildUrl } from "@/lib/media-url";
 import { getDisplayName } from "@/lib/utils";
-import { mapMediaItemToGalleryItem } from "@/lib/services/media-service";
+import { getHeadshotsForPersons, mapMediaItemToGalleryItem } from "@/lib/services/media-service";
 import type { GalleryItem, PhotoVariants } from "@/lib/types";
 
 const ALIGNED_LINK_WHERE = {
@@ -85,6 +85,8 @@ export type AtlasTile = {
   personId: string;
   personName: string;
   thumbUrl: string | null;
+  /** The person's headshot — the overlay that says whose image this is while paging through */
+  avatar: { url: string; focalX: number | null; focalY: number | null } | null;
   // Full gallery item for the lightbox (normalized aligned crop). The mapper
   // builds `urls` from variants — no raw variants JSON crosses to the client.
   item: GalleryItem;
@@ -142,6 +144,8 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
     },
   });
 
+  const headshots = await getHeadshotsForPersons([...new Set(links.map((l) => l.person.id))]);
+
   const tiles: AtlasTile[] = [];
   for (const l of links) {
     const item = mapMediaItemToGalleryItem(l.mediaItem);
@@ -156,6 +160,10 @@ export async function getAtlasGridForCategory(categoryId: string): Promise<Atlas
       personId: l.person.id,
       personName,
       thumbUrl: bestThumb(l.mediaItem.variants),
+      avatar: (() => {
+        const h = headshots.get(l.person.id);
+        return h ? { url: h.thumbUrl, focalX: h.focalX, focalY: h.focalY } : null;
+      })(),
       item,
     });
   }

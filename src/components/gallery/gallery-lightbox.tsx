@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   clearMediaDecodeIssueAction,
   setMediaFavoriteAction,
@@ -108,6 +108,8 @@ type GalleryLightboxProps = {
     linkedOf: (mediaItemId: string) => string[];
     onToggle: (contributionActId: string, mediaItemId: string, linked: boolean) => void;
   };
+  /** Drawn over the image area for the current item (the Atlas's avatar of whose image it is) */
+  imageOverlay?: (item: GalleryItem) => ReactNode;
 };
 
 export type ReferenceCopyTarget = {
@@ -140,6 +142,7 @@ function SimpleLightbox({
   collectionContext,
   cast,
   actEvidence,
+  imageOverlay,
   onHiddenPersonsChange,
   onShownSupportChange,
   onDecodeIssueCleared,
@@ -950,6 +953,7 @@ function SimpleLightbox({
               showFocalOverlay={focalOverlay}
               onZoomChange={setImgZoomed}
             />
+            {imageOverlay?.(item)}
           </div>
 
           {/* Filmstrip */}
