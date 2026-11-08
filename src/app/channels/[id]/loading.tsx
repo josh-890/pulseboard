@@ -36,6 +36,27 @@ export default function ChannelDetailLoading() {
       {/* Tab bar */}
       <Skeleton className="h-10 w-72 rounded-xl" />
 
+      {/* Showcase mosaic: one big tile and the next ones beside it */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-8 w-64 rounded-md" />
+        </div>
+        <div className="grid grid-cols-3 gap-2 md:grid-cols-4 lg:grid-cols-5">
+          <Skeleton className="col-span-3 aspect-[4/5] rounded-xl md:col-span-2 md:row-span-2 md:aspect-auto" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className={i < 3 ? "aspect-[4/5] rounded-xl" : i < 4 ? "hidden aspect-[4/5] rounded-xl md:block" : "hidden aspect-[4/5] rounded-xl lg:block"} />
+          ))}
+        </div>
+      </div>
+
+      {/* Known for posters */}
+      <div className="flex gap-3 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="aspect-[2/3] w-36 shrink-0 rounded-xl sm:w-40" />
+        ))}
+      </div>
+
       {/* Overview: About + Notes, Tags */}
       <div className="grid gap-5 md:grid-cols-2">
         {Array.from({ length: 2 }).map((_, i) => (

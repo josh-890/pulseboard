@@ -20,6 +20,10 @@ import { ChannelManageTab } from "@/components/channels/channel-manage-tab";
 import { EntityTabBar, type EntityTab } from "@/components/shared/entity-tab-bar";
 import { MarkdownNoteCard } from "@/components/shared/markdown-note-card";
 import { EntityTagsPanel } from "@/components/tags";
+import { KnownForRow, ShowcaseMosaic } from "@/components/people/overview";
+import { MakerFacesRow } from "@/components/shared/maker-faces-row";
+import { getMakerFaces, getMakerKnownFor, getMakerOverviewShowcase } from "@/lib/services/maker-showcase-service";
+import { getMakerShowcaseAction } from "@/lib/actions/maker-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +70,16 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
     ]);
     if (!channel) notFound();
 
-    const tags = tab === "overview" ? await getEffectiveTags("CHANNEL", id) : [];
+    const scope = { kind: "channel" as const, id };
+    const [tags, showcase, knownFor, faces] =
+      tab === "overview"
+        ? await Promise.all([
+            getEffectiveTags("CHANNEL", id),
+            getMakerOverviewShowcase(scope),
+            getMakerKnownFor(scope),
+            getMakerFaces(scope),
+          ])
+        : [[], null, [], []];
     const brand = brandOf(channel);
     const labelOptions = labels.map(({ id, name }) => ({ id, name }));
     const tabs: EntityTab[] = [
@@ -121,7 +134,21 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
         <EntityTabBar tabs={tabs} active={tab} basePath={`/channels/${channel.id}`} />
 
         {tab === "overview" && (
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2">
+            {showcase && showcase.items.length > 0 ? (
+              <ShowcaseMosaic
+                showcase={showcase}
+                title={channel.name}
+                owner="its"
+                load={getMakerShowcaseAction.bind(null, "channel", channel.id)}
+              />
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/20 p-6 text-center text-sm text-muted-foreground md:col-span-2">
+                No photos yet — the Showcase fills itself from the photos of this channel&apos;s sets.
+              </p>
+            )}
+            <KnownForRow sets={knownFor} hideChannel />
+            <MakerFacesRow title="Faces of the channel" faces={faces} />
             <MarkdownNoteCard
               title="About"
               icon={<BookOpen size={16} />}

@@ -10,9 +10,11 @@ import { EntityMark } from "@/components/shared/entity-mark";
 
 export type KnownForRowProps = {
   sets: KnownForSet[];
+  /** On a channel's own page its name on every poster says nothing */
+  hideChannel?: boolean;
 };
 
-export function KnownForRow({ sets }: KnownForRowProps) {
+export function KnownForRow({ sets, hideChannel = false }: KnownForRowProps) {
   if (sets.length === 0) return null;
   return (
     <section aria-labelledby="known-for-title" className="space-y-3 md:col-span-2">
@@ -60,8 +62,8 @@ export function KnownForRow({ sets }: KnownForRowProps) {
             </Link>
             <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
               {s.year && <span className="shrink-0">{s.year}</span>}
-              {s.year && s.channelId && <span aria-hidden="true">·</span>}
-              {s.channelId && s.channelBrand ? (
+              {s.year && s.channelId && !hideChannel && <span aria-hidden="true">·</span>}
+              {s.channelId && s.channelBrand && !hideChannel ? (
                 <Link
                   href={`/channels/${s.channelId}`}
                   className="inline-flex min-w-0 items-center gap-1 hover:text-foreground hover:underline underline-offset-2"

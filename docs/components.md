@@ -220,6 +220,8 @@ Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link�
 
 ---
 
+Showcase (2026-11-08): `ShowcaseMosaic` (`components/people/overview/`, props `showcase`, `title`, `load(mode, seed)`, `person?`, `owner?`) is the mosaic shared by person and maker pages; `PersonShowcase` wraps it. `KnownForRow` takes `hideChannel`. `MakerFacesRow` (`components/shared/`, `title`, `faces`, `moreHref?`) — round faces with set counts.
+
 Channel page (2026-11-08): `ChannelHero` (mark, chips, ★, Sets/Models/Active), `ChannelManageTab`, `ChannelClosedSwitch`.
 
 ## Networks Components (`components/networks/`)

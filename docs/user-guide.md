@@ -1484,7 +1484,11 @@ The page shows the channel's work first; how it is wired sits on its own tab.
 
 - **Hero** — the channel's mark (see *Logos and generated marks* under Labels; **Edit look** changes it), Short Name, tier (production quality), its label with the label's mark, *Closed* when it no longer publishes, and its website. On the right: **Your rating** (★ 1–5, how much *you* like it — tier stays separate; click the current star again to clear), **Sets** (photo · video), **Models** (people leading at least one of its sets) and **Active** (years of its sets, promoted and staged).
 - **Tabs** (the open tab is in the address, `?tab=`, so it can be bookmarked):
-  - **Overview** — **About** (a few lines of markdown: its style, what it is known for) and **Notes** (your own), each edited in place with the pencil (Ctrl+Enter saves, Esc cancels); **Tags** — channels take content and general tags (*outdoor*, *golden-hour* …), and workflow tags put the channel on the To-do inbox.
+  - **Overview** — the channel's work first, as on a person's page:
+    - **Showcase** — a mosaic of photos from the channel's sets: **Random** (the default, a new deal on every visit; **Shuffle** deals again) or **Best** (what you marked — iconic, then ★, then outtake — filled up at random, changing daily). Random takes two photos per set in turn, so a big set does not crowd out a small one. Damaged images never show. **All N** opens the lightbox, **Slideshow** plays them full screen.
+    - **Known for** — its sets as posters, your highest-rated first, then the newest.
+    - **Faces of the channel** — the models who lead its sets most, with how many; click one to open them.
+    - **About** (a few lines of markdown: its style, what it is known for) and **Notes** (your own), each edited in place with the pencil (Ctrl+Enter saves, Esc cancels); **Tags** — channels take content and general tags (*outdoor*, *golden-hour* …), and workflow tags put the channel on the To-do inbox.
   - **Sets** — every promoted set of the channel.
   - **Manage** — **Closed** (switch), Archive Folder, Import Aliases and In pipeline (below).
 - **In pipeline** — staged sets from this channel that are not promoted yet (Pending, In review, Approved). Shows a count per status, a link to the photo sets and to the videos in **Staging Sets** already filtered to this channel, and the 50 most recent staged sets. Click a row to open that set in Staging Sets. A channel can show 0 sets and still have work here: sets only count once promoted.
