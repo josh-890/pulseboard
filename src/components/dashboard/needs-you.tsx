@@ -49,6 +49,16 @@ export async function NeedsYou() {
                           {s.label}
                         </Link>
                         {s.detail && <span className="block truncate text-muted-foreground">{s.detail}</span>}
+                        {s.photoLinks && (
+                          <span className="block text-muted-foreground">
+                            Open{" "}
+                            {s.photoLinks.map((href, i) => (
+                              <Link key={href} href={href} className="mx-0.5 hover:text-foreground hover:underline">
+                                {i + 1}
+                              </Link>
+                            ))}
+                          </span>
+                        )}
                       </span>
                       {s.dismissSetId && <DismissFailedUploadButton setId={s.dismissSetId} title={s.label} />}
                       {s.dismissDamagedIds && <DismissDamagedButton mediaItemIds={s.dismissDamagedIds} title={s.label} />}

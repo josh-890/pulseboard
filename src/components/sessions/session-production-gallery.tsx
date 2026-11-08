@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, CheckSquare, Layers, Plus, Trash2, Upload, X } from "lucide-react";
 import type { GalleryItem } from "@/lib/types";
@@ -53,13 +53,21 @@ type SessionProductionGalleryProps = {
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
   /** ADR-0036, 3b: the ticked acts and which photos are evidence for them — absent without acts in the catalog */
   intensity?: GalleryIntensity;
+  /** ?photo= — open this image in the viewer (the dashboard's damaged images) */
+  initialPhotoId?: string | null;
 };
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity }: SessionProductionGalleryProps) {
+const noSubscribe = () => () => {};
+
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, initialPhotoId }: SessionProductionGalleryProps) {
   const actEvidence = useActEvidence(intensity);
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  // The photo asked for by ?photo= — open until the viewer is closed. The viewer
+  // portals into document.body, so it opens only once mounted on the client.
+  const [deepLinkPhotoId, setDeepLinkPhotoId] = useState(initialPhotoId ?? null);
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
   const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [sortMode, setSortMode] = useStoredValue<GallerySortMode>("gallery_sort_session", "newest");
@@ -183,6 +191,22 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     return displayItems.map((it) => it.id);
   }, [filterActive, filteredItems, grouped, displayItems]);
 
+  const deepLinkIndex = deepLinkPhotoId && mounted ? indexMap.get(deepLinkPhotoId) : undefined;
+  const openIndex = lightboxIndex ?? deepLinkIndex ?? null;
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null);
+    if (!deepLinkPhotoId) return;
+    // Leave the photo in view in the grid and drop ?photo=, so a reload stays here
+    const url = new URL(window.location.href);
+    url.searchParams.delete("photo");
+    window.history.replaceState(window.history.state, "", url);
+    const tile = document.querySelector<HTMLElement>(`[data-media-id="${CSS.escape(deepLinkPhotoId)}"]`);
+    tile?.scrollIntoView({ block: "center" });
+    tile?.focus({ preventScroll: true });
+    setDeepLinkPhotoId(null);
+  }, [deepLinkPhotoId]);
+
   const openInLightbox = useCallback(
     (id: string) => {
       const idx = indexMap.get(id);
@@ -203,7 +227,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   } = useGallerySelection({
     visibleOrder,
     onOpen: openInLightbox,
-    keyboardEnabled: lightboxIndex === null && !deleteDialogOpen,
+    keyboardEnabled: openIndex === null && !deleteDialogOpen,
   });
 
   // A filter change drops what it hides from the selection: a bulk action must
@@ -272,7 +296,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 entityType="MEDIA_ITEM"
                 entityIds={[...selectedIds]}
                 onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
-                hotkeysEnabled={lightboxIndex === null && !deleteDialogOpen}
+                hotkeysEnabled={openIndex === null && !deleteDialogOpen}
               />
               {intensity && (
                 <BulkActEvidence
@@ -504,11 +528,11 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
         </AlertDialogContent>
       </AlertDialog>
 
-      {lightboxIndex !== null && (
+      {openIndex !== null && (
         <GalleryLightbox
           items={displayItems}
-          initialIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
+          initialIndex={openIndex}
+          onClose={closeLightbox}
           onSetCover={handleSetCover}
           coverMediaItemId={coverId}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}

@@ -210,6 +210,8 @@ export type NeedsYouItem = {
     dismissSetId?: string;
     /** Damaged images whose flag can be dismissed ("Looks fine" for all of them) */
     dismissDamagedIds?: string[];
+    /** Several damaged images in one place: a link straight to each */
+    photoLinks?: string[];
   }[];
 };
 
@@ -224,14 +226,15 @@ function damagedByPlace(
     session: { id: string; name: string };
     setMediaItems: { set: { id: string; title: string } }[];
   }[],
-): { href: string; label: string; inSet: boolean; ids: string[] }[] {
-  const byPlace = new Map<string, { href: string; label: string; inSet: boolean; ids: string[] }>();
+): { href: string; base: string; label: string; inSet: boolean; ids: string[] }[] {
+  const byPlace = new Map<string, { href: string; base: string; label: string; inSet: boolean; ids: string[] }>();
   for (const r of rows) {
     const set = r.setMediaItems[0]?.set;
     const key = set ? `set:${set.id}` : `session:${r.session.id}`;
     const cur = byPlace.get(key) ?? (set
-      ? { href: `/sets/${set.id}`, label: set.title, inSet: true, ids: [] }
-      : { href: `/sessions/${r.session.id}`, label: r.session.name, inSet: false, ids: [] });
+      // ?photo= opens the (first) damaged image right away — one red frame is easy to miss in a big set
+      ? { href: `/sets/${set.id}?photo=${r.id}`, base: `/sets/${set.id}`, label: set.title, inSet: true, ids: [] }
+      : { href: `/sessions/${r.session.id}?photo=${r.id}`, base: `/sessions/${r.session.id}`, label: r.session.name, inSet: false, ids: [] });
     cur.ids.push(r.id);
     byPlace.set(key, cur);
   }
@@ -301,6 +304,7 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
         href: d.href,
         detail: `${d.ids.length} damaged image${d.ids.length === 1 ? "" : "s"}${d.inSet ? "" : " · in no set, only in this session"}`,
         dismissDamagedIds: d.ids,
+        ...(d.ids.length > 1 ? { photoLinks: d.ids.slice(0, 10).map((id) => `${d.base}?photo=${id}`) } : {}),
       })),
     },
     { key: "todo", label: "Workflow to-dos", count: todos, href: "/tags?view=todo" },

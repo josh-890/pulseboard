@@ -59,7 +59,7 @@ export const dynamic = "force-dynamic";
 
 type SessionDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; tags?: string; rate?: string }>;
+  searchParams: Promise<{ tab?: string; tags?: string; rate?: string; photo?: string }>;
 };
 
 // ── Sub-components ──────────────────────────────────────────────────────────
@@ -441,6 +441,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 cast={castDirectory}
                 tagFilter={galleryTagFilter}
                 intensity={galleryIntensity}
+                initialPhotoId={resolvedSearchParams.photo ?? null}
               />
             </SectionCard>
           </>}

@@ -83,7 +83,7 @@ The queues waiting for you, each with its count and a link — only non-empty on
 staged sets to review, approved sets ready to promote, sets waiting for their images
 (run `archive-upload.ps1`), sets with images that did not upload (with the file
 names — a file leaves the list as soon as it is in the set, uploaded by hand or by the agent;
-**Dismiss** next to a set clears its list for files you won't upload), damaged images to check (per set — an image removed from its set but still in its session is listed under that session; **Dismiss** clears the flag of the listed images, like *Looks fine*), workflow to-dos, archive folders whose people are not yet decided, archive
+**Dismiss** next to a set clears its list for files you won't upload), damaged images to check (per set — an image removed from its set but still in its session is listed under that session; **Dismiss** clears the flag of the listed images, like *Looks fine*; the name opens the damaged image itself in the viewer, and with several, *Open 1 2 3…* opens each one), workflow to-dos, archive folders whose people are not yet decided, archive
 folders with unknown `#tag` names, and stub copies waiting for the real set.
 
 ### Agents

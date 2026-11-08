@@ -86,13 +86,13 @@ describe("needs you + numbers", () => {
     try {
       const damaged = (await getNeedsYou()).find((i) => i.key === "damaged");
       expect(damaged?.items ?? []).toContainEqual(
-        expect.objectContaining({ label: `${RUN} session`, href: `/sessions/${ids.session}`, dismissDamagedIds: [loose.id] }),
+        expect.objectContaining({ label: `${RUN} session`, href: `/sessions/${ids.session}?photo=${loose.id}`, dismissDamagedIds: [loose.id] }),
       );
 
       // What Dismiss (clearMediaDecodeIssuesAction) writes
       await prisma.mediaItem.updateMany({ where: { id: { in: [loose.id] } }, data: { decodeIssue: null, archiveRetry: false } });
       const after = (await getNeedsYou()).find((i) => i.key === "damaged");
-      expect((after?.items ?? []).some((i) => i.href === `/sessions/${ids.session}`)).toBe(false);
+      expect((after?.items ?? []).some((i) => i.href.startsWith(`/sessions/${ids.session}`))).toBe(false);
     } finally {
       await prisma.mediaItem.delete({ where: { id: loose.id } });
     }
