@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { MakerTileGridSkeleton } from "@/components/shared/maker-tile-grid-skeleton";
 
 export default function ArtistsLoading() {
   return (
@@ -18,24 +19,8 @@ export default function ArtistsLoading() {
       {/* Search */}
       <Skeleton className="h-9 w-full sm:max-w-xs rounded-md" />
 
-      {/* Card grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-border/60 bg-card p-4 shadow-sm"
-          >
-            <div className="mb-2 flex items-start gap-3">
-              <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
-              <div className="flex-1">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="mt-1 h-3 w-16" />
-              </div>
-            </div>
-            <Skeleton className="h-3 w-16" />
-          </div>
-        ))}
-      </div>
+      {/* Tiles */}
+      <MakerTileGridSkeleton />
     </div>
   );
 }

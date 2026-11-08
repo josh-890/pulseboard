@@ -4,20 +4,6 @@ import { normalizeForSearch } from "@/lib/normalize";
 import { BRAND_SELECT, brandOf } from "@/lib/services/brand-of";
 import type { EntityBrand } from "@/lib/brand-mark";
 
-export async function getArtists(search?: string) {
-  const where = search
-    ? { nameNorm: { contains: normalizeForSearch(search), mode: "insensitive" as const } }
-    : {};
-
-  return prisma.artist.findMany({
-    where,
-    orderBy: { name: "asc" },
-    include: {
-      _count: { select: { creditsRaw: { where: { resolutionStatus: "RESOLVED" } } } },
-    },
-  });
-}
-
 export async function getArtistById(id: string) {
   return prisma.artist.findUnique({
     where: { id },

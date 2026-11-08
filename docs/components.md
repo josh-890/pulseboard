@@ -180,10 +180,8 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 
 | Component | Type | Props | Description |
 |---|---|---|---|
-| `LabelList` | Server | `labels` | Grid of label cards |
-| `LabelCard` | Server | `label` | Label summary: name, channel count, project count |
-| `LabelHeader` | Server | `label` | Name, description, website link |
-| `ChannelsSection` | Server | `channels` | List of channels with platform badges |
+| `LabelHero` | Server | `label`, `brand`, `stats` | Mark, website, ★, Channels · Sets · Models · Active |
+| `LabelChannelTiles` | Server | `channels` | Wordmark tiles of the channels it owns |
 | `EmptyState` | Server | `message?` | No results placeholder |
 
 ---
@@ -374,6 +372,9 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `EntityTabBar` | Server | `tabs`, `active`, `basePath` | Pill tab bar of link tabs (`?tab=`) for channel/label/artist pages; counts and an attention dot |
 | `StarRating` | Client | `initialRating`, `onRate` (bound action), `noun` | Five stars, optimistic, click current to clear |
 | `MarkdownNoteCard` | Client | `title`, `icon`, `initialText`, `onSave`, `emptyHint` | Markdown text card with inline editor (no images, links as text) |
+| `MakerTile` | Server | `tile: MakerTileData`, `round?` | List-page tile: mark, context (label / nationality), three newest covers, sets · videos · channels · years, ★, tier |
+| `MakerRows` | Server | `tiles`, `round?` | Compact list view of the same data |
+| `MakerListToolbar` | Server | `basePath`, `params`, `withTier?` | Sort, ★ and tier filter and Tiles/List view as URL links |
 | `BrandMarkEditor` | Client | `kind`, `id`, `brand` | "Edit look" dialog: font and colour pickers with live preview (generated pick marked *from the name*), logo/portrait upload and remove |
 
 ---

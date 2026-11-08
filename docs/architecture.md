@@ -56,9 +56,9 @@ Media path:
 | `/sessions` | `sessionListFilters(params)` (`list-filters.ts`), `getSessionsPaginated()`, `getCoverPhotosForSessions()` | `SessionList`, `SessionCard`, `AddSessionSheet`, `RateTheseButton` + `BulkIntensityPresetButton` in the selection bar (once the catalog has acts) |
 | `/sessions/rate` | `getRatingQueue(rate, "")` | "Rate these" lands here (2026-10-25): redirects to the queue's first session (`rateHref`), or "Nothing left to rate" with the way back |
 | `/projects` | `getProjectsPaginated()` | `ProjectList`, `ProjectCard`, `AddProjectSheet` |
-| `/labels` | `getAllLabels()` | `LabelList`, `LabelCard`, `AddLabelSheet` |
-| `/channels` | `getChannels()` | `ChannelList`, `ChannelCard`, `AddChannelSheet` |
-| `/artists` | `getArtists()` | `ArtistCard`, `ArtistSearch`, `AddArtistButton` |
+| `/labels` | `getLabelTiles()` | `MakerTile` grid / `MakerRows`, `MakerListToolbar`, `LabelSearch`, `AddLabelSheet` |
+| `/channels` | `getChannelTiles()` | `MakerTile` grid / `MakerRows`, `MakerListToolbar` (with tier), `ChannelSearch`, `LabelFilter`, `AddChannelSheet` |
+| `/artists` | `getArtistTiles()` | `MakerTile` grid (round) / `MakerRows`, `MakerListToolbar`, `ArtistSearch`, `AddArtistButton` |
 | `/networks` (not in the sidebar since 2026-11-08; data kept) | `getNetworks()` | `NetworkList`, `NetworkCard`, `AddNetworkSheet` |
 | `/collections` | `getAllCollections()`, `getSmartCollections()`, `getTagFacets("MEDIA_ITEM")` | `CollectionList`, `AddCollectionDialog`, `SmartCollectionDialog`; ⚡ smart-collection cards in the smart row |
 | `/tags` | `getTagTree()` / `getWorkflowTodo()` (`?view=todo`), `countOpenTodos()` | ADR-0033 S7 tag browser: `TagCatalogTree` (Catalogue) or `TodoInbox` (To-do) |
@@ -84,10 +84,10 @@ Media path:
 | `/collections/[id]/comparison/[cid]` | — | Redirect to `/collections/[id]?c=[cid]&edit=1` (old links meant the editor; the viewer lives on the collection page since 2026-10-12) |
 | `/atlas/[id]` | `getAtlasGridForCategory()` | `AtlasGrid` — every person's Aligned image in one locus, ordered by person, with a person-name filter; tiles link to the person. **Avatar** toggle + corner + size S/M/L (`useStoredValue` `atlas.avatar` / `atlas.avatarCorner` / `atlas.avatarSize`) draws `AtlasAvatarBadge` on each tile and, through `GalleryLightbox.imageOverlay`, in the lightbox |
 | `/projects/[id]` | `getProjectById()`, `getProjectSessions()` | `ProjectDetail`, `EditProjectSheet` |
-| `/labels/[id]` | `getLabelById()` | `LabelDetail`, `EditLabelSheet` |
+| `/labels/[id]` | `getLabelById()`, `getLabelHeroStats()`, per tab `getLabelChannels()` / `getLabelWall()` / maker showcase | `LabelHero`, `EntityTabBar` (overview · channels · sets · models · projects), `LabelChannelTiles`, `ChannelSetWall`, `ChannelModels`, `EditLabelSheet`, `BrandMarkEditor` |
 | `/channels/check` | `getUnclaimedArchiveFolders()`, `getNameOnlyLinks()`, `getChannelIntegrity()`, `getCatalogueChannelNames()`, `getChannels()`, `getLabels()` | Channel check (ADR-0038): `ChannelCheckFolders`, `ChannelCheckNameLinks`, `ChannelCheckIntegrity` (+ `ChannelCheckStagedRow`), `ChannelCheckCatalogue` (+ `ChannelCheckCatalogueRow`; searchParams `cq`, `csort=az`, `call=1`, 50 per page); `/channels` header shows `countChannelCheckItems()` |
-| `/channels/[id]` | `getChannelById()`, `getChannelPipeline()` | `ChannelDetail`, `EditChannelSheet`; **In pipeline** section — staged sets of the channel not yet promoted, deep-linked into `/staging-sets` (`channelId`, `channelLabel`, `channelTier`, `status`, `type`, `select`) |
-| `/artists/[id]` | `getArtistById()`, `getArtistStats()`, `getArtistCareer()` | `ArtistDetailHeader`, `EditArtistSheet` |
+| `/channels/[id]` | `getChannelById()`, `getChannelHeroStats()`, `getChannelPipeline()`, per tab maker showcase / `getChannelWall()` / `getChannelModels()` | `ChannelHero`, `EntityTabBar` (overview · sets · models · manage), `ShowcaseMosaic`, `KnownForRow`, `MakerFacesRow`, `ChannelSetWall`, `ChannelModels`, `ChannelManageTab` (**In pipeline** — staged sets not yet promoted, deep-linked into `/staging-sets` with `channelId`, `channelLabel`, `channelTier`, `status`, `type`, `select`), `EditChannelSheet`, `BrandMarkEditor` |
+| `/artists/[id]` | `getArtistById()`, `getArtistHeroStats()`, `getWaitingCredits()`, per tab maker showcase / `getArtistChannels()` / `getArtistWall()` | `ArtistHero`, `EntityTabBar` (overview · sets · names & credits), `ArtistAliases`, `ArtistWaitingCredits`, `ArtistEditButton`, `BrandMarkEditor` |
 | `/networks/[id]` | `getNetworkById()` | `NetworkDetail`, `EditNetworkSheet` |
 | `/import/[id]` | `refreshBatchMatches()`, `getDevelopNote()` (still a Contact: credited sets, kept name, portrait) | `ImportWorkspace` → `ImportItemDetail`, `ImportStatusBadge`, `SetBatchSummary` (SET tab) |
 
@@ -187,6 +187,8 @@ All services in `src/lib/services/`. All functions are async, return Promises. S
 **Label page** (2026-11-08) — `/labels/[id]` = `LabelHero` + tabs `overview|channels|sets|models|projects`. `label-service.ts`: `getLabelById` (projects + `_count.ownedChannels`), `getLabels` counts `ownedChannels` (no longer `channelMaps`), `getLabelHeroStats` (over channels with `Channel.labelId` = label), `getLabelChannels` (tiles: brand, tier, ★, closed, photo/video/staged counts, years), `setLabelRating`, `setLabelText(description|notes)`; actions `setLabelRatingAction`, `setLabelTextAction`. `channel-wall-service.getLabelWall` joins its channels' walls (deduped by CoverId; rows carry `channel`). Showcase/Known for/Faces via `maker-showcase-service` kind `label`. Label gains `rating`, `notes` (migration 20261108180000).
 
 **Artist page** (2026-11-08) — `/artists/[id]` = `ArtistHero` + tabs `overview|sets|credits`. `artist-service.ts` adds `getArtistHeroStats` (credited sets: photo/video, channels, lead models, roles from credit role names, years), `getArtistChannels`, `setArtistRating`, `setArtistText(bio|notes)`; `getArtistById` includes aliases; `updateArtist` takes `website` (the sheet no longer edits the bio). **`artist-credit-service.ts`**: `findArtistByExactName` / `artistCreditResolution` (name or `ArtistAlias.aliasNorm` equal to `normalizeForSearch(raw)`, exactly one artist → RESOLVED) — used by `import-executor` for both photographer credits created from a staged set's `artist`; `addArtistAlias` (refuses own name / duplicate, then `linkExactCredits` for that alias), `removeArtistAlias`, `getWaitingCredits` (open behind-camera or role-less credits: exact first, then trigram similarity ≥ 0.5; `ambiguous` when another artist has the exact name), `linkCreditsToArtist(ids)`, `linkExactCredits`. Actions in `artist-actions.ts`. `channel-wall-service.getArtistWall` (credited sets, tiles with channel). New table `artist_alias`; Artist gains `website`, `rating`, `notes` (migration 20261108200000).
+
+**`maker-list-service.ts`** (2026-11-08) — the list pages as tiles: `getChannelTiles({q, labelId, tier, minRating, sort})`, `getLabelTiles({q, minRating, sort})` (over owned channels), `getArtistTiles({q, minRating, sort})` (credited sets; q matches aliases) → `MakerTileData` (brand, ★, tier, closed, context, sets/videos, channels, years, three newest covers via one `row_number()` query + `getCoverPhotosForSets`). ~30 ms for 67 channels on dev. UI: `MakerTile`, `MakerRows` (list view), `MakerListToolbar` (sort / ★ / tier / view links, `parseSort`, `parseMinRating`), `MakerTileGridSkeleton`. The old `ChannelCard`/`ChannelList`/`LabelCard`/`LabelList`/`ArtistCard` and `getArtists` are gone.
 
 **`artist-service.ts`** — Artist CRUD, search, stats (set/channel/media counts from resolved credits), career listing (sets grouped by channel). Artists are lightweight behind-camera entities (name, nationality, bio) separate from the deep Person model. Linked via `SetCreditRaw.resolvedArtistId` — bypass SessionContribution chain entirely.
 
@@ -499,8 +501,8 @@ components/
 ├── sets/             # 15+ files: list/detail, credits, sessions, evidence, media picker
 ├── sessions/         # 15+ files: list/detail, contributions, merge, status
 ├── projects/         # ProjectList, ProjectCard, add/edit sheets
-├── labels/           # LabelList, LabelCard, add/edit sheets
-├── channels/         # ChannelList, ChannelCard, add/edit sheets, Channel check sections
+├── labels/           # LabelHero, LabelChannelTiles, add/edit sheets
+├── channels/         # ChannelHero, ChannelSetWall, ChannelModels, ChannelManageTab, add/edit sheets, Channel check sections
 ├── networks/         # NetworkList, NetworkCard, add/edit sheets
 ├── collections/      # CollectionList, CollectionDetailGallery, media picker
 ├── staging-sets/     # StagingSetsWorkspace, StagingSetFilterBar, StagingSetGrid, StagingSetRow (inline archive section), ArchiveFolderPicker (sheet for linking unlinked folders), ArchiveKeyPopover (the folders around a set's date)

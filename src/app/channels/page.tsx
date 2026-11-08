@@ -2,10 +2,14 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import Link from "next/link";
 import { Radio, ShieldCheck } from "lucide-react";
-import { getChannels } from "@/lib/services/channel-service";
+import type { ChannelTier } from "@/generated/prisma/client";
+import { getChannelTiles } from "@/lib/services/maker-list-service";
+import { CHANNEL_TIER_VALUES } from "@/lib/constants/channel-tier";
+import { MakerTile } from "@/components/shared/maker-tile";
+import { MakerRows } from "@/components/shared/maker-rows";
+import { MakerListToolbar, parseMinRating, parseSort, type MakerListParams } from "@/components/shared/maker-list-toolbar";
 import { countChannelCheckItems } from "@/lib/services/channel-check-service";
 import { getLabels } from "@/lib/services/label-service";
-import { ChannelList } from "@/components/channels/channel-list";
 import { ChannelSearch } from "@/components/channels/channel-search";
 import { LabelFilter } from "@/components/channels/label-filter";
 import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
@@ -13,17 +17,21 @@ import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
 export const dynamic = "force-dynamic";
 
 type ChannelsPageProps = {
-  searchParams: Promise<{ q?: string; labelId?: string }>;
+  searchParams: Promise<MakerListParams>;
 };
 
 export default async function ChannelsPage({ searchParams }: ChannelsPageProps) {
   return withTenantFromHeaders(async () => {
-    const { q, labelId } = await searchParams;
+    const params = await searchParams;
+    const tier = CHANNEL_TIER_VALUES.find((t) => t === params.tier) as ChannelTier | undefined;
 
     const [channels, labels, checkItems] = await Promise.all([
-      getChannels({
-        q: q?.trim() || undefined,
-        labelId: labelId || undefined,
+      getChannelTiles({
+        q: params.q?.trim() || undefined,
+        labelId: params.labelId || undefined,
+        tier,
+        minRating: parseMinRating(params.rating),
+        sort: parseSort(params.sort),
       }),
       getLabels(),
       countChannelCheckItems(),
@@ -73,10 +81,25 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
           <Suspense>
             <LabelFilter labels={labelOptions} />
           </Suspense>
+          <MakerListToolbar basePath="/channels" params={params} withTier />
         </div>
 
-        {/* List */}
-        <ChannelList channels={channels} />
+        {channels.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Radio size={48} className="mb-3 text-muted-foreground/30" />
+            <p className="text-muted-foreground">No channels found.</p>
+          </div>
+        ) : params.view === "list" ? (
+          <MakerRows tiles={channels} />
+        ) : (
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {channels.map((c) => (
+              <li key={c.id}>
+                <MakerTile tile={c} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     );
   });

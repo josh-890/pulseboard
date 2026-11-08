@@ -1407,7 +1407,7 @@ Labels represent organizations or production companies.
 
 **Search:** Filter by label name.
 
-Label cards show the label's mark, name, and how many channels it owns and projects it has.
+The list shows each one as a **tile**: its mark, the covers of its three newest sets, and its numbers (sets, videos, years; a label also its channels, an artist the channels they worked for), with ★ and — for a channel — its tier letter and label. **Sort**: Most sets (default) · Rating · Newest · A–Z. **Your rating**: Any ★ · 3+ · 4+ · 5. The **list** button (beside the tiles button) switches to a compact one-line-per-entry view. All of it is in the address, so a view can be bookmarked.
 
 ### Create Label
 
@@ -1456,8 +1456,9 @@ Channels are distribution outlets belonging to labels (e.g. a label's website, s
 
 **Filters:**
 - **Label** — filter channels by parent label
+- **Tier** — All tiers · A · B · C · D · E
 
-Channel cards show: name, parent label, and set count.
+The list shows each one as a **tile**: its mark, the covers of its three newest sets, and its numbers (sets, videos, years; a label also its channels, an artist the channels they worked for), with ★ and — for a channel — its tier letter and label. **Sort**: Most sets (default) · Rating · Newest · A–Z. **Your rating**: Any ★ · 3+ · 4+ · 5. The **list** button (beside the tiles button) switches to a compact one-line-per-entry view. All of it is in the address, so a view can be bookmarked.
 
 ### Create Channel
 
@@ -1510,6 +1511,8 @@ The page shows the channel's work first; how it is wired sits on its own tab.
 **Routes:** `/artists`, `/artists/[id]`
 
 Artists are the people behind the camera — photographers, directors. A set's behind-camera credit links to one.
+
+**The list** (`/artists`) shows tiles like the channel list — portrait or monogram, three newest covers, sets, channels, years — and search finds aliases too.
 
 **The artist page** has the channel page's shape:
 
