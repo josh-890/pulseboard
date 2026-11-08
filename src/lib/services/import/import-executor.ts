@@ -5,6 +5,7 @@
  * calls the appropriate service function, and returns the created entity ID.
  */
 
+import { artistCreditResolution } from '@/lib/services/artist-credit-service'
 import { prisma } from '@/lib/db'
 import { normalizeForSearch } from '@/lib/normalize'
 import { reconcileContacts } from '@/lib/services/relationship-service'
@@ -1184,7 +1185,8 @@ async function enrichExistingSet(
               setId,
               rawName: artist,
               nameNorm: normalizeForSearch(artist),
-              resolutionStatus: 'UNRESOLVED',
+              // An unmistakable name links to its artist by itself (2026-11-08)
+              ...(await artistCreditResolution(tx, artist)),
               roleDefinitionId: await getPhotographerRoleId(tx),
             },
           })
@@ -1647,7 +1649,8 @@ export async function promoteManualStagingSet(stagingSetId: string): Promise<Imp
             setId: set.id,
             rawName: stagingSet.artist,
             nameNorm: normalizeForSearch(stagingSet.artist),
-            resolutionStatus: 'UNRESOLVED',
+            // An unmistakable name links to its artist by itself (2026-11-08)
+            ...(await artistCreditResolution(tx, stagingSet.artist)),
             roleDefinitionId: await getPhotographerRoleId(tx),
           },
         })

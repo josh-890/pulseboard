@@ -2351,6 +2351,22 @@ model ProjectTag {
   @@map("project_tag")
 }
 
+// Other names an artist is credited under (2026-11-08) — a staged credit whose
+// name equals the artist's name or one alias (normalised), and no other artist's,
+// links to them by itself.
+model ArtistAlias {
+  id        String   @id @default(cuid())
+  artistId  String
+  artist    Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  alias     String
+  aliasNorm String
+  createdAt DateTime @default(now())
+
+  @@unique([artistId, aliasNorm])
+  @@index([aliasNorm])
+  @@map("artist_alias")
+}
+
 // Tags on the makers (2026-11-08): channels, labels and artists take CONTENT
 // and ANY tags. Cascade both ways — a deleted tag or entity takes its rows.
 model ChannelTag {
@@ -2437,7 +2453,13 @@ model Artist {
   name        String
   nameNorm    String
   nationality String?
+  /// Shown as "About" on the artist page (markdown)
   bio         String?
+  website     String?
+  /// Your liking, 1–5
+  rating      Int?
+  /// Your own notes (markdown)
+  notes       String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -2449,6 +2471,7 @@ model Artist {
 
   creditsRaw SetCreditRaw[]
   tags       ArtistTag[]
+  aliases    ArtistAlias[]
 
   @@index([nameNorm])
 }

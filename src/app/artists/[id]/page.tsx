@@ -1,149 +1,194 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
-import { brandOf } from "@/lib/services/brand-of";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Film, ChevronLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getArtistById, getArtistStats, getArtistCareer } from "@/lib/services/artist-service";
-import { deleteArtistAction } from "@/lib/actions/artist-actions";
+import { BookOpen, Camera, LayoutDashboard, Link2, NotebookPen, Tag, UserPen } from "lucide-react";
+import { brandOf } from "@/lib/services/brand-of";
+import { getArtistById, getArtistChannels, getArtistHeroStats } from "@/lib/services/artist-service";
+import { getWaitingCredits } from "@/lib/services/artist-credit-service";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
+import { getMakerFaces, getMakerKnownFor, getMakerOverviewShowcase } from "@/lib/services/maker-showcase-service";
+import { getArtistWall } from "@/lib/services/channel-wall-service";
+import { deleteArtistAction, setArtistTextAction } from "@/lib/actions/artist-actions";
+import { getMakerShowcaseAction } from "@/lib/actions/maker-actions";
 import { DeleteButton } from "@/components/shared/delete-button";
-import { ArtistDetailHeader } from "@/components/artists/artist-detail-header";
-import { Button } from "@/components/ui/button";
+import { BrandMarkEditor } from "@/components/shared/brand-mark-editor";
+import { EntityTabBar, type EntityTab } from "@/components/shared/entity-tab-bar";
+import { MarkdownNoteCard } from "@/components/shared/markdown-note-card";
+import { MakerFacesRow } from "@/components/shared/maker-faces-row";
+import { EntityTagsPanel } from "@/components/tags";
+import { KnownForRow, ShowcaseMosaic } from "@/components/people/overview";
+import { ChannelSetWall, WALL_PAGE } from "@/components/channels/channel-set-wall";
+import { ArtistHero } from "@/components/artists/artist-hero";
+import { ArtistEditButton } from "@/components/artists/artist-edit-button";
+import { ArtistChannelsRow } from "@/components/artists/artist-channels-row";
+import { ArtistAliases } from "@/components/artists/artist-aliases";
+import { ArtistWaitingCredits } from "@/components/artists/artist-waiting-credits";
 
 export const dynamic = "force-dynamic";
 
 type ArtistDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; type?: string; sort?: string; limit?: string }>;
 };
 
-function SectionCard({
-  title,
-  icon,
-  children,
-  className,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-}) {
+const TAB_KEYS = ["overview", "sets", "credits"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+
+function SectionCard({ title, icon, hint, children }: { title: string; icon: React.ReactNode; hint?: string; children: React.ReactNode }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm",
-        className,
-      )}
-    >
-      <div className="mb-4 flex items-center gap-2">
+    <section className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+      <h2 className="flex items-center gap-2 text-lg font-semibold">
         <span className="text-muted-foreground" aria-hidden="true">
           {icon}
         </span>
-        <h2 className="text-lg font-semibold">{title}</h2>
-      </div>
+        {title}
+      </h2>
+      {hint && <p className="mb-4 mt-1 text-sm text-muted-foreground">{hint}</p>}
+      {!hint && <div className="mb-4" />}
       {children}
-    </div>
+    </section>
   );
 }
 
-export default async function ArtistDetailPage({ params }: ArtistDetailPageProps) {
+export default async function ArtistDetailPage({ params, searchParams }: ArtistDetailPageProps) {
   return withTenantFromHeaders(async () => {
-    const { id } = await params;
-    const artist = await getArtistById(id);
+    const [{ id }, sp] = await Promise.all([params, searchParams]);
+    const tab: TabKey = TAB_KEYS.find((k) => k === sp.tab) ?? "overview";
+
+    const [artist, stats, waiting] = await Promise.all([getArtistById(id), getArtistHeroStats(id), getWaitingCredits(id)]);
     if (!artist) notFound();
 
-    const [stats, career] = await Promise.all([
-      getArtistStats(id),
-      getArtistCareer(id),
-    ]);
+    const scope = { kind: "artist" as const, id };
+    const [tags, showcase, knownFor, faces, channels] =
+      tab === "overview"
+        ? await Promise.all([
+            getEffectiveTags("ARTIST", id),
+            getMakerOverviewShowcase(scope),
+            getMakerKnownFor(scope),
+            getMakerFaces(scope),
+            getArtistChannels(id),
+          ])
+        : [[], null, [], [], []];
+    const wall = tab === "sets" ? await getArtistWall(id) : null;
+
+    const brand = brandOf(artist);
+    const base = `/artists/${artist.id}`;
+    const tabs: EntityTab[] = [
+      { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
+      { key: "sets", label: "Sets", icon: <Camera size={14} />, count: stats.photoSets + stats.videoSets },
+      {
+        key: "credits",
+        label: "Names & credits",
+        icon: <Link2 size={14} />,
+        count: waiting.length || undefined,
+        attention: waiting.some((c) => c.exact && !c.ambiguous),
+      },
+    ];
 
     return (
-      <div className="space-y-6">
-        {/* Back link */}
-        <Link href="/artists">
-          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground">
-            <ChevronLeft size={14} />
-            Artists
-          </Button>
-        </Link>
-
-        {/* Header card */}
-        <ArtistDetailHeader artist={artist} brand={brandOf(artist)} />
-
-        {/* KPI row */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <KpiCard label="Sets" value={stats.setCount} />
-          <KpiCard label="Channels" value={stats.channelCount} />
-          <KpiCard label="Images" value={stats.imageCount} />
-          <KpiCard label="Videos" value={stats.videoCount} />
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/artists"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span aria-hidden="true">&larr;</span>
+            Back to Artists
+          </Link>
+          <div className="flex items-center gap-2">
+            <BrandMarkEditor kind="artist" id={artist.id} brand={brand} />
+            <ArtistEditButton artist={artist} />
+            <DeleteButton
+              title={`Delete ${artist.name}`}
+              description="This will permanently delete this artist and unresolve all linked credits."
+              onDelete={deleteArtistAction.bind(null, artist.id)}
+              redirectTo="/artists"
+            />
+          </div>
         </div>
 
-        {/* Career section */}
-        {career.length > 0 ? (
-          <SectionCard title="Career" icon={<Camera size={18} />}>
-            <div className="space-y-6">
-              {career.map((group) => (
-                <div key={group.channelId ?? "unknown"}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">{group.channelName}</h3>
-                    <span className="text-xs text-muted-foreground">
-                      ({group.sets.length} {group.sets.length === 1 ? "set" : "sets"})
-                    </span>
-                  </div>
-                  <div className="space-y-1">
-                    {group.sets.map((set) => (
-                      <Link
-                        key={set.setId}
-                        href={`/sets/${set.setId}`}
-                        className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
-                      >
-                        <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                          {set.releaseDate
-                            ? set.releaseDate.toISOString().split("T")[0]
-                            : "????-??-??"}
-                        </span>
-                        {set.type === "video" && (
-                          <Film size={12} className="shrink-0 text-violet-400" />
-                        )}
-                        <span className="truncate font-medium">{set.title}</span>
-                        {set.participants.length > 0 && (
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                            {set.participants.map((p) => p.name).join(", ")}
-                          </span>
-                        )}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        ) : (
-          <SectionCard title="Career" icon={<Camera size={18} />}>
-            <p className="text-sm italic text-muted-foreground/70">
-              No resolved credits yet.
-            </p>
-          </SectionCard>
+        <ArtistHero artist={artist} brand={brand} stats={stats} />
+
+        <EntityTabBar tabs={tabs} active={tab} basePath={base} />
+
+        {tab === "overview" && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {showcase && showcase.items.length > 0 ? (
+              <ShowcaseMosaic showcase={showcase} title={artist.name} owner="their" load={getMakerShowcaseAction.bind(null, "artist", artist.id)} />
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/20 p-6 text-center text-sm text-muted-foreground md:col-span-2">
+                No photos yet — the Showcase fills itself from the photos of the sets credited to them.
+                {waiting.length > 0 && (
+                  <>
+                    {" "}
+                    <Link href={`${base}?tab=credits`} className="text-primary underline-offset-2 hover:underline">
+                      {waiting.length} credit{waiting.length === 1 ? "" : "s"} may be theirs
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
+            )}
+            <KnownForRow sets={knownFor} />
+            <MakerFacesRow title="Models shot most" faces={faces} />
+            <ArtistChannelsRow channels={channels} />
+            <MarkdownNoteCard
+              title="About"
+              icon={<BookOpen size={16} />}
+              initialText={artist.bio}
+              onSave={setArtistTextAction.bind(null, artist.id, "bio")}
+              emptyHint="Add a few lines: their style, what they are known for…"
+            />
+            <MarkdownNoteCard
+              title="Notes"
+              icon={<NotebookPen size={16} />}
+              initialText={artist.notes}
+              onSave={setArtistTextAction.bind(null, artist.id, "notes")}
+              emptyHint="Your own notes on this artist…"
+            />
+            <section className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm md:col-span-2">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+                <Tag size={16} className="text-muted-foreground" aria-hidden="true" />
+                Tags
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <EntityTagsPanel entityType="ARTIST" entityId={artist.id} initialTags={tags} />
+              </div>
+            </section>
+          </div>
         )}
 
-        {/* Danger zone */}
-        <div className="flex justify-end pt-4">
-          <DeleteButton
-            title={`Delete ${artist.name}`}
-            description="This will permanently delete this artist and unresolve all linked credits."
-            onDelete={deleteArtistAction.bind(null, artist.id)}
-            redirectTo="/artists"
+        {tab === "sets" && wall && (
+          <ChannelSetWall
+            wall={wall}
+            scope="library"
+            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+            basePath={`${base}?tab=sets`}
+            libraryOnly
           />
-        </div>
+        )}
+
+        {tab === "credits" && (
+          <div className="space-y-5">
+            <SectionCard
+              title="Also credited as"
+              icon={<UserPen size={18} />}
+              hint="Other names they appear under. A credit with exactly one of these names — or their own, and no other artist's — links to them by itself, now and on every import."
+            >
+              <ArtistAliases artistId={artist.id} aliases={artist.aliases} />
+            </SectionCard>
+            <SectionCard
+              title="Credits that may be theirs"
+              icon={<Link2 size={18} />}
+              hint="Behind-camera credits not yet linked to anyone: the same name first (green), then similar names (amber) — decide each."
+            >
+              <ArtistWaitingCredits artistId={artist.id} credits={waiting} />
+            </SectionCard>
+          </div>
+        )}
       </div>
     );
   });
-}
-
-function KpiCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-border/60 bg-card/70 p-4 shadow-sm">
-      <p className="text-2xl font-bold">{value.toLocaleString()}</p>
-      <p className="text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
 }

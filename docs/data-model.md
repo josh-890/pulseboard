@@ -93,6 +93,9 @@ Network ──< LabelNetwork >── Label
   `profile String?` (markdown), `closed Boolean`. Channels, labels and artists carry tags
   through `channel_tag`, `label_tag`, `artist_tag` (CONTENT and ANY domains).
 - **Label** has `rating Int?` and `notes String?`; its `description` is the page's About text.
+- **Artist** has `website`, `rating`, `notes` (its `bio` is the About text) and **ArtistAlias**
+  (`artist_alias`: `alias`, `aliasNorm`, unique per artist). A behind-camera credit whose
+  normalised name equals exactly one artist's name or alias links to them on import.
 - **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
   CONFIRMED). REFERENCE sessions are auto-created per person via the
   `personId @unique` field — never manually created/edited/deleted/merged.

@@ -14,7 +14,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { updateArtistAction } from "@/lib/actions/artist-actions";
 
 type EditArtistSheetProps = {
@@ -24,7 +23,7 @@ type EditArtistSheetProps = {
     id: string;
     name: string;
     nationality: string | null;
-    bio: string | null;
+    website: string | null;
   };
 };
 
@@ -32,7 +31,7 @@ export function EditArtistSheet({ open, onOpenChange, artist }: EditArtistSheetP
   const router = useRouter();
   const [name, setName] = useState(artist.name);
   const [nationality, setNationality] = useState(artist.nationality ?? "");
-  const [bio, setBio] = useState(artist.bio ?? "");
+  const [website, setWebsite] = useState(artist.website ?? "");
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -44,7 +43,8 @@ export function EditArtistSheet({ open, onOpenChange, artist }: EditArtistSheetP
       id: artist.id,
       name: name.trim(),
       nationality: nationality.trim() || undefined,
-      bio: bio.trim() || undefined,
+      // The bio is the page's About, edited there
+      website: website.trim(),
     });
 
     if (result.success) {
@@ -86,13 +86,13 @@ export function EditArtistSheet({ open, onOpenChange, artist }: EditArtistSheetP
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="edit-artist-bio">Bio</Label>
-            <Textarea
-              id="edit-artist-bio"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="About this artist..."
-              rows={4}
+            <Label htmlFor="edit-artist-website">Website</Label>
+            <Input
+              id="edit-artist-website"
+              type="url"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="https://…"
             />
           </div>
 

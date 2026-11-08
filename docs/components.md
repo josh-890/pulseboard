@@ -190,6 +190,8 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 
 Label page (2026-11-08): `LabelHero` (mark, website, ★, Channels/Sets/Models/Active via shared `HeroKpi`), `LabelChannelTiles` (wordmark tiles of owned channels). Sets/Models tabs reuse `ChannelSetWall` (tiles show the channel mark when `row.channel` is set) and `ChannelModels`.
 
+Artist page (2026-11-08, `components/artists/`): `ArtistHero` (round portrait/monogram, roles, aliases, ★, numbers), `ArtistEditButton` (opens `EditArtistSheet`: name, nationality, website), `ArtistChannelsRow`, `ArtistAliases` (add/remove, toast with credits linked), `ArtistWaitingCredits` (same-name / similar credits, Link, Link all). `ArtistDetailHeader` removed. `ChannelSetWall` takes `libraryOnly`.
+
 ## Contact Components (`components/people/contact/`, ADR-0038)
 
 | Component | Type | Props | Description |

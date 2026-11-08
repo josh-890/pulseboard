@@ -48,6 +48,52 @@ const OPEN_OR_SKIPPED: StagingSetStatus[] = ["PENDING", "REVIEWING", "APPROVED",
 
 const upperTrim = (s: string) => s.trim().toUpperCase();
 
+const SET_ROW_SELECT = {
+  id: true,
+  title: true,
+  releaseDate: true,
+  type: true,
+  rating: true,
+  externalId: true,
+  channel: { select: { id: true, name: true, shortName: true, ...BRAND_SELECT } },
+  participants: {
+    where: { roleDefinition: LEAD_ROLE },
+    select: { person: { select: { icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } } } },
+  },
+} satisfies Prisma.SetSelect;
+
+/** Your sets as wall rows, with their covers and lead cast */
+async function setRows(where: Prisma.SetWhereInput, withChannel = false): Promise<ChannelWallRow[]> {
+  const sets = await prisma.set.findMany({ where, select: SET_ROW_SELECT });
+  const covers = await getCoverPhotosForSets(sets.map((s) => s.id));
+  return sets.map((s) => {
+    const cover = covers.get(s.id);
+    return {
+      key: s.externalId ?? `set:${s.id}`,
+      kind: "set" as const,
+      href: `/sets/${s.id}`,
+      title: s.title,
+      releaseDate: s.releaseDate,
+      isVideo: s.type === "video",
+      coverUrl: cover?.url ?? null,
+      coverFocalX: cover?.focalX ?? null,
+      coverFocalY: cover?.focalY ?? null,
+      rating: s.rating,
+      status: null,
+      castIcgIds: s.participants.map((p) => p.person.icgId),
+      castNames: s.participants.map((p) => p.person.aliases[0]?.name ?? p.person.icgId),
+      // Where tiles of many channels meet, each says which
+      ...(withChannel && s.channel ? { channel: { id: s.channel.id, brand: brandOf(s.channel) } } : {}),
+    };
+  });
+}
+
+/** An artist's wall: the sets credited to them, each with its channel's mark */
+export async function getArtistWall(artistId: string): Promise<ChannelWall> {
+  const rows = await setRows({ creditsRaw: { some: { resolvedArtistId: artistId, resolutionStatus: "RESOLVED" } } }, true);
+  return { rows, counts: { set: rows.length, staged: 0, catalogue: 0 } };
+}
+
 /**
  * Everything known of the channel: your sets first, then staged sets not yet
  * promoted, then catalogue sets neither of those holds. `scope: "library"` stops
@@ -70,40 +116,7 @@ export async function getChannelWall(channelId: string, scope: "library" | "all"
       select: id,
     }).toString()}`;
 
-  const sets = await prisma.set.findMany({
-    where: { channelId },
-    select: {
-      id: true,
-      title: true,
-      releaseDate: true,
-      type: true,
-      rating: true,
-      externalId: true,
-      participants: {
-        where: { roleDefinition: LEAD_ROLE },
-        select: { person: { select: { icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } } } },
-      },
-    },
-  });
-  const covers = await getCoverPhotosForSets(sets.map((s) => s.id));
-  const rows: ChannelWallRow[] = sets.map((s) => {
-    const cover = covers.get(s.id);
-    return {
-      key: s.externalId ?? `set:${s.id}`,
-      kind: "set",
-      href: `/sets/${s.id}`,
-      title: s.title,
-      releaseDate: s.releaseDate,
-      isVideo: s.type === "video",
-      coverUrl: cover?.url ?? null,
-      coverFocalX: cover?.focalX ?? null,
-      coverFocalY: cover?.focalY ?? null,
-      rating: s.rating,
-      status: null,
-      castIcgIds: s.participants.map((p) => p.person.icgId),
-      castNames: s.participants.map((p) => p.person.aliases[0]?.name ?? p.person.icgId),
-    };
-  });
+  const rows: ChannelWallRow[] = await setRows({ channelId });
   const counts = { set: rows.length, staged: 0, catalogue: 0 };
   if (scope === "library") return { rows, counts };
 

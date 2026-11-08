@@ -26,7 +26,7 @@ The app uses a fixed layout so navigation is always within reach, no matter how 
 6. [Projects](#6-projects)
 7. [Labels](#7-labels)
 8. [Channels](#8-channels)
-9. [Networks](#9-networks)
+9. [Artists & Networks](#9-artists--networks)
 10. [Media Management](#10-media-management)
 11. [Data Import](#11-data-import)
 12. [Staging Sets](#12-staging-sets)
@@ -1503,7 +1503,26 @@ The page shows the channel's work first; how it is wired sits on its own tab.
 
 ---
 
-## 9. Networks
+## 9. Artists & Networks
+
+### Artists
+
+**Routes:** `/artists`, `/artists/[id]`
+
+Artists are the people behind the camera — photographers, directors. A set's behind-camera credit links to one.
+
+**The artist page** has the channel page's shape:
+
+- **Hero** — their portrait (upload one with **Edit look → Upload portrait**) or a round monogram, the name in its brand font, what they are credited as (*Photographer*, *Director* …), nationality, website, *also credited as …* (their aliases), **Your rating** (★), and **Sets** (photo · video), **Channels**, **Models**, **Active** over the sets credited to them. **Edit** changes name, nationality and website.
+- **Overview** — **Showcase** of photos from their sets (Random / Best, as on a channel), **Known for**, **Models shot most**, **Channels worked for** (wordmark tiles with set counts), **About** (their bio, edited in place), **Notes**, **Tags**.
+- **Sets** — the wall of their credited sets by year, each tile with its channel's mark.
+- **Names & credits**:
+  - **Also credited as** — other names they appear under. Add one and every open credit with exactly that name (and no other artist's) links to them at once — the message says how many.
+  - **Credits that may be theirs** — behind-camera credits linked to nobody yet: the **same name** (green) first, then **similar names** (amber, with how similar). **Link** decides one; **Link all N** takes every same-name one. A name two artists share is marked *also another artist's name* and never linked by itself.
+
+**Credits link by themselves.** When a set is promoted (or a staged set is merged into one), its photographer credit links to the artist whose name or alias it carries exactly — if only one artist does. Everything else stays open on the artist's **Names & credits** tab and in the set's credit panel.
+
+### Networks
 
 **Routes:** `/networks`, `/networks/[id]` — **no longer in the sidebar** (2026-11-08). Networks were never used; the data is kept and the pages still open by URL, but nothing new is built on them and the label page no longer lists them.
 

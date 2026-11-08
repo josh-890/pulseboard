@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
+import { BRAND_SELECT, brandOf } from "@/lib/services/brand-of";
+import type { EntityBrand } from "@/lib/brand-mark";
 
 export async function getArtists(search?: string) {
   const where = search
@@ -16,7 +19,10 @@ export async function getArtists(search?: string) {
 }
 
 export async function getArtistById(id: string) {
-  return prisma.artist.findUnique({ where: { id } });
+  return prisma.artist.findUnique({
+    where: { id },
+    include: { aliases: { orderBy: { alias: "asc" }, select: { id: true, alias: true } } },
+  });
 }
 
 export type ArtistStats = {
@@ -177,7 +183,7 @@ export async function createArtist(data: {
 
 export async function updateArtist(
   id: string,
-  data: { name?: string; nationality?: string | null; bio?: string | null },
+  data: { name?: string; nationality?: string | null; bio?: string | null; website?: string | null },
 ) {
   const updateData: Record<string, unknown> = {};
   if (data.name !== undefined) {
@@ -186,6 +192,7 @@ export async function updateArtist(
   }
   if (data.nationality !== undefined) updateData.nationality = data.nationality || null;
   if (data.bio !== undefined) updateData.bio = data.bio || null;
+  if (data.website !== undefined) updateData.website = data.website?.trim() || null;
 
   return prisma.artist.update({ where: { id }, data: updateData });
 }
@@ -225,4 +232,89 @@ export async function getSuggestedArtists(rawName: string) {
     LIMIT 3
   `;
   return rows.map((r) => ({ id: r.id, name: r.name, nationality: r.nationality, sim: Number(r.sim) }));
+}
+
+// ─── Artist page (2026-11-08) ────────────────────────────────────────────────
+
+export type ArtistHeroStats = {
+  photoSets: number;
+  videoSets: number;
+  channels: number;
+  /** Persons leading the sets credited to them */
+  models: number;
+  /** What they are credited as: Photographer, Director … */
+  roles: string[];
+  firstYear: number | null;
+  lastYear: number | null;
+};
+
+const CREDITED_SETS = (artistId: string) => Prisma.sql`
+  SELECT DISTINCT cr."setId" AS id FROM "SetCreditRaw" cr
+  WHERE cr."resolvedArtistId" = ${artistId} AND cr."resolutionStatus" = 'RESOLVED'`;
+
+export async function getArtistHeroStats(artistId: string): Promise<ArtistHeroStats> {
+  const [row] = await prisma.$queryRaw<
+    Array<{ photo: bigint; video: bigint; channels: bigint; models: bigint; first: Date | null; last: Date | null; roles: string[] | null }>
+  >(Prisma.sql`
+    WITH sets AS (${CREDITED_SETS(artistId)})
+    SELECT
+      (SELECT count(*) FROM "Set" s WHERE s.id IN (SELECT id FROM sets) AND s.type = 'photo') AS photo,
+      (SELECT count(*) FROM "Set" s WHERE s.id IN (SELECT id FROM sets) AND s.type = 'video') AS video,
+      (SELECT count(DISTINCT s."channelId") FROM "Set" s WHERE s.id IN (SELECT id FROM sets)) AS channels,
+      (SELECT count(DISTINCT sp."personId")
+         FROM "SetParticipant" sp
+         JOIN "ContributionRoleDefinition" rd ON rd.id = sp."roleDefinitionId"
+         JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+        WHERE sp."setId" IN (SELECT id FROM sets) AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD') AS models,
+      (SELECT min(s."releaseDate") FROM "Set" s WHERE s.id IN (SELECT id FROM sets)) AS first,
+      (SELECT max(s."releaseDate") FROM "Set" s WHERE s.id IN (SELECT id FROM sets)) AS last,
+      (SELECT array_agg(DISTINCT rd.name ORDER BY rd.name)
+         FROM "SetCreditRaw" cr JOIN "ContributionRoleDefinition" rd ON rd.id = cr."roleDefinitionId"
+        WHERE cr."resolvedArtistId" = ${artistId} AND cr."resolutionStatus" = 'RESOLVED') AS roles
+  `);
+  return {
+    photoSets: Number(row?.photo ?? 0),
+    videoSets: Number(row?.video ?? 0),
+    channels: Number(row?.channels ?? 0),
+    models: Number(row?.models ?? 0),
+    roles: row?.roles ?? [],
+    firstYear: row?.first ? row.first.getUTCFullYear() : null,
+    lastYear: row?.last ? row.last.getUTCFullYear() : null,
+  };
+}
+
+export type ArtistChannel = { id: string; brand: EntityBrand; sets: number };
+
+/** The channels they worked for, most sets first */
+export async function getArtistChannels(artistId: string): Promise<ArtistChannel[]> {
+  const rows = await prisma.$queryRaw<Array<{ channelId: string; n: bigint }>>(Prisma.sql`
+    WITH sets AS (${CREDITED_SETS(artistId)})
+    SELECT s."channelId", count(*) AS n FROM "Set" s
+    WHERE s.id IN (SELECT id FROM sets) AND s."channelId" IS NOT NULL
+    GROUP BY s."channelId" ORDER BY n DESC
+  `);
+  if (rows.length === 0) return [];
+  const channels = await prisma.channel.findMany({
+    where: { id: { in: rows.map((r) => r.channelId) } },
+    select: { id: true, name: true, shortName: true, ...BRAND_SELECT },
+  });
+  const byId = new Map(channels.map((c) => [c.id, c]));
+  return rows.flatMap((r) => {
+    const c = byId.get(r.channelId);
+    return c ? [{ id: c.id, brand: brandOf(c), sets: Number(r.n) }] : [];
+  });
+}
+
+/** Your liking, 1–5; null clears it */
+export async function setArtistRating(artistId: string, rating: number | null): Promise<void> {
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("A rating is 1 to 5");
+  }
+  await prisma.artist.update({ where: { id: artistId }, data: { rating } });
+}
+
+/** About (the bio) or notes; blank clears it */
+export async function setArtistText(artistId: string, field: "bio" | "notes", text: string): Promise<void> {
+  const value = text.trim() ? text.trim() : null;
+  await prisma.artist.update({ where: { id: artistId }, data: { [field]: value } });
 }

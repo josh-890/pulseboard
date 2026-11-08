@@ -21,6 +21,8 @@ type ChannelSetWallProps = {
   limit: number;
   /** The tab's own address, e.g. /channels/x?tab=sets */
   basePath: string;
+  /** Only your sets exist here (an artist's credits): no Library | All, no coverage */
+  libraryOnly?: boolean;
 };
 
 const STATUS_LABEL: Partial<Record<StagingSetStatus, string>> = {
@@ -176,7 +178,7 @@ function Tile({ row }: { row: ChannelWallRow }) {
  * The channel's sets as a wall of covers, by year. Library = your sets; All adds
  * its staged sets and what only the catalogue knows, dimmer, so the gaps show.
  */
-export function ChannelSetWall({ wall, scope, type, sort, limit, basePath }: ChannelSetWallProps) {
+export function ChannelSetWall({ wall, scope, type, sort, limit, basePath, libraryOnly = false }: ChannelSetWallProps) {
   const href = (patch: Partial<{ scope: WallScope; type: WallType; sort: WallSort; limit: number }>) => {
     // A new filter starts at the first page again
     const next = { scope, type, sort, limit: WALL_PAGE, ...patch };
@@ -201,6 +203,8 @@ export function ChannelSetWall({ wall, scope, type, sort, limit, basePath }: Cha
         <p className="text-sm text-muted-foreground">
           {known === 0 ? (
             "No sets known yet."
+          ) : libraryOnly ? (
+            `${known.toLocaleString()} ${known === 1 ? "set" : "sets"}`
           ) : (
             <>
               You have <span className="font-semibold text-foreground">{wall.counts.set.toLocaleString()}</span> of{" "}
@@ -215,14 +219,16 @@ export function ChannelSetWall({ wall, scope, type, sort, limit, basePath }: Cha
           )}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <PillGroup label="Which sets">
-            <Pill href={href({ scope: "library" })} active={scope === "library"}>
-              Library {wall.counts.set.toLocaleString()}
-            </Pill>
-            <Pill href={href({ scope: "all" })} active={scope === "all"}>
-              All {known.toLocaleString()}
-            </Pill>
-          </PillGroup>
+          {!libraryOnly && (
+            <PillGroup label="Which sets">
+              <Pill href={href({ scope: "library" })} active={scope === "library"}>
+                Library {wall.counts.set.toLocaleString()}
+              </Pill>
+              <Pill href={href({ scope: "all" })} active={scope === "all"}>
+                All {known.toLocaleString()}
+              </Pill>
+            </PillGroup>
+          )}
           <PillGroup label="Type">
             <Pill href={href({ type: "any" })} active={type === "any"}>
               All types
