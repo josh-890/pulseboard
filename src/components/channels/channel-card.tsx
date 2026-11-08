@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { EntityBadge } from "@/components/shared/entity-badge";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { brandOf } from "@/lib/services/brand-of";
 import { generateEntityVisual } from "@/lib/entity-visual";
 import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 import type { getChannels } from "@/lib/services/channel-service";
@@ -40,7 +41,7 @@ export function ChannelCard({ channel }: ChannelCardProps) {
         <div className="relative space-y-2.5 p-4">
           {/* Badge + title */}
           <div className="flex items-start gap-3">
-            <EntityBadge visual={visual} size="sm" />
+            <EntityMark brand={brandOf(channel)} variant="tile" size="sm" />
             <div className="min-w-0 flex-1">
               <h3 className="line-clamp-2 text-sm font-semibold leading-snug">
                 {channel.name}

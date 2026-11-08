@@ -1021,6 +1021,12 @@ model Label {
   description String?
   website     String?
 
+  // Brand mark: an uploaded logo wins; otherwise a wordmark generated from the
+  // name, with optional font/colour overrides (keys of src/lib/brand-mark.ts)
+  logoKey   String?
+  markFont  String?
+  markColor String?
+
   networks        LabelNetworkLink[]
   projects        ProjectLabel[]
   primaryProjects Project[]          @relation("PrimaryLabel")
@@ -1055,6 +1061,12 @@ model Channel {
   importAliases String[]    @default([])
   tier          ChannelTier @default(NORMAL)
   channelFolder String?
+
+  // Brand mark: an uploaded logo wins; otherwise a wordmark generated from the
+  // name, with optional font/colour overrides (keys of src/lib/brand-mark.ts)
+  logoKey   String?
+  markFont  String?
+  markColor String?
 
   // Owning production Label (ADR-0020). Single hard FK — the deterministic
   // formalization of the highest-confidence ChannelLabelMap. ChannelLabelMap is
@@ -2369,6 +2381,12 @@ model Artist {
   bio         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Brand mark: an uploaded portrait wins; otherwise a wordmark generated from the
+  // name, with optional font/colour overrides (keys of src/lib/brand-mark.ts)
+  logoKey   String?
+  markFont  String?
+  markColor String?
 
   creditsRaw SetCreditRaw[]
 

@@ -6,6 +6,7 @@
  * progressive enrichment of existing Sets.
  */
 
+import type { EntityBrand } from '@/lib/brand-mark'
 import { absorbFolderTagsIntoSets, stagingSetIdsForTagQuery } from '@/lib/services/archive-tag-service'
 import { prisma } from '@/lib/db'
 import { localMediaUrlOrNull } from '@/lib/media-url'
@@ -45,7 +46,7 @@ export type PromotedSetArchiveMini = {
 } | null
 
 export type StagingSetWithRelations = StagingSet & {
-  channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null } | null
+  channel: { id: string; name: string; tier: ChannelTier; shortName: string | null; channelFolder: string | null; logoKey: string | null; markFont: string | null; markColor: string | null } | null
   matchedSet: { id: string; title: string; channelId: string | null } | null
   coherenceSnapshot: CoherenceSnapshotMini
   archiveLinks: ArchiveLinkMini[]
@@ -78,6 +79,8 @@ export type StagingSetWithRelations = StagingSet & {
   linkConflict?: BlockingFolderInfo | null
   /** Folders of its day and channel that nothing is confirmed to (no link of its own) */
   freeDayFolders?: string[] | null
+  // The channel's mark, resolved by the list route (buildUrl needs the tenant)
+  channelBrand?: EntityBrand | null
 }
 
 export type ParticipantStatus = {
@@ -147,7 +150,7 @@ const ARCHIVE_LINK_SELECT = {
 } as const
 
 const STAGING_SET_INCLUDE = {
-  channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true } },
+  channel: { select: { id: true, name: true, tier: true, shortName: true, channelFolder: true, logoKey: true, markFont: true, markColor: true } },
   matchedSet: { select: { id: true, title: true, channelId: true } },
   coherenceSnapshot: {
     select: { hasMediaInApp: true },

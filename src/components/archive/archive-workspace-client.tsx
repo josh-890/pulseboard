@@ -21,6 +21,7 @@ import { ArchivePhantomRow } from './archive-phantom-row'
 import { ArchiveUntrackedRow } from './archive-untracked-row'
 import { ArchiveGhostRow } from './archive-ghost-row'
 import { ArchiveChannelHeader } from './archive-channel-header'
+import type { EntityBrand } from '@/lib/brand-mark'
 import { ArchiveYearSubheader } from './archive-year-subheader'
 import type {
   WorkspaceCounts,
@@ -62,6 +63,8 @@ type Props = {
   /** Tag query from the URL (`tags=`), and the facets its panel offers (ADR-0034) */
   initialTags?: string
   tagFacets: TagFacetGroup[]
+  /** Channel marks by archive folder name — shown on the channel group headers */
+  channelBrands: Record<string, EntityBrand & { channelId: string }>
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -247,6 +250,7 @@ export function ArchiveWorkspaceClient({
   initialChannelSummaries,
   initialTags,
   tagFacets,
+  channelBrands,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [counts, setCounts] = useState<WorkspaceCounts>(initialPage.counts)
@@ -1116,6 +1120,7 @@ export function ArchiveWorkspaceClient({
                     {row.kind === 'channel-header' && (
                       <ArchiveChannelHeader
                         channel={row.channel}
+                        brand={channelBrands[row.channel] ?? null}
                         count={row.count}
                         collapsed={isCollapsed(collapseModel, `ch::${row.channel}`)}
                         onToggle={() => toggleCollapse(`ch::${row.channel}`)}

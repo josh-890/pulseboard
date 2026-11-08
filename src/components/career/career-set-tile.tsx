@@ -7,6 +7,7 @@ import { cn, focalStyle } from "@/lib/utils";
 import { stagedSetJumpHref, type StagingJumpPerson } from "@/lib/staging-jump";
 import { STATUS_DISPLAY_LABEL } from "@/components/shared/status-pill";
 import { CareerPromoteButton } from "./career-promote-button";
+import { EntityMark } from "@/components/shared/entity-mark";
 import type { CareerTimelineRow, CareerRowStatus } from "@/lib/services/career-service";
 
 // One poster in the Career gallery — the visual counterpart of
@@ -191,7 +192,8 @@ export function CareerSetTile({ row, jumpPerson }: CareerSetTileProps) {
 
         <div className="min-w-0 px-0.5">
           <p className="truncate text-xs font-medium text-foreground">{row.title}</p>
-          <p className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">
+          <p className="flex min-w-0 items-center gap-1 truncate font-mono text-[10px] tabular-nums text-muted-foreground">
+            {row.channelBrand && <EntityMark brand={row.channelBrand} variant="tile" size="xs" />}
             {formatIsoDate(row.releaseDate)}
             {row.viewerUsedName && <span className="ml-1 font-sans italic">as {row.viewerUsedName}</span>}
           </p>

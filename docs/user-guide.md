@@ -1421,11 +1421,18 @@ Click **"Add Label"** to open the creation form:
 
 ### Label Detail
 
-- Header with name, description, website link
-- **Networks** — labels can belong to networks (many-to-many)
-- **Channels** — grid of channels under this label, each showing name, set count. Add Channel button available.
+- Header with the label's mark (see *Logos and generated marks*), description, website link
+- **Channels** — grid of channels under this label, each with its mark, name and set count. Add Channel button available.
 - **Projects** — projects with this label as primary
 - **Edit & Delete** buttons
+
+### Logos and generated marks
+
+Every channel, label and artist has a **mark**, used wherever it appears: list cards, the detail page header, the set and session hero (next to the channel and label), the person's Career rows and tiles and **Known for** posters (the channel name there opens the channel), the Staging Sets list and the channel headers of the Archive (with a link to the channel that owns the folder).
+
+- **Generated from the name.** Without a logo, the mark is the name set in one of eight display fonts (Serif, Fat serif, Condensed, Grotesk, Geometric, Rounded, Script, Elegant) and one of 16 colours — both picked from the name, so the same name always looks the same. The small square version shows the channel's Short Name (up to 5 letters, e.g. `MET`), else the name's initials.
+- **Edit look** (button on the channel, label and artist page): pick another font or colour with a live preview; the one marked *(from the name)* is the generated pick, and **From the name** goes back to it. **Save look** keeps your choice.
+- **Upload logo** (an artist: **Upload portrait**) — PNG, JPG or WebP, at most 512 px, transparency kept. A damaged file is refused with the reason. A logo wins over the generated mark everywhere; **Remove** goes back to it. Logos are only ever uploaded by you — nothing is fetched from the web.
 
 ---
 
@@ -1473,7 +1480,7 @@ The check sees only the archive roots the scan walks. A channel's *Archive folde
 
 ### Channel Detail
 
-- Header with name, linked label
+- Header with the channel's mark (see *Logos and generated marks* under Labels), Short Name, tier and linked label; **Edit look** changes the mark
 - **Stats:** Set count · In pipeline count (click to jump to the section)
 - **In pipeline** — staged sets from this channel that are not promoted yet (Pending, In review, Approved). Shows a count per status, a link to the photo sets and to the videos in **Staging Sets** already filtered to this channel, and the 50 most recent staged sets. Click a row to open that set in Staging Sets. A channel can show 0 sets and still have work here: sets only count once promoted.
 - **Sets** — all promoted sets published through this channel. Click to navigate to set detail.
@@ -1483,7 +1490,7 @@ The check sees only the archive roots the scan walks. A channel's *Archive folde
 
 ## 9. Networks
 
-**Routes:** `/networks`, `/networks/[id]`
+**Routes:** `/networks`, `/networks/[id]` — **no longer in the sidebar** (2026-11-08). Networks were never used; the data is kept and the pages still open by URL, but nothing new is built on them and the label page no longer lists them.
 
 Networks are groups of labels (e.g. a parent company with multiple studios).
 

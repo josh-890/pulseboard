@@ -1,5 +1,6 @@
 'use client'
 
+import { EntityMark } from '@/components/shared/entity-mark'
 import { StubBadge } from '@/components/archive/stub-badge'
 import { toArchiveStub } from '@/lib/archive-stub'
 import { memo, useState, useCallback, useTransition } from 'react'
@@ -607,11 +608,12 @@ export const StagingSetRow = memo(function StagingSetRow({
             <span className="opacity-50">·</span>
             <span
               className={cn(
-                'truncate',
+                'inline-flex min-w-0 items-center gap-1',
                 !ss.channelId && 'text-amber-500',
               )}
             >
-              {channel.label}
+              {ss.channelBrand && <EntityMark brand={ss.channelBrand} variant="tile" size="xs" />}
+              <span className="truncate">{channel.label}</span>
             </span>
             {/* The import file's own name, only when it is not just a respelling:
                 "ALS ARCHIVE" under ALSScan is a feed you mapped on purpose, and

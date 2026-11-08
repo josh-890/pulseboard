@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { StaleDeploymentGuard } from "@/components/layout/stale-deployment-guard";
 import { getCurrentTenantConfig } from "@/lib/tenant-context";
 import { isSingleTenantMode } from "@/lib/tenants";
+import { brandFontVariables } from "@/lib/brand-fonts";
 import "./globals.css";
 
 const inter = Inter({
@@ -54,7 +55,7 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${brandFontVariables} font-sans antialiased`}>
         <ThemeProvider>
           <PaletteProvider>
             <DensityProvider>

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import type { GalleryItem } from "@/lib/types";
 import { getCoverPhotosForSets, getMediaGalleryItemsByIds } from "./media-service";
 import { LEAD_ROLE } from "./session-contributors";
+import { BRAND_SELECT, brandOf } from "./brand-of";
+import type { EntityBrand } from "@/lib/brand-mark";
 
 // The Overview showcase of a person (2026-10-16): their best photos first, the way
 // you marked them — iconic, then ★, then outtake — filled up with production
@@ -147,6 +149,8 @@ export type KnownForSet = {
   title: string;
   year: number | null;
   channelName: string | null;
+  channelId: string | null;
+  channelBrand: EntityBrand | null;
   rating: number | null;
   isVideo: boolean;
   coverUrl: string | null;
@@ -161,7 +165,7 @@ export async function getPersonKnownFor(personId: string, limit = 8): Promise<Kn
     where: { participants: { some: { personId, roleDefinition: LEAD_ROLE } } },
     orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { releaseDate: { sort: "desc", nulls: "last" } }],
     take: limit,
-    select: { id: true, title: true, releaseDate: true, rating: true, type: true, channel: { select: { name: true } } },
+    select: { id: true, title: true, releaseDate: true, rating: true, type: true, channel: { select: { id: true, name: true, shortName: true, ...BRAND_SELECT } } },
   });
   const covers = await getCoverPhotosForSets(sets.map((s) => s.id));
   return sets.map((s) => {
@@ -171,6 +175,8 @@ export async function getPersonKnownFor(personId: string, limit = 8): Promise<Kn
       title: s.title,
       year: s.releaseDate ? Number(DAY.format(s.releaseDate).slice(0, 4)) : null,
       channelName: s.channel?.name ?? null,
+      channelId: s.channel?.id ?? null,
+      channelBrand: s.channel ? brandOf(s.channel) : null,
       rating: s.rating,
       isVideo: s.type === "video",
       coverUrl: cover?.url ?? null,

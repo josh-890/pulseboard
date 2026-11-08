@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { buildUrl } from '@/lib/media-url'
+import { brandOf } from '@/lib/services/brand-of'
 import { archiveCoverKeyFor } from '@/lib/services/import/staging-set-service'
 import { getStagingSetsFiltered } from '@/lib/services/import/staging-set-service'
 import { getSuggestedFoldersForStagingSets, getConflictingLinks } from '@/lib/services/archive-service'
@@ -85,6 +86,7 @@ export async function GET(request: Request) {
           const key = archiveCoverKeyFor(item)
           return key ? buildUrl(key) : null
         })(),
+        channelBrand: item.channel ? brandOf(item.channel) : null,
         suggestedArchiveFolder: suggestions.get(item.id) ?? null,
         hasLinkConflict: conflicts.get(item.id)?.kind === 'taken',
         // Which folder blocks it, and what that folder is linked to — a badge

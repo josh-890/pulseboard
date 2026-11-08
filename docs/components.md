@@ -362,6 +362,8 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `TagPicker` | Client | `scope`, `selectedTagIds`, `onChange`, … | Inline search-and-pick for tag ids before an entity exists (set/project create sheets) and in the bulk bar |
 | `TagChips` | Client | `tags`, `onRemove?`, `compact?` | Plain coloured chips |
 | `DeleteButton` | Client | `onDelete`, `label?` | Destructive button with confirmation AlertDialog |
+| `EntityMark` | Server/Client | `brand: EntityBrand`, `variant?: "wordmark" \| "tile"`, `size?: xs–xl`, `round?` | A channel's, label's or artist's mark: uploaded logo, else the generated wordmark (name in its brand font + colour) or monogram tile (Shortname / initials). Replaces `EntityBadge` on cards and detail headers |
+| `BrandMarkEditor` | Client | `kind`, `id`, `brand` | "Edit look" dialog: font and colour pickers with live preview (generated pick marked *from the name*), logo/portrait upload and remove |
 
 ---
 

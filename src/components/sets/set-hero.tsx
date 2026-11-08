@@ -13,6 +13,8 @@ import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service"
 import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { brandOf } from "@/lib/services/brand-of";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
 
@@ -154,8 +156,9 @@ export function SetHero({
               {set.releaseDate && <span>·</span>}
               <Link
                 href={`/channels/${set.channel.id}`}
-                className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                className="inline-flex items-center gap-1.5 font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
               >
+                <EntityMark brand={brandOf(set.channel)} variant="tile" size="xs" />
                 {set.channel.name}
               </Link>
             </>
@@ -202,8 +205,9 @@ export function SetHero({
               <span>·</span>
               <Link
                 href={`/labels/${primaryLabel.id}`}
-                className="hover:text-foreground hover:underline underline-offset-2 transition-colors"
+                className="inline-flex items-center gap-1 hover:text-foreground hover:underline underline-offset-2 transition-colors"
               >
+                <EntityMark brand={brandOf(primaryLabel)} variant="tile" size="xs" />
                 {primaryLabel.name}
               </Link>
             </>

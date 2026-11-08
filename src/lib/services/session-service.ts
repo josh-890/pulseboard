@@ -241,7 +241,7 @@ export async function getSessionById(id: string) {
     where: { id },
     include: {
       project: { select: { id: true, name: true } },
-      label: { select: { id: true, name: true } },
+      label: { select: { id: true, name: true, logoKey: true, markFont: true, markColor: true } },
       person: personSelect,
       contributions: {
         include: {

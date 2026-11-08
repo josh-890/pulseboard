@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink, Network, Radio, FolderKanban } from "lucide-react";
+import { ExternalLink, Radio, FolderKanban } from "lucide-react";
 import { getLabelById } from "@/lib/services/label-service";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
@@ -11,8 +11,10 @@ import { deleteLabel } from "@/lib/actions/label-actions";
 import { deleteChannel } from "@/lib/actions/channel-actions";
 import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
-import { EntityBadge } from "@/components/shared/entity-badge";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { BrandMarkEditor } from "@/components/shared/brand-mark-editor";
 import { generateEntityVisual } from "@/lib/entity-visual";
+import { brandOf } from "@/lib/services/brand-of";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,7 @@ export default async function LabelDetailPage({
   if (!label) notFound();
 
   const visual = generateEntityVisual(label.name, "LABEL");
+  const brand = brandOf(label);
   const labelOption = [{ id: label.id, name: label.name }];
 
   return (
@@ -100,6 +103,7 @@ export default async function LabelDetailPage({
           Back to Labels
         </Link>
         <div className="flex items-center gap-2">
+          <BrandMarkEditor kind="label" id={label.id} brand={brand} />
           <EditLabelSheet label={label} />
           <DeleteButton
             title="Delete label?"
@@ -125,9 +129,10 @@ export default async function LabelDetailPage({
           )}
         />
         <div className="relative flex items-start gap-4">
-          <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold leading-tight">{label.name}</h1>
+            <h1 className="min-w-0">
+              <EntityMark brand={brand} variant="wordmark" size="xl" />
+            </h1>
             {label.description && (
               <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                 {label.description}
@@ -147,28 +152,6 @@ export default async function LabelDetailPage({
           </div>
         </div>
       </div>
-
-      {/* Networks */}
-      <SectionCard
-        title={`Networks (${label.networks.length})`}
-        icon={<Network size={18} />}
-      >
-        {label.networks.length === 0 ? (
-          <EmptyState message="Not part of any networks." />
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {label.networks.map(({ network }) => (
-              <Link
-                key={network.id}
-                href={`/networks/${network.id}`}
-                className="inline-flex items-center rounded-full border border-white/20 bg-muted/60 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted/80 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {network.name}
-              </Link>
-            ))}
-          </div>
-        )}
-      </SectionCard>
 
       {/* Channels */}
       <SectionCard
@@ -190,9 +173,10 @@ export default async function LabelDetailPage({
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <Link
                       href={`/channels/${channel.id}`}
-                      className="font-medium transition-colors hover:text-primary"
+                      className="flex min-w-0 items-center gap-2 font-medium transition-colors hover:text-primary"
                     >
-                      {channel.name}
+                      <EntityMark brand={brandOf(channel)} variant="tile" size="sm" />
+                      <span className="truncate">{channel.name}</span>
                     </Link>
                     <div className="flex items-center gap-2">
                       {channel.platform && (
@@ -201,8 +185,8 @@ export default async function LabelDetailPage({
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        {channel.sets.length}{" "}
-                        {channel.sets.length === 1 ? "set" : "sets"}
+                        {channel._count.sets}{" "}
+                        {channel._count.sets === 1 ? "set" : "sets"}
                       </span>
                     </div>
                   </div>

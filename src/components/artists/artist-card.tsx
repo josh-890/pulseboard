@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Palette } from "lucide-react";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { brandOf } from "@/lib/services/brand-of";
 import type { getArtists } from "@/lib/services/artist-service";
 
 type ArtistItem = Awaited<ReturnType<typeof getArtists>>[number];
@@ -24,9 +25,7 @@ export function ArtistCard({ artist }: ArtistCardProps) {
       >
         <div className="space-y-2 p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-500">
-              <Palette size={16} />
-            </div>
+            <EntityMark brand={brandOf(artist)} variant="tile" size="md" round />
             <div className="min-w-0 flex-1">
               <h3 className="line-clamp-1 text-sm font-semibold leading-snug">
                 {artist.name}

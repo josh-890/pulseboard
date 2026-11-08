@@ -23,6 +23,8 @@ import {
   type UndevelopedParticipant,
 } from "@/lib/services/import/staging-cast-readiness";
 import { buildUrl } from "@/lib/media-url";
+import { getChannelBrands } from "@/lib/services/brand-of";
+import type { EntityBrand } from "@/lib/brand-mark";
 import type { PhotoVariants } from "@/lib/types/photo";
 import { LEAD_ROLE, SUPPORT_ROLE } from "@/lib/services/session-contributors";
 
@@ -135,6 +137,8 @@ type CareerTimelineRowBase = {
   releaseDatePrecision: string;
   channelId: string | null;
   channelName: string | null;
+  // The channel's mark (logo or generated wordmark); filled by getCareerTimeline
+  channelBrand?: EntityBrand | null;
   type: SetType;
   rowStatus: CareerRowStatus;
   coverUrl: string | null;
@@ -686,7 +690,10 @@ export async function getCareerTimeline(
     getPromotedRowsForPerson(personId, filters),
     getStagedRowsForPerson(personId, filters),
   ]);
-  return sortRows([...promoted, ...staged], filters.sort ?? "date-desc");
+  const rows = [...promoted, ...staged];
+  const brands = await getChannelBrands(rows.map((r) => r.channelId));
+  for (const r of rows) r.channelBrand = r.channelId ? brands.get(r.channelId) ?? null : null;
+  return sortRows(rows, filters.sort ?? "date-desc");
 }
 
 function sortRows(rows: CareerTimelineRow[], sort: CareerSort): CareerTimelineRow[] {

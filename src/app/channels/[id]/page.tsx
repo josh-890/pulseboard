@@ -16,8 +16,10 @@ import { formatRelativeTime } from "@/lib/utils";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteChannel } from "@/lib/actions/channel-actions";
-import { EntityBadge } from "@/components/shared/entity-badge";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { BrandMarkEditor } from "@/components/shared/brand-mark-editor";
 import { generateEntityVisual } from "@/lib/entity-visual";
+import { brandOf } from "@/lib/services/brand-of";
 import { ImportAliases } from "@/components/channels/import-aliases";
 import { ChannelFolderInline } from "@/components/channels/channel-folder-inline";
 
@@ -118,6 +120,7 @@ export default async function ChannelDetailPage({
   if (!channel) notFound();
 
   const visual = generateEntityVisual(channel.name, "CHANNEL");
+  const brand = brandOf(channel);
   const labelOptions = labels.map(({ id, name }) => ({ id, name }));
   const setCount = channel.sets.length;
 
@@ -133,6 +136,7 @@ export default async function ChannelDetailPage({
           Back to Channels
         </Link>
         <div className="flex items-center gap-2">
+          <BrandMarkEditor kind="channel" id={channel.id} brand={brand} />
           <EditChannelSheet
             channel={{
               id: channel.id,
@@ -171,12 +175,11 @@ export default async function ChannelDetailPage({
           )}
         />
         <div className="relative flex items-start gap-4">
-          <EntityBadge visual={visual} size="lg" />
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold leading-tight">
-              {channel.name}
+            <h1 className="flex min-w-0 flex-wrap items-baseline gap-x-3">
+              <EntityMark brand={brand} variant="wordmark" size="xl" className="min-w-0" />
               {channel.shortName && (
-                <span className="ml-2 text-base font-normal text-muted-foreground">
+                <span className="text-base font-normal text-muted-foreground">
                   ({channel.shortName})
                 </span>
               )}

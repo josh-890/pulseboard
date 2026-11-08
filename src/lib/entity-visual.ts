@@ -27,7 +27,7 @@ export type EntityVisual = {
 // ---------------------------------------------------------------------------
 // Stable hash — FNV-1a 32-bit, fast and well-distributed
 // ---------------------------------------------------------------------------
-function fnv1a(str: string): number {
+export function fnv1a(str: string): number {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);

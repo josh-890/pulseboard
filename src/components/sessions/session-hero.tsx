@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Clapperboard, FolderKanban } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { brandOf } from "@/lib/services/brand-of";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { SessionStatusToggle } from "@/components/sessions/session-status-toggle";
 import { SessionInlineTitle } from "@/components/sessions/session-detail-header";
@@ -172,8 +174,9 @@ export function SessionHero({
           {session.label && (
             <Link
               href={`/labels/${session.label.id}`}
-              className="font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
+              className="inline-flex items-center gap-1.5 font-medium text-foreground/80 hover:text-foreground hover:underline underline-offset-2 transition-colors"
             >
+              <EntityMark brand={brandOf(session.label)} variant="tile" size="xs" />
               {session.label.name}
             </Link>
           )}

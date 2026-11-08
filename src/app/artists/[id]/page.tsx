@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { brandOf } from "@/lib/services/brand-of";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Camera, Film, ChevronLeft } from "lucide-react";
@@ -66,7 +67,7 @@ export default async function ArtistDetailPage({ params }: ArtistDetailPageProps
         </Link>
 
         {/* Header card */}
-        <ArtistDetailHeader artist={artist} />
+        <ArtistDetailHeader artist={artist} brand={brandOf(artist)} />
 
         {/* KPI row */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

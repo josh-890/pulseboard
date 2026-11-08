@@ -85,6 +85,10 @@ Network ──< LabelNetwork >── Label
   association table** (owner row at `confidence 1.0` + any secondary/cross-label
   evidence) — *not* demoted to evidence-only. The owner FK is the join key for archive
   matching, dedup, and the set-merge guard (see `docs/channel-label-archive-plan.md`).
+- **Brand mark** (2026-11-08) — `Channel`, `Label` and `Artist` each carry `logoKey?`
+  (an uploaded logo — an artist's portrait — in MinIO, `brand/{kind}/{id}-{ts}.webp`),
+  `markFont?` and `markColor?` (override keys of `src/lib/brand-mark.ts`; null = the pick
+  generated from the name). Networks are kept but no longer shown in the UI.
 - **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
   CONFIRMED). REFERENCE sessions are auto-created per person via the
   `personId @unique` field — never manually created/edited/deleted/merged.

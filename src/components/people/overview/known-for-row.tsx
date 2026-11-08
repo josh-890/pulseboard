@@ -3,6 +3,7 @@ import NextImage from "next/image";
 import { Camera, Clapperboard, Film, Star } from "lucide-react";
 import { focalStyle } from "@/lib/utils";
 import type { KnownForSet } from "@/lib/services/person-showcase-service";
+import { EntityMark } from "@/components/shared/entity-mark";
 
 // "Known for" (2026-10-16): the person's sets as posters — your highest-rated
 // first, then the newest. Each opens the set.
@@ -56,10 +57,22 @@ export function KnownForRow({ sets }: KnownForRowProps) {
                 )}
               </div>
               <p className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug group-hover:text-primary">{s.title}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {[s.year, s.channelName].filter(Boolean).join(" · ") || "Undated"}
-              </p>
             </Link>
+            <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              {s.year && <span className="shrink-0">{s.year}</span>}
+              {s.year && s.channelId && <span aria-hidden="true">·</span>}
+              {s.channelId && s.channelBrand ? (
+                <Link
+                  href={`/channels/${s.channelId}`}
+                  className="inline-flex min-w-0 items-center gap-1 hover:text-foreground hover:underline underline-offset-2"
+                >
+                  <EntityMark brand={s.channelBrand} variant="tile" size="xs" />
+                  <span className="truncate">{s.channelName}</span>
+                </Link>
+              ) : (
+                !s.year && "Undated"
+              )}
+            </p>
           </li>
         ))}
       </ul>

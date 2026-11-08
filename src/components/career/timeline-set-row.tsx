@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { EntityMark } from "@/components/shared/entity-mark";
 import Image from "next/image";
 import { Camera, Film, FolderCheck, FolderX, Star, Users } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
@@ -204,8 +205,9 @@ export function TimelineSetRow({
           {row.channelName && (
             <>
               <span className="opacity-40">·</span>
-              <span className="shrink-0 max-w-[10rem] truncate text-muted-foreground">
-                {row.channelName}
+              <span className="inline-flex shrink-0 max-w-[10rem] items-center gap-1 truncate text-muted-foreground">
+                {row.channelBrand && <EntityMark brand={row.channelBrand} variant="tile" size="xs" />}
+                <span className="truncate">{row.channelName}</span>
               </span>
             </>
           )}

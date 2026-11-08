@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { EntityBadge } from "@/components/shared/entity-badge";
+import { EntityMark } from "@/components/shared/entity-mark";
+import { brandOf } from "@/lib/services/brand-of";
 import { generateEntityVisual } from "@/lib/entity-visual";
 import type { getLabels } from "@/lib/services/label-service";
 
@@ -12,7 +13,6 @@ type LabelCardProps = {
 
 export function LabelCard({ label }: LabelCardProps) {
   const visual = generateEntityVisual(label.name, "LABEL");
-  const visibleNetworks = label.networks.slice(0, 2);
 
   return (
     <Link href={`/labels/${label.id}`} className="group block focus-visible:outline-none">
@@ -38,7 +38,7 @@ export function LabelCard({ label }: LabelCardProps) {
         <div className="relative space-y-2.5 p-4">
           {/* Badge + title */}
           <div className="flex items-start gap-3">
-            <EntityBadge visual={visual} size="sm" />
+            <EntityMark brand={brandOf(label)} variant="tile" size="sm" />
             <h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold leading-snug">
               {label.name}
             </h3>
@@ -56,24 +56,6 @@ export function LabelCard({ label }: LabelCardProps) {
             </span>
           </div>
 
-          {/* Network membership pills */}
-          {visibleNetworks.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {visibleNetworks.map(({ network }) => (
-                <span
-                  key={network.id}
-                  className="inline-flex items-center rounded-full bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground"
-                >
-                  {network.name}
-                </span>
-              ))}
-              {label.networks.length > 2 && (
-                <span className="inline-flex items-center rounded-full bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground">
-                  +{label.networks.length - 2}
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </Link>
