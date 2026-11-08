@@ -15,6 +15,9 @@ const JOIN: Record<TaggableEntity, { table: string; column: string; noun: string
   MEDIA_ITEM: { table: "media_item_tag", column: "mediaItemId", noun: "images" },
   PROJECT: { table: "project_tag", column: "projectId", noun: "projects" },
   ARCHIVE_FOLDER: { table: "archive_folder_tag", column: "archiveFolderId", noun: "archive folders" },
+  CHANNEL: { table: "channel_tag", column: "channelId", noun: "channels" },
+  LABEL: { table: "label_tag", column: "labelId", noun: "labels" },
+  ARTIST: { table: "artist_tag", column: "artistId", noun: "artists" },
 };
 const ENTITIES = Object.keys(JOIN) as TaggableEntity[];
 

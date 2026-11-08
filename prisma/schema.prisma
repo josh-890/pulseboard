@@ -1033,6 +1033,7 @@ model Label {
   sessions        Session[]
   channelMaps     ChannelLabelMap[]
   ownedChannels   Channel[]          @relation("ChannelOwningLabel")
+  tags            LabelTag[]
   labelEvidence   SetLabelEvidence[]
 
   @@index([name])
@@ -1061,6 +1062,12 @@ model Channel {
   importAliases String[]    @default([])
   tier          ChannelTier @default(NORMAL)
   channelFolder String?
+  /// Your liking, 1–5 (tier is production quality — a different scale)
+  rating        Int?
+  /// A few lines of markdown: style, what it is known for
+  profile       String?
+  /// No longer publishing — active years end with its last set
+  closed        Boolean     @default(false)
 
   // Brand mark: an uploaded logo wins; otherwise a wordmark generated from the
   // name, with optional font/colour overrides (keys of src/lib/brand-mark.ts)
@@ -1078,6 +1085,7 @@ model Channel {
   labelMaps                ChannelLabelMap[]
   aliasLinks               PersonAliasChannel[]
   stagingSets              StagingSet[]
+  tags                     ChannelTag[]
   aliasPromotionDismissals AliasPromotionDismissal[]
 
   @@index([nameNorm])
@@ -2172,6 +2180,9 @@ model TagDefinition {
   aliases           TagAlias[]
   slots             TagSlot[]
   archiveFolderTags ArchiveFolderTag[]
+  channelTags       ChannelTag[]
+  labelTags         LabelTag[]
+  artistTags        ArtistTag[]
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -2333,6 +2344,47 @@ model ProjectTag {
   @@map("project_tag")
 }
 
+// Tags on the makers (2026-11-08): channels, labels and artists take CONTENT
+// and ANY tags. Cascade both ways — a deleted tag or entity takes its rows.
+model ChannelTag {
+  channelId       String
+  tagDefinitionId String
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  channel         Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("channel_tag")
+}
+
+model LabelTag {
+  labelId         String
+  tagDefinitionId String
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  label           Label         @relation(fields: [labelId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([labelId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("label_tag")
+}
+
+model ArtistTag {
+  artistId        String
+  tagDefinitionId String
+  source          TagSource     @default(MANUAL)
+  createdAt       DateTime      @default(now())
+  artist          Artist        @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, tagDefinitionId])
+  @@index([tagDefinitionId])
+  @@map("artist_tag")
+}
+
 // ─── Import Pipeline ────────────────────────────────────────────────────────
 
 enum ImportBatchStatus {
@@ -2389,6 +2441,7 @@ model Artist {
   markColor String?
 
   creditsRaw SetCreditRaw[]
+  tags       ArtistTag[]
 
   @@index([nameNorm])
 }

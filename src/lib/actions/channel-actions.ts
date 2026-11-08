@@ -11,6 +11,9 @@ import {
   removeChannelImportAlias,
   ImportAliasTakenError,
   LabelExistsError,
+  setChannelClosed,
+  setChannelRating,
+  setChannelText,
 } from "@/lib/services/channel-service";
 import { rejectNameOnlyLink } from "@/lib/services/channel-check-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
@@ -162,6 +165,54 @@ export async function rejectNameOnlyLinkAction(channelId: string, channelName: s
     } catch (err) {
       console.error("[rejectNameOnlyLinkAction]", err);
       return { success: false, error: "Failed to disconnect the channel name" };
+    }
+  });
+}
+
+// ─── Channel page (2026-11-08) ───────────────────────────────────────────────
+
+export async function setChannelRatingAction(channelId: string, rating: number | null): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setChannelRating(channelId, rating);
+      revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/channels");
+      return { success: true };
+    } catch (err) {
+      console.error("[setChannelRatingAction]", err);
+      return { success: false, error: "Could not save the rating" };
+    }
+  });
+}
+
+export async function setChannelTextAction(
+  channelId: string,
+  field: "profile" | "notes",
+  text: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    if (field !== "profile" && field !== "notes") return { success: false, error: "Unknown field" };
+    try {
+      await setChannelText(channelId, field, text);
+      revalidatePath(`/channels/${channelId}`);
+      return { success: true };
+    } catch (err) {
+      console.error("[setChannelTextAction]", err);
+      return { success: false, error: `Could not save the ${field}` };
+    }
+  });
+}
+
+export async function setChannelClosedAction(channelId: string, closed: boolean): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setChannelClosed(channelId, closed);
+      revalidatePath(`/channels/${channelId}`);
+      revalidatePath("/channels");
+      return { success: true };
+    } catch (err) {
+      console.error("[setChannelClosedAction]", err);
+      return { success: false, error: "Could not save" };
     }
   });
 }

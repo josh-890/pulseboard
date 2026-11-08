@@ -48,6 +48,19 @@ export async function getEffectiveTags(entityType: TaggableEntity, entityId: str
       const rows = await prisma.projectTag.findMany({ where: { projectId: entityId }, ...FACT_SELECT });
       return resolveEffectiveTags(facts(rows), []);
     }
+    // The makers have no chain above them — own tags only
+    case "CHANNEL": {
+      const rows = await prisma.channelTag.findMany({ where: { channelId: entityId }, ...FACT_SELECT });
+      return resolveEffectiveTags(facts(rows), []);
+    }
+    case "LABEL": {
+      const rows = await prisma.labelTag.findMany({ where: { labelId: entityId }, ...FACT_SELECT });
+      return resolveEffectiveTags(facts(rows), []);
+    }
+    case "ARTIST": {
+      const rows = await prisma.artistTag.findMany({ where: { artistId: entityId }, ...FACT_SELECT });
+      return resolveEffectiveTags(facts(rows), []);
+    }
     case "SESSION": {
       const rows = await prisma.sessionTag.findMany({ where: { sessionId: entityId }, ...FACT_SELECT });
       return resolveEffectiveTags(facts(rows), []);

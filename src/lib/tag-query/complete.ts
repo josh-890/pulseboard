@@ -27,6 +27,9 @@ const LEVELS: Record<TaggableEntity, string[]> = {
   PERSON: [],
   PROJECT: [],
   ARCHIVE_FOLDER: [],
+  CHANNEL: [],
+  LABEL: [],
+  ARTIST: [],
 };
 
 const PREDICATE_VALUES: Record<string, string[]> = {

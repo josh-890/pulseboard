@@ -89,6 +89,9 @@ Network ──< LabelNetwork >── Label
   (an uploaded logo — an artist's portrait — in MinIO, `brand/{kind}/{id}-{ts}.webp`),
   `markFont?` and `markColor?` (override keys of `src/lib/brand-mark.ts`; null = the pick
   generated from the name). Networks are kept but no longer shown in the UI.
+- **Channel** also has `rating Int?` (your liking 1–5; `tier` stays — production quality),
+  `profile String?` (markdown), `closed Boolean`. Channels, labels and artists carry tags
+  through `channel_tag`, `label_tag`, `artist_tag` (CONTENT and ANY domains).
 - **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
   CONFIRMED). REFERENCE sessions are auto-created per person via the
   `personId @unique` field — never manually created/edited/deleted/merged.

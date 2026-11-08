@@ -116,6 +116,11 @@ async function enforceExclusiveGroups(
       case "ARCHIVE_FOLDER":
         await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
         break;
+      case "CHANNEL":
+      case "LABEL":
+      case "ARTIST":
+        await deleteMakerTags(tx, entityType, entityId, toRemove);
+        break;
     }
   }
 }
@@ -195,6 +200,11 @@ export async function addTagsToEntity(
           skipDuplicates: true,
         });
         break;
+      case "CHANNEL":
+      case "LABEL":
+      case "ARTIST":
+        await insertMakerTags(tx, entityType, entityId, tagDefinitionIds, source);
+        break;
     }
   });
 }
@@ -226,6 +236,11 @@ export async function removeTagsFromEntity(
         break;
       case "ARCHIVE_FOLDER":
         await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
+        break;
+      case "CHANNEL":
+      case "LABEL":
+      case "ARTIST":
+        await deleteMakerTags(tx, entityType, entityId, tagDefinitionIds);
         break;
     }
   });
@@ -259,6 +274,11 @@ export async function setEntityTags(
         break;
       case "ARCHIVE_FOLDER":
         await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId } });
+        break;
+      case "CHANNEL":
+      case "LABEL":
+      case "ARTIST":
+        await deleteMakerTags(tx, entityType, entityId, null);
         break;
     }
 
@@ -320,6 +340,11 @@ export async function setEntityTags(
               source,
             })),
           });
+          break;
+        case "CHANNEL":
+        case "LABEL":
+        case "ARTIST":
+          await insertMakerTags(tx, entityType, entityId, tagDefinitionIds, source);
           break;
       }
     }
@@ -409,6 +434,11 @@ export async function bulkAddTagsToEntities(
               skipDuplicates: true,
             });
             break;
+          case "CHANNEL":
+          case "LABEL":
+          case "ARTIST":
+            await insertMakerTags(tx, entityType, entityId, tagDefinitionIds, source);
+            break;
         }
           }
       if (entityType === "MEDIA_ITEM") {
@@ -454,6 +484,11 @@ export async function bulkRemoveTagsFromEntities(
             break;
           case "ARCHIVE_FOLDER":
             await tx.archiveFolderTag.deleteMany({ where: { archiveFolderId: entityId, ...where } });
+            break;
+          case "CHANNEL":
+          case "LABEL":
+          case "ARTIST":
+            await deleteMakerTags(tx, entityType, entityId, tagDefinitionIds);
             break;
         }
           }
@@ -501,6 +536,16 @@ export async function getEntityTags(
     case "ARCHIVE_FOLDER":
       rows = await prisma.archiveFolderTag.findMany({ where: { archiveFolderId: entityId }, include });
       break;
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST": {
+      const ids = await makerTagIds(prisma, entityType, entityId);
+      const defs = ids.length
+        ? await prisma.tagDefinition.findMany({ where: { id: { in: ids } }, include: include.tagDefinition.include })
+        : [];
+      rows = defs.map((tagDefinition) => ({ tagDefinition }));
+      break;
+    }
     default:
       rows = [];
   }
@@ -557,4 +602,47 @@ const JOIN_TABLE: Record<TaggableEntity, { table: string; column: string }> = {
   SET: { table: "set_tag", column: "setId" },
   PROJECT: { table: "project_tag", column: "projectId" },
   ARCHIVE_FOLDER: { table: "archive_folder_tag", column: "archiveFolderId" },
+  CHANNEL: { table: "channel_tag", column: "channelId" },
+  LABEL: { table: "label_tag", column: "labelId" },
+  ARTIST: { table: "artist_tag", column: "artistId" },
 };
+
+// ─── The makers' tag tables ──────────────────────────────────────────────────
+// Channels, labels and artists share one raw-SQL path (JOIN_TABLE names the
+// table) instead of a Prisma delegate each in every switch above.
+
+type MakerEntity = "CHANNEL" | "LABEL" | "ARTIST";
+
+async function insertMakerTags(
+  tx: TxClient,
+  entityType: MakerEntity,
+  entityId: string,
+  tagDefinitionIds: string[],
+  source: TagSource,
+) {
+  if (tagDefinitionIds.length === 0) return;
+  const t = JOIN_TABLE[entityType];
+  await tx.$executeRaw(Prisma.sql`
+    INSERT INTO ${Prisma.raw(`"${t.table}"`)} (${Prisma.raw(`"${t.column}"`)}, "tagDefinitionId", "source")
+    SELECT ${entityId}, tid, ${source}::"TagSource" FROM unnest(${tagDefinitionIds}::text[]) AS tid
+    ON CONFLICT DO NOTHING
+  `);
+}
+
+/** null = all of the entity's tags */
+async function deleteMakerTags(tx: TxClient, entityType: MakerEntity, entityId: string, tagDefinitionIds: string[] | null) {
+  const t = JOIN_TABLE[entityType];
+  await tx.$executeRaw(Prisma.sql`
+    DELETE FROM ${Prisma.raw(`"${t.table}"`)}
+    WHERE ${Prisma.raw(`"${t.column}"`)} = ${entityId}
+    ${tagDefinitionIds ? Prisma.sql`AND "tagDefinitionId" = ANY(${tagDefinitionIds}::text[])` : Prisma.empty}
+  `);
+}
+
+async function makerTagIds(db: Pick<TxClient, "$queryRaw">, entityType: MakerEntity, entityId: string): Promise<string[]> {
+  const t = JOIN_TABLE[entityType];
+  const rows = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "tagDefinitionId" AS id FROM ${Prisma.raw(`"${t.table}"`)} WHERE ${Prisma.raw(`"${t.column}"`)} = ${entityId}
+  `);
+  return rows.map((r) => r.id);
+}

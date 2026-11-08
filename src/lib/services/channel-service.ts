@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
-import type { Prisma, ChannelTier, StagingSetStatus } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
+import type { ChannelTier, StagingSetStatus } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
 import { channelArchiveFolder, generateChannelShortName } from "@/lib/utils";
 import { refreshPersonAffiliations } from "@/lib/services/view-service";
@@ -62,6 +63,8 @@ export type ChannelPipelineStatus = (typeof CHANNEL_PIPELINE_STATUSES)[number];
 // promoted Sets, so a channel whose work is all staged reads as empty without
 // this. Same predicate as the /staging-sets default view (duplicates included,
 // no match filter) so the counts equal what the page's deep link lists.
+export type ChannelPipeline = Awaited<ReturnType<typeof getChannelPipeline>>;
+
 export async function getChannelPipeline(channelId: string, take = 50) {
   const where: Prisma.StagingSetWhereInput = {
     channelId,
@@ -437,4 +440,65 @@ export async function suggestUniqueShortName(
   }
 
   return base // unlikely fallback
+}
+
+// ─── Channel page (2026-11-08) ───────────────────────────────────────────────
+
+export type ChannelHeroStats = {
+  photoSets: number;
+  videoSets: number;
+  /** Persons leading at least one of its sets */
+  models: number;
+  /** Years of its sets — promoted and staged — first and last */
+  firstYear: number | null;
+  lastYear: number | null;
+};
+
+/** The numbers the channel hero shows, in one round trip */
+export async function getChannelHeroStats(channelId: string): Promise<ChannelHeroStats> {
+  const [row] = await prisma.$queryRaw<
+    Array<{ photo: bigint; video: bigint; models: bigint; first: Date | null; last: Date | null }>
+  >(Prisma.sql`
+    WITH dates AS (
+      SELECT "releaseDate" AS d FROM "Set" WHERE "channelId" = ${channelId} AND "releaseDate" IS NOT NULL
+      UNION ALL
+      SELECT "releaseDate" FROM staging_set WHERE "channelId" = ${channelId} AND "releaseDate" IS NOT NULL
+    )
+    SELECT
+      (SELECT count(*) FROM "Set" WHERE "channelId" = ${channelId} AND type = 'photo') AS photo,
+      (SELECT count(*) FROM "Set" WHERE "channelId" = ${channelId} AND type = 'video') AS video,
+      (SELECT count(DISTINCT sp."personId")
+         FROM "SetParticipant" sp
+         JOIN "Set" s ON s.id = sp."setId"
+         JOIN "ContributionRoleDefinition" rd ON rd.id = sp."roleDefinitionId"
+         JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+        WHERE s."channelId" = ${channelId} AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD') AS models,
+      (SELECT min(d) FROM dates) AS first,
+      (SELECT max(d) FROM dates) AS last
+  `);
+  return {
+    photoSets: Number(row?.photo ?? 0),
+    videoSets: Number(row?.video ?? 0),
+    models: Number(row?.models ?? 0),
+    firstYear: row?.first ? row.first.getUTCFullYear() : null,
+    lastYear: row?.last ? row.last.getUTCFullYear() : null,
+  };
+}
+
+/** Your liking, 1–5; null clears it */
+export async function setChannelRating(channelId: string, rating: number | null): Promise<void> {
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("A rating is 1 to 5");
+  }
+  await prisma.channel.update({ where: { id: channelId }, data: { rating } });
+}
+
+/** Profile (markdown) or notes; blank clears it */
+export async function setChannelText(channelId: string, field: "profile" | "notes", text: string): Promise<void> {
+  const value = text.trim() ? text.trim() : null;
+  await prisma.channel.update({ where: { id: channelId }, data: { [field]: value } });
+}
+
+export async function setChannelClosed(channelId: string, closed: boolean): Promise<void> {
+  await prisma.channel.update({ where: { id: channelId }, data: { closed } });
 }

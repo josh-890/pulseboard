@@ -175,7 +175,7 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
   return Promise.all(
     tags.map(async (t) => {
       const where = { tagDefinitionId: t.id };
-      const [persons, sessions, sets, media, projects, folders] = await Promise.all([
+      const [persons, sessions, sets, media, projects, folders, channels, labels, artists] = await Promise.all([
         prisma.personTag.findMany({
           where,
           take: TODO_CAP,
@@ -193,6 +193,9 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
           orderBy: { createdAt: "asc" },
           select: { archiveFolder: { select: { id: true, folderName: true } } },
         }),
+        prisma.channelTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { channel: { select: { id: true, name: true } } } }),
+        prisma.labelTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { label: { select: { id: true, name: true } } } }),
+        prisma.artistTag.findMany({ where, take: TODO_CAP, orderBy: { createdAt: "asc" }, select: { artist: { select: { id: true, name: true } } } }),
       ]);
       const gallery = await getMediaGalleryItemsByIds(media.map((m) => m.mediaItemId));
       const counts = await Promise.all([
@@ -202,6 +205,9 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
         prisma.mediaItemTag.count({ where }),
         prisma.projectTag.count({ where }),
         prisma.archiveFolderTag.count({ where }),
+        prisma.channelTag.count({ where }),
+        prisma.labelTag.count({ where }),
+        prisma.artistTag.count({ where }),
       ]);
       const entries: TodoEntry[] = [
         ...persons.map(({ person: p }) => ({
@@ -228,6 +234,9 @@ export async function getWorkflowTodo(): Promise<TodoTag[]> {
           href: `/archive/workbench?folder=${f.id}&back=${encodeURIComponent("/tags?view=todo")}`,
           thumbnail: null,
         })),
+        ...channels.map(({ channel: c }) => ({ entityType: "CHANNEL" as const, entityId: c.id, label: c.name, href: `/channels/${c.id}`, thumbnail: null })),
+        ...labels.map(({ label: l }) => ({ entityType: "LABEL" as const, entityId: l.id, label: l.name, href: `/labels/${l.id}`, thumbnail: null })),
+        ...artists.map(({ artist: a }) => ({ entityType: "ARTIST" as const, entityId: a.id, label: a.name, href: `/artists/${a.id}`, thumbnail: null })),
       ];
       return {
         id: t.id,
@@ -249,7 +258,10 @@ export async function countOpenTodos(): Promise<number> {
       (SELECT count(*) FROM set_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
       (SELECT count(*) FROM media_item_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
       (SELECT count(*) FROM project_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
-      (SELECT count(*) FROM archive_folder_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW')
+      (SELECT count(*) FROM archive_folder_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
+      (SELECT count(*) FROM channel_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
+      (SELECT count(*) FROM label_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW') +
+      (SELECT count(*) FROM artist_tag x JOIN tag_definition d ON d.id = x."tagDefinitionId" JOIN tag_group g ON g.id = d."groupId" WHERE g.kind = 'WORKFLOW')
     )::bigint AS n
   `;
   return Number(rows[0]?.n ?? 0);

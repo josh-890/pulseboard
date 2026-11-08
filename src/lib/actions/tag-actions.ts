@@ -275,6 +275,11 @@ function revalidateEntity(entityType: TaggableEntity, entityId: string) {
       revalidatePath("/archive");
       revalidatePath("/staging-sets");
       break;
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST":
+      revalidatePath(`/${entityType.toLowerCase()}s/${entityId}`);
+      break;
   }
 }
 
@@ -348,6 +353,11 @@ function revalidateBrowse(entityType: TaggableEntity) {
     case "ARCHIVE_FOLDER":
       revalidatePath("/archive");
       revalidatePath("/staging-sets");
+      break;
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST":
+      revalidatePath(`/${entityType.toLowerCase()}s`);
       break;
     case "MEDIA_ITEM":
       break;

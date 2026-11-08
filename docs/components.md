@@ -220,6 +220,8 @@ Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link�
 
 ---
 
+Channel page (2026-11-08): `ChannelHero` (mark, chips, ★, Sets/Models/Active), `ChannelManageTab`, `ChannelClosedSwitch`.
+
 ## Networks Components (`components/networks/`)
 
 | Component | Type | Props | Description |
@@ -363,6 +365,9 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `TagChips` | Client | `tags`, `onRemove?`, `compact?` | Plain coloured chips |
 | `DeleteButton` | Client | `onDelete`, `label?` | Destructive button with confirmation AlertDialog |
 | `EntityMark` | Server/Client | `brand: EntityBrand`, `variant?: "wordmark" \| "tile"`, `size?: xs–xl`, `round?` | A channel's, label's or artist's mark: uploaded logo, else the generated wordmark (name in its brand font + colour) or monogram tile (Shortname / initials). Replaces `EntityBadge` on cards and detail headers |
+| `EntityTabBar` | Server | `tabs`, `active`, `basePath` | Pill tab bar of link tabs (`?tab=`) for channel/label/artist pages; counts and an attention dot |
+| `StarRating` | Client | `initialRating`, `onRate` (bound action), `noun` | Five stars, optimistic, click current to clear |
+| `MarkdownNoteCard` | Client | `title`, `icon`, `initialText`, `onSave`, `emptyHint` | Markdown text card with inline editor (no images, links as text) |
 | `BrandMarkEditor` | Client | `kind`, `id`, `brand` | "Edit look" dialog: font and colour pickers with live preview (generated pick marked *from the name*), logo/portrait upload and remove |
 
 ---

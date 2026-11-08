@@ -57,6 +57,9 @@ const ENTITY_NOUN: Record<TaggableEntity, string> = {
   MEDIA_ITEM: "image",
   PROJECT: "project",
   ARCHIVE_FOLDER: "folder",
+  CHANNEL: "channel",
+  LABEL: "label",
+  ARTIST: "artist",
 };
 
 const ENTITY_PLURAL: Record<TaggableEntity, string> = {
@@ -66,6 +69,9 @@ const ENTITY_PLURAL: Record<TaggableEntity, string> = {
   MEDIA_ITEM: "images",
   PROJECT: "projects",
   ARCHIVE_FOLDER: "folders",
+  CHANNEL: "channels",
+  LABEL: "labels",
+  ARTIST: "artists",
 };
 
 export type TagPaletteProps = {

@@ -27,6 +27,9 @@ const NOUN: Record<TaggableEntity, string> = {
   PERSON: "people",
   PROJECT: "projects",
   ARCHIVE_FOLDER: "archive folders",
+  CHANNEL: "channels",
+  LABEL: "labels",
+  ARTIST: "artists",
 };
 
 const text = (p: QueryPredicate) => `${p.key}${p.op}${p.value}`;
@@ -216,6 +219,9 @@ function castIncludes(entity: TaggableEntity, x: Prisma.Sql, people: Prisma.Sql,
       return Prisma.sql`${x} IN (${people})`;
     case "PROJECT":
     case "ARCHIVE_FOLDER":
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST":
       return Prisma.sql`FALSE`;
   }
 }
@@ -226,6 +232,9 @@ const OWN_TAGS: Record<Exclude<TaggableEntity, "ARCHIVE_FOLDER">, { table: strin
   SESSION: { table: "session_tag", column: "sessionId" },
   PERSON: { table: "person_tag", column: "personId" },
   PROJECT: { table: "project_tag", column: "projectId" },
+  CHANNEL: { table: "channel_tag", column: "channelId" },
+  LABEL: { table: "label_tag", column: "labelId" },
+  ARTIST: { table: "artist_tag", column: "artistId" },
 };
 
 /** The tag ids row `x` carries directly — a folder's own, or its confirmed Set's (ADR-0034) */
@@ -256,6 +265,9 @@ function actSql(entity: TaggableEntity, acts: Prisma.Sql, x: Prisma.Sql): Prisma
         WHERE sc."personId" = ${x} AND ca."actId" IN (${acts}))`;
     case "PROJECT":
     case "ARCHIVE_FOLDER":
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST":
       return Prisma.sql`FALSE`;
   }
 }

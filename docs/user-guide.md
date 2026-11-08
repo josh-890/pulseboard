@@ -1480,10 +1480,14 @@ The check sees only the archive roots the scan walks. A channel's *Archive folde
 
 ### Channel Detail
 
-- Header with the channel's mark (see *Logos and generated marks* under Labels), Short Name, tier and linked label; **Edit look** changes the mark
-- **Stats:** Set count · In pipeline count (click to jump to the section)
+The page shows the channel's work first; how it is wired sits on its own tab.
+
+- **Hero** — the channel's mark (see *Logos and generated marks* under Labels; **Edit look** changes it), Short Name, tier (production quality), its label with the label's mark, *Closed* when it no longer publishes, and its website. On the right: **Your rating** (★ 1–5, how much *you* like it — tier stays separate; click the current star again to clear), **Sets** (photo · video), **Models** (people leading at least one of its sets) and **Active** (years of its sets, promoted and staged).
+- **Tabs** (the open tab is in the address, `?tab=`, so it can be bookmarked):
+  - **Overview** — **About** (a few lines of markdown: its style, what it is known for) and **Notes** (your own), each edited in place with the pencil (Ctrl+Enter saves, Esc cancels); **Tags** — channels take content and general tags (*outdoor*, *golden-hour* …), and workflow tags put the channel on the To-do inbox.
+  - **Sets** — every promoted set of the channel.
+  - **Manage** — **Closed** (switch), Archive Folder, Import Aliases and In pipeline (below).
 - **In pipeline** — staged sets from this channel that are not promoted yet (Pending, In review, Approved). Shows a count per status, a link to the photo sets and to the videos in **Staging Sets** already filtered to this channel, and the 50 most recent staged sets. Click a row to open that set in Staging Sets. A channel can show 0 sets and still have work here: sets only count once promoted.
-- **Sets** — all promoted sets published through this channel. Click to navigate to set detail.
 - **Edit & Delete** buttons
 
 ---

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { PROTECTED_TAG_SLUGS } from "@/lib/protected-tags";
+import { Prisma } from "@/generated/prisma/client";
 import type { TagDomain, TagGroupKind, TagLevel } from "@/generated/prisma/client";
 import { domainsForEntity, type TaggableEntity } from "./entity-tag-service";
 import { toTagName, type TagNameClash } from "@/lib/tag-names";
@@ -428,6 +429,16 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       skipDuplicates: true,
     });
     await tx.archiveFolderTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } });
+
+    // The makers' tags (channels, labels, artists): move, skipping rows the target already has
+    for (const [table, column] of [["channel_tag", "channelId"], ["label_tag", "labelId"], ["artist_tag", "artistId"]] as const) {
+      await tx.$executeRaw(Prisma.sql`
+        INSERT INTO ${Prisma.raw(`"${table}"`)} (${Prisma.raw(`"${column}"`)}, "tagDefinitionId", "source", "createdAt")
+        SELECT ${Prisma.raw(`"${column}"`)}, ${targetId}, "source", "createdAt" FROM ${Prisma.raw(`"${table}"`)}
+        WHERE "tagDefinitionId" = ANY(${sourceIds}::text[])
+        ON CONFLICT DO NOTHING`);
+      await tx.$executeRaw(Prisma.sql`DELETE FROM ${Prisma.raw(`"${table}"`)} WHERE "tagDefinitionId" = ANY(${sourceIds}::text[])`);
+    }
     for (const sourceId of sourceIds) {
       await tx.$executeRaw`
         UPDATE archive_folder
@@ -544,6 +555,9 @@ export async function getTagUsageCountMap(): Promise<Map<string, number>> {
       UNION ALL SELECT "tagDefinitionId" FROM set_tag
       UNION ALL SELECT "tagDefinitionId" FROM project_tag
       UNION ALL SELECT "tagDefinitionId" FROM archive_folder_tag
+      UNION ALL SELECT "tagDefinitionId" FROM channel_tag
+      UNION ALL SELECT "tagDefinitionId" FROM label_tag
+      UNION ALL SELECT "tagDefinitionId" FROM artist_tag
     ) u
     GROUP BY 1
   `;
@@ -593,7 +607,10 @@ export async function getPopularTagsForEntity(
       COALESCE((SELECT count(*) FROM media_item_tag WHERE "tagDefinitionId" = td.id), 0) +
       COALESCE((SELECT count(*) FROM set_tag WHERE "tagDefinitionId" = td.id), 0) +
       COALESCE((SELECT count(*) FROM project_tag WHERE "tagDefinitionId" = td.id), 0) +
-      COALESCE((SELECT count(*) FROM archive_folder_tag WHERE "tagDefinitionId" = td.id), 0)
+      COALESCE((SELECT count(*) FROM archive_folder_tag WHERE "tagDefinitionId" = td.id), 0) +
+      COALESCE((SELECT count(*) FROM channel_tag WHERE "tagDefinitionId" = td.id), 0) +
+      COALESCE((SELECT count(*) FROM label_tag WHERE "tagDefinitionId" = td.id), 0) +
+      COALESCE((SELECT count(*) FROM artist_tag WHERE "tagDefinitionId" = td.id), 0)
     )::bigint AS cnt
     FROM tag_definition td
     JOIN tag_group tg ON tg.id = td."groupId"
@@ -637,15 +654,18 @@ export async function deleteTagAlias(id: string) {
 export async function getTagUsageCounts(tagDefinitionIds: string[]) {
   const counts: Record<string, number> = {};
   for (const id of tagDefinitionIds) {
-    const [person, session, media, set, project, folder] = await Promise.all([
+    const [person, session, media, set, project, folder, channel, label, artist] = await Promise.all([
       prisma.personTag.count({ where: { tagDefinitionId: id } }),
       prisma.sessionTag.count({ where: { tagDefinitionId: id } }),
       prisma.mediaItemTag.count({ where: { tagDefinitionId: id } }),
       prisma.setTag.count({ where: { tagDefinitionId: id } }),
       prisma.projectTag.count({ where: { tagDefinitionId: id } }),
       prisma.archiveFolderTag.count({ where: { tagDefinitionId: id } }),
+      prisma.channelTag.count({ where: { tagDefinitionId: id } }),
+      prisma.labelTag.count({ where: { tagDefinitionId: id } }),
+      prisma.artistTag.count({ where: { tagDefinitionId: id } }),
     ]);
-    counts[id] = person + session + media + set + project + folder;
+    counts[id] = person + session + media + set + project + folder + channel + label + artist;
   }
   return counts;
 }
@@ -662,6 +682,9 @@ export async function getOrphanedTags(): Promise<TagDefinitionWithGroup[]> {
       AND NOT EXISTS (SELECT 1 FROM set_tag WHERE "tagDefinitionId" = td.id)
       AND NOT EXISTS (SELECT 1 FROM project_tag WHERE "tagDefinitionId" = td.id)
       AND NOT EXISTS (SELECT 1 FROM archive_folder_tag WHERE "tagDefinitionId" = td.id)
+      AND NOT EXISTS (SELECT 1 FROM channel_tag WHERE "tagDefinitionId" = td.id)
+      AND NOT EXISTS (SELECT 1 FROM label_tag WHERE "tagDefinitionId" = td.id)
+      AND NOT EXISTS (SELECT 1 FROM artist_tag WHERE "tagDefinitionId" = td.id)
     ORDER BY td.name ASC
   `;
 

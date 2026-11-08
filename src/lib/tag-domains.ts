@@ -4,7 +4,17 @@ import type { TagDomain } from "@/generated/prisma/client";
 // carry tags on each entity type. The server enforces it in entity-tag-service;
 // the client uses it to grey out slots and palette entries that cannot apply.
 
-export const TAGGABLE_ENTITIES = ["PERSON", "SESSION", "MEDIA_ITEM", "SET", "PROJECT", "ARCHIVE_FOLDER"] as const;
+export const TAGGABLE_ENTITIES = [
+  "PERSON",
+  "SESSION",
+  "MEDIA_ITEM",
+  "SET",
+  "PROJECT",
+  "ARCHIVE_FOLDER",
+  "CHANNEL",
+  "LABEL",
+  "ARTIST",
+] as const;
 
 export type TaggableEntity = (typeof TAGGABLE_ENTITIES)[number];
 
@@ -24,6 +34,10 @@ export function domainsForEntity(entityType: TaggableEntity): TagDomain[] {
     case "MEDIA_ITEM":
     // An archive folder is a set's copy on disk (ADR-0034): content tags only
     case "ARCHIVE_FOLDER":
+    // The makers (2026-11-08): their style is content — "outdoor", "lingerie"
+    case "CHANNEL":
+    case "LABEL":
+    case "ARTIST":
       return ["CONTENT", "ANY"];
   }
 }

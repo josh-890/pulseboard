@@ -120,6 +120,18 @@ function levelHas(entity: TaggableEntity, level: "self" | "set" | "session", x: 
       return level === "self"
         ? Prisma.sql`EXISTS (SELECT 1 FROM project_tag d WHERE d."projectId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
         : FALSE;
+    case "CHANNEL":
+      return level === "self"
+        ? Prisma.sql`EXISTS (SELECT 1 FROM channel_tag d WHERE d."channelId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
+        : FALSE;
+    case "LABEL":
+      return level === "self"
+        ? Prisma.sql`EXISTS (SELECT 1 FROM label_tag d WHERE d."labelId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
+        : FALSE;
+    case "ARTIST":
+      return level === "self"
+        ? Prisma.sql`EXISTS (SELECT 1 FROM artist_tag d WHERE d."artistId" = ${x} AND d."tagDefinitionId" IN (${ids}))`
+        : FALSE;
     case "ARCHIVE_FOLDER":
       // A folder's tags are its own, or its Set's once a confirmed link joins them (ADR-0034)
       return level === "self"
@@ -141,6 +153,9 @@ const SELF_SOURCE: Record<TaggableEntity, string> = {
   PERSON: "any",
   PROJECT: "any",
   ARCHIVE_FOLDER: "any",
+  CHANNEL: "any",
+  LABEL: "any",
+  ARTIST: "any",
 };
 
 function partCondition(entity: TaggableEntity, part: ResolvedGroupPart, source: ResolvedTerm["source"], x: Prisma.Sql): Prisma.Sql {
@@ -155,7 +170,17 @@ function partCondition(entity: TaggableEntity, part: ResolvedGroupPart, source: 
   }
 
   // Effective (anywhere)
-  if (entity === "SESSION" || entity === "PERSON" || entity === "PROJECT" || entity === "ARCHIVE_FOLDER" || part.workflow) return self;
+  if (
+    entity === "SESSION" ||
+    entity === "PERSON" ||
+    entity === "PROJECT" ||
+    entity === "ARCHIVE_FOLDER" ||
+    entity === "CHANNEL" ||
+    entity === "LABEL" ||
+    entity === "ARTIST" ||
+    part.workflow
+  )
+    return self;
 
   const viaSet = entity === "MEDIA_ITEM" ? levelHas(entity, "set", x, ids) : FALSE;
   const viaSession = levelHas(entity, "session", x, ids);
@@ -192,6 +217,9 @@ const ENTITY_TABLE: Record<TaggableEntity, string> = {
   PERSON: `"Person"`,
   PROJECT: `"Project"`,
   ARCHIVE_FOLDER: `archive_folder`,
+  CHANNEL: `"Channel"`,
+  LABEL: `"Label"`,
+  ARTIST: `"Artist"`,
 };
 
 /**
@@ -222,6 +250,12 @@ function clauseCandidates(entity: TaggableEntity, clause: ResolvedTagQuery["all"
       return Prisma.sql`SELECT "personId" AS id FROM person_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "PROJECT":
       return Prisma.sql`SELECT "projectId" AS id FROM project_tag WHERE "tagDefinitionId" IN (${ids})`;
+    case "CHANNEL":
+      return Prisma.sql`SELECT "channelId" AS id FROM channel_tag WHERE "tagDefinitionId" IN (${ids})`;
+    case "LABEL":
+      return Prisma.sql`SELECT "labelId" AS id FROM label_tag WHERE "tagDefinitionId" IN (${ids})`;
+    case "ARTIST":
+      return Prisma.sql`SELECT "artistId" AS id FROM artist_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "ARCHIVE_FOLDER":
       return Prisma.sql`
         SELECT "archiveFolderId" AS id FROM archive_folder_tag WHERE "tagDefinitionId" IN (${ids})
