@@ -76,6 +76,28 @@ describe("needs you + numbers", () => {
     expect(failed?.items).toContainEqual(expect.objectContaining({ label: `${RUN} failed`, href: `/sets/${ids.failed}` }));
   });
 
+  it("lists a damaged image removed from its set under its session, until dismissed", async () => {
+    const loose = await prisma.mediaItem.create({
+      data: {
+        sessionId: ids.session, mediaType: "PHOTO", filename: "broken.jpg", mimeType: "image/jpeg", size: 1,
+        originalWidth: 1, originalHeight: 1, decodeIssue: "Corrupt JPEG data",
+      },
+    });
+    try {
+      const damaged = (await getNeedsYou()).find((i) => i.key === "damaged");
+      expect(damaged?.items ?? []).toContainEqual(
+        expect.objectContaining({ label: `${RUN} session`, href: `/sessions/${ids.session}`, dismissDamagedIds: [loose.id] }),
+      );
+
+      // What Dismiss (clearMediaDecodeIssuesAction) writes
+      await prisma.mediaItem.updateMany({ where: { id: { in: [loose.id] } }, data: { decodeIssue: null, archiveRetry: false } });
+      const after = (await getNeedsYou()).find((i) => i.key === "damaged");
+      expect((after?.items ?? []).some((i) => i.href === `/sessions/${ids.session}`)).toBe(false);
+    } finally {
+      await prisma.mediaItem.delete({ where: { id: loose.id } });
+    }
+  });
+
   it("counts live", async () => {
     const before = (await getDashboardKpis()).sets;
     const s = await prisma.set.create({ data: { type: "photo", title: `${RUN} count` } });

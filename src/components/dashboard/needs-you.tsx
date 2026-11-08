@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { getNeedsYou } from "@/lib/services/dashboard-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { DismissFailedUploadButton } from "./dismiss-failed-upload-button";
+import { DismissDamagedButton } from "./dismiss-damaged-button";
 
 const fmt = (n: number) => n.toLocaleString("en-US");
 
@@ -50,6 +51,7 @@ export async function NeedsYou() {
                         {s.detail && <span className="block truncate text-muted-foreground">{s.detail}</span>}
                       </span>
                       {s.dismissSetId && <DismissFailedUploadButton setId={s.dismissSetId} title={s.label} />}
+                      {s.dismissDamagedIds && <DismissDamagedButton mediaItemIds={s.dismissDamagedIds} title={s.label} />}
                     </li>
                   ))}
                 </ul>

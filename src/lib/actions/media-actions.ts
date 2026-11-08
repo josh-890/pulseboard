@@ -296,6 +296,25 @@ export async function clearMediaDecodeIssueAction(mediaItemId: string): Promise<
   });
 }
 
+// The same for several images at once — the dashboard's Dismiss on a set's (or a
+// session's) damaged images, e.g. one you already dealt with elsewhere.
+export async function clearMediaDecodeIssuesAction(mediaItemIds: string[]): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await prisma.mediaItem.updateMany({
+        where: { id: { in: mediaItemIds } },
+        data: { decodeIssue: null, archiveRetry: false },
+      });
+      revalidatePath("/");
+      return { success: true };
+    } catch (err) {
+      console.error("[clearMediaDecodeIssuesAction] failed:", mediaItemIds, err);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
 // ── Per-image appearance ("people shown", ADR-0023) ──────────────────────────
 // Stored as exclusions: `hiddenPersonIds` = the cast members NOT shown in this image.
 export async function setMediaShownPeopleAction(

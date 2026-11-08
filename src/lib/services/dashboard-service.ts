@@ -202,22 +202,40 @@ export type NeedsYouItem = {
   href: string;
   hint?: string;
   /** A few names to act on directly (failed uploads) */
-  items?: { label: string; href: string; detail?: string; /** Set whose failed-upload list can be dismissed */ dismissSetId?: string }[];
+  items?: {
+    label: string;
+    href: string;
+    detail?: string;
+    /** Set whose failed-upload list can be dismissed */
+    dismissSetId?: string;
+    /** Damaged images whose flag can be dismissed ("Looks fine" for all of them) */
+    dismissDamagedIds?: string[];
+  }[];
 };
 
-/** Damaged images per set, most first — images in no set are only counted */
-function damagedBySet(
-  rows: { setMediaItems: { set: { id: string; title: string } }[] }[],
-): { id: string; title: string; count: number }[] {
-  const bySet = new Map<string, { id: string; title: string; count: number }>();
+/**
+ * Damaged images per set, most first. An image in no set (removed from it, but
+ * still in its session) is grouped under its session — otherwise it is counted
+ * with nowhere to go and nothing to dismiss.
+ */
+function damagedByPlace(
+  rows: {
+    id: string;
+    session: { id: string; name: string };
+    setMediaItems: { set: { id: string; title: string } }[];
+  }[],
+): { href: string; label: string; inSet: boolean; ids: string[] }[] {
+  const byPlace = new Map<string, { href: string; label: string; inSet: boolean; ids: string[] }>();
   for (const r of rows) {
     const set = r.setMediaItems[0]?.set;
-    if (!set) continue;
-    const cur = bySet.get(set.id) ?? { ...set, count: 0 };
-    cur.count++;
-    bySet.set(set.id, cur);
+    const key = set ? `set:${set.id}` : `session:${r.session.id}`;
+    const cur = byPlace.get(key) ?? (set
+      ? { href: `/sets/${set.id}`, label: set.title, inSet: true, ids: [] }
+      : { href: `/sessions/${r.session.id}`, label: r.session.name, inSet: false, ids: [] });
+    cur.ids.push(r.id);
+    byPlace.set(key, cur);
   }
-  return [...bySet.values()].sort((a, b) => b.count - a.count);
+  return [...byPlace.values()].sort((a, b) => b.ids.length - a.ids.length);
 }
 
 /** The queues waiting for a decision or a run — only the non-empty ones */
@@ -235,7 +253,11 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
     // Damaged source files stored as far as they decode (MediaItem.decodeIssue)
     prisma.mediaItem.findMany({
       where: { decodeIssue: { not: null } },
-      select: { setMediaItems: { select: { set: { select: { id: true, title: true } } }, take: 1 } },
+      select: {
+        id: true,
+        session: { select: { id: true, name: true } },
+        setMediaItems: { select: { set: { select: { id: true, title: true } } }, take: 1 },
+      },
     }),
     countOpenTodos(),
     getAttributionQueue({ limit: 1 }).catch(() => null),
@@ -273,11 +295,12 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
       label: "Damaged images to check",
       count: damaged.length,
       href: "/sets",
-      hint: "Red frame in the set — open the image: Looks fine, or replace the file",
-      items: damagedBySet(damaged).slice(0, 5).map((d) => ({
-        label: d.title,
-        href: `/sets/${d.id}`,
-        detail: `${d.count} damaged image${d.count === 1 ? "" : "s"}`,
+      hint: "Red frame in the set — open the image: Looks fine, or replace the file; or dismiss",
+      items: damagedByPlace(damaged).slice(0, 5).map((d) => ({
+        label: d.label,
+        href: d.href,
+        detail: `${d.ids.length} damaged image${d.ids.length === 1 ? "" : "s"}${d.inSet ? "" : " · in no set, only in this session"}`,
+        dismissDamagedIds: d.ids,
       })),
     },
     { key: "todo", label: "Workflow to-dos", count: todos, href: "/tags?view=todo" },
