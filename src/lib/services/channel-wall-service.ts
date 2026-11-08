@@ -5,6 +5,8 @@ import { localMediaUrlOrNull } from "@/lib/media-url";
 import { getCoverPhotosForSets } from "./media-service";
 import { identifyCast, type CastIdentity } from "./contact-service";
 import { LEAD_ROLE } from "./session-contributors";
+import { BRAND_SELECT, brandOf } from "./brand-of";
+import type { EntityBrand } from "@/lib/brand-mark";
 
 // A channel's whole output (2026-11-08): your sets, its open staged sets and the
 // catalogue's sets of it (by its import aliases — the only link, ADR-0038 C1),
@@ -31,6 +33,8 @@ export type ChannelWallRow = {
   castIcgIds: string[];
   /** Names when the row carries them (sets: leads; staged: the import file's) */
   castNames: string[];
+  /** Which channel — set on a label's wall, where tiles of many channels meet */
+  channel?: { id: string; brand: EntityBrand };
 };
 
 export type ChannelWall = {
@@ -186,6 +190,29 @@ export async function getChannelWall(channelId: string, scope: "library" | "all"
     if (catalogueRows.length > 0) {
       const who = await identifyCast(catalogueRows.flatMap((r) => r.castIcgIds));
       for (const r of catalogueRows) r.castNames = r.castIcgIds.map((icgId) => who[icgId]?.name ?? icgId);
+    }
+  }
+  return { rows, counts };
+}
+
+/** A label's wall: the walls of the channels it owns, each tile marked with its channel */
+export async function getLabelWall(labelId: string, scope: "library" | "all"): Promise<ChannelWall> {
+  const channels = await prisma.channel.findMany({
+    where: { labelId },
+    select: { id: true, name: true, shortName: true, ...BRAND_SELECT },
+  });
+  const rows: ChannelWallRow[] = [];
+  const counts = { set: 0, staged: 0, catalogue: 0 };
+  const seen = new Set<string>();
+  for (const c of channels) {
+    const wall = await getChannelWall(c.id, scope);
+    const channel = { id: c.id, brand: brandOf(c) };
+    for (const r of wall.rows) {
+      // Two channels of one label can know the same CoverId; it counts once
+      if (seen.has(r.key)) continue;
+      seen.add(r.key);
+      rows.push({ ...r, channel });
+      counts[r.kind]++;
     }
   }
   return { rows, counts };

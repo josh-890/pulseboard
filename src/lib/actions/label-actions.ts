@@ -7,6 +7,8 @@ import {
   createLabelRecord,
   updateLabelRecord,
   deleteLabelRecord,
+  setLabelRating,
+  setLabelText,
 } from "@/lib/services/label-service";
 import type { CrudActionResult, SimpleActionResult } from "@/lib/types";
 
@@ -65,5 +67,39 @@ export async function deleteLabel(id: string): Promise<SimpleActionResult> {
       return { success: false, error: err instanceof Error ? err.message : "Failed to delete label" };
     }
 
+  });
+}
+
+// ─── Label page (2026-11-08) ─────────────────────────────────────────────────
+
+export async function setLabelRatingAction(labelId: string, rating: number | null): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setLabelRating(labelId, rating);
+      revalidatePath(`/labels/${labelId}`);
+      revalidatePath("/labels");
+      return { success: true };
+    } catch (err) {
+      console.error("[setLabelRatingAction]", err);
+      return { success: false, error: "Could not save the rating" };
+    }
+  });
+}
+
+export async function setLabelTextAction(
+  labelId: string,
+  field: "description" | "notes",
+  text: string,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    if (field !== "description" && field !== "notes") return { success: false, error: "Unknown field" };
+    try {
+      await setLabelText(labelId, field, text);
+      revalidatePath(`/labels/${labelId}`);
+      return { success: true };
+    } catch (err) {
+      console.error("[setLabelTextAction]", err);
+      return { success: false, error: "Could not save" };
+    }
   });
 }

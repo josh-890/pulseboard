@@ -90,7 +90,7 @@ export function ChannelModels({ models, filter, limit, basePath }: ChannelModels
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {models.length === 0
-            ? "No one known on this channel yet."
+            ? "No one known here yet."
             : `${persons} developed, ${contacts} Contacts${models.length - persons - contacts > 0 ? `, ${models.length - persons - contacts} not in the app` : ""} — from its sets you have, staged and in the catalogue.`}
         </p>
         <div role="group" aria-label="Who" className="inline-flex gap-0.5 rounded-md border border-border bg-background p-0.5">

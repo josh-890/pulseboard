@@ -1020,8 +1020,13 @@ model Label {
   id          String  @id @default(cuid())
   name        String
   nameNorm    String?
+  /// Shown as "About" on the label page (markdown)
   description String?
   website     String?
+  /// Your liking, 1–5
+  rating      Int?
+  /// Your own notes (markdown)
+  notes       String?
 
   // Brand mark: an uploaded logo wins; otherwise a wordmark generated from the
   // name, with optional font/colour overrides (keys of src/lib/brand-mark.ts)

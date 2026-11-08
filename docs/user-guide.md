@@ -1407,7 +1407,7 @@ Labels represent organizations or production companies.
 
 **Search:** Filter by label name.
 
-Label cards show: name, icon, and description snippet.
+Label cards show the label's mark, name, and how many channels it owns and projects it has.
 
 ### Create Label
 
@@ -1421,10 +1421,16 @@ Click **"Add Label"** to open the creation form:
 
 ### Label Detail
 
-- Header with the label's mark (see *Logos and generated marks*), description, website link
-- **Channels** — grid of channels under this label, each with its mark, name and set count. Add Channel button available.
-- **Projects** — projects with this label as primary
-- **Edit & Delete** buttons
+The same page as a channel's, drawn over **every channel the label owns** (a channel's owning label — not every channel merely linked to it).
+
+- **Hero** — the label's mark, website, **Your rating** (★ 1–5), and **Channels**, **Sets** (photo · video), **Models** and **Active** years over its channels.
+- **Tabs** (`?tab=`):
+  - **Overview** — **Showcase** of photos from all its channels' sets (Random / Best / Shuffle / Slideshow, as on a channel), **Known for** (its best sets, with the channel of each), **Faces of the label**, **About** (the label's description, edited in place), **Notes**, **Tags**.
+  - **Channels** — its channels as tiles: the channel's mark, tier, ★, sets (and videos), staged sets, years, *closed*. Most sets first. **Add Channel** creates one owned by this label. Editing and deleting a channel happens on the channel's page.
+  - **Sets** — the wall of all its channels' sets (Library / All, as on a channel), each tile with its channel's mark.
+  - **Models** — everyone seen on its channels.
+  - **Projects** — only when projects are linked to the label.
+- **Edit look**, **Edit**, **Delete** buttons
 
 ### Logos and generated marks
 

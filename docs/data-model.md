@@ -92,6 +92,7 @@ Network ──< LabelNetwork >── Label
 - **Channel** also has `rating Int?` (your liking 1–5; `tier` stays — production quality),
   `profile String?` (markdown), `closed Boolean`. Channels, labels and artists carry tags
   through `channel_tag`, `label_tag`, `artist_tag` (CONTENT and ANY domains).
+- **Label** has `rating Int?` and `notes String?`; its `description` is the page's About text.
 - **Session** (`SessionType`: REFERENCE / PRODUCTION; `SessionStatus`: DRAFT /
   CONFIRMED). REFERENCE sessions are auto-created per person via the
   `personId @unique` field — never manually created/edited/deleted/merged.

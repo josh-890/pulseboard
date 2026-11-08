@@ -2,6 +2,7 @@ import Link from "next/link";
 import NextImage from "next/image";
 import { BookMarked, Camera, Film, Star } from "lucide-react";
 import { cn, focalStyle } from "@/lib/utils";
+import { EntityMark } from "@/components/shared/entity-mark";
 import type { ChannelWall, ChannelWallRow } from "@/lib/services/channel-wall-service";
 import type { StagingSetStatus } from "@/generated/prisma/client";
 
@@ -90,7 +91,7 @@ function PillGroup({ label, children }: { label: string; children: React.ReactNo
 
 function Tile({ row }: { row: ChannelWallRow }) {
   const cast = row.castNames.slice(0, 2).join(", ") + (row.castNames.length > 2 ? ` +${row.castNames.length - 2}` : "");
-  const tooltip = [row.title, isoDate(row.releaseDate), row.castNames.join(", ")].filter(Boolean).join(" · ");
+  const tooltip = [row.title, row.channel?.brand.name, isoDate(row.releaseDate), row.castNames.join(", ")].filter(Boolean).join(" · ");
   const body = (
     <>
       <div
@@ -148,7 +149,10 @@ function Tile({ row }: { row: ChannelWallRow }) {
         <p className={cn("line-clamp-2 text-xs font-medium leading-snug", row.kind === "catalogue" ? "text-muted-foreground" : "text-foreground")}>
           {row.title}
         </p>
-        <p className="truncate font-mono text-[10px] tabular-nums text-muted-foreground">{isoDate(row.releaseDate)}</p>
+        <p className="flex min-w-0 items-center gap-1 truncate font-mono text-[10px] tabular-nums text-muted-foreground">
+          {row.channel && <EntityMark brand={row.channel.brand} variant="tile" size="xs" />}
+          {isoDate(row.releaseDate)}
+        </p>
         {cast && <p className="truncate text-[10px] text-muted-foreground">{cast}</p>}
       </div>
     </>
@@ -196,7 +200,7 @@ export function ChannelSetWall({ wall, scope, type, sort, limit, basePath }: Cha
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {known === 0 ? (
-            "No sets known for this channel yet."
+            "No sets known yet."
           ) : (
             <>
               You have <span className="font-semibold text-foreground">{wall.counts.set.toLocaleString()}</span> of{" "}

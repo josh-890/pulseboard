@@ -47,8 +47,8 @@ export function LabelCard({ label }: LabelCardProps) {
           {/* Count chips */}
           <div className="flex flex-wrap gap-1.5">
             <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-              {label.channelMaps.length}{" "}
-              {label.channelMaps.length === 1 ? "channel" : "channels"}
+              {label._count.ownedChannels}{" "}
+              {label._count.ownedChannels === 1 ? "channel" : "channels"}
             </span>
             <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
               {label.projects.length}{" "}

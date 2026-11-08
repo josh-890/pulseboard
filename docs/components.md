@@ -188,6 +188,8 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 
 ---
 
+Label page (2026-11-08): `LabelHero` (mark, website, ★, Channels/Sets/Models/Active via shared `HeroKpi`), `LabelChannelTiles` (wordmark tiles of owned channels). Sets/Models tabs reuse `ChannelSetWall` (tiles show the channel mark when `row.channel` is set) and `ChannelModels`.
+
 ## Contact Components (`components/people/contact/`, ADR-0038)
 
 | Component | Type | Props | Description |

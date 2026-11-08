@@ -1,24 +1,18 @@
 import { prisma } from "@/lib/db";
 import { normalizeForSearch } from "@/lib/normalize";
 import { syncChannelOwnerLabel } from "@/lib/services/channel-service";
+import { Prisma } from "@/generated/prisma/client";
+import type { ChannelTier } from "@/generated/prisma/client";
+import { BRAND_SELECT, brandOf } from "@/lib/services/brand-of";
+import type { EntityBrand } from "@/lib/brand-mark";
 
 export async function getLabels(q?: string) {
   return prisma.label.findMany({
     where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
     include: {
-      channelMaps: {
-        include: {
-          channel: {
-            select: { id: true, name: true },
-          },
-        },
-      },
-      networks: {
-        include: { network: true },
-      },
-      projects: {
-        include: { project: true },
-      },
+      projects: { select: { projectId: true } },
+      // The channels it owns (ADR-0020) — not every channel with a label map to it
+      _count: { select: { ownedChannels: true } },
     },
     orderBy: { name: "asc" },
   });
@@ -28,33 +22,131 @@ export async function getLabelById(id: string) {
   return prisma.label.findUnique({
     where: { id },
     include: {
-      channelMaps: {
-        include: {
-          channel: {
-            include: {
-              sets: {
-                orderBy: { releaseDate: "desc" },
-                take: 10,
-              },
-              _count: { select: { sets: true } },
-            },
-          },
-        },
-      },
-      networks: {
-        include: { network: true },
-      },
       projects: {
-        include: {
-          project: {
-            include: {
-              sessions: true,
-            },
-          },
-        },
+        include: { project: { select: { id: true, name: true, status: true } } },
       },
+      _count: { select: { ownedChannels: true } },
     },
   });
+}
+
+// ─── Label page (2026-11-08) ─────────────────────────────────────────────────
+
+export type LabelHeroStats = {
+  channels: number;
+  photoSets: number;
+  videoSets: number;
+  /** Persons leading at least one set of its channels */
+  models: number;
+  firstYear: number | null;
+  lastYear: number | null;
+};
+
+/** The numbers the label hero shows — over the channels it owns (ADR-0020) */
+export async function getLabelHeroStats(labelId: string): Promise<LabelHeroStats> {
+  const [row] = await prisma.$queryRaw<
+    Array<{ channels: bigint; photo: bigint; video: bigint; models: bigint; first: Date | null; last: Date | null }>
+  >(Prisma.sql`
+    WITH ch AS (SELECT id FROM "Channel" WHERE "labelId" = ${labelId}),
+    dates AS (
+      SELECT "releaseDate" AS d FROM "Set" WHERE "channelId" IN (SELECT id FROM ch) AND "releaseDate" IS NOT NULL
+      UNION ALL
+      SELECT "releaseDate" FROM staging_set WHERE "channelId" IN (SELECT id FROM ch) AND "releaseDate" IS NOT NULL
+    )
+    SELECT
+      (SELECT count(*) FROM ch) AS channels,
+      (SELECT count(*) FROM "Set" WHERE "channelId" IN (SELECT id FROM ch) AND type = 'photo') AS photo,
+      (SELECT count(*) FROM "Set" WHERE "channelId" IN (SELECT id FROM ch) AND type = 'video') AS video,
+      (SELECT count(DISTINCT sp."personId")
+         FROM "SetParticipant" sp
+         JOIN "Set" s ON s.id = sp."setId"
+         JOIN "ContributionRoleDefinition" rd ON rd.id = sp."roleDefinitionId"
+         JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+        WHERE s."channelId" IN (SELECT id FROM ch) AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD') AS models,
+      (SELECT min(d) FROM dates) AS first,
+      (SELECT max(d) FROM dates) AS last
+  `);
+  return {
+    channels: Number(row?.channels ?? 0),
+    photoSets: Number(row?.photo ?? 0),
+    videoSets: Number(row?.video ?? 0),
+    models: Number(row?.models ?? 0),
+    firstYear: row?.first ? row.first.getUTCFullYear() : null,
+    lastYear: row?.last ? row.last.getUTCFullYear() : null,
+  };
+}
+
+export type LabelChannelTile = {
+  id: string;
+  brand: EntityBrand;
+  tier: ChannelTier;
+  rating: number | null;
+  closed: boolean;
+  sets: number;
+  photoSets: number;
+  videoSets: number;
+  /** Staged, not yet promoted */
+  staged: number;
+  firstYear: number | null;
+  lastYear: number | null;
+};
+
+/** The channels a label owns, most sets first — the Channels tab */
+export async function getLabelChannels(labelId: string): Promise<LabelChannelTile[]> {
+  const channels = await prisma.channel.findMany({
+    where: { labelId },
+    select: { id: true, name: true, shortName: true, tier: true, rating: true, closed: true, ...BRAND_SELECT },
+  });
+  if (channels.length === 0) return [];
+  const ids = channels.map((c) => c.id);
+  const stats = await prisma.$queryRaw<
+    Array<{ id: string; photo: bigint; video: bigint; staged: bigint; first: Date | null; last: Date | null }>
+  >(Prisma.sql`
+    SELECT c.id,
+      (SELECT count(*) FROM "Set" s WHERE s."channelId" = c.id AND s.type = 'photo') AS photo,
+      (SELECT count(*) FROM "Set" s WHERE s."channelId" = c.id AND s.type = 'video') AS video,
+      (SELECT count(*) FROM staging_set st WHERE st."channelId" = c.id AND st.status IN ('PENDING', 'REVIEWING', 'APPROVED')) AS staged,
+      (SELECT min(d) FROM (SELECT "releaseDate" d FROM "Set" WHERE "channelId" = c.id
+                           UNION ALL SELECT "releaseDate" FROM staging_set WHERE "channelId" = c.id) x) AS first,
+      (SELECT max(d) FROM (SELECT "releaseDate" d FROM "Set" WHERE "channelId" = c.id
+                           UNION ALL SELECT "releaseDate" FROM staging_set WHERE "channelId" = c.id) x) AS last
+    FROM "Channel" c WHERE c.id = ANY(${ids}::text[])
+  `);
+  const byId = new Map(stats.map((r) => [r.id, r]));
+  return channels
+    .map((c) => {
+      const r = byId.get(c.id);
+      const photoSets = Number(r?.photo ?? 0);
+      const videoSets = Number(r?.video ?? 0);
+      return {
+        id: c.id,
+        brand: brandOf(c),
+        tier: c.tier,
+        rating: c.rating,
+        closed: c.closed,
+        sets: photoSets + videoSets,
+        photoSets,
+        videoSets,
+        staged: Number(r?.staged ?? 0),
+        firstYear: r?.first ? r.first.getUTCFullYear() : null,
+        lastYear: r?.last ? r.last.getUTCFullYear() : null,
+      };
+    })
+    .sort((a, b) => b.sets - a.sets || b.staged - a.staged || a.brand.name.localeCompare(b.brand.name));
+}
+
+/** Your liking, 1–5; null clears it */
+export async function setLabelRating(labelId: string, rating: number | null): Promise<void> {
+  if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+    throw new Error("A rating is 1 to 5");
+  }
+  await prisma.label.update({ where: { id: labelId }, data: { rating } });
+}
+
+/** About (the description) or notes; blank clears it */
+export async function setLabelText(labelId: string, field: "description" | "notes", text: string): Promise<void> {
+  const value = text.trim() ? text.trim() : null;
+  await prisma.label.update({ where: { id: labelId }, data: { [field]: value } });
 }
 
 export async function countLabels(): Promise<number> {

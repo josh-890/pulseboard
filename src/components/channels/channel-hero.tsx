@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EntityMark } from "@/components/shared/entity-mark";
 import { StarRating } from "@/components/shared/star-rating";
+import { HeroKpi } from "@/components/shared/hero-kpi";
 import { CHANNEL_TIER_CONFIG } from "@/lib/constants/channel-tier";
 import { setChannelRatingAction } from "@/lib/actions/channel-actions";
 import type { EntityBrand } from "@/lib/brand-mark";
@@ -30,16 +31,6 @@ function hostOf(url: string): string {
   } catch {
     return url;
   }
-}
-
-function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="min-w-[4.5rem]">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold tabular-nums leading-tight">{value}</p>
-      {sub && <p className="text-[11px] tabular-nums text-muted-foreground">{sub}</p>}
-    </div>
-  );
 }
 
 /**
@@ -118,13 +109,13 @@ export function ChannelHero({ channel, brand, label, stats }: ChannelHeroProps) 
               className="-ml-0.5"
             />
           </div>
-          <Kpi
+          <HeroKpi
             label="Sets"
             value={sets.toLocaleString()}
             sub={sets > 0 ? `${stats.photoSets} photo · ${stats.videoSets} video` : undefined}
           />
-          <Kpi label="Models" value={stats.models.toLocaleString()} />
-          <Kpi label="Active" value={years} />
+          <HeroKpi label="Models" value={stats.models.toLocaleString()} />
+          <HeroKpi label="Active" value={years} />
         </div>
       </div>
     </section>

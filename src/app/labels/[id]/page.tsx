@@ -1,26 +1,39 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink, Radio, FolderKanban } from "lucide-react";
-import { getLabelById } from "@/lib/services/label-service";
+import { BookOpen, Camera, FolderKanban, LayoutDashboard, NotebookPen, Radio, Tag, Users } from "lucide-react";
+import { getLabelById, getLabelChannels, getLabelHeroStats } from "@/lib/services/label-service";
+import { getEffectiveTags } from "@/lib/services/tag-effective-service";
+import { brandOf } from "@/lib/services/brand-of";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
 import { EditLabelSheet } from "@/components/labels/edit-label-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
-import { deleteLabel } from "@/lib/actions/label-actions";
-import { deleteChannel } from "@/lib/actions/channel-actions";
+import { deleteLabel, setLabelTextAction } from "@/lib/actions/label-actions";
 import { AddChannelSheet } from "@/components/channels/add-channel-sheet";
-import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
-import { EntityMark } from "@/components/shared/entity-mark";
 import { BrandMarkEditor } from "@/components/shared/brand-mark-editor";
-import { generateEntityVisual } from "@/lib/entity-visual";
-import { brandOf } from "@/lib/services/brand-of";
+import { LabelHero } from "@/components/labels/label-hero";
+import { LabelChannelTiles } from "@/components/labels/label-channel-tiles";
+import { EntityTabBar, type EntityTab } from "@/components/shared/entity-tab-bar";
+import { MarkdownNoteCard } from "@/components/shared/markdown-note-card";
+import { EntityTagsPanel } from "@/components/tags";
+import { KnownForRow, ShowcaseMosaic } from "@/components/people/overview";
+import { MakerFacesRow } from "@/components/shared/maker-faces-row";
+import { getMakerFaces, getMakerKnownFor, getMakerOverviewShowcase } from "@/lib/services/maker-showcase-service";
+import { getMakerShowcaseAction } from "@/lib/actions/maker-actions";
+import { getChannelModels, getLabelWall } from "@/lib/services/channel-wall-service";
+import { ChannelSetWall, WALL_PAGE } from "@/components/channels/channel-set-wall";
+import { ChannelModels, MODELS_PAGE } from "@/components/channels/channel-models";
 
 export const dynamic = "force-dynamic";
 
 type LabelDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
 };
+
+const TAB_KEYS = ["overview", "channels", "sets", "models", "projects"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -39,32 +52,14 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
   completed: "Completed",
 };
 
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-type SectionCardProps = {
-  title: string;
-  icon: React.ReactNode;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-  className?: string;
-};
-
-function SectionCard({ title, icon, action, children, className }: SectionCardProps) {
+function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm",
-        className,
-      )}
-    >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground" aria-hidden="true">
-            {icon}
-          </span>
-          <h2 className="text-lg font-semibold">{title}</h2>
-        </div>
-        {action}
+    <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-muted-foreground" aria-hidden="true">
+          {icon}
+        </span>
+        <h2 className="text-lg font-semibold">{title}</h2>
       </div>
       {children}
     </div>
@@ -77,149 +72,130 @@ function EmptyState({ message }: { message: string }) {
 
 // ── Main page ───────────────────────────────────────────────────────────────
 
-export default async function LabelDetailPage({
-  params,
-}: LabelDetailPageProps) {
+export default async function LabelDetailPage({ params, searchParams }: LabelDetailPageProps) {
   return withTenantFromHeaders(async () => {
-    const { id } = await params;
+    const [{ id }, sp] = await Promise.all([params, searchParams]);
+    const tab: TabKey = TAB_KEYS.find((k) => k === sp.tab) ?? "overview";
 
-  const label = await getLabelById(id);
+    const [label, stats] = await Promise.all([getLabelById(id), getLabelHeroStats(id)]);
+    if (!label) notFound();
 
-  if (!label) notFound();
+    const scope = { kind: "label" as const, id };
+    const [tags, showcase, knownFor, faces] =
+      tab === "overview"
+        ? await Promise.all([getEffectiveTags("LABEL", id), getMakerOverviewShowcase(scope), getMakerKnownFor(scope), getMakerFaces(scope)])
+        : [[], null, [], []];
+    const channels = tab === "channels" ? await getLabelChannels(id) : [];
+    const wall = tab === "sets" || tab === "models" ? await getLabelWall(id, "all") : null;
+    const models = tab === "models" && wall ? await getChannelModels(wall) : null;
 
-  const visual = generateEntityVisual(label.name, "LABEL");
-  const brand = brandOf(label);
-  const labelOption = [{ id: label.id, name: label.name }];
+    const brand = brandOf(label);
+    const base = `/labels/${label.id}`;
+    const tabs: EntityTab[] = [
+      { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
+      { key: "channels", label: "Channels", icon: <Radio size={14} />, count: stats.channels },
+      { key: "sets", label: "Sets", icon: <Camera size={14} />, count: stats.photoSets + stats.videoSets },
+      { key: "models", label: "Models", icon: <Users size={14} />, count: stats.models },
+      ...(label.projects.length > 0
+        ? [{ key: "projects", label: "Projects", icon: <FolderKanban size={14} />, count: label.projects.length }]
+        : []),
+    ];
 
-  return (
-    <div className="space-y-6">
-      {/* Back link + actions row */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/labels"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">&larr;</span>
-          Back to Labels
-        </Link>
-        <div className="flex items-center gap-2">
-          <BrandMarkEditor kind="label" id={label.id} brand={brand} />
-          <EditLabelSheet label={label} />
-          <DeleteButton
-            title="Delete label?"
-            description="This will permanently remove the label. Channels and projects linked to this label will be affected. This action cannot be undone."
-            onDelete={deleteLabel.bind(null, id)}
-            redirectTo="/labels"
-          />
+    return (
+      <div className="space-y-5">
+        {/* Back link + actions row */}
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/labels"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span aria-hidden="true">&larr;</span>
+            Back to Labels
+          </Link>
+          <div className="flex items-center gap-2">
+            <BrandMarkEditor kind="label" id={label.id} brand={brand} />
+            <EditLabelSheet label={label} />
+            <DeleteButton
+              title="Delete label?"
+              description="This will permanently remove the label. Channels and projects linked to this label will be affected. This action cannot be undone."
+              onDelete={deleteLabel.bind(null, id)}
+              redirectTo="/labels"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Header card — same visual identity as the list card */}
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-2xl border border-border/60 bg-card p-6 shadow-sm",
-          "border-l-[3px]",
-          visual.accentBorder,
-        )}
-      >
-        <div
-          className={cn(
-            "pointer-events-none absolute inset-0 bg-gradient-to-br",
-            visual.cardGradient,
-          )}
-        />
-        <div className="relative flex items-start gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="min-w-0">
-              <EntityMark brand={brand} variant="wordmark" size="xl" />
-            </h1>
-            {label.description && (
-              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                {label.description}
+        <LabelHero label={label} brand={brand} stats={stats} />
+
+        <EntityTabBar tabs={tabs} active={tab} basePath={base} />
+
+        {tab === "overview" && (
+          <div className="grid gap-6 md:grid-cols-2">
+            {showcase && showcase.items.length > 0 ? (
+              <ShowcaseMosaic showcase={showcase} title={label.name} owner="its channels'" load={getMakerShowcaseAction.bind(null, "label", label.id)} />
+            ) : (
+              <p className="rounded-2xl border border-dashed border-white/20 p-6 text-center text-sm text-muted-foreground md:col-span-2">
+                No photos yet — the Showcase fills itself from the photos of its channels&apos; sets.
               </p>
             )}
-            {label.website && (
-              <a
-                href={label.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <ExternalLink size={13} />
-                {label.website}
-              </a>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Channels */}
-      <SectionCard
-        title={`Channels (${label.channelMaps.length})`}
-        icon={<Radio size={18} />}
-        action={<AddChannelSheet labels={labelOption} defaultLabelId={label.id} />}
-      >
-        {label.channelMaps.length === 0 ? (
-          <EmptyState message="No channels for this label." />
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {label.channelMaps.map((channelMap) => {
-              const channel = channelMap.channel;
-              return (
-                <div
-                  key={channel.id}
-                  className="rounded-xl border border-white/15 bg-card/40 p-4"
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <Link
-                      href={`/channels/${channel.id}`}
-                      className="flex min-w-0 items-center gap-2 font-medium transition-colors hover:text-primary"
-                    >
-                      <EntityMark brand={brandOf(channel)} variant="tile" size="sm" />
-                      <span className="truncate">{channel.name}</span>
-                    </Link>
-                    <div className="flex items-center gap-2">
-                      {channel.platform && (
-                        <span className="rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground">
-                          {channel.platform}
-                        </span>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {channel._count.sets}{" "}
-                        {channel._count.sets === 1 ? "set" : "sets"}
-                      </span>
-                    </div>
-                  </div>
-                  {channel.url && (
-                    <a
-                      href={channel.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2"
-                    >
-                      <ExternalLink size={11} />
-                      {channel.url}
-                    </a>
-                  )}
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <EditChannelSheet
-                      channel={{ ...channel, labelId: channelMap.labelId, setCount: channel._count.sets }}
-                      labels={labelOption}
-                    />
-                    <DeleteButton
-                      title="Delete channel?"
-                      description="This will detach all sets from this channel and permanently remove it. This action cannot be undone."
-                      onDelete={deleteChannel.bind(null, channel.id)}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+            <KnownForRow sets={knownFor} />
+            <MakerFacesRow title="Faces of the label" faces={faces} moreHref={`${base}?tab=models`} />
+            <MarkdownNoteCard
+              title="About"
+              icon={<BookOpen size={16} />}
+              initialText={label.description}
+              onSave={setLabelTextAction.bind(null, label.id, "description")}
+              emptyHint="Add a few lines: who they are, their style…"
+            />
+            <MarkdownNoteCard
+              title="Notes"
+              icon={<NotebookPen size={16} />}
+              initialText={label.notes}
+              onSave={setLabelTextAction.bind(null, label.id, "notes")}
+              emptyHint="Your own notes on this label…"
+            />
+            <section className="rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm md:col-span-2">
+              <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+                <Tag size={16} className="text-muted-foreground" aria-hidden="true" />
+                Tags
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <EntityTagsPanel entityType="LABEL" entityId={label.id} initialTags={tags} />
+              </div>
+            </section>
           </div>
         )}
-      </SectionCard>
 
-      {/* Projects */}
+        {tab === "channels" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">The channels {label.name} owns, most sets first.</p>
+              <AddChannelSheet labels={[{ id: label.id, name: label.name }]} defaultLabelId={label.id} />
+            </div>
+            <LabelChannelTiles channels={channels} />
+          </div>
+        )}
+
+        {tab === "sets" && wall && (
+          <ChannelSetWall
+            wall={wall}
+            scope={sp.scope === "all" ? "all" : "library"}
+            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+            basePath={`${base}?tab=sets`}
+          />
+        )}
+
+        {tab === "models" && models && (
+          <ChannelModels
+            models={models}
+            filter={sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+            limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
+            basePath={`${base}?tab=models`}
+          />
+        )}
+
+        {tab === "projects" && (
       <SectionCard
         title={`Projects (${label.projects.length})`}
         icon={<FolderKanban size={18} />}
@@ -250,7 +226,8 @@ export default async function LabelDetailPage({
           </div>
         )}
       </SectionCard>
-    </div>
+        )}
+      </div>
     );
   });
 }
