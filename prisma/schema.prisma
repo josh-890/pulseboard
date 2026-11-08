@@ -691,6 +691,8 @@ model CatalogueSet {
 
   @@index([date])
   @@index([createdRunId])
+  // Also: catalogue_set_channel_upper_idx on upper(trim("channelName")) — raw
+  // migration 20261108150000, Prisma cannot express an expression index
   @@map("catalogue_set")
 }
 

@@ -1,7 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Camera, ImageIcon, LayoutDashboard, NotebookPen, Settings2, Tag } from "lucide-react";
+import { BookOpen, Camera, LayoutDashboard, NotebookPen, Settings2, Tag, Users } from "lucide-react";
 import {
   getChannelById,
   getChannelHeroStats,
@@ -10,7 +10,6 @@ import {
 import { getLabels } from "@/lib/services/label-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { brandOf } from "@/lib/services/brand-of";
-import { cn, formatRelativeTime } from "@/lib/utils";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteChannel, setChannelTextAction } from "@/lib/actions/channel-actions";
@@ -24,36 +23,21 @@ import { KnownForRow, ShowcaseMosaic } from "@/components/people/overview";
 import { MakerFacesRow } from "@/components/shared/maker-faces-row";
 import { getMakerFaces, getMakerKnownFor, getMakerOverviewShowcase } from "@/lib/services/maker-showcase-service";
 import { getMakerShowcaseAction } from "@/lib/actions/maker-actions";
+import { getChannelModels, getChannelWall } from "@/lib/services/channel-wall-service";
+import { ChannelSetWall, WALL_PAGE } from "@/components/channels/channel-set-wall";
+import { ChannelModels, MODELS_PAGE } from "@/components/channels/channel-models";
 
 export const dynamic = "force-dynamic";
 
 type ChannelDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
 };
 
-const TAB_KEYS = ["overview", "sets", "manage"] as const;
+const TAB_KEYS = ["overview", "sets", "models", "manage"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 const PIPELINE_LIMIT = 50;
-
-function SectionCard({ title, icon, children, className }: { title: string; icon: React.ReactNode; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={cn("rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm", className)}>
-      <div className="mb-4 flex items-center gap-2">
-        <span className="text-muted-foreground" aria-hidden="true">
-          {icon}
-        </span>
-        <h2 className="text-lg font-semibold">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return <p className="text-sm italic text-muted-foreground/70">{message}</p>;
-}
 
 // ── Main page ───────────────────────────────────────────────────────────────
 
@@ -80,11 +64,15 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
             getMakerFaces(scope),
           ])
         : [[], null, [], []];
+    // The Sets and Models tabs both stand on the channel's whole output
+    const wall = tab === "sets" || tab === "models" ? await getChannelWall(id, "all") : null;
+    const models = tab === "models" && wall ? await getChannelModels(wall) : null;
     const brand = brandOf(channel);
     const labelOptions = labels.map(({ id, name }) => ({ id, name }));
     const tabs: EntityTab[] = [
       { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
       { key: "sets", label: "Sets", icon: <Camera size={14} />, count: channel.sets.length },
+      { key: "models", label: "Models", icon: <Users size={14} />, count: stats.models },
       { key: "manage", label: "Manage", icon: <Settings2 size={14} />, count: pipeline.total || undefined },
     ];
 
@@ -148,7 +136,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
               </p>
             )}
             <KnownForRow sets={knownFor} hideChannel />
-            <MakerFacesRow title="Faces of the channel" faces={faces} />
+            <MakerFacesRow title="Faces of the channel" faces={faces} moreHref={`/channels/${channel.id}?tab=models`} />
             <MarkdownNoteCard
               title="About"
               icon={<BookOpen size={16} />}
@@ -175,44 +163,24 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
           </div>
         )}
 
-        {tab === "sets" && (
-          <SectionCard
-            title={`Sets (${channel.sets.length})`}
-            icon={<ImageIcon size={18} />}
-          >
-            {channel.sets.length === 0 ? (
-              <EmptyState message="No sets in this channel." />
-            ) : (
-              <div className="space-y-2">
-                {channel.sets.map((set) => (
-                  <Link
-                    key={set.id}
-                    href={`/sets/${set.id}`}
-                    className="group flex items-center justify-between rounded-xl border border-white/15 bg-card/40 px-4 py-3 transition-all hover:border-white/25 hover:bg-card/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                        <ImageIcon size={14} className="text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <span className="block truncate text-sm font-medium group-hover:text-primary transition-colors">
-                          {set.title ?? "Untitled Set"}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-3 flex shrink-0 flex-col items-end gap-0.5 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 font-medium">
-                        {set.type}
-                      </span>
-                      {set.releaseDate && (
-                        <span>{formatRelativeTime(set.releaseDate)}</span>
-                      )}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </SectionCard>
+        {tab === "sets" && wall && (
+          <ChannelSetWall
+            wall={wall}
+            scope={sp.scope === "all" ? "all" : "library"}
+            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+            basePath={`/channels/${channel.id}?tab=sets`}
+          />
+        )}
+
+        {tab === "models" && models && (
+          <ChannelModels
+            models={models}
+            filter={sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+            limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
+            basePath={`/channels/${channel.id}?tab=models`}
+          />
         )}
 
         {tab === "manage" && <ChannelManageTab channel={channel} pipeline={pipeline} />}
