@@ -92,4 +92,35 @@ describe("the channel wall", () => {
       [`${U}-C`, "unknown", 0, 1],
     ]);
   });
+
+  it("gives each model the covers of her three newest sets that have one", async () => {
+    const row = (key: string, date: string, coverUrl: string | null, cast: string[]) => ({
+      key,
+      kind: "set" as const,
+      href: `/sets/${key}`,
+      title: key,
+      releaseDate: new Date(date),
+      isVideo: false,
+      coverUrl,
+      coverFocalX: null,
+      coverFocalY: null,
+      rating: null,
+      status: null,
+      castIcgIds: cast,
+      castNames: [],
+    });
+    const wall = {
+      rows: [
+        row("old", "2010-01-01", "u/old", [`${U}-A`]),
+        row("new", "2024-01-01", "u/new", [`${U}-A`, `${U}-B`]),
+        row("bare", "2023-01-01", null, [`${U}-A`]),
+        row("mid", "2018-01-01", "u/mid", [`${U}-A`]),
+        row("older", "2015-01-01", "u/older", [`${U}-A`]),
+      ],
+      counts: { set: 5, staged: 0, catalogue: 0 },
+    };
+    const models = await getChannelModels(wall);
+    const covers = Object.fromEntries(models.map((m) => [m.icgId, m.covers.map((c) => c.url)]));
+    expect(covers).toEqual({ [`${U}-A`]: ["u/new", "u/mid", "u/older"], [`${U}-B`]: ["u/new"] });
+  });
 });

@@ -231,24 +231,36 @@ export async function getLabelWall(labelId: string, scope: "library" | "all"): P
   return { rows, counts };
 }
 
+export type ChannelModelCover = { url: string; focalX: number | null; focalY: number | null; href: string | null; title: string };
+
 export type ChannelModel = CastIdentity & {
   /** Its sets you have */
   inLibrary: number;
   /** All its sets known to the app (yours, staged, catalogue) */
   known: number;
+  /** Covers of her newest sets here that have one (yours and staged — the catalogue has none) */
+  covers: ChannelModelCover[];
 };
+
+const MODEL_COVERS = 3;
 
 /**
  * Everyone seen on the channel, by how many of its sets — developed Persons
- * first, then Contacts (ADR-0038: recognisable, not developed), then the rest.
+ * first, then Contacts (ADR-0038: recognisable, not developed), then the rest —
+ * each with the covers of her newest sets on it.
  */
 export async function getChannelModels(wall: ChannelWall): Promise<ChannelModel[]> {
-  const tally = new Map<string, { inLibrary: number; known: number }>();
-  for (const row of wall.rows) {
+  const tally = new Map<string, { inLibrary: number; known: number; covers: ChannelModelCover[] }>();
+  // Newest first, so each model's first covers are her newest here
+  const newestFirst = [...wall.rows].sort((a, b) => (b.releaseDate?.getTime() ?? 0) - (a.releaseDate?.getTime() ?? 0));
+  for (const row of newestFirst) {
     for (const icgId of new Set(row.castIcgIds)) {
-      const t = tally.get(icgId) ?? { inLibrary: 0, known: 0 };
+      const t = tally.get(icgId) ?? { inLibrary: 0, known: 0, covers: [] };
       t.known++;
       if (row.kind === "set") t.inLibrary++;
+      if (row.coverUrl && t.covers.length < MODEL_COVERS) {
+        t.covers.push({ url: row.coverUrl, focalX: row.coverFocalX, focalY: row.coverFocalY, href: row.href, title: row.title });
+      }
       tally.set(icgId, t);
     }
   }

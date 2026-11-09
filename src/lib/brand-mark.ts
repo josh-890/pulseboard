@@ -75,6 +75,8 @@ export type EntityBrand = {
   logoUrl?: string | null;
   markFont?: string | null;
   markColor?: string | null;
+  /** A label's tile is round and framed, so it reads apart from its channel's (same letters, same colour) */
+  kind?: "label";
 };
 
 export type ResolvedBrandMark = {

@@ -18,6 +18,11 @@ export function brandOf(entity: { name: string; shortName?: string | null } & Br
   };
 }
 
+/** A label's mark — framed, so it is told apart from its channel's at a glance */
+export function labelBrandOf(label: { name: string; shortName?: string | null } & BrandRow): EntityBrand {
+  return { ...brandOf(label), kind: "label" };
+}
+
 /** Select clause for the brand fields */
 export const BRAND_SELECT = { logoKey: true, markFont: true, markColor: true } as const;
 

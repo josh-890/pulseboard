@@ -3,7 +3,7 @@ import type { ChannelTier } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
 import { normalizeForSearch } from "@/lib/normalize";
 import { getCoverPhotosForSets, type CoverPhotoData } from "./media-service";
-import { BRAND_SELECT, brandOf } from "./brand-of";
+import { BRAND_SELECT, brandOf, labelBrandOf } from "./brand-of";
 import type { EntityBrand } from "@/lib/brand-mark";
 
 // The list pages of channels, labels and artists as tiles (2026-11-08): each
@@ -134,7 +134,7 @@ export async function getChannelTiles(opts: {
         rating: c.rating,
         tier: c.tier,
         closed: c.closed,
-        context: c.label ? { label: c.label.name, href: `/labels/${c.label.id}`, brand: brandOf(c.label) } : null,
+        context: c.label ? { label: c.label.name, href: `/labels/${c.label.id}`, brand: labelBrandOf(c.label) } : null,
         sets: Number(r?.sets ?? 0),
         videoSets: Number(r?.video ?? 0),
         channels: null,
@@ -176,7 +176,7 @@ export async function getLabelTiles(opts: { q?: string; minRating?: number; sort
       return {
         id: l.id,
         href: `/labels/${l.id}`,
-        brand: brandOf(l),
+        brand: labelBrandOf(l),
         rating: l.rating,
         tier: null,
         closed: false,

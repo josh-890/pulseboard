@@ -114,7 +114,7 @@ export function ChannelHero({ channel, brand, label, stats }: ChannelHeroProps) 
             value={sets.toLocaleString()}
             sub={sets > 0 ? `${stats.photoSets} photo · ${stats.videoSets} video` : undefined}
           />
-          <HeroKpi label="Models" value={stats.models.toLocaleString()} />
+          <HeroKpi label="Models" value={stats.models.toLocaleString()} sub="in your library" />
           <HeroKpi label="Active" value={years} />
         </div>
       </div>

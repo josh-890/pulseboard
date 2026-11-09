@@ -14,7 +14,7 @@ import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
 import { EntityMark } from "@/components/shared/entity-mark";
-import { brandOf } from "@/lib/services/brand-of";
+import { brandOf, labelBrandOf } from "@/lib/services/brand-of";
 
 type SetData = NonNullable<Awaited<ReturnType<typeof getSetById>>>;
 
@@ -207,7 +207,7 @@ export function SetHero({
                 href={`/labels/${primaryLabel.id}`}
                 className="inline-flex items-center gap-1 hover:text-foreground hover:underline underline-offset-2 transition-colors"
               >
-                <EntityMark brand={brandOf(primaryLabel)} variant="tile" size="xs" />
+                <EntityMark brand={labelBrandOf(primaryLabel)} variant="tile" size="xs" />
                 {primaryLabel.name}
               </Link>
             </>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BookOpen, Camera, FolderKanban, LayoutDashboard, NotebookPen, Radio, Tag, Users } from "lucide-react";
 import { getLabelById, getLabelChannels, getLabelHeroStats } from "@/lib/services/label-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
-import { brandOf } from "@/lib/services/brand-of";
+import { labelBrandOf } from "@/lib/services/brand-of";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
 import { EditLabelSheet } from "@/components/labels/edit-label-sheet";
@@ -89,7 +89,7 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
     const wall = tab === "sets" || tab === "models" ? await getLabelWall(id, "all") : null;
     const models = tab === "models" && wall ? await getChannelModels(wall) : null;
 
-    const brand = brandOf(label);
+    const brand = labelBrandOf(label);
     const base = `/labels/${label.id}`;
     const tabs: EntityTab[] = [
       { key: "overview", label: "Overview", icon: <LayoutDashboard size={14} /> },
@@ -189,7 +189,7 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
         {tab === "models" && models && (
           <ChannelModels
             models={models}
-            filter={sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+            filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
             limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
             basePath={`${base}?tab=models`}
           />

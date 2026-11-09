@@ -37,6 +37,15 @@ const TILE_BOX: Record<MarkSize, string> = {
   xl: "h-24 w-24 rounded-2xl",
 };
 
+/** A label's frame: solid, in its brand colour (border-current takes the colour from the box) */
+const LABEL_FRAME: Record<MarkSize, string> = {
+  xs: "border",
+  sm: "border-2",
+  md: "border-2",
+  lg: "border-[3px]",
+  xl: "border-4",
+};
+
 /** Monogram text size by box size and by length (MET fits where FIT-LONG doesn't) */
 const TILE_TEXT: Record<MarkSize, [string, string, string]> = {
   xs: ["text-[9px]", "text-[7px]", "text-[6px]"],
@@ -77,7 +86,14 @@ export function EntityMark({ brand, variant = "tile", size = "sm", round, classN
     );
   }
 
-  const box = cn("flex shrink-0 select-none items-center justify-center overflow-hidden", TILE_BOX[size], round && "rounded-full", className);
+  const isLabel = brand.kind === "label";
+  const box = cn(
+    "flex shrink-0 select-none items-center justify-center overflow-hidden",
+    TILE_BOX[size],
+    (round || isLabel) && "rounded-full",
+    isLabel && cn("border-current", LABEL_FRAME[size], mark.color.text),
+    className,
+  );
   if (brand.logoUrl) {
     return (
       <span className={cn(box, "bg-white/90 p-0.5 dark:bg-white/10")} title={brand.name}>

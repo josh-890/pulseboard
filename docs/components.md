@@ -224,7 +224,7 @@ Shared: `ContactLinkPicker` (`components/people/contact-link-picker.tsx`, "Link�
 
 Showcase (2026-11-08): `ShowcaseMosaic` (`components/people/overview/`, props `showcase`, `title`, `load(mode, seed)`, `person?`, `owner?`) is the mosaic shared by person and maker pages; `PersonShowcase` wraps it. `KnownForRow` takes `hideChannel`. `MakerFacesRow` (`components/shared/`, `title`, `faces`, `moreHref?`) — round faces with set counts.
 
-Channel page (2026-11-08): `ChannelSetWall` (server; `wall`, `scope`, `type`, `sort`, `limit`, `basePath`) — cover wall by year, set/staged/catalogue tiles; `ChannelModels` (server; `models`, `filter`, `limit`, `basePath`) — Persons, Contacts (dashed), not in the app. `ChannelHero` (mark, chips, ★, Sets/Models/Active), `ChannelManageTab`, `ChannelClosedSwitch`.
+Channel page (2026-11-08): `ChannelSetWall` (server; `wall`, `scope`, `type`, `sort`, `limit`, `basePath`) — cover wall by year, set/staged/catalogue tiles; `ChannelModels` (server; `models`, `filter` all|library|persons|contacts, `limit`, `basePath`) — tiles: avatar, the model's 3 newest covers here, N of M in library; Persons, Contacts (dashed), not in the app. `ChannelHero` (mark, chips, ★, Sets/Models/Active), `ChannelManageTab`, `ChannelClosedSwitch`.
 
 ## Networks Components (`components/networks/`)
 
@@ -368,7 +368,7 @@ dialog/typing guard as the gallery selection keys) back the S3 controls; `applyT
 | `TagPicker` | Client | `scope`, `selectedTagIds`, `onChange`, … | Inline search-and-pick for tag ids before an entity exists (set/project create sheets) and in the bulk bar |
 | `TagChips` | Client | `tags`, `onRemove?`, `compact?` | Plain coloured chips |
 | `DeleteButton` | Client | `onDelete`, `label?` | Destructive button with confirmation AlertDialog |
-| `EntityMark` | Server/Client | `brand: EntityBrand`, `variant?: "wordmark" \| "tile"`, `size?: xs–xl`, `round?` | A channel's, label's or artist's mark: uploaded logo, else the generated wordmark (name in its brand font + colour) or monogram tile (Shortname / initials). Replaces `EntityBadge` on cards and detail headers |
+| `EntityMark` | Server/Client | `brand: EntityBrand`, `variant?: "wordmark" \| "tile"`, `size?: xs–xl`, `round?` | A channel's, label's or artist's mark: uploaded logo, else the generated wordmark (name in its brand font + colour) or monogram tile (Shortname / initials). `brand.kind === "label"` (via `labelBrandOf()`) makes the tile round with a solid frame in the brand colour, to tell a label from its channel. Replaces `EntityBadge` on cards and detail headers |
 | `EntityTabBar` | Server | `tabs`, `active`, `basePath` | Pill tab bar of link tabs (`?tab=`) for channel/label/artist pages; counts and an attention dot |
 | `StarRating` | Client | `initialRating`, `onRate` (bound action), `noun` | Five stars, optimistic, click current to clear |
 | `MarkdownNoteCard` | Client | `title`, `icon`, `initialText`, `onSave`, `emptyHint` | Markdown text card with inline editor (no images, links as text) |

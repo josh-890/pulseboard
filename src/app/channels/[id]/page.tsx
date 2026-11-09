@@ -9,7 +9,7 @@ import {
 } from "@/lib/services/channel-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
-import { brandOf } from "@/lib/services/brand-of";
+import { brandOf, labelBrandOf } from "@/lib/services/brand-of";
 import { EditChannelSheet } from "@/components/channels/edit-channel-sheet";
 import { DeleteButton } from "@/components/shared/delete-button";
 import { deleteChannel, setChannelTextAction } from "@/lib/actions/channel-actions";
@@ -115,7 +115,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
         <ChannelHero
           channel={channel}
           brand={brand}
-          label={channel.label ? { id: channel.label.id, name: channel.label.name, brand: brandOf(channel.label) } : null}
+          label={channel.label ? { id: channel.label.id, name: channel.label.name, brand: labelBrandOf(channel.label) } : null}
           stats={stats}
         />
 
@@ -177,7 +177,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
         {tab === "models" && models && (
           <ChannelModels
             models={models}
-            filter={sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+            filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
             limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
             basePath={`/channels/${channel.id}?tab=models`}
           />
