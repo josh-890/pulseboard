@@ -188,10 +188,21 @@ export async function getPersonHint(icgId: string | null): Promise<PersonHint | 
     where: { icgId, kind: 'person', goneAt: null, hint: { not: Prisma.DbNull } },
     select: { hint: true },
   })
+  const imported = (await importedDates([icgId])).get(icgId)
   const hint = asHint(f?.hint ?? null)
-  if (!hint) return null
   // Imported since by hand (an upload of that file or a newer one): done
-  return stillNewer(hint, (await importedDates([icgId])).get(icgId)) ? hint : null
+  if (hint) return stillNewer(hint, imported) ? hint : null
+  if (imported) return null
+  // Never imported though her file is stored — a Person added straight from a
+  // Contact (2026-11-09, Kitri): her folder stays kind 'contact' until the
+  // catalogue changes, so no hint is ever worked out for it
+  const file = await prisma.catalogueFolder.findFirst({
+    where: { icgId, goneAt: null, fileKey: { not: null }, newestFile: { not: null } },
+    orderBy: [{ newestDate: { sort: 'desc', nulls: 'last' } }, { updatedAt: 'desc' }],
+    select: { newestFile: true },
+  })
+  if (!file?.newestFile) return null
+  return { fileDate: parseFilename(file.newestFile).extractionDate, importedDate: null, newSets: 0, changedValues: 0 }
 }
 
 export type PersonHintRow = PersonHint & { personId: string; name: string; icgId: string }

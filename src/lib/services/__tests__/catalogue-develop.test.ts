@@ -20,6 +20,7 @@ import {
 import { adoptPortraitAsHeadshot, contactCarryOver } from "@/lib/services/contact-service";
 import { createPersonRecord, deletePersonRecord } from "@/lib/services/person-service";
 import { getHeadshotsForPersons } from "@/lib/services/media-service";
+import { getContactsPage } from "@/lib/services/relationship-service";
 
 // ADR-0038 S6 on the DEV database and MinIO: Develop reads the stored catalogue
 // file instead of an upload; a developed Person's newer file is a hint only.
@@ -80,6 +81,14 @@ describe("Develop a Contact", () => {
     expect(await contactCarryOver(icg)).toEqual({ name: "Dora (mine)", portraitKey: null });
   });
 
+  it("the Contacts list knows whose file is stored — that row offers Develop, not a bare Add as Person", async () => {
+    const { icg } = await storeFolder("LLL", "Lia L", "DEV-TEST-4");
+    await prisma.contact.create({ data: { icgId: icg, name: "Lia L", nameNorm: normalizeForSearch("Lia L") } });
+    await prisma.contact.create({ data: { icgId: ICG("LLM"), name: "Lia M", nameNorm: normalizeForSearch("Lia M") } });
+    const { rows } = await getContactsPage({ q: "ZZ-92@LL" });
+    expect(Object.fromEntries(rows.map((r) => [r.icgId, r.hasCatalogueFile]))).toEqual({ [icg]: true, [ICG("LLM")]: false });
+  });
+
   it("is refused without a stored file or when she is a Person already", async () => {
     const bare = await prisma.contact.create({ data: { icgId: ICG("BBB"), name: "Bare" } });
     await expect(developContact(bare.id)).rejects.toThrow(DevelopRefused);
@@ -121,5 +130,16 @@ describe("the Person hint", () => {
     // A file not newer than what you imported brings no hint (your own corrections are not "changes")
     const same = await workOutPersonHint(icg, { name: `2026-02-22_Cara_C_(${icg})`, content: fileOf(icg, "Cara C", "DEV-TEST-2") });
     expect(same).toBeNull();
+  });
+
+  it("a Person added straight from a Contact, her file never imported, gets the hint too (Kitri, 2026-11-09)", async () => {
+    // Her folder stays kind 'contact' — no hint is worked out for it
+    const { icg } = await storeFolder("KKK", "Kia K", "DEV-TEST-3");
+    const person = await createPersonRecord({ icgId: icg, idOrigin: "external", commonName: "Kia K", status: "active", birthdatePrecision: "UNKNOWN", birthdateModifier: "EXACT" });
+
+    expect(await getPersonHint(icg)).toEqual({ fileDate: "2026-02-22", importedDate: null, newSets: 0, changedValues: 0 });
+    const { batchId } = await reviewNewerFile(person.id);
+    expect(await prisma.importBatch.findUniqueOrThrow({ where: { id: batchId } })).toMatchObject({ subjectIcgId: icg });
+    expect(await getPersonHint(icg)).toBeNull();
   });
 });

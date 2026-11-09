@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { UserPlus, EyeOff, Eye, Unlock, Loader2 } from "lucide-react";
+import { UserPlus, EyeOff, Eye, Unlock, Loader2, FileInput } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ContactLinkPicker } from "@/components/people/contact-link-picker";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import type { ContactRow } from "@/lib/services/relationship-service";
 import {
   addPersonFromContactAction,
+  developContactAction,
   linkContactAction,
   ignoreContactAction,
   loadMoreContactsAction,
@@ -132,6 +133,21 @@ function ContactRowItem({ row }: { row: ContactRow }) {
     });
   }
 
+  // Her catalogue file is stored: the full import, reviewed as usual (as on her page)
+  function handleDevelop() {
+    startTransition(async () => {
+      const res = await developContactAction(row.id);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      toast.success(
+        `Import of ${row.name} ready to review${res.coversWanted ? ` — ${res.coversWanted} covers on the way from the catalogue` : ""}`,
+      );
+      router.push(`/import/${res.batchId}`);
+    });
+  }
+
   function handleLink(personId: string) {
     startTransition(async () => {
       const res = await linkContactAction(row.id, personId);
@@ -222,7 +238,19 @@ function ContactRowItem({ row }: { row: ContactRow }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5">
-        {row.icgId && (
+        {row.icgId && row.hasCatalogueFile && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={handleDevelop}
+            disabled={isPending}
+            title="The full import from her newest catalogue file — you review it as usual"
+          >
+            <FileInput size={13} /> Develop
+          </Button>
+        )}
+        {row.icgId && !row.hasCatalogueFile && (
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={handleAdd} disabled={isPending}>
             <UserPlus size={13} /> Add as Person
           </Button>

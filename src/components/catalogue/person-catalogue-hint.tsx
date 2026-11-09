@@ -15,7 +15,7 @@ type PersonCatalogueHintProps = {
 
 const plural = (n: number, one: string, many: string) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
 
-/** A newer catalogue file for a developed Person — hint only; Review opens the import review (ADR-0009) */
+/** A newer (or never imported) catalogue file for a developed Person — hint only; Review opens the import review (ADR-0009) */
 export function PersonCatalogueHint({ personId, hint }: PersonCatalogueHintProps) {
   const router = useRouter();
   const [isPending, start] = useTransition();
@@ -29,13 +29,21 @@ export function PersonCatalogueHint({ personId, hint }: PersonCatalogueHintProps
       role="status"
       className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/40 bg-sky-500/10 px-4 py-2.5"
     >
-      <p className="text-sm text-sky-700 dark:text-sky-200">
-        <span className="font-medium">Newer catalogue file{hint.fileDate && ` (${hint.fileDate})`}:</span>{" "}
-        {brings.join(", ")}
-        <span className="text-xs text-sky-700/80 dark:text-sky-200/70">
-          {hint.importedDate ? ` · you imported the one from ${hint.importedDate}` : " · never imported from a file"}
-        </span>
-      </p>
+      {brings.length > 0 ? (
+        <p className="text-sm text-sky-700 dark:text-sky-200">
+          <span className="font-medium">Newer catalogue file{hint.fileDate && ` (${hint.fileDate})`}:</span>{" "}
+          {brings.join(", ")}
+          <span className="text-xs text-sky-700/80 dark:text-sky-200/70">
+            {hint.importedDate ? ` · you imported the one from ${hint.importedDate}` : " · never imported from a file"}
+          </span>
+        </p>
+      ) : (
+        // Added as a Person without her file — nothing of it is in yet
+        <p className="text-sm text-sky-700 dark:text-sky-200">
+          <span className="font-medium">Her catalogue file{hint.fileDate && ` (${hint.fileDate})`} was never imported</span>
+          <span className="text-xs text-sky-700/80 dark:text-sky-200/70"> · profile, aliases and sets are waiting in it</span>
+        </p>
+      )}
       <Button
         size="sm"
         variant="outline"

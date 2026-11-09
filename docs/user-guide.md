@@ -155,11 +155,13 @@ already means the per-person Reference Session.)
   contact is the **only** participant not yet a Person — i.e. adding them lets you promote that
   many sets immediately. (Other sorts: Most mentioned, Name A–Z.)
 - **Resolve a contact:**
-  - **Develop** (on her page, when a catalogue run stored her file) — the full import of her newest
-    catalogue file, no upload; you review it as usual (see *Developing a Contact* below).
+  - **Develop** (in the list and on her page, when a catalogue run stored her file) — the full import
+    of her newest catalogue file, no upload; you review it as usual (see *Developing a Contact* below).
   - **Add as Person** — when no catalogue file is stored: creates a real Person from the contact
     (prefilled by ICG-ID); the contact is then absorbed automatically and any recorded links repoint
-    to the new person. (Only available when the contact has an ICG-ID.)
+    to the new person. (Only available when the contact has an ICG-ID.) A Person added this way while
+    her file *was* stored (before the list offered Develop) shows a blue **"Her catalogue file was
+    never imported"** note on her page — **Review** runs that import now.
   - **Link…** — attach the contact to an **existing** person (for a name-only contact, or
     when the contact is really someone you already have).
   - **Ignore** — hide a contact you don't intend to add (reversible via **Show ignored** → Restore).

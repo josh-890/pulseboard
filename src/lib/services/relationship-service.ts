@@ -319,6 +319,8 @@ export type ContactRow = {
   // not-yet-curated participant — adding it unlocks that many sets for promotion.
   unlocksSetCount: number;
   subjects: string[]; // sample of subjects who mention this person
+  /** Her catalogue file is stored — the row offers Develop (the full import), not a bare Add as Person */
+  hasCatalogueFile: boolean;
 };
 
 // Map icgId → number of APPROVED, CONFIRMED-archive-linked staging sets where
@@ -393,9 +395,10 @@ function buildContactRow(r: ContactWithCounts, unlock: number): ContactRow {
     relationshipCount: r._count.relationshipsTo,
     mentionCount: r._count.claims + r._count.relationshipsTo,
     archiveFolderCount: r._count.attributions,
-    // A portrait the user chose wins; else withCatalogueAvatars fills it in.
+    // A portrait the user chose wins; else withCatalogueFacts fills it in.
     avatarUrl: r.portraitKey ? buildUrl(r.portraitKey) : null,
     unlocksSetCount: unlock,
+    hasCatalogueFile: false, // withCatalogueFacts fills it in
     subjects: r.claims.map((c) => c.subjectPerson.aliases[0]?.name).filter((n): n is string => !!n),
   };
 }
@@ -430,31 +433,42 @@ function contactSearchWhere(q?: string, includeIgnored?: boolean) {
 
 
 /**
- * Give each contact a face from the catalogue portraits.
+ * Give each contact a face from the catalogue portraits, and say whether her
+ * catalogue file is stored.
  *
  * The only source: `Contact.thumbUrl` points at the source site and is
  * hotlink-protected, so it cannot render in a browser at all. Our own portraits
  * cover 1,378 of 1,383 contacts; the remaining five fall back to initials, which
  * is honest — we have no picture of them.
  *
- * Batched per page: one query for the whole list, not one per row.
+ * Batched per page: two queries for the whole list, not one per row.
  */
-async function withCatalogueAvatars(rows: ContactRow[]): Promise<ContactRow[]> {
+async function withCatalogueFacts(rows: ContactRow[]): Promise<ContactRow[]> {
+  const icgIds = rows.map((r) => r.icgId).filter((v): v is string => !!v);
+  if (icgIds.length === 0) return rows;
   const missing = rows.filter((r) => !r.avatarUrl && r.icgId).map((r) => r.icgId!);
-  if (missing.length === 0) return rows;
 
-  const portraits = await prisma.catalogueAvatar.findMany({
-    where: { icgId: { in: missing }, key: { not: null } },
-    select: { icgId: true, key: true },
-  });
-  if (portraits.length === 0) return rows;
-
+  const [portraits, files] = await Promise.all([
+    missing.length
+      ? prisma.catalogueAvatar.findMany({
+          where: { icgId: { in: missing }, key: { not: null } },
+          select: { icgId: true, key: true },
+        })
+      : [],
+    // Same test as hasCatalogueFile — a Contact with a stored file is developed
+    // through the import (2026-11-09: "Add as Person" here made an empty Person)
+    prisma.catalogueFolder.findMany({
+      where: { icgId: { in: icgIds }, goneAt: null, fileKey: { not: null }, newestFile: { not: null } },
+      select: { icgId: true },
+    }),
+  ]);
   const byIcg = new Map(portraits.map((p) => [p.icgId, p.key!]));
-  return rows.map((r) =>
-    r.avatarUrl || !r.icgId || !byIcg.has(r.icgId)
-      ? r
-      : { ...r, avatarUrl: buildUrl(byIcg.get(r.icgId)!) },
-  );
+  const withFile = new Set(files.map((f) => f.icgId));
+  return rows.map((r) => ({
+    ...r,
+    avatarUrl: r.avatarUrl ?? (r.icgId && byIcg.has(r.icgId) ? buildUrl(byIcg.get(r.icgId)!) : null),
+    hasCatalogueFile: !!r.icgId && withFile.has(r.icgId),
+  }));
 }
 
 // Priority head: contacts that unlock ≥1 approved+archive set, ranked by impact.
@@ -467,7 +481,7 @@ export async function getUnlockingContacts(opts: { q?: string; includeIgnored?: 
     include: contactInclude,
   });
   const taken = await takenIcgIdSet(refs);
-  return (await withCatalogueAvatars(
+  return (await withCatalogueFacts(
     refs
       .filter((r) => !(r.icgId && taken.has(r.icgId)))
       .map((r) => buildContactRow(r, r.icgId ? (unlock.get(r.icgId) ?? 0) : 0)),
@@ -510,7 +524,7 @@ export async function getContactsPage(opts: {
   const hasMore = refs.length > limit;
   const pageRefs = hasMore ? refs.slice(0, limit) : refs;
   const taken = await takenIcgIdSet(pageRefs);
-  const rows = await withCatalogueAvatars(
+  const rows = await withCatalogueFacts(
     pageRefs.filter((r) => !(r.icgId && taken.has(r.icgId))).map((r) => buildContactRow(r, 0)),
   );
   return { rows, nextOffset: hasMore ? offset + limit : null, total };
