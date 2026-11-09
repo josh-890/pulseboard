@@ -391,6 +391,7 @@ persisted in `localStorage`).
 **`activity-service.ts`** — Activity feed queries
 **`setting-service.ts`** — App settings (key/value; hero backdrop)
 **`cascade-helpers.ts`** — Transaction-based cascade delete helpers (`TxClient` type)
+**`lib/stall-monitor.ts`** (2026-11-09) — finds why a click sometimes hangs, by logging to the server output only when something is slow (`docker logs … | grep '\[stall\]'`): event-loop blocks > 500 ms (the app process was busy), pool waits > 1 s (`db.ts` builds each tenant's `pg.Pool` itself and `watchPool()`s it; pg default max 10), queries > 1 s (Prisma `query` events — judged a tick later with overlapping event-loop block time taken out, so a block isn't blamed on every query in flight), and `stepTimer()` for a user action's steps (the archive folder link). On in the Next.js server in production only; `STALL_MONITOR=1` turns it on in dev. Silent in scripts, agents and tests
 **`database-maintenance-service.ts`** — Orphan cleanup, duplicate detection, view refresh, `auditChannelDuplicates()` (read-only: names identical once separators and case are ignored — `Channel.nameNorm` keeps spaces and has no unique constraint, so "TeamSkeet" exists twice under codes TMSK/TSKT; plus channels sharing an archive folder, which is legitimate for ATK-ATK's five publications and listed to tell the cases apart), `auditIcgIdOrigins()` (ADR-0026 — read-only: external/self split, IDs matching neither shape, contacts carrying the reserved marker), `auditCatalogueAvatars()` (portrait coverage + the files the agent could not decode), `checkUndefinedArchiveChannels()` (read-only: archive short codes with no Channel behind them, plus channels missing a short code or an owning Label — all three make the join's cross-label guard fail open)
 
 ---
@@ -798,16 +799,15 @@ GalleryInfoPanel → FocalPointSection (click on thumbnail)
 ### Confirming an Archive Folder Link
 
 ```
-StagingSetRow — user clicks "Confirm" on HIGH/MEDIUM suggestion
-  → confirmArchiveFolderLinkAction(folderId, stagingSetId, 'staging')
+ArchiveFolderPicker (Link folder side panel) / StagingSetRow "Confirm" on a suggestion
+  → confirmArchiveFolderLinkAction(folderId, targetId, 'staging' | 'set')   // stepTimer logs the steps if > 1 s
   → confirmArchiveFolderLink() service:
-    1. Read ArchiveFolder.archiveKey (always present — generated at scan time)
-    2. prisma.stagingSet.update({ archiveKey: key })    // propagate folder key to staging set
-    3. prisma.archiveFolder.update({ linkedStagingId, suggestedStagingId: null, suggestedConfidence: null })
-    4. propagate archivePath to StagingSet
-  → onArchiveFolderLinked() — updates SetCoherenceSnapshot
-  → revalidatePath('/archive', '/import', '/sets')
-  → Row re-renders with green dot + folder name strip
+    1. read the ArchiveFolder (path, video, file count, tenant)
+    2. staging target already PROMOTED → link its promoted Set instead
+    3. backfill relativePath from the archive roots when the scan left it null
+    4. archiveLink.upsert({ archiveFolderId }) → CONFIRMED, path/status fields from the folder
+  → revalidatePath('/archive', '/import', '/staging-sets', '/sets', '/shopping-list'[, '/sets/<id>'])
+  → picker closes, onSuccess() refreshes the row
 ```
 
 ### Archive Folder Move Detection via Sidecar

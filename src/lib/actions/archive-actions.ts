@@ -2,6 +2,7 @@
 
 import { withTenantFromHeaders, getCurrentTenantId } from '@/lib/tenant-context'
 import { revalidatePath } from 'next/cache'
+import { stepTimer } from '@/lib/stall-monitor'
 import { prisma } from '@/lib/db'
 import {
   toggleStagingSetMediaQueue,
@@ -164,9 +165,12 @@ export async function confirmArchiveFolderLinkAction(
   setId: string,
   type: 'set' | 'staging',
 ): Promise<SimpleActionResult> {
+  // Sometimes this click hangs and then goes through — log where the time went
+  const timer = stepTimer(`link folder ${folderId} → ${type} ${setId}`)
   return withTenantFromHeaders(async () => {
     try {
-      await confirmArchiveFolderLink(folderId, setId, type)
+      timer.step('tenant')
+      await confirmArchiveFolderLink(folderId, setId, type, timer.step)
       revalidatePath('/archive')
       revalidatePath('/import')
       revalidatePath('/staging-sets')
@@ -175,6 +179,8 @@ export async function confirmArchiveFolderLinkAction(
       if (type === 'set') {
         revalidatePath(`/sets/${setId}`)
       }
+      timer.step('revalidate')
+      timer.done()
       return { success: true }
     } catch (err) {
       console.error('[archive-actions] Failed to confirm link', err)

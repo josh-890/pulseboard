@@ -1,5 +1,7 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
+import { reportSlowQuery, watchPool } from "./stall-monitor";
 import { getCurrentTenantId } from "./tenant-context";
 import { getTenantConfig } from "./tenants";
 
@@ -12,8 +14,11 @@ function getClientForTenant(tenantId: string): PrismaClient {
   if (existing) return existing;
 
   const config = getTenantConfig(tenantId);
-  const adapter = new PrismaPg({ connectionString: config.databaseUrl });
-  const client = new PrismaClient({ adapter });
+  // Our own pg Pool (same defaults PrismaPg would use) so the stall monitor can see queries waiting for a connection
+  const pool = new Pool({ connectionString: config.databaseUrl });
+  watchPool(tenantId, pool);
+  const client = new PrismaClient({ adapter: new PrismaPg(pool), log: [{ emit: "event", level: "query" }] });
+  client.$on("query", (e) => reportSlowQuery(tenantId, e.duration, e.query));
   clientPool.set(tenantId, client);
   return client;
 }

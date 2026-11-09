@@ -3451,12 +3451,15 @@ export async function confirmArchiveFolderLink(
   folderId: string,
   targetId: string,
   type: 'set' | 'staging',
+  /** Marks each step's end, for the caller's timing log */
+  step: (name: string) => void = () => {},
 ): Promise<void> {
   const folder = await prisma.archiveFolder.findUnique({
     where: { id: folderId },
     select: { relativePath: true, fullPath: true, isVideo: true, fileCount: true, videoPresent: true, missingOnDisk: true, tenant: true },
   })
   if (!folder) throw new Error('Archive folder not found')
+  step('folder')
 
   let confirmedSetId: string | null = null
   let confirmedStagingId: string | null = null
@@ -3476,6 +3479,7 @@ export async function confirmArchiveFolderLink(
   } else {
     confirmedSetId = targetId
   }
+  step('target')
 
   // Backfill relativePath if the scanner didn't compute it (scan pass leaves
   // relativePath null; only the matcher pass strips known roots — see the
@@ -3521,6 +3525,7 @@ export async function confirmArchiveFolderLink(
       ...archiveFields,
     },
   })
+  step('upsert')
 }
 
 // ─── Suggestion lookup for Set detail page ──────────────────────────────────
