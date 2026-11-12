@@ -10,8 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { NavLink } from "./nav-link";
-import { navItems } from "./nav-items";
+import { NavSections } from "./nav-sections";
 
 export function MobileDrawer() {
   const [open, setOpen] = useState(false);
@@ -32,14 +31,11 @@ export function MobileDrawer() {
         <SheetHeader>
           <SheetTitle className="text-xl font-bold">Pulseboard</SheetTitle>
         </SheetHeader>
-        <nav className="flex flex-col gap-1 overflow-y-auto px-3 pt-4">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.href}
-              {...item}
-              onClick={() => setOpen(false)}
-            />
-          ))}
+        <nav aria-label="Main" className="flex flex-1 flex-col overflow-y-auto px-3 pb-4 pt-2">
+          <NavSections part="main" onNavigate={() => setOpen(false)} />
+        </nav>
+        <nav aria-label="System" className="border-t border-foreground/15 px-3 py-3">
+          <NavSections part="bottom" onNavigate={() => setOpen(false)} />
         </nav>
       </SheetContent>
     </Sheet>

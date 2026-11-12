@@ -8,7 +8,16 @@ Pulseboard is a personal information management tool for tracking people in art/
 
 The app uses a fixed layout so navigation is always within reach, no matter how far you scroll:
 
-- **Sidebar** (left) — always visible; lists every section. Collapse it to icons with the chevron tab on its edge. If the list is taller than the window, it scrolls on its own.
+- **Sidebar** (left) — always visible, grouped by what you do:
+  - **Dashboard** on top;
+  - **Library** — People, Sets, Sessions;
+  - **Makers** — Channels, Labels, Artists, Projects;
+  - **Curate** — Favorites, Collections, Tags, Atlas;
+  - **Discover** — Contacts, Watchlist, Shopping List;
+  - **Pipeline** — Import, Staging Sets, Archive;
+  - **Maintenance** and **Settings** pinned to the foot of the sidebar, with **Sign out** as the small icon beside them.
+
+  Each group has a heading with a line running out to the edge. Collapse it to icons with the chevron tab on its edge — the groups are then split by thin lines. If the list is taller than the window, it scrolls on its own. On a phone the menu button opens the same groups.
 - **Top bar** — always visible; shows the name of the section you're in (e.g. "People", "Sets"). On phones/tablets it also holds the **menu (☰)** button that opens the navigation drawer.
 - **Filter toolbar** — on list pages (People, Sets, Sessions, …) the search/filter/sort bar **sticks to the top** as you scroll, so you can refine the list at any time. Section headers (when grouping is on) stick just beneath it.
 - **Back to top** — a round ↑ button appears at the bottom-right once you've scrolled down; click it to jump back to the top.

@@ -499,7 +499,7 @@ All actions in `src/lib/actions/`. Each validates input with Zod, calls services
 
 ```
 components/
-├── layout/           # AppShell, Sidebar, TopBar, MobileDrawer, BackToTop, nav-items (shared nav list + getSectionLabel), providers (theme, palette, density, hero, sidebar)
+├── layout/           # AppShell, Sidebar, TopBar, MobileDrawer, BackToTop, nav-items (shared nav sections + getSectionLabel), NavSections, providers (theme, palette, density, hero, sidebar)
 ├── dashboard/        # KpiGrid, KpiCard, ActivityFeed, QuickActions
 ├── gallery/          # GalleryLightbox (+ LightboxToolbar: LightboxOriginLink, LightboxMarkLadder, LightboxTagPill, LightboxMoreMenu, LightboxToolbarButton; LightboxShortcutsSheet; keys in lightbox-shortcuts.ts), GalleryInfoPanel, GalleryFilmstrip, JustifiedGrid, CarouselHeader, PeopleFilterBar, GroupSelectToggle, BulkPeopleShownControl
 ├── media/            # MediaManager, MediaGrid, BatchUploadZone, DuplicateReviewDialog
@@ -527,7 +527,7 @@ Invariants:
 - The window does **not** scroll (`window.scrollY` is always 0). Use `getAppScrollEl()` (`lib/scroll-container.ts`) for any scroll read/write. Browse scroll-restoration (`person-list`, `set-grid`, `session-grid`) and the career year-jump all target the container's `scrollTop`.
 - Because `<main>` is the scroll container, it is the containing block for `position: sticky` descendants. `BrowserToolbar` is `sticky top-0` and publishes its measured height to the `--toolbar-h` CSS var (ResizeObserver); nested sticky headers (`GroupHeader` level 1, career year headers) offset beneath it via `top-[var(--toolbar-h,0px)]`.
 - `BackToTop` is rendered once in the shell, watches `#app-scroll`, and fades in past 600px.
-- Nav items live in one place (`layout/nav-items.tsx`) consumed by `Sidebar`, `MobileDrawer`, and `TopBar` — do not redeclare them.
+- Nav items live in one place (`layout/nav-items.tsx`) consumed by `Sidebar`, `MobileDrawer`, and `TopBar` — do not redeclare them. Since 2026-11-12 they are `navSections` (grouped by job: Dashboard · Library · Makers · Curate · Discover · Pipeline; the `pin: "bottom"` section — Maintenance, Settings — sits in the sidebar's foot beside the sign-out icon, outside the scrolling list); `navItems` is the flat list derived from it (active state, `getSectionLabel`). `NavSections part="main"|"bottom"` renders the groups for both the sidebar and the drawer — headed groups (`role=group`, labelled by the heading), thin dividers on the collapsed icon rail.
 
 ### Key Component Relationships
 

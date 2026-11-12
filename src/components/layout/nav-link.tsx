@@ -65,7 +65,7 @@ export function NavLink({ href, resolveHref, icon, label, collapsed, onClick }: 
       onClick={handleClick}
       title={collapsed ? label : undefined}
       className={cn(
-        "flex items-center rounded-xl py-2 transition-all duration-200",
+        "flex items-center rounded-xl py-1.5 transition-all duration-200",
         collapsed ? "justify-center px-2" : "gap-3 px-3",
         isActive
           ? activeClass
