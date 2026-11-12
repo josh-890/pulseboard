@@ -5,6 +5,7 @@ import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { GalleryItem } from '@/lib/types'
 import { MediaPickerShell, type PickerItem } from '@/components/media/media-picker-shell'
+import { getCategoryUseMarksAction } from '@/lib/actions/media-actions'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -13,6 +14,8 @@ type CrossSessionPickerProps = {
   onSelect: (item: GalleryItem) => void
   onClose: () => void
   title?: string
+  /** Mark photos already used in this detail category ("In this category" / "Aligned here"). */
+  usedIn?: { categoryId: string; mode: 'copy' | 'align' }
 }
 
 type SessionSummary = {
@@ -55,7 +58,9 @@ export function CrossSessionPicker({
   onSelect,
   onClose,
   title = 'Select photo',
+  usedIn,
 }: CrossSessionPickerProps) {
+  const [marks, setMarks] = useState<Record<string, ('copy' | 'aligned')[]>>({})
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -119,9 +124,35 @@ export function CrossSessionPicker({
     [sessions],
   )
 
+  // Which loaded photos are already in (or aligned into) the target category.
+  const usedCategoryId = usedIn?.categoryId
+  useEffect(() => {
+    if (!usedCategoryId) return
+    const unknown = state.items.map((i) => i.id).filter((id) => !(id in marks))
+    if (unknown.length === 0) return
+    let live = true
+    getCategoryUseMarksAction(personId, usedCategoryId, unknown).then((found) => {
+      if (!live) return
+      setMarks((prev) => {
+        const next = { ...prev }
+        for (const id of unknown) next[id] = found[id] ?? []
+        return next
+      })
+    })
+    return () => { live = false }
+  }, [state.items, personId, usedCategoryId, marks])
+
   const pickerItems = useMemo(
-    () => state.items.map((it) => toPickerItem(it, refBySession.get(it.sessionId ?? '') ?? false)),
-    [state.items, refBySession],
+    () =>
+      state.items.map((it) => {
+        const item = toPickerItem(it, refBySession.get(it.sessionId ?? '') ?? false)
+        const kinds = marks[it.id] ?? []
+        if (usedIn?.mode === 'align' && kinds.includes('aligned')) item.usedLabel = 'Aligned here'
+        else if (kinds.includes('copy')) item.usedLabel = 'In this category'
+        else if (kinds.includes('aligned')) item.usedLabel = 'Aligned here'
+        return item
+      }),
+    [state.items, refBySession, marks, usedIn?.mode],
   )
 
   const handleConfirmOne = useCallback(

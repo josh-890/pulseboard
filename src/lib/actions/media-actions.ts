@@ -23,6 +23,13 @@ import {
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { setMediaFavorite } from "@/lib/services/media-mark-service";
 import type { PersonMediaLinkUpdate } from "@/lib/services/media-service";
+import {
+  assignImageToDetailCategory,
+  getCategoryUseMarks,
+  getDetailDuplicates,
+  type AssignToDetailResult,
+  type DetailDuplicateGroup,
+} from "@/lib/services/detail-use-service";
 import type { PersonMediaUsage, SimpleActionResult } from "@/lib/types";
 
 export async function updatePersonMediaLinkAction(
@@ -485,16 +492,6 @@ export async function copyMediaItemToReferenceAction(
 // needed), then creates the DETAIL link on the copy. If the source is ALREADY in
 // the person's reference session, links it directly (the only case a MOVE can
 // occur, given @@unique([personId, mediaItemId, usage])).
-export type AssignToDetailResult =
-  | {
-      success: true;
-      assignedMediaItemId: string;
-      copied: boolean;
-      moved: boolean;
-      movedFromCategoryId: string | null;
-      personName: string;
-    }
-  | { success: false; error: string };
 
 // Resolve the person's reference session id (creating it if absent) — used by
 // the "Align" path of the assign flow, which needs a destination session.
@@ -515,57 +512,13 @@ export async function assignMediaToDetailCategoryAction(
   sourceMediaItemId: string,
   personId: string,
   categoryId: string,
+  opts: Parameters<typeof assignImageToDetailCategory>[3] = {},
 ): Promise<AssignToDetailResult> {
   return withTenantFromHeaders(async () => {
     try {
-      const person = await prisma.person.findUnique({
-        where: { id: personId },
-        select: {
-          icgId: true,
-          referenceSession: { select: { id: true } },
-          aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
-        },
-      });
-      if (!person) return { success: false, error: "Person not found" };
-      const personName = person.aliases[0]?.name ?? person.icgId;
-
-      const refSessionId = person.referenceSession?.id ?? (await ensureReferenceSession(personId));
-
-      const source = await prisma.mediaItem.findUnique({
-        where: { id: sourceMediaItemId },
-        select: { sessionId: true },
-      });
-      if (!source) return { success: false, error: "Source image not found" };
-
-      let assignedMediaItemId = sourceMediaItemId;
-      let copied = false;
-      if (source.sessionId !== refSessionId) {
-        assignedMediaItemId = await copyMediaToReferenceSession(sourceMediaItemId, refSessionId);
-        copied = true;
-      }
-
-      // Upsert the DETAIL link on the assigned item (copy = always new; direct =
-      // may move an existing assignment to a different category).
-      let moved = false;
-      let movedFromCategoryId: string | null = null;
-      const existing = await prisma.personMediaLink.findFirst({
-        where: { personId, mediaItemId: assignedMediaItemId, usage: "DETAIL" },
-        select: { id: true, categoryId: true },
-      });
-      if (existing) {
-        if (existing.categoryId && existing.categoryId !== categoryId) {
-          moved = true;
-          movedFromCategoryId = existing.categoryId;
-        }
-        await prisma.personMediaLink.update({ where: { id: existing.id }, data: { categoryId } });
-      } else {
-        await prisma.personMediaLink.create({
-          data: { personId, mediaItemId: assignedMediaItemId, usage: "DETAIL", categoryId },
-        });
-      }
-
-      revalidatePath(`/people/${personId}`);
-      return { success: true, assignedMediaItemId, copied, moved, movedFromCategoryId, personName };
+      const res = await assignImageToDetailCategory(sourceMediaItemId, personId, categoryId, opts);
+      if (res.success) revalidatePath(`/people/${personId}`);
+      return res;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";
       return { success: false, error: message };
@@ -825,3 +778,32 @@ export async function swapPersonMediaLinkAction(
   });
 }
 
+
+// Picker badges (2026-11-12): which of these source photos are already a copy in,
+// or aligned into, this person's detail category.
+export async function getCategoryUseMarksAction(
+  personId: string,
+  categoryId: string,
+  sourceMediaItemIds: string[],
+): Promise<Record<string, ("copy" | "aligned")[]>> {
+  return withTenantFromHeaders(async () => {
+    try {
+      return await getCategoryUseMarks(personId, categoryId, sourceMediaItemIds);
+    } catch (err) {
+      console.error("[getCategoryUseMarksAction]", err);
+      return {};
+    }
+  });
+}
+
+// Same file twice or more in one of this person's detail categories (2026-11-12).
+export async function getDetailDuplicatesAction(personId: string): Promise<DetailDuplicateGroup[]> {
+  return withTenantFromHeaders(async () => {
+    try {
+      return await getDetailDuplicates(personId);
+    } catch (err) {
+      console.error("[getDetailDuplicatesAction]", err);
+      return [];
+    }
+  });
+}

@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { GalleryCastMember, MediaItemOrigin } from "@/lib/types/gallery";
 import { LightboxOriginSection } from "./lightbox-origin-section";
+import { LightboxDetailUses } from "./lightbox-detail-uses";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
   setFocalPointAction,
@@ -547,6 +548,9 @@ export function GalleryInfoPanel({
 
   return (
     <div className="space-y-1 p-3 text-sm" onClick={(e) => e.stopPropagation()}>
+      {/* Whose detail categories already hold this photo (outside reference sessions) */}
+      {!referenceContext && <LightboxDetailUses mediaItemId={item.id} />}
+
       {/* Origin — the way back to the set and the people (gathered galleries) */}
       {showOrigin && (
         <>

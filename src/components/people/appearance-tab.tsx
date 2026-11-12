@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { getPersonWithDetails } from "@/lib/services/person-service";
 import type {
   PersonCurrentState,
@@ -30,7 +31,9 @@ import { DetailMediaPickerSheet } from "@/components/people/detail-media-picker-
 import { CrossSessionPicker } from "@/components/media/cross-session-picker";
 import { AnnotationEditor } from "@/components/media/annotation-editor";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, setEntityMediaCoverAction } from "@/lib/actions/media-actions";
+import { linkMediaToDetailCategoryAction, assignMediaToDetailCategoryAction, setEntityMediaCoverAction } from "@/lib/actions/media-actions";
+import type { DetailUse } from "@/lib/services/detail-use-service";
+import { decideDetailUploadDuplicate } from "@/lib/detail-upload-duplicate";
 import type { EntityMediaModel } from "@/lib/services/media-service";
 import type { GalleryItem } from "@/lib/types";
 import {
@@ -212,7 +215,8 @@ export function AppearanceTab({
 
   // Cross-session picker + stage dialog + annotation editor for entity photos
   type EntityPickerContext = { categoryId: string; entityId: string; entityModel: string; entityLabel: string }
-  type StagedEntityPhoto = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; entityLabel: string }
+  // alreadyHere: the same photo is already in this category (2026-11-12).
+  type StagedEntityPhoto = { item: GalleryItem; categoryId: string; entityId: string; entityModel: string; entityLabel: string; alreadyHere: { count: number; thumbUrl: string } | null }
   type AnnotateEntityState = { item: GalleryItem; categoryId?: string; entityId?: string; entityModel?: string; editorMode?: 'arrow' | 'crop'; editingMediaItemId?: string }
   const [entityPicker, setEntityPicker] = useState<EntityPickerContext | null>(null);
   const [stagedEntityPhoto, setStagedEntityPhoto] = useState<StagedEntityPhoto | null>(null);
@@ -466,6 +470,44 @@ export function AppearanceTab({
     [referenceSessionId, categories, findCategoryForEntity],
   );
 
+  // The upload route said "duplicate": don't make a silent second copy (2026-11-12).
+  // Already in this category → warn (with "Add anyway"); an uncategorised copy in
+  // the reference session → link it; otherwise upload as a new copy.
+  const handleEntityUploadDuplicate = useCallback(
+    async (
+      file: File,
+      matches: { mediaItemId: string }[],
+      target: { categoryId: string; entityField: "bodyMarkId" | "bodyModificationId"; entityId: string },
+    ) => {
+      if (!referenceSessionId) return;
+      const uploadAccepted = async () => {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("sessionId", referenceSessionId);
+        fd.append("personId", person.id);
+        fd.append("duplicateAction", "accept");
+        const r = await fetch("/api/media/upload", { method: "POST", body: fd });
+        const j = (await r.json()) as { mediaItem?: { id: string } };
+        if (j.mediaItem?.id) {
+          await linkMediaToDetailCategoryAction(person.id, [j.mediaItem.id], target.categoryId, target.entityField, target.entityId);
+        }
+      };
+      const decision = await decideDetailUploadDuplicate(matches, person.id, target.categoryId);
+      if (decision.kind === "already") {
+        const catName = categories?.find((c) => c.id === target.categoryId)?.name ?? "this category";
+        toast.warning(`${file.name} is already in ${catName} — not added again`, {
+          action: { label: "Add anyway", onClick: () => { void uploadAccepted().then(() => router.refresh()); } },
+        });
+      } else if (decision.kind === "link") {
+        await linkMediaToDetailCategoryAction(person.id, [decision.mediaItemId], target.categoryId, target.entityField, target.entityId);
+        toast.success(`${file.name} was already in the reference session — linked it`);
+      } else {
+        await uploadAccepted();
+      }
+    },
+    [referenceSessionId, person.id, categories, router],
+  );
+
   const handleEntityFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -483,6 +525,12 @@ export function AppearanceTab({
       try {
         const res = await fetch("/api/media/upload", { method: "POST", body: formData });
         const json = await res.json();
+        if (res.ok && json.duplicateFound && !json.mediaItem) {
+          // A duplicate used to end here without a word (2026-11-12).
+          await handleEntityUploadDuplicate(file, json.matches ?? [], target);
+          router.refresh();
+          return;
+        }
         if (!res.ok || !json.mediaItem?.id) return;
 
         // Create DETAIL link with entity FK
@@ -498,7 +546,7 @@ export function AppearanceTab({
         // Upload failed silently — could add toast later
       }
     },
-    [referenceSessionId, person.id, router],
+    [referenceSessionId, person.id, router, handleEntityUploadDuplicate],
   );
 
   const handleEntityDrop = useCallback(
@@ -517,18 +565,12 @@ export function AppearanceTab({
           formData.append("personId", person.id);
 
           try {
-            let res = await fetch("/api/media/upload", { method: "POST", body: formData });
-            let json = await res.json();
+            const res = await fetch("/api/media/upload", { method: "POST", body: formData });
+            const json = await res.json();
 
-            // Auto-accept duplicates
             if (json.duplicateFound && !json.mediaItem) {
-              const retryForm = new FormData();
-              retryForm.append("file", file);
-              retryForm.append("sessionId", referenceSessionId);
-              retryForm.append("personId", person.id);
-              retryForm.append("duplicateAction", "accept");
-              res = await fetch("/api/media/upload", { method: "POST", body: retryForm });
-              json = await res.json();
+              await handleEntityUploadDuplicate(file, json.matches ?? [], { categoryId: cat.id, entityField, entityId });
+              continue;
             }
 
             if (!json.mediaItem?.id) continue;
@@ -546,7 +588,7 @@ export function AppearanceTab({
         }
         router.refresh();
       },
-    [referenceSessionId, categories, findCategoryForEntity, person.id, router],
+    [referenceSessionId, categories, findCategoryForEntity, person.id, router, handleEntityUploadDuplicate],
   );
 
   // Get entities list for the picker dropdown (same entity model)
@@ -585,32 +627,49 @@ export function AppearanceTab({
     if (!entityPicker) return;
     const { categoryId, entityId, entityModel, entityLabel } = entityPicker;
     setEntityPicker(null);
-    setStagedEntityPhoto({ item, categoryId, entityId, entityModel, entityLabel });
-  }, [entityPicker]);
+    setStagedEntityPhoto({ item, categoryId, entityId, entityModel, entityLabel, alreadyHere: null });
+    // Is this photo already in the category? The stage dialog warns if so.
+    fetch(`/api/media/${item.id}/detail-uses?personId=${encodeURIComponent(person.id)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((uses: DetailUse[]) => {
+        const here = uses.filter((u) => u.kind === "copy" && u.categoryId === categoryId);
+        if (here.length === 0) return;
+        setStagedEntityPhoto((prev) =>
+          prev && prev.item.id === item.id && prev.categoryId === categoryId
+            ? { ...prev, alreadyHere: { count: here.length, thumbUrl: here[0].thumbUrl } }
+            : prev,
+        );
+      })
+      .catch(() => {});
+  }, [entityPicker, person.id]);
 
   // Stage dialog: user chose "Save as copy" — copy source photo into reference session then link
   const handleEntityStageSaveCopy = useCallback(async () => {
     if (!stagedEntityPhoto || !referenceSessionId) return;
+    const staged = stagedEntityPhoto;
     setIsStagingCopy(true);
+    let keepOpen = false;
     try {
-      const result = await copyMediaItemToReferenceAction(
-        stagedEntityPhoto.item.id,
-        person.id,
-        referenceSessionId,
-      );
-      if (result.success && result.newMediaItemId) {
-        const entityField = ENTITY_FIELD_MAP[stagedEntityPhoto.entityModel];
-        await linkMediaToDetailCategoryAction(
-          person.id,
-          [result.newMediaItemId],
-          stagedEntityPhoto.categoryId,
-          entityField,
-          stagedEntityPhoto.entityId,
-        );
+      const entityField = ENTITY_FIELD_MAP[staged.entityModel];
+      // Saving after the "already here" warning was shown adds it again on purpose.
+      const result = await assignMediaToDetailCategoryAction(staged.item.id, person.id, staged.categoryId, {
+        force: !!staged.alreadyHere,
+        copyIfLinkedElsewhere: true,
+        ...(entityField ? { entity: { field: entityField, id: staged.entityId } } : {}),
+      });
+      if (result.success) {
         router.refresh();
+      } else if (result.code === "ALREADY_IN_CATEGORY") {
+        keepOpen = true;
+        setStagedEntityPhoto({
+          ...staged,
+          alreadyHere: { count: result.existing.length, thumbUrl: result.existing[0]?.thumbUrl ?? "" },
+        });
+      } else {
+        toast.error(result.error ?? "Failed to save the photo");
       }
     } finally {
-      setStagedEntityPhoto(null);
+      if (!keepOpen) setStagedEntityPhoto(null);
       setIsStagingCopy(false);
     }
   }, [stagedEntityPhoto, referenceSessionId, person.id, router]);
@@ -1076,6 +1135,7 @@ export function AppearanceTab({
           onSelect={handleEntityPickerSelect}
           onClose={() => setEntityPicker(null)}
           title="Select photo from any session"
+          usedIn={{ categoryId: entityPicker.categoryId, mode: "copy" }}
         />
       )}
 
@@ -1095,6 +1155,7 @@ export function AppearanceTab({
           }}
           onCancel={() => setStagedEntityPhoto(null)}
           isSaving={isStagingCopy}
+          alreadyHere={stagedEntityPhoto.alreadyHere}
         />
       )}
 

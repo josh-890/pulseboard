@@ -1,6 +1,6 @@
 'use client'
 
-import { Loader2, Copy, Crop, PenLine, X } from 'lucide-react'
+import { Loader2, Copy, Crop, PenLine, X, AlertTriangle } from 'lucide-react'
 import type { GalleryItem } from '@/lib/types'
 
 type StagePhotoDialogProps = {
@@ -11,6 +11,8 @@ type StagePhotoDialogProps = {
   onAnnotate: () => void
   onCancel: () => void
   isSaving: boolean
+  /** Shown when this photo is already in the target category (Save as copy adds it again). */
+  alreadyHere?: { count: number; thumbUrl: string } | null
 }
 
 export function StagePhotoDialog({
@@ -21,6 +23,7 @@ export function StagePhotoDialog({
   onAnnotate,
   onCancel,
   isSaving,
+  alreadyHere,
 }: StagePhotoDialogProps) {
   const thumbUrl =
     item.urls.gallery_512 ??
@@ -55,6 +58,24 @@ export function StagePhotoDialog({
           />
         )}
 
+        {alreadyHere && (
+          <div
+            role="status"
+            className="mb-4 flex items-center gap-2.5 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2.5 text-xs text-amber-100"
+            data-testid="stage-already-here"
+          >
+            <AlertTriangle size={14} className="shrink-0 text-amber-400" />
+            <span className="flex-1">
+              This photo is already in <strong>{entityLabel}</strong>
+              {alreadyHere.count > 1 ? ` (${alreadyHere.count}×)` : ''}. Saving adds it again.
+            </span>
+            {alreadyHere.thumbUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={alreadyHere.thumbUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+            )}
+          </div>
+        )}
+
         <p className="mb-4 text-xs text-zinc-400">
           Choose how to add this photo to the reference session:
         </p>
@@ -72,7 +93,7 @@ export function StagePhotoDialog({
               <Copy size={15} className="shrink-0 text-indigo-400" />
             )}
             <span>
-              <span className="block font-medium text-zinc-100">Save as copy</span>
+              <span className="block font-medium text-zinc-100">{alreadyHere ? 'Save as copy anyway' : 'Save as copy'}</span>
               <span className="text-zinc-400">Add as-is to reference session</span>
             </span>
           </button>

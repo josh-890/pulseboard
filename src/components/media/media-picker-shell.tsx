@@ -20,6 +20,8 @@ export type PickerItem = {
   caption?: string | null;
   badgeLabel?: string | null;
   badgeHighlight?: boolean;
+  /** Amber chip top-left: this photo is already used for the target (e.g. "In this category"). */
+  usedLabel?: string | null;
   /** Small chips shown top-right (e.g. person names in a set/collection picker). */
   metaBadges?: string[];
   width?: number | null;
@@ -451,6 +453,18 @@ function Tile({
         >
           <Check size={12} />
         </button>
+      )}
+
+      {item.usedLabel && (
+        <span
+          className={cn(
+            "absolute top-1.5 rounded bg-amber-500/90 px-1 py-0.5 text-[9px] font-semibold text-black",
+            selectionMode === "multi" ? "left-8" : "left-1.5",
+          )}
+          data-testid="picker-used-label"
+        >
+          {item.usedLabel}
+        </span>
       )}
 
       {comparing && (

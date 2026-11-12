@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Search, Check, X, Loader2, Frame } from "lucide-react";
+import { Search, Check, X, Loader2, Frame, AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ import {
 import { getAlignmentTemplateForCategoryAction } from "@/lib/actions/motif-template-actions";
 import { MotifAligner } from "@/components/people/motif-aligner";
 import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
+import type { DetailUse } from "@/lib/services/detail-use-service";
 
 export type AssignPerson = { id: string; name: string };
 type CatGroup = {
@@ -58,9 +59,38 @@ export function DetailAssignSheet({
   // Slice 2: align path. When set, swap the dialog for the MotifAligner.
   const [aligner, setAligner] = useState<{ template: MotifTemplateRecord; referenceSessionId: string } | null>(null);
   const [preparingAlign, setPreparingAlign] = useState(false);
+  // Where this photo is already used for the chosen person (2026-11-12).
+  const [uses, setUses] = useState<{ personId: string; items: DetailUse[] } | null>(null);
 
   const selectedCategory = groups.flatMap((g) => g.categories).find((c) => c.id === categoryId) ?? null;
   const isAlignable = !!selectedCategory?.alignmentTemplateId;
+  const currentUses = uses && person && uses.personId === person.id ? uses.items : [];
+  const usesHere = currentUses.filter((u) => u.categoryId === categoryId);
+  const copyHere = usesHere.filter((u) => u.kind === "copy");
+  const alignedHere = usesHere.filter((u) => u.kind === "aligned");
+  const usedCategoryIds = new Set(currentUses.map((u) => u.categoryId).filter((id): id is string => !!id));
+  const usedSummary = [
+    ...new Set(
+      currentUses
+        .filter((u) => u.categoryName)
+        .map((u) => (u.kind === "aligned" ? `${u.categoryName} (aligned)` : (u.categoryName as string))),
+    ),
+  ];
+
+  // Load where this photo is already used once a person is chosen.
+  useEffect(() => {
+    if (!person) return;
+    let live = true;
+    fetch(`/api/media/${mediaItemId}/detail-uses?personId=${encodeURIComponent(person.id)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((items: DetailUse[]) => {
+        if (live) setUses({ personId: person.id, items });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [person, mediaItemId]);
 
   // Categories (grouped) for the picker.
   useEffect(() => {
@@ -88,22 +118,29 @@ export function DetailAssignSheet({
     return () => clearTimeout(handle);
   }, [q, person, restricted]);
 
-  function assign() {
+  function assign(force = false) {
     if (!person || !categoryId) return;
     startTransition(async () => {
-      const res = await assignMediaToDetailCategoryAction(mediaItemId, person.id, categoryId);
+      const res = await assignMediaToDetailCategoryAction(mediaItemId, person.id, categoryId, { force });
+      const catName =
+        groups.flatMap((g) => g.categories).find((c) => c.id === categoryId)?.name ?? "category";
       if (!res.success) {
+        if (res.code === "ALREADY_IN_CATEGORY") {
+          // Someone else added it meanwhile (or the check hadn't loaded): show the warning.
+          setUses({ personId: person.id, items: [...currentUses.filter((u) => u.categoryId !== categoryId), ...res.existing] });
+          toast.warning(`This photo is already in ${catName} — nothing added`);
+          return;
+        }
         toast.error(res.error ?? "Failed to assign");
         return;
       }
-      const catName =
-        groups.flatMap((g) => g.categories).find((c) => c.id === categoryId)?.name ?? "category";
+      const also = res.alsoIn.length > 0 ? ` (also in ${res.alsoIn.join(", ")})` : "";
       if (res.moved) {
         toast.success(`Moved to ${catName} (it was already a detail photo for ${res.personName})`);
       } else if (res.copied) {
-        toast.success(`Copied to ${res.personName} and added to ${catName}`);
+        toast.success(`Copied to ${res.personName} and added to ${catName}${also}`);
       } else {
-        toast.success(`Added to ${res.personName}'s ${catName}`);
+        toast.success(`Added to ${res.personName}'s ${catName}${also}`);
       }
       onOpenChange(false);
     });
@@ -160,6 +197,11 @@ export function DetailAssignSheet({
         </DialogHeader>
 
         <div className="space-y-4 py-1">
+          {usedSummary.length > 0 && person && (
+            <p className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground" data-testid="detail-uses-summary">
+              Already used for {person.name}: <span className="text-foreground">{usedSummary.join(" · ")}</span>
+            </p>
+          )}
           {/* Person */}
           <div>
             <label className="mb-1.5 block text-sm font-medium">Person</label>
@@ -251,6 +293,13 @@ export function DetailAssignSheet({
                         >
                           {categoryId === c.id && <Check size={11} />}
                           {c.name}
+                          {usedCategoryIds.has(c.id) && (
+                            <span
+                              className="ml-0.5 h-1.5 w-1.5 rounded-full bg-amber-400"
+                              title="This photo is already here"
+                              aria-label="already used here"
+                            />
+                          )}
                           {c.alignmentTemplateId && <Frame size={10} className="text-amber-400/70" />}
                         </button>
                       ))}
@@ -264,6 +313,33 @@ export function DetailAssignSheet({
               <Frame size={10} className="mx-0.5 inline text-amber-400/70" /> = alignable (you can align it afterward).
             </p>
           </div>
+
+          {(copyHere.length > 0 || alignedHere.length > 0) && (
+            <div
+              role="status"
+              className="flex items-start gap-2.5 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2.5 text-xs text-amber-100"
+              data-testid="detail-already-here"
+            >
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+              <div className="min-w-0 flex-1 space-y-1">
+                {copyHere.length > 0 && (
+                  <p>
+                    This photo is already in <strong>{selectedCategory?.name}</strong>
+                    {copyHere.length > 1 ? ` (${copyHere.length}×)` : ""}.
+                  </p>
+                )}
+                {alignedHere.length > 0 && (
+                  <p>An alignment of this photo already exists in {selectedCategory?.name}. You can align it again.</p>
+                )}
+              </div>
+              <div className="flex shrink-0 gap-1">
+                {usesHere.slice(0, 3).map((u) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={u.mediaItemId} src={u.thumbUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
@@ -281,9 +357,14 @@ export function DetailAssignSheet({
                 Align
               </Button>
             )}
-            <Button size="sm" disabled={!person || !categoryId || pending} onClick={assign}>
+            <Button
+              size="sm"
+              variant={copyHere.length > 0 ? "outline" : "default"}
+              disabled={!person || !categoryId || pending}
+              onClick={() => assign(copyHere.length > 0)}
+            >
               {pending && <Loader2 size={14} className="mr-1 animate-spin" />}
-              {isAlignable ? "Add as-is" : "Assign"}
+              {copyHere.length > 0 ? "Add again anyway" : isAlignable ? "Add as-is" : "Assign"}
             </Button>
           </div>
         </div>

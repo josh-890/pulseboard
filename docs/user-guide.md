@@ -371,11 +371,21 @@ Per framing you can:
 
 Uploading photos **doesn't auto-fill framings** — framing images are always set explicitly here. Templates (output aspect/size + draggable target keypoints) are defined under **Settings → Catalogs → Motif Templates**; add half/full-body motifs there — no code needed. When editing a template you can drop a **reference photo** behind the keypoint canvas as a visual guide (drag to move, scroll to zoom, rotate + opacity sliders) and place the dots over real anatomy — it's a guide only and never changes the saved geometry. **Pin** it to keep that reference (and its position) for next time.
 
+#### "Already in this category": no more accidental duplicates
+
+Putting a photo into a detail category saves a **copy** of it in the person's reference session. The same photo can sit in several categories (each one gets its own copy), but putting it into the **same** category twice is almost always a mistake. Pulseboard now tells you before it happens:
+
+- **Lightbox, Assign to detail category (<kbd>D</kbd>):** once the person is chosen, a line says where the photo is already used ("Already used for Anna (ABC123): Tattoos · Eyes (aligned)"), and those categories carry an amber dot. If you pick one of them, an amber note shows the existing copy and the button reads **Add again anyway**. Click it only if you really want a second copy.
+- **Lightbox info panel:** outside reference sessions, **Used in details** lists every person whose detail categories already hold this photo, so you can see it while browsing a set.
+- **Details and Appearance tabs, "Select from any session":** photos already in that category carry an amber **In this category** chip in the picker. If you pick one anyway, the *Save photo to reference* dialog warns you and offers **Save as copy anyway**. *Crop first* and *Annotate* make new images, so they don't warn.
+- **Uploading into a category** (drag & drop, the picker's *Upload new photos*, a body feature's upload): if the file is already in that category, nothing is added and a notice offers **Add anyway**. If the file is already in the reference session but not in a category, that existing copy is linked (or selected in the picker) instead of uploading it again.
+- **Duplicates you already have:** on the **Details** tab, a category holding the same file more than once shows an amber **N duplicates** pill. Click it to compare the copies side by side and delete the ones you don't need, **one at a time** (click *Delete copy*, then *Confirm delete*). The last copy can't be deleted there, nor a copy that an aligned image was made from (marked with a frame icon). ★ marks the category's representative.
+
 #### Aligned detail photos & the Atlas
 
 The same template alignment that standardizes Profile framings also works for **detail loci** (eyes, a specific pose, …) so they're **comparable across people**. A framing and a locus are both just **categories** with a bound template. In **Settings → Catalogs → Motif Templates**, bind a template to a **locus category** (e.g. *Eyes*).
 
-Once a category has a template, an **Align** button (frame icon) appears next to that category on a person's **Details** tab. Click it → pick a source photo → the same keypoint aligner opens → **Save to category** bakes an **Aligned image** that lands in that category (marked with an *aligned* badge). Aligned images are derived copies kept in the reference session; they're hidden from the raw photo gallery and source pickers so they don't clutter your originals. You can align as many photos per locus as you like.
+Once a category has a template, an **Align** button (frame icon) appears next to that category on a person's **Details** tab. Click it → pick a source photo → the same keypoint aligner opens → **Save to category** bakes an **Aligned image** that lands in that category (marked with an *aligned* badge). Aligned images are derived copies kept in the reference session; they're hidden from the raw photo gallery and source pickers so they don't clutter your originals. You can align as many photos per locus as you like. If the photo you pick already has an aligned image in that category, the picker tile says **Aligned here** and you're asked **Align again?** first. Aligning again adds another aligned image; the existing one stays.
 
 The **Atlas** (sidebar) is the pay-off: pick a locus and see **every person's aligned image side by side** — automatically comparable because they share the template's framing. Filter the grid by person; click a tile to jump to that person. (This is the *automatic* counterpart to **Collections**, which are hand-curated.)
 
@@ -1603,7 +1613,8 @@ The lightbox opens when clicking any media thumbnail in a gallery. It provides f
 - **Centre — the work on this photo:** the **mark ladder** Outtake ▸ Favorite ▸ Iconic (lowest
   on the left, so climbing fills it from the left — see *Photo marks*), then **organize**:
   add to a collection (<kbd>B</kbd>), tag (<kbd>T</kbd>) with the **painter segment** beside it,
-  assign to a detail category (<kbd>D</kbd>) and the compare tray (<kbd>X</kbd>).
+  assign to a detail category (<kbd>D</kbd>, which warns when the photo is already in that
+  category; see *"Already in this category"*) and the compare tray (<kbd>X</kbd>).
   <kbd>#</kbd> sets the current photo as the cover (no button — the key and the info panel).
   The painter segment shows **P** and the armed tag (dimmed when nothing is armed); click it for the
   painter and the quick-tag slots 1–9.

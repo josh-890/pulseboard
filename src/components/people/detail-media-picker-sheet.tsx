@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { Loader2, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { decideDetailUploadDuplicate } from "@/lib/detail-upload-duplicate";
 import {
   linkMediaToDetailCategoryAction,
   unlinkMediaFromDetailCategoryAction,
@@ -129,8 +131,22 @@ export function DetailMediaPickerSheet({
           let json = (await res.json()) as {
             mediaItem?: { id: string; filename: string; urls: Record<string, string | null> };
             duplicateFound?: boolean;
+            matches?: { mediaItemId: string }[];
           };
           if (json.duplicateFound && !json.mediaItem) {
+            // Same file already in the reference session? It's in this list —
+            // select it instead of uploading a second copy (2026-11-12).
+            const decision = await decideDetailUploadDuplicate(json.matches ?? [], personId, category.id);
+            if (decision.kind === "already") {
+              toast.warning(`${file.name} is already in ${category.name}`);
+              setSelected((prev) => new Set([...prev, decision.mediaItemId]));
+              continue;
+            }
+            if (decision.kind === "link") {
+              toast.success(`${file.name} was already in the reference session — selected it`);
+              setSelected((prev) => new Set([...prev, decision.mediaItemId]));
+              continue;
+            }
             const retryForm = new FormData();
             retryForm.append("file", file);
             retryForm.append("sessionId", referenceSessionId);
@@ -154,7 +170,7 @@ export function DetailMediaPickerSheet({
         setUploading(false);
       }
     },
-    [referenceSessionId, personId],
+    [referenceSessionId, personId, category.id, category.name],
   );
 
   const pickerItems = useMemo(() => items.map(toPickerItem), [items]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -16,7 +16,27 @@ import { getAlignmentTemplateForCategoryAction } from "@/lib/actions/motif-templ
 import type { MotifTemplateRecord } from "@/lib/services/motif-template-service";
 import { StagePhotoDialog } from "@/components/media/stage-photo-dialog";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
-import { linkMediaToDetailCategoryAction, copyMediaItemToReferenceAction, deleteMediaItemsAction, setRepresentativeAction } from "@/lib/actions/media-actions";
+import {
+  linkMediaToDetailCategoryAction,
+  assignMediaToDetailCategoryAction,
+  getCategoryUseMarksAction,
+  getDetailDuplicatesAction,
+  deleteMediaItemsAction,
+  setRepresentativeAction,
+} from "@/lib/actions/media-actions";
+import type { DetailDuplicateGroup, DetailUse } from "@/lib/services/detail-use-service";
+import { DetailDuplicatesDialog } from "@/components/people/detail-duplicates-dialog";
+import { decideDetailUploadDuplicate } from "@/lib/detail-upload-duplicate";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type CategoryCount = {
   categoryId: string;
@@ -91,12 +111,15 @@ export function PersonDetailsTab({
 
   // Cross-session picker + stage dialog + annotation editor state
   type CrossPickerState = { category: CategoryWithGroup }
-  type StagedPhoto = { item: GalleryItem; category: CategoryWithGroup }
+  // alreadyHere: the same photo is already in this category (2026-11-12).
+  type StagedPhoto = { item: GalleryItem; category: CategoryWithGroup; alreadyHere: { count: number; thumbUrl: string } | null }
   type AnnotateState = { item: GalleryItem; category: CategoryWithGroup; editorMode?: 'arrow' | 'crop'; editingMediaItemId?: string }
   const [crossPicker, setCrossPicker] = useState<CrossPickerState | null>(null);
   // Align flow: pick a source photo → fetch the category's template → open the aligner.
   const [alignPicker, setAlignPicker] = useState<CategoryWithGroup | null>(null);
   const [aligner, setAligner] = useState<{ template: MotifTemplateRecord; source: { id: string; url: string }; categoryId: string } | null>(null);
+  // An alignment from this photo already exists in the category — ask before aligning again.
+  const [alignAgain, setAlignAgain] = useState<{ template: MotifTemplateRecord; source: { id: string; url: string }; category: CategoryWithGroup } | null>(null);
   const [stagedPhoto, setStagedPhoto] = useState<StagedPhoto | null>(null);
   const [isStagingCopy, setIsStagingCopy] = useState(false);
   const [annotateState, setAnnotateState] = useState<AnnotateState | null>(null);
@@ -106,6 +129,21 @@ export function PersonDetailsTab({
     items: GalleryItem[];
     initialIndex: number;
   } | null>(null);
+
+  // Same file twice or more in a category (2026-11-12) — the "N duplicates" pill.
+  const [duplicates, setDuplicates] = useState<DetailDuplicateGroup[]>([]);
+  const [duplicatesCategory, setDuplicatesCategory] = useState<CategoryWithGroup | null>(null);
+  const reloadDuplicates = useCallback(() => {
+    getDetailDuplicatesAction(personId).then(setDuplicates).catch(() => {});
+  }, [personId]);
+  useEffect(() => {
+    reloadDuplicates();
+  }, [reloadDuplicates]);
+  const duplicatesByCategory = useMemo(() => {
+    const map = new Map<string, DetailDuplicateGroup[]>();
+    for (const g of duplicates) map.set(g.categoryId, [...(map.get(g.categoryId) ?? []), g]);
+    return map;
+  }, [duplicates]);
 
   const countMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -204,7 +242,8 @@ export function PersonDetailsTab({
       return next;
     });
     router.refresh();
-  }, [router]);
+    reloadDuplicates();
+  }, [router, reloadDuplicates]);
 
   // Mark a photo as the representative for a Profile framing (ADR-0016).
   const handleSetRepresentative = useCallback(async (categoryId: string, mediaItemId: string) => {
@@ -236,39 +275,73 @@ export function PersonDetailsTab({
   // Cross-session picker: user selected a photo → always stage first
   const handleCrossPickerSelect = useCallback((item: GalleryItem) => {
     if (!crossPicker) return;
-    setStagedPhoto({ item, category: crossPicker.category });
+    const category = crossPicker.category;
+    setStagedPhoto({ item, category, alreadyHere: null });
     setCrossPicker(null);
-  }, [crossPicker]);
+    // Is this photo already in the category? The stage dialog warns if so.
+    fetch(`/api/media/${item.id}/detail-uses?personId=${encodeURIComponent(personId)}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((uses: DetailUse[]) => {
+        const here = uses.filter((u) => u.kind === "copy" && u.categoryId === category.id);
+        if (here.length === 0) return;
+        setStagedPhoto((prev) =>
+          prev && prev.item.id === item.id && prev.category.id === category.id
+            ? { ...prev, alreadyHere: { count: here.length, thumbUrl: here[0].thumbUrl } }
+            : prev,
+        );
+      })
+      .catch(() => {});
+  }, [crossPicker, personId]);
 
   // Align picker: user chose a source → fetch the category's bound template, open the aligner.
   const handleAlignSourcePicked = useCallback(async (item: GalleryItem) => {
     if (!alignPicker) return;
     const cat = alignPicker;
     setAlignPicker(null);
-    const template = await getAlignmentTemplateForCategoryAction(cat.id);
+    const [template, marks] = await Promise.all([
+      getAlignmentTemplateForCategoryAction(cat.id),
+      getCategoryUseMarksAction(personId, cat.id, [item.id]),
+    ]);
     if (!template) {
       toast.error(`No alignment template bound to ${cat.name}`);
       return;
     }
-    setAligner({ template, source: { id: item.id, url: item.urls.original }, categoryId: cat.id });
-  }, [alignPicker]);
+    const source = { id: item.id, url: item.urls.original };
+    if (marks[item.id]?.includes("aligned")) {
+      setAlignAgain({ template, source, category: cat });
+      return;
+    }
+    setAligner({ template, source, categoryId: cat.id });
+  }, [alignPicker, personId]);
 
   // Stage dialog: "Save as copy"
   const handleStageSaveCopy = useCallback(async () => {
     if (!stagedPhoto || !referenceSessionId) return;
+    const { item, category, alreadyHere } = stagedPhoto;
     setIsStagingCopy(true);
+    let keepOpen = false;
     try {
-      const result = await copyMediaItemToReferenceAction(
-        stagedPhoto.item.id,
-        personId,
-        referenceSessionId,
-      );
-      if (result.success && result.newMediaItemId) {
-        await linkMediaToDetailCategoryAction(personId, [result.newMediaItemId], stagedPhoto.category.id);
-        refreshCategory(stagedPhoto.category.id);
+      // Saving after the "already here" warning was shown adds it again on purpose.
+      const result = await assignMediaToDetailCategoryAction(item.id, personId, category.id, {
+        force: !!alreadyHere,
+        copyIfLinkedElsewhere: true,
+      });
+      if (result.success) {
+        if (result.alsoIn.length > 0) toast.success(`Added to ${category.name} (also in ${result.alsoIn.join(", ")})`);
+        refreshCategory(category.id);
+      } else if (result.code === "ALREADY_IN_CATEGORY") {
+        // The check hadn't arrived yet — show the warning and let them decide.
+        keepOpen = true;
+        setStagedPhoto({
+          item,
+          category,
+          alreadyHere: { count: result.existing.length, thumbUrl: result.existing[0]?.thumbUrl ?? "" },
+        });
+      } else {
+        toast.error(result.error ?? "Failed to save the photo");
       }
     } finally {
-      setStagedPhoto(null);
+      if (!keepOpen) setStagedPhoto(null);
       setIsStagingCopy(false);
     }
   }, [stagedPhoto, referenceSessionId, personId, refreshCategory]);
@@ -336,48 +409,64 @@ export function PersonDetailsTab({
     async (categoryId: string, files: FileList) => {
       if (!referenceSessionId) return;
 
-      for (const file of Array.from(files)) {
+      const refresh = () => {
+        // Refresh cached media for this category + counts
+        setCategoryMedia((prev) => {
+          const next = new Map(prev);
+          next.delete(categoryId);
+          return next;
+        });
+        router.refresh();
+        reloadDuplicates();
+      };
+      const categoryName = categories.find((c) => c.id === categoryId)?.name ?? "this category";
+      const uploadAndLink = async (file: File, accept: boolean) => {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("sessionId", referenceSessionId);
         formData.append("personId", personId);
+        if (accept) formData.append("duplicateAction", "accept");
+        const res = await fetch("/api/media/upload", { method: "POST", body: formData });
+        const json = (await res.json()) as {
+          mediaItem?: { id: string };
+          duplicateFound?: boolean;
+          matches?: { mediaItemId: string }[];
+        };
+        if (json.mediaItem?.id) {
+          await linkMediaToDetailCategoryAction(personId, [json.mediaItem.id], categoryId);
+        }
+        return json;
+      };
 
+      for (const file of Array.from(files)) {
         try {
-          let res = await fetch("/api/media/upload", { method: "POST", body: formData });
-          let json = await res.json();
+          const json = await uploadAndLink(file, false);
+          if (!json.duplicateFound || json.mediaItem) continue;
 
-          // Auto-accept duplicates
-          if (json.duplicateFound && !json.mediaItem) {
-            const retryForm = new FormData();
-            retryForm.append("file", file);
-            retryForm.append("sessionId", referenceSessionId);
-            retryForm.append("personId", personId);
-            retryForm.append("duplicateAction", "accept");
-            res = await fetch("/api/media/upload", { method: "POST", body: retryForm });
-            json = await res.json();
+          // Same file already known: don't make a silent second copy (2026-11-12).
+          const decision = await decideDetailUploadDuplicate(json.matches ?? [], personId, categoryId);
+          if (decision.kind === "already") {
+            toast.warning(`${file.name} is already in ${categoryName} — not added again`, {
+              action: {
+                label: "Add anyway",
+                onClick: () => {
+                  void uploadAndLink(file, true).then(refresh);
+                },
+              },
+            });
+          } else if (decision.kind === "link") {
+            await linkMediaToDetailCategoryAction(personId, [decision.mediaItemId], categoryId);
+            toast.success(`${file.name} was already in the reference session — linked it`);
+          } else {
+            await uploadAndLink(file, true);
           }
-
-          if (!json.mediaItem?.id) continue;
-
-          await linkMediaToDetailCategoryAction(
-            personId,
-            [json.mediaItem.id],
-            categoryId,
-          );
         } catch {
-          // Upload failed silently
+          toast.error(`Could not upload ${file.name}`);
         }
       }
-
-      // Refresh cached media for this category + counts
-      setCategoryMedia((prev) => {
-        const next = new Map(prev);
-        next.delete(categoryId);
-        return next;
-      });
-      router.refresh();
+      refresh();
     },
-    [referenceSessionId, personId, router],
+    [referenceSessionId, personId, router, categories, reloadDuplicates],
   );
 
   if (categories.length === 0) {
@@ -500,6 +589,20 @@ export function PersonDetailsTab({
                       </span>
                     </button>
                     <div className="shrink-0 mr-3 flex items-center gap-0.5">
+                      {referenceSessionId && (duplicatesByCategory.get(cat.id)?.length ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDuplicatesCategory(cat)}
+                          className="mr-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[11px] font-medium text-amber-300 transition-colors hover:bg-amber-400/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                          title="The same file is in this category more than once"
+                          data-testid="detail-duplicates-pill"
+                        >
+                          {(() => {
+                            const extra = (duplicatesByCategory.get(cat.id) ?? []).reduce((n, g) => n + g.items.length - 1, 0);
+                            return `${extra} duplicate${extra === 1 ? "" : "s"}`;
+                          })()}
+                        </button>
+                      )}
                       {referenceSessionId && !cat.entityModel && (
                         <button
                           type="button"
@@ -654,6 +757,7 @@ export function PersonDetailsTab({
           onSelect={handleCrossPickerSelect}
           onClose={() => setCrossPicker(null)}
           title={`Select photo — ${crossPicker.category.name}`}
+          usedIn={{ categoryId: crossPicker.category.id, mode: "copy" }}
         />
       )}
 
@@ -664,8 +768,33 @@ export function PersonDetailsTab({
           onSelect={handleAlignSourcePicked}
           onClose={() => setAlignPicker(null)}
           title={`Pick a photo to align — ${alignPicker.name}`}
+          usedIn={{ categoryId: alignPicker.id, mode: "align" }}
         />
       )}
+      {/* Align again? An alignment from this photo already exists in the category. */}
+      <AlertDialog open={!!alignAgain} onOpenChange={(open) => { if (!open) setAlignAgain(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Already aligned</AlertDialogTitle>
+            <AlertDialogDescription>
+              An alignment of this photo already exists in {alignAgain?.category.name}. Aligning again adds
+              another aligned image; the existing one stays.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!alignAgain) return;
+                setAligner({ template: alignAgain.template, source: alignAgain.source, categoryId: alignAgain.category.id });
+                setAlignAgain(null);
+              }}
+            >
+              Align again
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* Align: keypoint aligner → bakes an Aligned image into the category */}
       {aligner && referenceSessionId && (
         <MotifAligner
@@ -675,6 +804,18 @@ export function PersonDetailsTab({
           referenceSessionId={referenceSessionId}
           onSaved={() => { const cid = aligner.categoryId; setAligner(null); refreshCategory(cid); }}
           onCancel={() => setAligner(null)}
+        />
+      )}
+
+      {/* Duplicates in a category: compare, delete one copy at a time */}
+      {duplicatesCategory && referenceSessionId && (
+        <DetailDuplicatesDialog
+          personId={personId}
+          referenceSessionId={referenceSessionId}
+          categoryName={duplicatesCategory.name}
+          groups={duplicatesByCategory.get(duplicatesCategory.id) ?? []}
+          onOpenChange={(open) => { if (!open) setDuplicatesCategory(null); }}
+          onDeleted={() => refreshCategory(duplicatesCategory.id)}
         />
       )}
 
@@ -694,6 +835,7 @@ export function PersonDetailsTab({
           }}
           onCancel={() => setStagedPhoto(null)}
           isSaving={isStagingCopy}
+          alreadyHere={stagedPhoto.alreadyHere}
         />
       )}
 
