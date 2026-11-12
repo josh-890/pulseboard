@@ -11,6 +11,8 @@ const BASE = "http://localhost:3000";
 //
 // Data is discovered from the staging API so the specs work against whatever
 // the dataset holds — they skip cleanly when no channel has a pipeline set.
+// Since the page redesign (217793e) the section lives on the Manage tab, and the
+// tab carries the count (the old stats tile is gone).
 
 type PipelineItem = {
   id: string;
@@ -34,14 +36,14 @@ async function findPipelineItem(
 }
 
 test.describe("Channel pipeline section", () => {
-  test("shows staged sets and a matching stats tile", async ({ page, request }) => {
+  test("shows staged sets and the Manage tab carries the count", async ({ page, request }) => {
     const item = await findPipelineItem(request);
     if (!item?.channelId) {
       test.skip(true, "No channel with an in-pipeline staged set");
       return;
     }
 
-    await page.goto(`/channels/${item.channelId}`);
+    await page.goto(`/channels/${item.channelId}?tab=manage`);
     await page.waitForLoadState("networkidle");
 
     const heading = page.getByRole("heading", { name: /^In pipeline \(\d+\)$/ });
@@ -49,9 +51,10 @@ test.describe("Channel pipeline section", () => {
     const total = Number((await heading.textContent())?.match(/\((\d+)\)/)?.[1]);
     expect(total).toBeGreaterThan(0);
 
-    // Stats tile carries the same number and jumps to the section.
-    const tile = page.getByRole("link", { name: new RegExp(`^${total}\\s*In pipeline$`) });
-    await expect(tile).toHaveAttribute("href", "#pipeline");
+    // The Manage tab carries the same number.
+    const tab = page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: /Manage/ });
+    await expect(tab).toHaveAttribute("aria-current", "page");
+    await expect(tab).toContainText(total.toLocaleString());
 
     // The row for the discovered staged set deep-links to it.
     const row = page.locator(`a[href*="select=${item.id}"]`);
@@ -65,7 +68,7 @@ test.describe("Channel pipeline section", () => {
       return;
     }
 
-    await page.goto(`/channels/${item.channelId}`);
+    await page.goto(`/channels/${item.channelId}?tab=manage`);
     await page.waitForLoadState("networkidle");
     // The channel link's own label carries the channel name (the shell has an h1 too).
     const typeLinkHref = await page
