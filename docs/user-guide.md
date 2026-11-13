@@ -41,6 +41,10 @@ Lists that only show the first part (e.g. a channel's Sets tab before *Show more
 
 **Recent** (top right, on every page) lists the last 15 pages you opened — people (as *Name (ICG-ID)*), sets, sessions, channels, labels, artists, projects, collections, contacts — newest first, the page you are on left out. Opening one again moves it to the top; **Clear** empties the list. It is kept in this browser only. A page opened from Recent starts afresh (no *Back to …* track).
 
+### Jump to a page — Ctrl K
+
+**Ctrl K** (⌘K on a Mac) or **Jump to…** in the top bar opens a box: type at least two letters of a name, an **ICG-ID**, any alias, a set or session title, a channel, label, artist, project, collection or contact, and pick with **↑ ↓** and **Enter** (or click). Results come grouped by kind, a few each, exact and starting matches first; a person found by another alias shows *a.k.a. …*. Empty, the box offers **Recently viewed**. **Esc** closes it. A page opened this way starts afresh (no *Back to …* track).
+
 ---
 
 ## Table of Contents

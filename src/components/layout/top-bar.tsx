@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { MobileDrawer } from "./mobile-drawer";
 import { getSectionLabel } from "./nav-items";
 import { RecentPopover } from "./recent-popover";
+import { QuickJump } from "./quick-jump";
 
 /**
  * Persistent top bar that lives outside the scrolling content region, so
@@ -23,6 +24,7 @@ export function TopBar() {
       </span>
       {/* Right-aligned global actions */}
       <div className="ml-auto flex items-center gap-2">
+        <QuickJump />
         <RecentPopover />
       </div>
     </header>
