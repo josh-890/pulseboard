@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { Palette } from "lucide-react";
 import { getArtistTiles } from "@/lib/services/maker-list-service";
 import { MakerTile } from "@/components/shared/maker-tile";
@@ -50,8 +51,11 @@ export default async function ArtistsPage({ searchParams }: ArtistsPageProps) {
 
         {artists.length > 0 ? (
           params.view === "list" ? (
+            <TrailScope title="Artists">
             <MakerRows tiles={artists} round />
+          </TrailScope>
           ) : (
+            <TrailScope title="Artists">
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
               {artists.map((a) => (
                 <li key={a.id}>
@@ -59,6 +63,7 @@ export default async function ArtistsPage({ searchParams }: ArtistsPageProps) {
                 </li>
               ))}
             </ul>
+            </TrailScope>
           )
         ) : (
           <div className="py-16 text-center text-sm text-muted-foreground">

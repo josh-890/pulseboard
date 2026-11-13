@@ -41,6 +41,7 @@ export function CollectionCard({ collection: c }: { collection: CollectionSummar
     <div className="group relative rounded-2xl border border-white/20 bg-card/70 shadow-md backdrop-blur-sm transition-all hover:border-white/30 hover:shadow-lg">
       <Link
         href={`/collections/${c.id}`}
+        data-trail-name={c.name}
         className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {/* Thumbnail */}

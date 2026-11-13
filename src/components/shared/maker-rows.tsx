@@ -16,6 +16,7 @@ export function MakerRows({ tiles, round = false }: { tiles: MakerTileData[]; ro
           <li key={t.id}>
             <Link
               href={t.href}
+              data-trail-name={t.brand.name}
               className={cn(
                 "grid grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 text-sm transition-colors hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[auto_1fr_10rem_3rem_6rem_6rem]",
                 t.closed && "opacity-70",

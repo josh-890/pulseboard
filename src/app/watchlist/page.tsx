@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { getWatchlist } from "@/lib/services/person-service";
 import { WatchlistClient } from "@/components/watchlist/watchlist-client";
+import { TrailScope } from "@/components/shared/trail-scope";
 
 export default async function WatchlistPage() {
   return withTenantFromHeaders(async () => {
@@ -15,7 +16,9 @@ export default async function WatchlistPage() {
             {entries.length} {entries.length === 1 ? "person" : "people"} monitored
           </span>
         </div>
-        <WatchlistClient entries={entries} />
+        <TrailScope title="Watchlist">
+          <WatchlistClient entries={entries} />
+        </TrailScope>
       </div>
     );
   });

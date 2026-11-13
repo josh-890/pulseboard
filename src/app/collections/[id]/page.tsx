@@ -1,6 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { Library, Globe, User, ImageIcon } from "lucide-react";
 import {
   getCollectionWithItems,
@@ -35,14 +36,20 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
     return (
     <div className="space-y-6">
       {/* Back + actions */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/collections"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">&larr;</span>
-          Back to Collections
-        </Link>
+      <TrailHeaderRow
+        entityType="collection"
+        entityId={id}
+        fallbackBack={
+            <Link
+              href="/collections"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <span aria-hidden="true">&larr;</span>
+              Back to Collections
+            </Link>
+        }
+        actions={
+          <>
         <CollectionActions
           collectionId={id}
           name={collection.name}
@@ -50,7 +57,9 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
           layout={collection.layout}
           isTarget={collection.isTarget}
         />
-      </div>
+          </>
+        }
+      />
 
       {/* Header */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">

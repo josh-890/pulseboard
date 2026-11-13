@@ -1,8 +1,10 @@
 import { EntityTagsPanel } from "@/components/tags";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { FolderKanban, Tag, ArrowRight } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -56,15 +58,20 @@ export default async function ProjectDetailPage({
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
-      <div className="flex items-center justify-between gap-4">
-        <Link
-          href="/projects"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <span aria-hidden="true">←</span>
-          Back to Projects
-        </Link>
-        <div className="flex items-center gap-2">
+      <TrailHeaderRow
+        entityType="project"
+        entityId={id}
+        fallbackBack={
+            <Link
+              href="/projects"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <span aria-hidden="true">←</span>
+              Back to Projects
+            </Link>
+        }
+        actions={
+          <>
           <EditProjectSheet project={project} />
           <DeleteButton
             title="Delete project?"
@@ -72,8 +79,9 @@ export default async function ProjectDetailPage({
             onDelete={deleteProject.bind(null, id)}
             redirectTo="/projects"
           />
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Header card */}
       <div className="rounded-2xl border border-white/20 bg-card/70 p-6 shadow-md backdrop-blur-sm">
@@ -120,7 +128,7 @@ export default async function ProjectDetailPage({
 
         {/* Labels */}
         {project.labels.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <TrailScope title={`${project.name} · Labels`} className="mt-4 flex flex-wrap gap-2">
             {project.labels.map(({ label }) => (
               <Link
                 key={label.id}
@@ -130,7 +138,7 @@ export default async function ProjectDetailPage({
                 {label.name}
               </Link>
             ))}
-          </div>
+          </TrailScope>
         )}
 
         {/* Tags */}
@@ -147,7 +155,7 @@ export default async function ProjectDetailPage({
           <p className="text-muted-foreground">No sessions yet.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <TrailScope title={`${project.name} · Sessions`} className="space-y-4">
           {project.sessions.map((session) => (
             <div
               key={session.id}
@@ -190,6 +198,7 @@ export default async function ProjectDetailPage({
                       <li key={contribution.id}>
                         <Link
                           href={`/people/${contribution.personId}`}
+                          data-trail-name={displayName}
                           className="group flex items-center gap-2.5 rounded-lg border border-transparent px-3 py-2 transition-all hover:border-white/15 hover:bg-card/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         >
                           <span className="inline-flex items-center rounded-full border border-white/15 bg-muted/50 px-2 py-0.5 text-xs font-medium shrink-0 text-muted-foreground">
@@ -206,7 +215,7 @@ export default async function ProjectDetailPage({
               )}
             </div>
           ))}
-        </div>
+        </TrailScope>
       )}
     </div>
     );

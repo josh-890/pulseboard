@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TrailScope } from "@/components/shared/trail-scope";
 import Link from "next/link";
 import { Library, Heart, Star, ImageIcon, Zap } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
@@ -238,11 +239,13 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {gridItems.map((c) => (
-              <CollectionCard key={c.id} collection={c} />
-            ))}
-          </div>
+          <TrailScope title="Collections">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {gridItems.map((c) => (
+                <CollectionCard key={c.id} collection={c} />
+              ))}
+            </div>
+          </TrailScope>
         )}
       </div>
     );

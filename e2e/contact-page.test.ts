@@ -64,7 +64,9 @@ test("the register links to her page and shows the lookup aids", async ({ page }
   const row = page.getByRole("listitem").filter({ hasText: ICG });
   await expect(row).toContainText("UKR · 1998");
   await row.getByRole("link", { name: CONTACT.name }).click();
-  await expect(page).toHaveURL(new RegExp(`/people/contacts/${CONTACT.id}$`));
+  // The register is a track (2026-11-13): the page carries ?via= and names it
+  await expect(page).toHaveURL(new RegExp(`/people/contacts/${CONTACT.id}\\?via=\\w+$`), { timeout: 20_000 });
+  await expect(page.getByTestId("trail-back")).toContainText("Back to Contacts");
 });
 
 test("a staged set's cast marks her as a Contact and links to her page", async ({ page }) => {

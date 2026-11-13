@@ -30,6 +30,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   return (
     <Link
       href={`/projects/${project.id}`}
+      data-trail-name={project.name}
       className="group block focus-visible:outline-none"
     >
       <div

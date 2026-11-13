@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { TrailScope } from "@/components/shared/trail-scope";
+import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { BookOpen, Camera, LayoutDashboard, Link2, NotebookPen, Tag, UserPen } from "lucide-react";
 import { brandOf } from "@/lib/services/brand-of";
 import { getArtistById, getArtistChannels, getArtistHeroStats } from "@/lib/services/artist-service";
@@ -29,7 +31,7 @@ export const dynamic = "force-dynamic";
 
 type ArtistDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; type?: string; sort?: string; limit?: string }>;
+  searchParams: Promise<{ tab?: string; via?: string; type?: string; sort?: string; limit?: string }>;
 };
 
 const TAB_KEYS = ["overview", "sets", "credits"] as const;
@@ -88,15 +90,20 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
 
     return (
       <div className="space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <Link
-            href="/artists"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <span aria-hidden="true">&larr;</span>
-            Back to Artists
-          </Link>
-          <div className="flex items-center gap-2">
+        <TrailHeaderRow
+          entityType="artist"
+          entityId={artist.id}
+          fallbackBack={
+              <Link
+                href="/artists"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <span aria-hidden="true">&larr;</span>
+                Back to Artists
+              </Link>
+          }
+          actions={
+            <>
             <BrandMarkEditor kind="artist" id={artist.id} brand={brand} />
             <ArtistEditButton artist={artist} />
             <DeleteButton
@@ -105,12 +112,13 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
               onDelete={deleteArtistAction.bind(null, artist.id)}
               redirectTo="/artists"
             />
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <ArtistHero artist={artist} brand={brand} stats={stats} />
 
-        <EntityTabBar tabs={tabs} active={tab} basePath={base} />
+        <EntityTabBar tabs={tabs} active={tab} basePath={base} via={sp.via} />
 
         {tab === "overview" && (
           <div className="grid gap-6 md:grid-cols-2">
@@ -173,7 +181,7 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
               type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
               sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
               limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-              basePath={`${base}?tab=sets`}
+              basePath={withVia(`${base}?tab=sets`, sp.via ?? null)}
               libraryOnly
             />
           </TrailScope>

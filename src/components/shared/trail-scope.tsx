@@ -48,6 +48,8 @@ export function TrailScope({ title, children, className = "contents" }: TrailSco
     const href = a.getAttribute("href");
     const target = parseEntityHref(href);
     if (!root || !href || !target) return null;
+    // Filters, tabs and "Show more" of the page itself are not a step on the track.
+    if (new URL(href, window.location.href).pathname === window.location.pathname) return null;
 
     const ids: string[] = [];
     const names: string[] = [];

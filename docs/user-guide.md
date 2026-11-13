@@ -35,6 +35,8 @@ You reach a person, set or session from many places, not only from its gallery: 
 
 Lists that only show the first part (e.g. a channel's Sets tab before *Show more*) walk the part on screen.
 
+**Every detail page has this bar** — people, sets, sessions, channels, labels, artists, projects, collections and contacts. The **Channels, Labels, Artists, Projects, Collections and Contacts galleries** and the **Watchlist** start a track too: open a channel from a filtered Channels list and *‹ prev · 4 / 23 · next ›* walks that filtered list, *← Back to Channels* returns to it with the filter. Going on into the channel's Sets tab and a set, the crumb row reads *Channels › FemJoy · Sets*. A project's labels and sessions (and each session's people), and a contact's *Credited in your sets*, are tracks as well.
+
 ---
 
 ## Table of Contents

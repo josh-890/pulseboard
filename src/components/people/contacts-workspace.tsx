@@ -200,6 +200,7 @@ function ContactRowItem({ row }: { row: ContactRow }) {
         <div className="flex items-center gap-2">
           <Link
             href={`/people/contacts/${row.id}`}
+            data-trail-name={row.name}
             className="truncate text-sm font-medium hover:underline focus-visible:underline focus-visible:outline-none"
           >
             {row.name}

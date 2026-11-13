@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { withVia } from "@/lib/browse-trail";
 
 export type EntityTab = {
   key: string;
@@ -16,6 +17,8 @@ type EntityTabBarProps = {
   active: string;
   /** The page's path; a tab adds ?tab=key (the first tab is the bare path) */
   basePath: string;
+  /** The page's browse trail (`?via=`), kept when switching tabs */
+  via?: string | null;
   className?: string;
 };
 
@@ -24,7 +27,7 @@ type EntityTabBarProps = {
  * but each tab is a link (?tab=), so the server renders only the open one and a
  * tab can be bookmarked or shared.
  */
-export function EntityTabBar({ tabs, active, basePath, className }: EntityTabBarProps) {
+export function EntityTabBar({ tabs, active, basePath, via = null, className }: EntityTabBarProps) {
   return (
     <nav aria-label="Sections" className={cn("overflow-x-auto scrollbar-none", className)}>
       <ul className="inline-flex min-w-full gap-1 rounded-xl border border-white/15 bg-card/50 p-1 sm:min-w-0">
@@ -33,7 +36,7 @@ export function EntityTabBar({ tabs, active, basePath, className }: EntityTabBar
           return (
             <li key={tab.key}>
               <Link
-                href={i === 0 ? basePath : `${basePath}?tab=${tab.key}`}
+                href={withVia(i === 0 ? basePath : `${basePath}?tab=${tab.key}`, via)}
                 scroll={false}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(

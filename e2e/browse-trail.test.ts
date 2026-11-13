@@ -125,3 +125,25 @@ test("a channel's Sets tab is walkable; a plain URL keeps the gallery back link"
   await expect(page.getByTestId("trail-back")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Back to People" })).toBeVisible();
 });
+
+test("the Channels gallery is a root: Back keeps its filter, the crumb row starts there", async ({ page }) => {
+  test.slow();
+  const gallery = `/channels?q=${encodeURIComponent(CHANNEL)}`;
+  await page.goto(gallery);
+  await page.getByRole("link", { name: new RegExp(CHANNEL) }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/channels/${ids.channel}\\?via=`), { timeout: 30_000 });
+  await expect(page.getByTestId("trail-back")).toContainText("Back to Channels");
+  await expect(page.getByTestId("trail-nav")).toContainText("1 / 1");
+
+  // Into the channel's Sets tab and a set: the crumbs start at the gallery
+  await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: /Sets/ }).click();
+  await expect(page).toHaveURL(/tab=sets.*via=/, { timeout: 20_000 });
+  await expect(page.getByTestId("trail-back")).toContainText("Back to Channels");
+  await page.getByRole("link", { name: new RegExp(SET2) }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/sets/${ids.s2}\\?via=`), { timeout: 30_000 });
+  await expect(page.getByTestId("trail-crumbs").getByRole("link")).toHaveText(["Channels", `${CHANNEL} · Sets`]);
+
+  // The first crumb returns to the filtered gallery
+  await page.getByTestId("trail-crumbs").getByRole("link", { name: "Channels" }).click();
+  await expect(page).toHaveURL(new RegExp(`/channels\\?q=`), { timeout: 20_000 });
+});

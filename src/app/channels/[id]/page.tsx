@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { TrailScope } from "@/components/shared/trail-scope";
+import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { BookOpen, Camera, LayoutDashboard, NotebookPen, Settings2, Tag, Users } from "lucide-react";
 import {
   getChannelById,
@@ -32,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 type ChannelDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
+  searchParams: Promise<{ tab?: string; via?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
 };
 
 const TAB_KEYS = ["overview", "sets", "models", "manage"] as const;
@@ -80,15 +82,20 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
     return (
       <div className="space-y-5">
         {/* Back link + actions row */}
-        <div className="flex items-center justify-between gap-4">
-          <Link
-            href="/channels"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <span aria-hidden="true">&larr;</span>
-            Back to Channels
-          </Link>
-          <div className="flex items-center gap-2">
+        <TrailHeaderRow
+          entityType="channel"
+          entityId={channel.id}
+          fallbackBack={
+              <Link
+                href="/channels"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <span aria-hidden="true">&larr;</span>
+                Back to Channels
+              </Link>
+          }
+          actions={
+            <>
             <BrandMarkEditor kind="channel" id={channel.id} brand={brand} />
             <EditChannelSheet
               channel={{
@@ -110,8 +117,9 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
               onDelete={deleteChannel.bind(null, id)}
               redirectTo="/channels"
             />
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <ChannelHero
           channel={channel}
@@ -120,7 +128,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
           stats={stats}
         />
 
-        <EntityTabBar tabs={tabs} active={tab} basePath={`/channels/${channel.id}`} />
+        <EntityTabBar tabs={tabs} active={tab} basePath={`/channels/${channel.id}`} via={sp.via} />
 
         {tab === "overview" && (
           <div className="grid gap-6 md:grid-cols-2">
@@ -176,7 +184,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
               type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
               sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
               limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-              basePath={`/channels/${channel.id}?tab=sets`}
+              basePath={withVia(`/channels/${channel.id}?tab=sets`, sp.via ?? null)}
             />
           </TrailScope>
         )}
@@ -187,7 +195,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
               models={models}
               filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
               limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
-              basePath={`/channels/${channel.id}?tab=models`}
+              basePath={withVia(`/channels/${channel.id}?tab=models`, sp.via ?? null)}
             />
           </TrailScope>
         )}

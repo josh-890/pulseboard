@@ -1,7 +1,9 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { TrailScope } from "@/components/shared/trail-scope";
+import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { BookOpen, Camera, FolderKanban, LayoutDashboard, NotebookPen, Radio, Tag, Users } from "lucide-react";
 import { getLabelById, getLabelChannels, getLabelHeroStats } from "@/lib/services/label-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
@@ -30,7 +32,7 @@ export const dynamic = "force-dynamic";
 
 type LabelDetailPageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
+  searchParams: Promise<{ tab?: string; via?: string; scope?: string; type?: string; sort?: string; who?: string; limit?: string }>;
 };
 
 const TAB_KEYS = ["overview", "channels", "sets", "models", "projects"] as const;
@@ -105,15 +107,20 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
     return (
       <div className="space-y-5">
         {/* Back link + actions row */}
-        <div className="flex items-center justify-between gap-4">
-          <Link
-            href="/labels"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <span aria-hidden="true">&larr;</span>
-            Back to Labels
-          </Link>
-          <div className="flex items-center gap-2">
+        <TrailHeaderRow
+          entityType="label"
+          entityId={label.id}
+          fallbackBack={
+              <Link
+                href="/labels"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <span aria-hidden="true">&larr;</span>
+                Back to Labels
+              </Link>
+          }
+          actions={
+            <>
             <BrandMarkEditor kind="label" id={label.id} brand={brand} />
             <EditLabelSheet label={label} />
             <DeleteButton
@@ -122,12 +129,13 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
               onDelete={deleteLabel.bind(null, id)}
               redirectTo="/labels"
             />
-          </div>
-        </div>
+            </>
+          }
+        />
 
         <LabelHero label={label} brand={brand} stats={stats} />
 
-        <EntityTabBar tabs={tabs} active={tab} basePath={base} />
+        <EntityTabBar tabs={tabs} active={tab} basePath={base} via={sp.via} />
 
         {tab === "overview" && (
           <div className="grid gap-6 md:grid-cols-2">
@@ -190,7 +198,7 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
               type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
               sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
               limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-              basePath={`${base}?tab=sets`}
+              basePath={withVia(`${base}?tab=sets`, sp.via ?? null)}
             />
           </TrailScope>
         )}
@@ -201,7 +209,7 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
               models={models}
               filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
               limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
-              basePath={`${base}?tab=models`}
+              basePath={withVia(`${base}?tab=models`, sp.via ?? null)}
             />
           </TrailScope>
         )}

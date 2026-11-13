@@ -1,6 +1,7 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import Link from "next/link";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { Radio, ShieldCheck } from "lucide-react";
 import type { ChannelTier } from "@/generated/prisma/client";
 import { getChannelTiles } from "@/lib/services/maker-list-service";
@@ -90,8 +91,11 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
             <p className="text-muted-foreground">No channels found.</p>
           </div>
         ) : params.view === "list" ? (
-          <MakerRows tiles={channels} />
+          <TrailScope title="Channels">
+            <MakerRows tiles={channels} />
+          </TrailScope>
         ) : (
+          <TrailScope title="Channels">
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {channels.map((c) => (
               <li key={c.id}>
@@ -99,6 +103,7 @@ export default async function ChannelsPage({ searchParams }: ChannelsPageProps) 
               </li>
             ))}
           </ul>
+          </TrailScope>
         )}
       </div>
     );

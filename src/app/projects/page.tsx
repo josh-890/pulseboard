@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { Suspense } from "react";
 import { FolderKanban } from "lucide-react";
 import { getProjects } from "@/lib/services/project-service";
@@ -63,7 +64,9 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
         </div>
 
         {/* List */}
-        <ProjectList projects={projects} />
+        <TrailScope title="Projects">
+          <ProjectList projects={projects} />
+        </TrailScope>
       </div>
     );
   });

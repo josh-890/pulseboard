@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { Suspense } from "react";
 import Link from "next/link";
 import { BookUser, History } from "lucide-react";
@@ -68,6 +69,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
           <BrowserToolbar config={toolbarConfig} />
         </Suspense>
 
+        <TrailScope title="Contacts">
         <ContactsWorkspace
           key={`${q ?? ""}|${includeIgnored}`}
           head={head}
@@ -77,6 +79,7 @@ export default async function ContactsPage({ searchParams }: ContactsPageProps) 
           q={q}
           includeIgnored={includeIgnored}
         />
+        </TrailScope>
       </div>
     );
   });

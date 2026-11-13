@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
@@ -48,12 +50,18 @@ export default async function ContactPage({ params }: ContactPageProps) {
 
     return (
       <div className="space-y-8">
-        <Link
-          href="/people/contacts"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
-        >
-          <ArrowLeft size={14} aria-hidden /> Contacts
-        </Link>
+        <TrailHeaderRow
+          entityType="contact"
+          entityId={c.id}
+          fallbackBack={
+            <Link
+              href="/people/contacts"
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+            >
+              <ArrowLeft size={14} aria-hidden /> Contacts
+            </Link>
+          }
+        />
 
         <header className="flex flex-col gap-5 rounded-2xl border border-white/20 bg-card/70 p-5 shadow-md backdrop-blur-sm sm:flex-row sm:items-start">
           <ContactPortrait
@@ -167,6 +175,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
 
         {c.creditedSets.length > 0 && (
           <Section id="contact-credited" title="Credited in your sets" count={c.creditedSets.length}>
+            <TrailScope title={`${c.name} · Credited in your sets`}>
             <ul className="space-y-1.5">
               {c.creditedSets.map((s) => (
                 <li key={s.id} className="flex items-center gap-3 rounded-xl border border-white/15 bg-card/40 px-3 py-2 text-sm">
@@ -178,6 +187,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
                 </li>
               ))}
             </ul>
+            </TrailScope>
           </Section>
         )}
 

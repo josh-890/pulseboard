@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { Suspense } from "react";
 import { Building2 } from "lucide-react";
 import { getLabelTiles } from "@/lib/services/maker-list-service";
@@ -57,8 +58,11 @@ export default async function LabelsPage({ searchParams }: LabelsPageProps) {
             <p className="text-muted-foreground">No labels found.</p>
           </div>
         ) : params.view === "list" ? (
-          <MakerRows tiles={labels} />
+          <TrailScope title="Labels">
+            <MakerRows tiles={labels} />
+          </TrailScope>
         ) : (
+          <TrailScope title="Labels">
           <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {labels.map((l) => (
               <li key={l.id}>
@@ -66,6 +70,7 @@ export default async function LabelsPage({ searchParams }: LabelsPageProps) {
               </li>
             ))}
           </ul>
+          </TrailScope>
         )}
       </div>
     );
