@@ -85,6 +85,7 @@ export function SetCastRail({ cast }: { cast: CastMember[] }) {
               <TooltipTrigger asChild>
                 <Link
                   href={`/people/${m.personId}`}
+                  data-trail-name={m.name}
                   aria-label={m.support ? `${m.name} (appearing)` : undefined}
                   className={cn(
                     "group flex shrink-0 snap-start flex-col items-center gap-1 rounded-xl border p-2 shadow-sm transition-colors hover:border-white/30 hover:bg-card",

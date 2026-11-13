@@ -103,6 +103,7 @@ function Card({ m }: { m: ChannelModel }) {
   return href ? (
     <Link
       href={href}
+      data-trail-name={name}
       className={cn(className, "hover:-translate-y-px hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}
     >
       {inner}

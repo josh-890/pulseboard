@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import { Gauge, Tag } from "lucide-react";
 import { cookies } from "next/headers";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
@@ -159,16 +161,17 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
     return (
       <div className="space-y-6">
         {/* Back link + browse nav + actions row */}
-        <div className="grid grid-cols-3 items-center gap-4">
-          <div className="flex items-center">
-            <SetBrowseBackLink />
-          </div>
-          <div className="flex justify-center">
+        <TrailHeaderRow
+          entityType="set"
+          entityId={id}
+          fallbackBack={<SetBrowseBackLink />}
+          fallbackNav={
             <Suspense fallback={null}>
               <SetBrowseNavBar setId={id} />
             </Suspense>
-          </div>
-          <div className="flex items-center justify-end gap-2">
+          }
+          actions={
+            <>
             <EditSetSheet
               set={{
                 id: setData.id,
@@ -200,8 +203,9 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
               onDelete={deleteSet.bind(null, id)}
               redirectTo="/sets"
             />
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* Hero card — when the archive link is healthy we replace the static
             green chip with a clickable button that opens a management Sheet,
@@ -283,12 +287,14 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
               </div>
             )}
 
-            <CreditsPanel
-              setId={id}
-              channelId={setData.channelId}
-              credits={credits}
-              roleDefinitions={roleDefinitions}
-            />
+            <TrailScope title={`${setData.title} · Credits`}>
+              <CreditsPanel
+                setId={id}
+                channelId={setData.channelId}
+                credits={credits}
+                roleDefinitions={roleDefinitions}
+              />
+            </TrailScope>
 
             {/* Production (ADR-0025): session(s) + producer label, and the
                 publisher (channel owner) when it diverges. */}

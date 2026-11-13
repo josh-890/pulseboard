@@ -27,6 +27,7 @@ export function KnownForRow({ sets, hideChannel = false }: KnownForRowProps) {
           <li key={s.id} className="w-36 shrink-0 snap-start sm:w-40">
             <Link
               href={`/sets/${s.id}`}
+              data-trail-name={s.title}
               className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted/40 shadow-md ring-1 ring-white/10 transition-shadow duration-200 group-hover:shadow-xl">

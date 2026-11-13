@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Camera, LayoutDashboard, Link2, NotebookPen, Tag, UserPen } from "lucide-react";
@@ -129,9 +130,15 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
                 )}
               </p>
             )}
-            <KnownForRow sets={knownFor} />
-            <MakerFacesRow title="Models shot most" faces={faces} />
-            <ArtistChannelsRow channels={channels} />
+            <TrailScope title={`${artist.name} · Known for`}>
+              <KnownForRow sets={knownFor} />
+            </TrailScope>
+            <TrailScope title={`${artist.name} · Models shot most`}>
+              <MakerFacesRow title="Models shot most" faces={faces} />
+            </TrailScope>
+            <TrailScope title={`${artist.name} · Channels`}>
+              <ArtistChannelsRow channels={channels} />
+            </TrailScope>
             <MarkdownNoteCard
               title="About"
               icon={<BookOpen size={16} />}
@@ -159,15 +166,17 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
         )}
 
         {tab === "sets" && wall && (
-          <ChannelSetWall
-            wall={wall}
-            scope="library"
-            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
-            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
-            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-            basePath={`${base}?tab=sets`}
-            libraryOnly
-          />
+          <TrailScope title={`${artist.name} · Sets`}>
+            <ChannelSetWall
+              wall={wall}
+              scope="library"
+              type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+              sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+              limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+              basePath={`${base}?tab=sets`}
+              libraryOnly
+            />
+          </TrailScope>
         )}
 
         {tab === "credits" && (

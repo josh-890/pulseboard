@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Users, ImageIcon, Camera, Film, User, Gauge } from "lucide-react";
 import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/sessions/session-browse-nav-bar";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
@@ -331,19 +332,20 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       {ratingQueue && rate && <RatingQueueBar queue={ratingQueue} rate={rate} />}
 
       {/* Back link + browse nav + actions row */}
-      <div className="grid grid-cols-3 items-center gap-4">
-        <div className="flex items-center">
-          <SessionBrowseBackLink />
-        </div>
-        <div className="flex justify-center">
-          {!ratingQueue && (
+      <TrailHeaderRow
+        entityType="session"
+        entityId={id}
+        fallbackBack={<SessionBrowseBackLink />}
+        fallbackNav={
+          !ratingQueue ? (
             <Suspense fallback={null}>
               <SessionBrowseNavBar sessionId={id} />
             </Suspense>
-          )}
-        </div>
-        {!isReference && (
-          <div className="flex items-center justify-end gap-2">
+          ) : undefined
+        }
+        actions={
+          !isReference ? (
+            <>
             <EditSessionSheet
               session={{
                 id: session.id,
@@ -368,9 +370,10 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               onDelete={deleteSession.bind(null, id)}
               redirectTo="/sessions"
             />
-          </div>
-        )}
-      </div>
+            </>
+          ) : undefined
+        }
+      />
 
       {/* Hero card */}
       {!isReference && (

@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Camera, FolderKanban, LayoutDashboard, NotebookPen, Radio, Tag, Users } from "lucide-react";
@@ -137,8 +138,12 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
                 No photos yet — the Showcase fills itself from the photos of its channels&apos; sets.
               </p>
             )}
-            <KnownForRow sets={knownFor} />
-            <MakerFacesRow title="Faces of the label" faces={faces} moreHref={`${base}?tab=models`} />
+            <TrailScope title={`${label.name} · Known for`}>
+              <KnownForRow sets={knownFor} />
+            </TrailScope>
+            <TrailScope title={`${label.name} · Faces`}>
+              <MakerFacesRow title="Faces of the label" faces={faces} moreHref={`${base}?tab=models`} />
+            </TrailScope>
             <MarkdownNoteCard
               title="About"
               icon={<BookOpen size={16} />}
@@ -171,28 +176,34 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
               <p className="text-sm text-muted-foreground">The channels {label.name} owns, most sets first.</p>
               <AddChannelSheet labels={[{ id: label.id, name: label.name }]} defaultLabelId={label.id} />
             </div>
-            <LabelChannelTiles channels={channels} />
+            <TrailScope title={`${label.name} · Channels`}>
+              <LabelChannelTiles channels={channels} />
+            </TrailScope>
           </div>
         )}
 
         {tab === "sets" && wall && (
-          <ChannelSetWall
-            wall={wall}
-            scope={sp.scope === "all" ? "all" : "library"}
-            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
-            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
-            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-            basePath={`${base}?tab=sets`}
-          />
+          <TrailScope title={`${label.name} · Sets`}>
+            <ChannelSetWall
+              wall={wall}
+              scope={sp.scope === "all" ? "all" : "library"}
+              type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+              sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+              limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+              basePath={`${base}?tab=sets`}
+            />
+          </TrailScope>
         )}
 
         {tab === "models" && models && (
-          <ChannelModels
-            models={models}
-            filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
-            limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
-            basePath={`${base}?tab=models`}
-          />
+          <TrailScope title={`${label.name} · Models`}>
+            <ChannelModels
+              models={models}
+              filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+              limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
+              basePath={`${base}?tab=models`}
+            />
+          </TrailScope>
         )}
 
         {tab === "projects" && (

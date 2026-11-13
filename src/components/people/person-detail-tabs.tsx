@@ -1,5 +1,6 @@
 "use client";
 
+import { TrailScope } from "@/components/shared/trail-scope";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { cn, computeAge, splitOptionLabel } from "@/lib/utils";
 import { DEFAULT_INTENSITY_MAX, formatIntensity, intensityColor } from "@/lib/intensity";
@@ -1779,6 +1780,7 @@ export function PersonDetailTabs({
     ? (initialTab as TabId)
     : "overview";
   const [activeTab, setActiveTabRaw] = useState<TabId>(resolvedInitialTab);
+  const trailName = person.aliases.find((a) => a.isCommon)?.name ?? person.icgId;
   const [localPhotos, setLocalPhotos] = useState<GalleryItem[]>(photos);
   const [editAppearanceOpen, setEditAppearanceOpen] = useState(false);
   const [, startPhotoTransition] = useTransition();
@@ -1939,18 +1941,20 @@ export function PersonDetailTabs({
         hidden={activeTab !== "overview"}
       >
         {activeTab === "overview" && (
-          <OverviewTab
-            person={person}
-            currentState={currentState}
-            showcase={showcase}
-            knownFor={knownFor}
-            referencePhotos={photos}
-            plausibilityIssues={plausibilityIssues}
-            onTabSwitch={(tab) => setActiveTab(tab as TabId)}
-            entityTags={entityTags}
-            eraContributions={eraContributions}
-            attributeGroups={physicalAttributeGroups}
-          />
+          <TrailScope title={`${trailName} · Overview`}>
+            <OverviewTab
+              person={person}
+              currentState={currentState}
+              showcase={showcase}
+              knownFor={knownFor}
+              referencePhotos={photos}
+              plausibilityIssues={plausibilityIssues}
+              onTabSwitch={(tab) => setActiveTab(tab as TabId)}
+              entityTags={entityTags}
+              eraContributions={eraContributions}
+              attributeGroups={physicalAttributeGroups}
+            />
+          </TrailScope>
         )}
       </div>
       <div
@@ -2015,26 +2019,28 @@ export function PersonDetailTabs({
         hidden={activeTab !== "career"}
       >
         {activeTab === "career" && (
-          <CareerTab
-            person={person}
-            careerTimeline={careerTimeline}
-            appearsIn={careerAppearsIn}
-            careerStats={careerStats}
-            facetCounts={careerFacetCounts}
-            channels={careerChannels}
-            eras={careerEras}
-            affiliations={affiliations}
-            activeType={careerActiveType}
-            activeChannelIds={careerActiveChannelIds}
-            activeRatings={careerActiveRatings}
-            activeEraIds={careerActiveEraIds}
-            activeArchiveStatuses={careerActiveArchiveStatuses}
-            activeLabelIds={careerActiveLabelIds}
-            activeStatuses={careerActiveStatuses}
-            scope={careerScope}
-            activeSort={careerActiveSort}
-            withTint={true}
-          />
+          <TrailScope title={`${trailName} · Career`}>
+            <CareerTab
+              person={person}
+              careerTimeline={careerTimeline}
+              appearsIn={careerAppearsIn}
+              careerStats={careerStats}
+              facetCounts={careerFacetCounts}
+              channels={careerChannels}
+              eras={careerEras}
+              affiliations={affiliations}
+              activeType={careerActiveType}
+              activeChannelIds={careerActiveChannelIds}
+              activeRatings={careerActiveRatings}
+              activeEraIds={careerActiveEraIds}
+              activeArchiveStatuses={careerActiveArchiveStatuses}
+              activeLabelIds={careerActiveLabelIds}
+              activeStatuses={careerActiveStatuses}
+              scope={careerScope}
+              activeSort={careerActiveSort}
+              withTint={true}
+            />
+          </TrailScope>
         )}
       </div>
       <div
@@ -2044,12 +2050,14 @@ export function PersonDetailTabs({
         hidden={activeTab !== "network"}
       >
         {activeTab === "network" && (
-          <ConnectionsTab
-            data={connections}
-            personId={person.id}
-            personName={person.aliases.find((a) => a.isCommon)?.name ?? person.icgId}
-            roles={relationshipRoles}
-          />
+          <TrailScope title={`${trailName} · Connections`}>
+            <ConnectionsTab
+              data={connections}
+              personId={person.id}
+              personName={person.aliases.find((a) => a.isCommon)?.name ?? person.icgId}
+              roles={relationshipRoles}
+            />
+          </TrailScope>
         )}
       </div>
       <div

@@ -23,6 +23,18 @@ The app uses a fixed layout so navigation is always within reach, no matter how 
 - **Back to top** — a round ↑ button appears at the bottom-right once you've scrolled down; click it to jump back to the top.
 - Returning from a detail page (browser Back) restores both your filters **and your scroll position** in the list.
 
+### Finding your way back — the list you came from travels with you
+
+You reach a person, set or session from many places, not only from its gallery: from a set's cast, an artist's "Models shot most", a channel's Sets or Models tab, a person's Career or Connections, a set's credits, a label's channels. Wherever you click into such a list, **that list becomes your track**:
+
+- **"← Back to {the list}"** on the top left, e.g. *Back to FemJoy · Sets* or *Back to Sunset · Cast*. It returns to that page, scrolled to where you were.
+- **Previous / next** in the middle, with the neighbours' names and your place, e.g. *‹ Classy Touch · 3 / 14 · Enjoy The View ›* — through exactly that list, not the whole gallery. **←** and **→** do the same, **Esc** goes back.
+- **The crumb row** under it when you went deeper: from Cara Mell (opened from a set's cast) into one of her sets shows *FemJoy · Sets › Sunset · Cast › Cara Mell · Career*. Each crumb takes you back to that level, where its own previous / next works again.
+- The person's **tab stays** while you walk (walk a cast on the Career tab and every person opens on Career).
+- The track lives in the address (`?via=…`): a reload, the browser's Back / Forward and **open in new tab** all keep it. A page opened from the sidebar, a typed or shared link, or a gallery behaves as before (*Back to People*, the gallery's previous / next).
+
+Lists that only show the first part (e.g. a channel's Sets tab before *Show more*) walk the part on screen.
+
 ---
 
 ## Table of Contents
@@ -2973,6 +2985,8 @@ If you created a set and realize the media actually came from an existing sessio
 | `i` | Toggle info panel | Lightbox |
 | `?` | All the viewer's keys | Lightbox |
 | `x` | Compare tray — add / remove | Lightbox |
+| `←` / `→` | Previous / next in the list you came from (or the gallery) | Person, set, session pages |
+| `Escape` | Back to that list | Person, set, session pages |
 
 ---
 

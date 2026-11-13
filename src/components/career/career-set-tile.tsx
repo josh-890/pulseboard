@@ -107,6 +107,7 @@ export function CareerSetTile({ row, jumpPerson }: CareerSetTileProps) {
     <div className="relative min-w-0">
       <Link
         href={href}
+        data-trail-name={row.title}
         title={tooltip}
         className={cn(
           "group flex min-w-0 flex-col gap-1.5 rounded-lg p-1 outline-none transition-colors duration-150",

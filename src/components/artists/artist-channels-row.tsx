@@ -17,6 +17,7 @@ export function ArtistChannelsRow({ channels }: { channels: ArtistChannel[] }) {
           <li key={c.id}>
             <Link
               href={`/channels/${c.id}`}
+              data-trail-name={c.brand.name}
               className="flex items-center gap-3 rounded-xl border border-white/15 bg-card/60 px-3 py-2 transition-colors hover:bg-card/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <EntityMark brand={c.brand} variant="wordmark" size="md" className="max-w-[12rem]" />

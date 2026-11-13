@@ -32,6 +32,7 @@ export function MakerFacesRow({ title, faces, moreHref }: MakerFacesRowProps) {
           <li key={f.personId} className="w-24 shrink-0 snap-start sm:w-28">
             <Link
               href={`/people/${f.personId}`}
+              data-trail-name={f.name}
               className="group flex flex-col items-center gap-1.5 rounded-xl p-1 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               title={`${f.name} (${f.icgId}) · ${f.sets} ${f.sets === 1 ? "set" : "sets"}`}
             >

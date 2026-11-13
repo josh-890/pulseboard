@@ -164,7 +164,7 @@ function Tile({ row }: { row: ChannelWallRow }) {
     row.kind === "catalogue" && "opacity-70",
   );
   return row.href ? (
-    <Link href={row.href} title={tooltip} className={cn(className, "hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
+    <Link href={row.href} title={tooltip} data-trail-name={row.title} className={cn(className, "hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring")}>
       {body}
     </Link>
   ) : (

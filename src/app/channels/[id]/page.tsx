@@ -1,4 +1,5 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { TrailScope } from "@/components/shared/trail-scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Camera, LayoutDashboard, NotebookPen, Settings2, Tag, Users } from "lucide-react";
@@ -135,8 +136,12 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
                 No photos yet — the Showcase fills itself from the photos of this channel&apos;s sets.
               </p>
             )}
-            <KnownForRow sets={knownFor} hideChannel />
-            <MakerFacesRow title="Faces of the channel" faces={faces} moreHref={`/channels/${channel.id}?tab=models`} />
+            <TrailScope title={`${channel.name} · Known for`}>
+              <KnownForRow sets={knownFor} hideChannel />
+            </TrailScope>
+            <TrailScope title={`${channel.name} · Faces`}>
+              <MakerFacesRow title="Faces of the channel" faces={faces} moreHref={`/channels/${channel.id}?tab=models`} />
+            </TrailScope>
             <MarkdownNoteCard
               title="About"
               icon={<BookOpen size={16} />}
@@ -164,23 +169,27 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
         )}
 
         {tab === "sets" && wall && (
-          <ChannelSetWall
-            wall={wall}
-            scope={sp.scope === "all" ? "all" : "library"}
-            type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
-            sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
-            limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
-            basePath={`/channels/${channel.id}?tab=sets`}
-          />
+          <TrailScope title={`${channel.name} · Sets`}>
+            <ChannelSetWall
+              wall={wall}
+              scope={sp.scope === "all" ? "all" : "library"}
+              type={sp.type === "photo" || sp.type === "video" ? sp.type : "any"}
+              sort={sp.sort === "oldest" || sp.sort === "rating" ? sp.sort : "newest"}
+              limit={Math.max(WALL_PAGE, Math.min(Number(sp.limit) || WALL_PAGE, 20_000))}
+              basePath={`/channels/${channel.id}?tab=sets`}
+            />
+          </TrailScope>
         )}
 
         {tab === "models" && models && (
-          <ChannelModels
-            models={models}
-            filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
-            limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
-            basePath={`/channels/${channel.id}?tab=models`}
-          />
+          <TrailScope title={`${channel.name} · Models`}>
+            <ChannelModels
+              models={models}
+              filter={sp.who === "library" || sp.who === "persons" || sp.who === "contacts" ? sp.who : "all"}
+              limit={Math.max(MODELS_PAGE, Math.min(Number(sp.limit) || MODELS_PAGE, 20_000))}
+              basePath={`/channels/${channel.id}?tab=models`}
+            />
+          </TrailScope>
         )}
 
         {tab === "manage" && <ChannelManageTab channel={channel} pipeline={pipeline} />}

@@ -96,6 +96,8 @@ test.describe("Person showcase", () => {
     const href = await poster.getAttribute("href");
     expect(href).toMatch(/^\/sets\/.+/);
     await poster.click();
-    await expect(page).toHaveURL(new RegExp(`${href}$`));
+    // Opened from her Known-for row, the set carries the trail back to her (?via=, 2026-11-13).
+    await expect(page).toHaveURL(new RegExp(`${href}\\?via=\\w+$`));
+    await expect(page.getByTestId("trail-back")).toContainText("· Overview");
   });
 });

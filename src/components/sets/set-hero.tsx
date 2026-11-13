@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { TrailScope } from "@/components/shared/trail-scope";
 import Link from "next/link";
 import { Camera, Film, FolderCheck, FolderOpen, FolderX } from "lucide-react";
 import { StubBadge } from "@/components/archive/stub-badge";
@@ -177,7 +178,9 @@ export function SetHero({
         <hr className="my-3 border-white/10" />
 
         {/* Cast rail */}
-        <SetCastRail cast={cast} />
+        <TrailScope title={`${set.title} · Cast`}>
+          <SetCastRail cast={cast} />
+        </TrailScope>
         {participantCount === 0 && (
           <p className="text-xs text-muted-foreground/50 italic">No participants</p>
         )}

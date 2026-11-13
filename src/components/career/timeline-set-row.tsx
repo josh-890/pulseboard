@@ -186,6 +186,7 @@ export function TimelineSetRow({
       <div className="relative">
         <Link
           href={href}
+          data-trail-name={row.title}
           className={cn(
             "group flex min-h-0 items-center gap-2 rounded border border-l-4 border-white/10 px-2 py-1",
             promoteButton && "pr-24",
@@ -247,6 +248,7 @@ export function TimelineSetRow({
     <div className="relative">
       <Link
         href={href}
+        data-trail-name={row.title}
         className={cn(
           "group flex items-center gap-3 rounded-md border border-l-4 border-white/10 px-3 py-2",
           promoteButton && "pr-28",

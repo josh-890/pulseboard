@@ -20,6 +20,7 @@ export function LabelChannelTiles({ channels }: { channels: LabelChannelTile[] }
           <li key={c.id}>
             <Link
               href={`/channels/${c.id}`}
+              data-trail-name={c.brand.name}
               className={cn(
                 "group flex h-full flex-col gap-3 rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm transition-all duration-150",
                 "hover:-translate-y-px hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

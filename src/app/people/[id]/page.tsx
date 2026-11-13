@@ -2,6 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { BrowseNavBar, BrowseBackLink } from "@/components/people/browse-nav-bar";
+import { TrailHeaderRow } from "@/components/shared/trail-header-row";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -256,20 +257,22 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   return (
     <div className="space-y-6">
       {/* Back link + browse nav + actions row */}
-      <div className="grid grid-cols-3 items-center gap-4">
-        <div className="flex items-center">
-          <BrowseBackLink />
-        </div>
-        <div className="flex justify-center">
+      <TrailHeaderRow
+        entityType="person"
+        entityId={id}
+        fallbackBack={<BrowseBackLink />}
+        fallbackNav={
           <Suspense fallback={null}>
             <BrowseNavBar personId={id} />
           </Suspense>
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <EditPersonSheet person={person} />
-          <PersonActionsMenu personId={id} onDelete={deletePerson.bind(null, id)} redirectTo="/people" />
-        </div>
-      </div>
+        }
+        actions={
+          <>
+            <EditPersonSheet person={person} />
+            <PersonActionsMenu personId={id} onDelete={deletePerson.bind(null, id)} redirectTo="/people" />
+          </>
+        }
+      />
 
       {catalogueHint && <PersonCatalogueHint personId={id} hint={catalogueHint} />}
 

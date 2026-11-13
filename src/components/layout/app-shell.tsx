@@ -1,9 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { BackToTop } from "./back-to-top";
+import { TrailScrollRestore } from "./trail-scroll-restore";
 import { APP_SCROLL_ID } from "@/lib/scroll-container";
 
 // Routes that render without the app shell (sidebar, header)
@@ -46,6 +48,9 @@ export function AppShell({ children }: AppShellProps) {
           {children}
         </main>
         <BackToTop />
+        <Suspense fallback={null}>
+          <TrailScrollRestore />
+        </Suspense>
       </div>
     </div>
   );
