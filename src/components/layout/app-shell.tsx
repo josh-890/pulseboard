@@ -6,6 +6,7 @@ import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { BackToTop } from "./back-to-top";
 import { TrailScrollRestore } from "./trail-scroll-restore";
+import { PeekProvider } from "@/components/shared/peek-provider";
 import { APP_SCROLL_ID } from "@/lib/scroll-container";
 
 // Routes that render without the app shell (sidebar, header)
@@ -30,6 +31,7 @@ export function AppShell({ children }: AppShellProps) {
   // `position: sticky` descendants (toolbar, group/year headers), which
   // now stick relative to the content region top.
   return (
+    <PeekProvider>
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -53,5 +55,6 @@ export function AppShell({ children }: AppShellProps) {
         </Suspense>
       </div>
     </div>
+    </PeekProvider>
   );
 }

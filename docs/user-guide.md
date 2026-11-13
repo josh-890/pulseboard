@@ -37,6 +37,8 @@ Lists that only show the first part (e.g. a channel's Sets tab before *Show more
 
 **Every detail page has this bar** — people, sets, sessions, channels, labels, artists, projects, collections and contacts. The **Channels, Labels, Artists, Projects, Collections and Contacts galleries** and the **Watchlist** start a track too: open a channel from a filtered Channels list and *‹ prev · 4 / 23 · next ›* walks that filtered list, *← Back to Channels* returns to it with the filter. Going on into the channel's Sets tab and a set, the crumb row reads *Channels › FemJoy · Sets*. A project's labels and sessions (and each session's people), and a contact's *Credited in your sets*, are tracks as well.
 
+**Peek without leaving.** In those same lists, a person or a set can be looked at in a side panel: hover it and click the small **eye** in its corner, or focus it (Tab) and press **Space**. The panel shows a person's headshot, *Name (ICG-ID)*, nationality, age, status, active years, rating and her newest sets; a set's cover, channel, date, type, image count, rating and cast. **← →** step through the same list (*2 / 14*) while the page stays where it is; **Open page** (or **Enter**) goes there with the list as its track; **Esc** closes. A set or a person inside the panel opens directly.
+
 ### Recently viewed
 
 **Recent** (top right, on every page) lists the last 15 pages you opened — people (as *Name (ICG-ID)*), sets, sessions, channels, labels, artists, projects, collections, contacts — newest first, the page you are on left out. Opening one again moves it to the top; **Clear** empties the list. It is kept in this browser only. A page opened from Recent starts afresh (no *Back to …* track).
