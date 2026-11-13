@@ -4,6 +4,7 @@ import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { BookOpen, Camera, LayoutDashboard, Link2, NotebookPen, Tag, UserPen } from "lucide-react";
 import { brandOf } from "@/lib/services/brand-of";
 import { getArtistById, getArtistChannels, getArtistHeroStats } from "@/lib/services/artist-service";
@@ -90,6 +91,7 @@ export default async function ArtistDetailPage({ params, searchParams }: ArtistD
 
     return (
       <div className="space-y-5">
+        <RecordRecent type="artist" id={artist.id} name={artist.name} />
         <TrailHeaderRow
           entityType="artist"
           entityId={artist.id}

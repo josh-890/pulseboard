@@ -4,6 +4,7 @@ import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { BookOpen, Camera, LayoutDashboard, NotebookPen, Settings2, Tag, Users } from "lucide-react";
 import {
   getChannelById,
@@ -82,6 +83,7 @@ export default async function ChannelDetailPage({ params, searchParams }: Channe
     return (
       <div className="space-y-5">
         {/* Back link + actions row */}
+        <RecordRecent type="channel" id={channel.id} name={channel.name} />
         <TrailHeaderRow
           entityType="channel"
           entityId={channel.id}

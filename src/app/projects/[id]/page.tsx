@@ -5,6 +5,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { FolderKanban, Tag, ArrowRight } from "lucide-react";
 import { getProjectById } from "@/lib/services/project-service";
 import { cn, formatPartialDate } from "@/lib/utils";
@@ -58,6 +59,7 @@ export default async function ProjectDetailPage({
   return (
     <div className="space-y-6">
       {/* Back link + actions row */}
+      <RecordRecent type="project" id={id} name={project.name} />
       <TrailHeaderRow
         entityType="project"
         entityId={id}

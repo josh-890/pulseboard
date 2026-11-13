@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { TrailScope } from "@/components/shared/trail-scope";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Clock } from "lucide-react";
@@ -50,6 +51,7 @@ export default async function ContactPage({ params }: ContactPageProps) {
 
     return (
       <div className="space-y-8">
+        <RecordRecent type="contact" id={c.id} name={c.icgId ? `${c.name} (${c.icgId})` : c.name} />
         <TrailHeaderRow
           entityType="contact"
           entityId={c.id}

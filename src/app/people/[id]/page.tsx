@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { BrowseNavBar, BrowseBackLink } from "@/components/people/browse-nav-bar";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import {
   getPersonWithDetails,
   getPersonWorkHistory,
@@ -257,6 +258,7 @@ export default async function PersonDetailPage({ params, searchParams }: PersonD
   return (
     <div className="space-y-6">
       {/* Back link + browse nav + actions row */}
+      <RecordRecent type="person" id={id} name={`${person.aliases.find((a) => a.isCommon)?.name ?? person.icgId}${person.aliases.some((a) => a.isCommon) ? ` (${person.icgId})` : ""}`} />
       <TrailHeaderRow
         entityType="person"
         entityId={id}

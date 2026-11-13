@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Users, ImageIcon, Camera, Film, User, Gauge } from "lucide-react";
 import { SessionBrowseNavBar, SessionBrowseBackLink } from "@/components/sessions/session-browse-nav-bar";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { getSessionById } from "@/lib/services/session-service";
 import { getLabels } from "@/lib/services/label-service";
 import { getProjects } from "@/lib/services/project-service";
@@ -332,6 +333,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       {ratingQueue && rate && <RatingQueueBar queue={ratingQueue} rate={rate} />}
 
       {/* Back link + browse nav + actions row */}
+      <RecordRecent type="session" id={id} name={session.name} />
       <TrailHeaderRow
         entityType="session"
         entityId={id}

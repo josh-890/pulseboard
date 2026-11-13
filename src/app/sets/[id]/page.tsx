@@ -6,6 +6,7 @@ import { Gauge, Tag } from "lucide-react";
 import { cookies } from "next/headers";
 import { SetBrowseNavBar, SetBrowseBackLink } from "@/components/sets/set-browse-nav-bar";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { TrailScope } from "@/components/shared/trail-scope";
 import { getSetById, getChannelsForSelect, getSetParticipantEraMap } from "@/lib/services/set-service";
 import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getGalleryCastDirectory } from "@/lib/services/media-service";
@@ -161,6 +162,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
     return (
       <div className="space-y-6">
         {/* Back link + browse nav + actions row */}
+        <RecordRecent type="set" id={id} name={setData.title} />
         <TrailHeaderRow
           entityType="set"
           entityId={id}

@@ -4,6 +4,7 @@ import { withVia } from "@/lib/browse-trail";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { BookOpen, Camera, FolderKanban, LayoutDashboard, NotebookPen, Radio, Tag, Users } from "lucide-react";
 import { getLabelById, getLabelChannels, getLabelHeroStats } from "@/lib/services/label-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
@@ -107,6 +108,7 @@ export default async function LabelDetailPage({ params, searchParams }: LabelDet
     return (
       <div className="space-y-5">
         {/* Back link + actions row */}
+        <RecordRecent type="label" id={label.id} name={label.name} />
         <TrailHeaderRow
           entityType="label"
           entityId={label.id}

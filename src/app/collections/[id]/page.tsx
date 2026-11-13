@@ -2,6 +2,7 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TrailHeaderRow } from "@/components/shared/trail-header-row";
+import { RecordRecent } from "@/components/shared/record-recent";
 import { Library, Globe, User, ImageIcon } from "lucide-react";
 import {
   getCollectionWithItems,
@@ -36,6 +37,7 @@ export default async function CollectionDetailPage({ params }: CollectionDetailP
     return (
     <div className="space-y-6">
       {/* Back + actions */}
+      <RecordRecent type="collection" id={id} name={collection.name} />
       <TrailHeaderRow
         entityType="collection"
         entityId={id}

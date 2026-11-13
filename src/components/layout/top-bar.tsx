@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { MobileDrawer } from "./mobile-drawer";
 import { getSectionLabel } from "./nav-items";
+import { RecentPopover } from "./recent-popover";
 
 /**
  * Persistent top bar that lives outside the scrolling content region, so
@@ -20,8 +21,10 @@ export function TopBar() {
       <span className="text-base font-semibold text-foreground md:text-lg">
         {section}
       </span>
-      {/* Right-aligned slot for future global/page actions */}
-      <div className="ml-auto flex items-center gap-2" />
+      {/* Right-aligned global actions */}
+      <div className="ml-auto flex items-center gap-2">
+        <RecentPopover />
+      </div>
     </header>
   );
 }
