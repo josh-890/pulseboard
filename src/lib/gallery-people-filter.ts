@@ -1,4 +1,4 @@
-import { imageShownIds, type ShownSource } from "@/lib/image-shown";
+import { imageFocusIds, imageShownIds, type ShownSource } from "@/lib/image-shown";
 
 /**
  * The set gallery's "people shown" filter (ADR-0023).
@@ -13,9 +13,12 @@ import { imageShownIds, type ShownSource } from "@/lib/image-shown";
  * An image's shown set is `imageShownIds` (leads not hidden, support marked shown), restricted to
  * the set's cast (a compilation's session cast may name people this set does not
  * credit, and a chip cannot be offered for them).
+ *
+ * Focus (ADR-0039): a chip can also ask for the person as the image's focus
+ * ("focus only") — shown and not marked as only in the shot.
  */
 
-export type PeopleChipState = "include" | "exclude";
+export type PeopleChipState = "include" | "focus" | "exclude";
 export type PeopleFilter = Readonly<Record<string, PeopleChipState>>;
 
 export const EMPTY_PEOPLE_FILTER: PeopleFilter = {};
@@ -26,25 +29,39 @@ export function shownPeople(item: ShownSource, castIds: readonly string[]): stri
   return castIds.filter((id) => shown.has(id));
 }
 
+/** Who the image is about (shown, not only in the shot), in cast order. */
+export function focusPeople(item: ShownSource, castIds: readonly string[]): string[] {
+  const focus = new Set(imageFocusIds(item));
+  return castIds.filter((id) => focus.has(id));
+}
+
 export function isPeopleFilterActive(filter: PeopleFilter): boolean {
   return Object.keys(filter).length > 0;
 }
 
-export function matchesPeopleFilter(shown: readonly string[], filter: PeopleFilter): boolean {
+/** `focus` = who the image is about (`focusPeople`); left out, everyone shown counts as the focus */
+export function matchesPeopleFilter(
+  shown: readonly string[],
+  filter: PeopleFilter,
+  focus: readonly string[] = shown,
+): boolean {
   const set = new Set(shown);
+  const focusSet = new Set(focus);
   for (const [id, state] of Object.entries(filter)) {
     if (state === "include" && !set.has(id)) return false;
+    if (state === "focus" && !focusSet.has(id)) return false;
     if (state === "exclude" && set.has(id)) return false;
   }
   return true;
 }
 
-/** off → must show → must not show → off. */
+/** off → must show → must be the focus → must not show → off. */
 export function cycleChip(filter: PeopleFilter, personId: string): PeopleFilter {
   const next: Record<string, PeopleChipState> = { ...filter };
   const current = filter[personId];
   if (current === undefined) next[personId] = "include";
-  else if (current === "include") next[personId] = "exclude";
+  else if (current === "include") next[personId] = "focus";
+  else if (current === "focus") next[personId] = "exclude";
   else delete next[personId];
   return next;
 }

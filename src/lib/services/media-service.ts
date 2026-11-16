@@ -11,6 +11,7 @@ import {
   getHiddenPersonsForMedia,
   getSupportCastForSessions,
   getShownSupportForMedia,
+  getFocusMarksForMedia,
 } from "./appearance-service";
 import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import type { PersonMediaLink } from "@/generated/prisma/client";
@@ -629,22 +630,26 @@ export async function getSetMediaGallery(
 /**
  * Attach per-image appearance (ADR-0023) to gallery items in place: each item's
  * session lead cast (`sessionCastIds`) + its exclusions (`hiddenPersonIds`), and
- * its support (`supportCastIds`) + who of them it shows (`shownSupportIds`).
+ * its support (`supportCastIds`) + who of them it shows (`shownSupportIds`),
+ * and the focus marks (ADR-0039: `backgroundPersonIds`, `focusSupportIds`).
  */
 async function attachAppearance(items: GalleryItem[], sessionIds: string[]): Promise<void> {
   if (items.length === 0) return;
   const ids = items.map((i) => i.id);
-  const [castMap, hiddenMap, supportMap, shownMap] = await Promise.all([
+  const [castMap, hiddenMap, supportMap, shownMap, focusMarks] = await Promise.all([
     getLeadCastForSessions(sessionIds),
     getHiddenPersonsForMedia(ids),
     getSupportCastForSessions(sessionIds),
     getShownSupportForMedia(ids),
+    getFocusMarksForMedia(ids),
   ]);
   for (const it of items) {
     it.sessionCastIds = it.sessionId ? (castMap.get(it.sessionId) ?? []) : [];
     it.hiddenPersonIds = hiddenMap.get(it.id) ?? [];
     it.supportCastIds = it.sessionId ? (supportMap.get(it.sessionId) ?? []) : [];
     it.shownSupportIds = shownMap.get(it.id) ?? [];
+    it.backgroundPersonIds = focusMarks.background.get(it.id) ?? [];
+    it.focusSupportIds = focusMarks.focusSupport.get(it.id) ?? [];
   }
 }
 

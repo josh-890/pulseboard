@@ -1,6 +1,7 @@
 "use server";
 
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import type { BulkShownMode } from "@/lib/image-shown";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
@@ -19,6 +20,8 @@ import {
   bulkHidePersons,
   bulkShowPersons,
   setShownSupport,
+  setBackgroundPersons,
+  bulkSetFocus,
 } from "@/lib/services/appearance-service";
 import { refreshDashboardStats } from "@/lib/services/view-service";
 import { setMediaFavorite } from "@/lib/services/media-mark-service";
@@ -340,13 +343,15 @@ export async function setMediaShownPeopleAction(
 }
 
 // Support on one image (2026-10-24): who of the people only appearing it shows.
+// `focusPersonIds` (ADR-0039): who of them is the focus; left out, focus marks are kept.
 export async function setMediaShownSupportAction(
   mediaItemId: string,
   shownPersonIds: string[],
+  focusPersonIds?: string[],
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
-      await setShownSupport(mediaItemId, shownPersonIds);
+      await setShownSupport(mediaItemId, shownPersonIds, focusPersonIds);
       return { success: true };
     } catch (err) {
       console.error("[setMediaShownSupportAction] failed:", mediaItemId, err);
@@ -356,16 +361,36 @@ export async function setMediaShownSupportAction(
   });
 }
 
-// Bulk hide/show people across many selected images (add/remove exclusions).
+// Focus on one image (ADR-0039): the leads only in the shot, not its focus.
+export async function setMediaBackgroundPeopleAction(
+  mediaItemId: string,
+  backgroundPersonIds: string[],
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      await setBackgroundPersons(mediaItemId, backgroundPersonIds);
+      return { success: true };
+    } catch (err) {
+      console.error("[setMediaBackgroundPeopleAction] failed:", mediaItemId, err);
+      const message = err instanceof Error ? err.message : "Unexpected error";
+      return { success: false, error: message };
+    }
+  });
+}
+
+// Bulk across many selected images: hide, show, or (ADR-0039) show as the focus /
+// only in the shot.
+
 export async function bulkSetShownPeopleAction(
   mediaItemIds: string[],
   personIds: string[],
-  mode: "hide" | "show",
+  mode: BulkShownMode,
 ): Promise<SimpleActionResult> {
   return withTenantFromHeaders(async () => {
     try {
       if (mode === "hide") await bulkHidePersons(mediaItemIds, personIds);
-      else await bulkShowPersons(mediaItemIds, personIds);
+      else if (mode === "show") await bulkShowPersons(mediaItemIds, personIds);
+      else await bulkSetFocus(mediaItemIds, personIds, mode);
       return { success: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unexpected error";

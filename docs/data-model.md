@@ -182,11 +182,14 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
    │     ──< MediaItemTag        >── Tag
    │     ──< ContributionActMedia >── ContributionAct (evidence, ADR-0036)
    │     ──< MediaItemHiddenPerson >── Person (a lead not shown, ADR-0023)
-   │     ──< MediaItemShownPerson  >── Person (support shown, ADR-0037)
+   │     ──< MediaItemShownPerson  >── Person (support shown, ADR-0037; `focus` = the focus, ADR-0039)
+   │     ──< MediaItemBackgroundPerson >── Person (a lead only in the shot, ADR-0039)
 ```
 
 - Who an image shows: its session's leads minus `media_item_hidden_person`, plus its session's support
   where `media_item_shown_person` has a row, plus `PersonMediaLink` (`imageShownIds` / SQL `imageShows`).
+- Who an image is about (ADR-0039): the shown leads minus `media_item_background_person`, plus shown support whose
+  `media_item_shown_person.focus` is true (`imageFocusIds`). Only the person showcase reads it.
 
 - `PersonMediaUsage`: PROFILE / HEADSHOT / DETAIL / PORTFOLIO. DETAIL media
   links via `categoryId` to a `MediaCategory` (admin-configurable; categories

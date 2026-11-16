@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { GalleryCastMember, MediaItemOrigin } from "@/lib/types/gallery";
 import { LightboxOriginSection } from "./lightbox-origin-section";
+import { PeopleShownChips } from "./people-shown-chips";
 import { LightboxDetailUses } from "./lightbox-detail-uses";
 import type { CollectionSummary } from "@/lib/services/collection-service";
 import {
@@ -163,7 +164,9 @@ type GalleryInfoPanelProps = {
   onSetHiddenPersons?: (itemId: string, hiddenPersonIds: string[]) => void;
   // Someone only appearing (support, 2026-10-24): listed after the cast under
   // "Appearing", not shown by default — `onSetShownSupport` persists who is.
-  onSetShownSupport?: (itemId: string, shownSupportIds: string[]) => void;
+  onSetShownSupport?: (itemId: string, shownSupportIds: string[], focusSupportIds: string[]) => void;
+  // Focus (ADR-0039): the leads only in the shot, not the focus — `bg` on a chip.
+  onSetBackgroundPersons?: (itemId: string, backgroundPersonIds: string[]) => void;
   // Where the photo comes from (galleries gathered from everywhere). When
   // `showOrigin` is set an "Origin" section leads; `origin` undefined = loading.
   showOrigin?: boolean;
@@ -191,6 +194,7 @@ export function GalleryInfoPanel({
   cast,
   onSetHiddenPersons,
   onSetShownSupport,
+  onSetBackgroundPersons,
   showOrigin,
   origin,
 }: GalleryInfoPanelProps) {
@@ -922,20 +926,16 @@ export function GalleryInfoPanel({
         </>
       )}
 
-      {/* People shown (ADR-0023) — set/production galleries; default all-shown, deselect the absent */}
+      {/* People shown (ADR-0023) — set/production galleries; default all-shown, deselect the absent; bg = only in the shot (ADR-0039) */}
       {cast && cast.length > 0 && ((item.sessionCastIds?.length ?? 0) > 0 || (item.supportCastIds?.length ?? 0) > 0) && (() => {
         const hidden = new Set(item.hiddenPersonIds ?? []);
         const castById = new Map(cast.map((c) => [c.id, c]));
         const sessionCast = (item.sessionCastIds ?? []).filter((id) => castById.has(id));
         const supportCast = (item.supportCastIds ?? []).filter((id) => castById.has(id) && !sessionCast.includes(id));
         if (sessionCast.length === 0 && supportCast.length === 0) return null;
-        const shownSupport = new Set((item.shownSupportIds ?? []).filter((id) => supportCast.includes(id)));
-        const shownCount = sessionCast.filter((id) => !hidden.has(id)).length + shownSupport.size;
+        const shownSupport = (item.shownSupportIds ?? []).filter((id) => supportCast.includes(id));
+        const shownCount = sessionCast.filter((id) => !hidden.has(id)).length + shownSupport.length;
         const total = sessionCast.length + supportCast.length;
-        // "Only X" and "Deselect all" mean nobody else — support included
-        const clearSupport = () => {
-          if (shownSupport.size > 0) onSetShownSupport?.(item.id, []);
-        };
         return (
           <>
             <SectionHeader
@@ -946,118 +946,15 @@ export function GalleryInfoPanel({
               onToggle={toggleSection}
             />
             {expandedSections.has("people-shown") && (
-              <div className="space-y-1.5 pb-2">
-                {/* Quick actions — a fast path when only 1–2 of a large cast are shown */}
-                {sessionCast.length > 2 && (
-                  <div className="flex items-center gap-2 px-0.5 text-[11px] text-white/50">
-                    <button
-                      type="button"
-                      onClick={() => onSetHiddenPersons?.(item.id, [])}
-                      className="transition-colors hover:text-white"
-                    >
-                      Select all
-                    </button>
-                    <span className="text-white/20">·</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onSetHiddenPersons?.(item.id, [...sessionCast]);
-                        clearSupport();
-                      }}
-                      className="transition-colors hover:text-white"
-                    >
-                      Deselect all
-                    </button>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-1">
-                  {sessionCast.map((pid) => {
-                    const member = castById.get(pid)!;
-                    const isShown = !hidden.has(pid);
-                    return (
-                      <span
-                        key={pid}
-                        className={cn(
-                          "group/chip inline-flex items-center overflow-hidden rounded-full border text-xs font-medium transition-all",
-                          isShown
-                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
-                            : "border-transparent bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = new Set(hidden);
-                            if (isShown) next.add(pid);
-                            else next.delete(pid);
-                            onSetHiddenPersons?.(item.id, [...next]);
-                          }}
-                          className={cn(
-                            "px-2 py-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                            !isShown && "line-through",
-                          )}
-                          aria-pressed={isShown}
-                          title={isShown ? `${member.name} — shown (click to mark absent)` : `${member.name} — not shown (click to include)`}
-                        >
-                          {member.name}
-                        </button>
-                        {/* "Only this one" — sets the shown set to just this person */}
-                        {sessionCast.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onSetHiddenPersons?.(item.id, sessionCast.filter((id) => id !== pid));
-                              clearSupport();
-                            }}
-                            className="border-l border-white/15 px-1.5 py-1 text-[10px] uppercase tracking-wide text-white/40 transition-colors hover:bg-white/10 hover:text-white"
-                            title={`Show only ${member.name}`}
-                            aria-label={`Show only ${member.name}`}
-                          >
-                            only
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-                {supportCast.length > 0 && (
-                  <div className="space-y-1 pt-0.5">
-                    <p className="px-0.5 text-[10px] uppercase tracking-wide text-white/40">Appearing</p>
-                    <div className="flex flex-wrap gap-1">
-                      {supportCast.map((pid) => {
-                        const member = castById.get(pid)!;
-                        const isShown = shownSupport.has(pid);
-                        return (
-                          <button
-                            key={pid}
-                            type="button"
-                            onClick={() => {
-                              const next = new Set(shownSupport);
-                              if (isShown) next.delete(pid);
-                              else next.add(pid);
-                              onSetShownSupport?.(item.id, [...next]);
-                            }}
-                            aria-pressed={isShown}
-                            title={
-                              isShown
-                                ? `${member.name} — shown here (click to unmark)`
-                                : `${member.name} — only appears in the session; click if this image shows them`
-                            }
-                            className={cn(
-                              "rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                              isShown
-                                ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100"
-                                : "border-dashed border-white/15 bg-transparent text-white/45 hover:bg-white/10 hover:text-white/75",
-                            )}
-                          >
-                            {member.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <PeopleShownChips
+                item={item}
+                sessionCast={sessionCast}
+                supportCast={supportCast}
+                castById={castById}
+                onSetHiddenPersons={onSetHiddenPersons}
+                onSetShownSupport={onSetShownSupport}
+                onSetBackgroundPersons={onSetBackgroundPersons}
+              />
             )}
           </>
         );

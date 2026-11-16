@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Users, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Users, Focus, EyeOff, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { bulkSetShownPeopleAction } from "@/lib/actions/media-actions";
 import type { GalleryCastMember } from "@/lib/types/gallery";
+import type { BulkShownMode } from "@/lib/image-shown";
 
 type BulkPeopleShownControlProps = {
   cast: GalleryCastMember[];
   selectedIds: string[];
   /** Called after a successful apply so the parent can update its local items (live badges). */
-  onApplied: (personId: string, mode: "hide" | "show") => void;
+  onApplied: (personId: string, mode: BulkShownMode) => void;
 };
 
 /**
  * Bulk "people shown" control for the gallery selection bar (ADR-0023): pick a
- * person and Show / Hide them across all selected images (add/remove exclusions).
+ * person and, across all selected images, show them as the focus, show them
+ * only in the shot (`bg`, ADR-0039 — left out of their showcase), or hide them.
  */
 export function BulkPeopleShownControl({ cast, selectedIds, onApplied }: BulkPeopleShownControlProps) {
   const [open, setOpen] = useState(false);
@@ -24,7 +26,7 @@ export function BulkPeopleShownControl({ cast, selectedIds, onApplied }: BulkPeo
 
   if (cast.length === 0) return null;
 
-  function apply(personId: string, mode: "hide" | "show") {
+  function apply(personId: string, mode: BulkShownMode) {
     if (selectedIds.length === 0) return;
     startTransition(async () => {
       await bulkSetShownPeopleAction(selectedIds, [personId], mode);
@@ -44,6 +46,7 @@ export function BulkPeopleShownControl({ cast, selectedIds, onApplied }: BulkPeo
         <p className="mb-1.5 px-1 text-[11px] text-muted-foreground">
           Apply to {selectedIds.length} selected image{selectedIds.length === 1 ? "" : "s"}
         </p>
+        <p className="mb-1 px-1 text-[10px] text-muted-foreground/80">Focus · bg = in the shot, not the focus · Hide</p>
         <ul className="space-y-0.5">
           {cast.map((c) => (
             <li
@@ -55,12 +58,22 @@ export function BulkPeopleShownControl({ cast, selectedIds, onApplied }: BulkPeo
                 <button
                   type="button"
                   disabled={isPending}
-                  onClick={() => apply(c.id, "show")}
+                  onClick={() => apply(c.id, "focus")}
                   className="rounded p-1 text-emerald-500 transition-colors hover:bg-emerald-500/10 disabled:opacity-40"
-                  title="Mark shown in the selected images"
-                  aria-label={`Show ${c.name} in selected images`}
+                  title="Shown as the focus in the selected images"
+                  aria-label={`${c.name}: the focus in selected images`}
                 >
-                  <Eye size={14} />
+                  <Focus size={14} />
+                </button>
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => apply(c.id, "background")}
+                  className="rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-500 transition-colors hover:bg-sky-500/10 disabled:opacity-40"
+                  title="In the shot, not the focus, in the selected images (left out of their showcase)"
+                  aria-label={`${c.name}: in the shot, not the focus, in selected images`}
+                >
+                  bg
                 </button>
                 <button
                   type="button"

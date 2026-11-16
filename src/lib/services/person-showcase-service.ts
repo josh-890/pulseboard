@@ -56,10 +56,11 @@ export async function getPersonShowcase(
     : Prisma.sql`level, "iconicAt" DESC NULLS LAST,
       CASE WHEN level = 4 THEN round END, CASE WHEN level = 4 THEN md5(grp || ${seed}) END, md5(id || ${seed})`;
 
-  // Set-based, not per image: a person's photos run to thousands. "Shown" is the
-  // rule of `imageShows` in tag-predicates.ts — on camera in the image's session
-  // and not hidden from it, or linked directly. Showcase/Known-for is the leads'
-  // (2026-10-24): someone only appearing is left out — even where marked shown
+  // Set-based, not per image: a person's photos run to thousands. The showcase
+  // takes the photos the person is the FOCUS of (ADR-0039, `imageFocusIds`):
+  // leading the image's session, not hidden from it and not marked as only in
+  // the shot; or appearing there (support) and marked as the focus; or linked
+  // directly. Someone appearing is otherwise left out, even where shown (2026-10-24)
   const rows = await prisma.$queryRaw<{ id: string; level: number; grp: string }[]>`
     WITH on_camera AS (
       SELECT DISTINCT sc."sessionId"
@@ -68,11 +69,25 @@ export async function getPersonShowcase(
       JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
       WHERE sc."personId" = ${personId} AND rg.kind = 'ON_CAMERA' AND rd.presence = 'LEAD'
     ),
-    -- Two indexed ways in, united (an OR across them scans every image)
+    -- Indexed ways in, united (an OR across them scans every image)
     ids AS (
       SELECT mi.id FROM "MediaItem" mi
       WHERE mi."sessionId" IN (SELECT "sessionId" FROM on_camera)
         AND NOT EXISTS (SELECT 1 FROM media_item_hidden_person h WHERE h."mediaItemId" = mi.id AND h."personId" = ${personId})
+        AND NOT EXISTS (SELECT 1 FROM media_item_background_person b WHERE b."mediaItemId" = mi.id AND b."personId" = ${personId})
+      UNION
+      -- Appearing (support) and marked as the focus of the image; where they also
+      -- lead the session, the lead rule above decides
+      SELECT s."mediaItemId" FROM media_item_shown_person s
+      JOIN "MediaItem" mi ON mi.id = s."mediaItemId"
+      WHERE s."personId" = ${personId} AND s.focus
+        AND mi."sessionId" NOT IN (SELECT "sessionId" FROM on_camera)
+        AND EXISTS (
+          SELECT 1 FROM "SessionContribution" sc
+          JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
+          JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+          WHERE sc."sessionId" = mi."sessionId" AND sc."personId" = ${personId}
+            AND rg.kind = 'ON_CAMERA' AND rd.presence = 'SUPPORT')
       UNION
       SELECT pml."mediaItemId" FROM "PersonMediaLink" pml WHERE pml."personId" = ${personId}
     ),

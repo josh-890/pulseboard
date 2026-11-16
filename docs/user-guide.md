@@ -1723,21 +1723,31 @@ galleries with 2+ cast) lets you record this **per image**:
   contributor to the credits later automatically shows them in every image by default.
 - **Someone only appearing** (role *Appearance*) is the other way round: they are listed under
   **Appearing**, **not shown by default** — click their chip on the images that do show them.
-  "Only X" and "Deselect all" also unmark them. Bulk **Show** marks them on the selected images.
+  "Only X" and "Deselect all" also unmark them. Bulk **Focus** or **bg** marks them on the selected images.
+- **In the shot, not the focus — `bg`.** Every chip has a small **bg** segment. Someone at the edge or in the
+  background of a photo stays *shown* (filters, `person:` and "photos of X" still find it), but the photo is left
+  out of **their showcase**. Click **bg** again to make them the focus. On someone not shown, **bg** shows them in
+  the shot. The look: **the focus** = filled green, **in the shot** = green outline with **bg** lit, **not
+  shown** = struck through. Someone *appearing* can be made the focus of a single photo the same way (bg on, then
+  bg off) — that photo then joins their showcase.
+- **N** in the viewer toggles **bg** for the person the filter is set to, or for the only Model of the image; with
+  several people it opens the info panel so you pick the chip.
 
 **Where you see it:**
 - **Thumbnail badge** — a small `shown/total` people badge appears **only on images that
-  aren't showing the full cast** (a subset). Full-cast images stay clean.
+  aren't showing the full cast** (a subset), and a **bg** hint where a Model is only in the shot.
+  Other images stay clean.
 - **Filter (set & session galleries)** — two rows above the grid:
   - **Groups** lists every combination of people that actually occurs, with its count —
     e.g. `Anna alone 42 · Bea alone 30 · Anna + Bea 18 · Nobody 3`. One click shows exactly
     that combination ("Anna and nobody else"); click it again to clear.
-  - **Shows** has one chip per person that cycles **off → ✓ must be shown → ✗ must not be
-    shown**. Chips combine with AND: ✓Anna alone means "Anna, whoever else"; ✓Anna ✓Bea means
+  - **Shows** has one chip per person that cycles **off → ✓ must be shown → ◎ must be the focus
+    (not only in the shot) → ✗ must not be shown**. Chips combine with AND: ✓Anna alone means "Anna, whoever else"; ✓Anna ✓Bea means
     both; ✓Anna ✗Bea means Anna without Bea. The number on a chip counts the images in the
     current view that show that person.
-- **Bulk** — select several images, then **People shown** in the action bar to Show/Hide a
-  person across all of them at once (e.g. "these 20 frames show only Person A"). Images the
+- **Bulk** — select several images, then **People shown** in the action bar: per person **◎ Focus**,
+  **bg** (in the shot, not the focus) or **Hide** across all of them at once (e.g. "these 20 frames show
+  only Person A", "Bea is only in the background of these"). Images the
   change moves out of the current filter also leave the selection.
 
 **Selecting many images (set & session galleries):**
@@ -2997,6 +3007,7 @@ If you created a set and realize the media actually came from an existing sessio
 | `i` | Toggle info panel | Lightbox |
 | `?` | All the viewer's keys | Lightbox |
 | `x` | Compare tray — add / remove | Lightbox |
+| `n` | In the shot, not the focus (bg) ↔ the focus — the filtered person or the only Model | Lightbox (set & session galleries) |
 | `←` / `→` | Previous / next in the list you came from (or the gallery) | Person, set, session pages |
 | `Escape` | Back to that list | Person, set, session pages |
 

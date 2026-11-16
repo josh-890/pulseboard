@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
+import { applyBulkShown } from "@/lib/image-shown";
 import { BulkTagControls, GalleryTagFilter } from "@/components/tags";
 import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
@@ -311,6 +312,7 @@ export function SetDetailGallery({
     active: filterActive,
     filteredItems: gridItems,
     filterItems,
+    singledOut: filteredPersonId,
   } = usePeopleFilter(items, cast);
 
   // True when gallery items actually span multiple sessions (drives "Group by session" visibility)
@@ -737,15 +739,7 @@ export function SetDetailGallery({
                 selectedIds={[...selectedIds]}
                 onApplied={(pid, mode) => {
                   const apply = (it: GalleryItem): GalleryItem =>
-                    selectedIds.has(it.id)
-                      ? {
-                          ...it,
-                          hiddenPersonIds:
-                            mode === "hide"
-                              ? [...new Set([...(it.hiddenPersonIds ?? []), pid])]
-                              : (it.hiddenPersonIds ?? []).filter((x) => x !== pid),
-                        }
-                      : it;
+                    selectedIds.has(it.id) ? applyBulkShown(it, pid, mode) : it;
                   setLocalItems((prev) => prev.map(apply));
                   // Images the change moved out of the filtered view leave the
                   // selection with it (e.g. "A + B" → hide B → they are now "A alone").
@@ -1083,8 +1077,16 @@ export function SetDetailGallery({
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),
             )
           }
-          onShownSupportChange={(id, shown) =>
-            setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown } : it)))
+          onShownSupportChange={(id, shown, focus) =>
+            setLocalItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown, focusSupportIds: focus } : it)),
+            )
+          }
+          focusPersonId={filteredPersonId}
+          onBackgroundPersonsChange={(id, background, hidden) =>
+            setLocalItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...it, backgroundPersonIds: background, hiddenPersonIds: hidden } : it)),
+            )
           }
           onDecodeIssueCleared={(id) =>
             setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, decodeIssue: null } : it)))

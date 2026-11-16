@@ -72,6 +72,9 @@ export type GalleryItem = {
   hiddenPersonIds?: string[];
   supportCastIds?: string[];
   shownSupportIds?: string[];
+  /** Focus (ADR-0039): leads only in the shot here, and support marked as the focus */
+  backgroundPersonIds?: string[];
+  focusSupportIds?: string[];
   /**
    * Provenance for "copy production image → reference session" copies
    * (ADR-0009 follow-up). Populated by reference-session galleries; lets

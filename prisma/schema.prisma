@@ -357,6 +357,7 @@ model Person {
   deletionTombstones       ItemDeletionTombstone[]
   hiddenInMedia            MediaItemHiddenPerson[]
   shownInMedia             MediaItemShownPerson[]
+  backgroundInMedia        MediaItemBackgroundPerson[]
   aliasPromotionDismissals AliasPromotionDismissal[]
 
   createdAt DateTime @default(now())
@@ -1370,6 +1371,7 @@ model MediaItem {
   mediaItemTags    MediaItemTag[]
   hiddenPersons    MediaItemHiddenPerson[]
   shownPersons     MediaItemShownPerson[]
+  backgroundPersons MediaItemBackgroundPerson[]
   actEvidence      ContributionActMedia[]
 
   @@index([sessionId])
@@ -2303,6 +2305,8 @@ model ArchiveFolderTag {
 model MediaItemShownPerson {
   mediaItemId String
   personId    String
+  /// Shown here as the focus, not only in the shot: the image counts in their showcase (ADR-0039)
+  focus       Boolean   @default(false)
   createdAt   DateTime  @default(now())
   mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
   person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
@@ -2310,6 +2314,20 @@ model MediaItemShownPerson {
   @@id([mediaItemId, personId])
   @@index([personId])
   @@map("media_item_shown_person")
+}
+
+/// A lead (role presence LEAD) who is in the shot of this image but not its focus — still
+/// shown everywhere, only left out of the curated views (their showcase) (ADR-0039)
+model MediaItemBackgroundPerson {
+  mediaItemId String
+  personId    String
+  createdAt   DateTime  @default(now())
+  mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  person      Person    @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([mediaItemId, personId])
+  @@index([personId])
+  @@map("media_item_background_person")
 }
 
 model MediaItemHiddenPerson {

@@ -6,6 +6,7 @@ import {
   setMediaFavoriteAction,
   setMediaShownPeopleAction,
   setMediaShownSupportAction,
+  setMediaBackgroundPeopleAction,
 } from "@/lib/actions/media-actions";
 import { addToCollectionAction } from "@/lib/actions/collection-actions";
 import { CollectionQuickAddPalette } from "@/components/collections/collection-quick-add-palette";
@@ -75,7 +76,11 @@ type GalleryLightboxProps = {
   // subset badge updates live (without a reload).
   onHiddenPersonsChange?: (itemId: string, hiddenPersonIds: string[]) => void;
   /** Support shown on an image changed (2026-10-24) */
-  onShownSupportChange?: (itemId: string, shownSupportIds: string[]) => void;
+  onShownSupportChange?: (itemId: string, shownSupportIds: string[], focusSupportIds: string[]) => void;
+  /** Leads only in the shot of an image changed (ADR-0039); in the shot means shown, so their exclusions go too */
+  onBackgroundPersonsChange?: (itemId: string, backgroundPersonIds: string[], hiddenPersonIds: string[]) => void;
+  /** The person the gallery's people filter singles out — `N` toggles their focus first (ADR-0039) */
+  focusPersonId?: string | null;
   /** "Looks fine" cleared a damaged image's flag — lets the parent drop its red frame */
   onDecodeIssueCleared?: (itemId: string) => void;
   // Standalone collection context (optional — forwarded to GalleryInfoPanel)
@@ -145,6 +150,8 @@ function SimpleLightbox({
   imageOverlay,
   onHiddenPersonsChange,
   onShownSupportChange,
+  onBackgroundPersonsChange,
+  focusPersonId,
   onDecodeIssueCleared,
   enableCollections,
   showOrigin = false,
@@ -189,6 +196,9 @@ function SimpleLightbox({
   // ADR-0023: optimistic per-image "people shown" override (hidden person ids).
   const [localHiddenMap, setLocalHiddenMap] = useState<Map<string, string[]>>(new Map());
   const [localShownSupportMap, setLocalShownSupportMap] = useState<Map<string, string[]>>(new Map());
+  // ADR-0039: optimistic focus marks — leads only in the shot, support as the focus
+  const [localBackgroundMap, setLocalBackgroundMap] = useState<Map<string, string[]>>(new Map());
+  const [localFocusSupportMap, setLocalFocusSupportMap] = useState<Map<string, string[]>>(new Map());
   const [, startHiddenTransition] = useTransition();
   // ADR-0019: quick-add palette + target collection.
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -219,6 +229,8 @@ function SimpleLightbox({
           const favOverride = localFavoriteMap.get(it.id);
           const hiddenOverride = localHiddenMap.get(it.id);
           const shownSupportOverride = localShownSupportMap.get(it.id);
+          const backgroundOverride = localBackgroundMap.get(it.id);
+          const focusSupportOverride = localFocusSupportMap.get(it.id);
           let result = it;
           if (focalOverride) result = { ...result, focalX: focalOverride.focalX, focalY: focalOverride.focalY };
           if (linksOverride !== undefined) result = { ...result, links: linksOverride };
@@ -226,10 +238,12 @@ function SimpleLightbox({
           if (favOverride !== undefined) result = { ...result, isFavorite: favOverride };
           if (hiddenOverride !== undefined) result = { ...result, hiddenPersonIds: hiddenOverride };
           if (shownSupportOverride !== undefined) result = { ...result, shownSupportIds: shownSupportOverride };
+          if (backgroundOverride !== undefined) result = { ...result, backgroundPersonIds: backgroundOverride };
+          if (focusSupportOverride !== undefined) result = { ...result, focusSupportIds: focusSupportOverride };
           if (decodeClearedIds.has(it.id)) result = { ...result, decodeIssue: null };
           return result;
         }),
-    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap, localShownSupportMap, decodeClearedIds],
+    [items, deletedIds, localFocalPoints, localLinksMap, localCollectionIdsMap, localFavoriteMap, localHiddenMap, localShownSupportMap, localBackgroundMap, localFocusSupportMap, decodeClearedIds],
   );
 
   const item = localItems[currentIndex];
@@ -326,23 +340,80 @@ function SimpleLightbox({
   }, [router, onDecodeIssueCleared]);
 
   // ADR-0023: set the per-image "people shown" (persist the hidden set). Optimistic.
+  // Hiding someone also drops their "only in the shot" mark (the server does the same).
   const handleSetHidden = useCallback((id: string, hiddenIds: string[]) => {
     setLocalHiddenMap((m) => new Map(m).set(id, hiddenIds));
     onHiddenPersonsChange?.(id, hiddenIds);
+    const current = localItems.find((it) => it.id === id)?.backgroundPersonIds ?? [];
+    const background = current.filter((pid) => !hiddenIds.includes(pid));
+    if (background.length !== current.length) {
+      setLocalBackgroundMap((m) => new Map(m).set(id, background));
+      onBackgroundPersonsChange?.(id, background, hiddenIds);
+    }
     startHiddenTransition(async () => {
       await setMediaShownPeopleAction(id, hiddenIds);
     });
-  }, [onHiddenPersonsChange]);
+  }, [onHiddenPersonsChange, onBackgroundPersonsChange, localItems]);
 
-  // Support shown on the image (2026-10-24) — the reverse of hidden. Optimistic.
-  const handleSetShownSupport = useCallback((id: string, shownIds: string[]) => {
+  // Support shown on the image (2026-10-24) — the reverse of hidden — and who of
+  // them is the focus (ADR-0039). Optimistic.
+  const handleSetShownSupport = useCallback((id: string, shownIds: string[], focusIds: string[]) => {
     setLocalShownSupportMap((m) => new Map(m).set(id, shownIds));
-    onShownSupportChange?.(id, shownIds);
+    setLocalFocusSupportMap((m) => new Map(m).set(id, focusIds));
+    onShownSupportChange?.(id, shownIds, focusIds);
     startHiddenTransition(async () => {
-      const res = await setMediaShownSupportAction(id, shownIds);
+      const res = await setMediaShownSupportAction(id, shownIds, focusIds);
       if (!res.success) toast.error(res.error ?? "Could not save who is shown");
     });
   }, [onShownSupportChange]);
+
+  // Leads only in the shot, not the focus (ADR-0039). In the shot = shown, so a
+  // lead marked here is no longer hidden. Optimistic.
+  const handleSetBackground = useCallback((id: string, backgroundIds: string[]) => {
+    const hiddenNow = localItems.find((it) => it.id === id)?.hiddenPersonIds ?? [];
+    const hidden = hiddenNow.filter((pid) => !backgroundIds.includes(pid));
+    setLocalBackgroundMap((m) => new Map(m).set(id, backgroundIds));
+    if (hidden.length !== hiddenNow.length) setLocalHiddenMap((m) => new Map(m).set(id, hidden));
+    onBackgroundPersonsChange?.(id, backgroundIds, hidden);
+    startHiddenTransition(async () => {
+      const res = await setMediaBackgroundPeopleAction(id, backgroundIds);
+      if (!res.success) toast.error(res.error ?? "Could not save who is the focus");
+    });
+  }, [onBackgroundPersonsChange, localItems]);
+
+  // `N` (ADR-0039): in the shot ↔ the focus, for the person the gallery filter
+  // singles out, else the image's only lead; with several people, the info
+  // panel opens on the chips instead.
+  const toggleFocusHotkey = useCallback(() => {
+    if (!item || !cast) return;
+    const leads = item.sessionCastIds ?? [];
+    const support = (item.supportCastIds ?? []).filter((id) => !leads.includes(id));
+    const onImage = (id: string | null | undefined) => !!id && (leads.includes(id) || support.includes(id));
+    const pid = onImage(focusPersonId) ? focusPersonId! : leads.length === 1 && support.length === 0 ? leads[0] : null;
+    if (!pid) {
+      if (!showInfoPanel) setShowInfoPanel(true);
+      toast.message("Several people here — pick who with bg on their chip");
+      return;
+    }
+    const name = cast.find((c) => c.id === pid)?.name ?? "This person";
+    if (leads.includes(pid)) {
+      const background = item.backgroundPersonIds ?? [];
+      const shown = !(item.hiddenPersonIds ?? []).includes(pid);
+      const inShot = shown && background.includes(pid);
+      handleSetBackground(item.id, inShot ? background.filter((x) => x !== pid) : [...new Set([...background, pid])]);
+      toast.message(inShot ? `${name}: the focus` : `${name}: in the shot, not the focus`);
+    } else {
+      const shown = item.shownSupportIds ?? [];
+      const focus = (item.focusSupportIds ?? []).filter((x) => shown.includes(x));
+      const toFocus = shown.includes(pid) && !focus.includes(pid);
+      handleSetShownSupport(
+        item.id,
+        [...new Set([...shown, pid])],
+        toFocus ? [...focus, pid] : focus.filter((x) => x !== pid),
+      );
+      toast.message(toFocus ? `${name}: the focus` : `${name}: in the shot, not the focus`);
+    }
+  }, [item, cast, focusPersonId, showInfoPanel, handleSetBackground, handleSetShownSupport]);
 
   // ADR-0019: quick-add palette data + optimistic collection membership.
   useEffect(() => {
@@ -661,6 +732,14 @@ function SimpleLightbox({
             setPaletteOpen(true);
           }
           break;
+        case "n":
+        case "N":
+          // ADR-0039: in the shot, not the focus (bg) ↔ the focus
+          if (item && cast && cast.length > 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+            e.preventDefault();
+            toggleFocusHotkey();
+          }
+          break;
         case "g":
         case "G":
           // ADR-0019: one-key add to the target collection.
@@ -726,7 +805,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, actEvidence, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, actEvidence, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router, cast, toggleFocusHotkey]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -779,6 +858,7 @@ function SimpleLightbox({
     cast,
     onSetHiddenPersons: handleSetHidden,
     onSetShownSupport: handleSetShownSupport,
+    onSetBackgroundPersons: handleSetBackground,
     showOrigin,
     origin,
   };

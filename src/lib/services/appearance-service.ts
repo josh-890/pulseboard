@@ -14,6 +14,11 @@
  * Support (2026-10-24): someone only appearing (role presence SUPPORT) is the
  * reverse — shown only where a `MediaItemShownPerson` row says so. The whole
  * rule is `imageShownIds` in `@/lib/image-shown`.
+ *
+ * Focus (ADR-0039, 2026-11-17): a shown person is the image's focus or only in
+ * the shot. A lead is the focus unless a `MediaItemBackgroundPerson` row says
+ * otherwise; someone appearing only where their `MediaItemShownPerson` row has
+ * `focus`. Only the curated views (the showcase) read it — `imageFocusIds`.
  */
 
 import { prisma } from "@/lib/db";
@@ -99,17 +104,81 @@ export async function getShownSupportForMedia(mediaItemIds: string[]): Promise<M
   return map;
 }
 
-/** Replace who of the support one image shows. Empty array = none of them. */
-export async function setShownSupport(mediaItemId: string, personIds: string[]): Promise<void> {
+/**
+ * The focus marks per image (ADR-0039): leads only in the shot, and support
+ * marked as the focus. Both maps keyed by every requested mediaItemId.
+ */
+export async function getFocusMarksForMedia(
+  mediaItemIds: string[],
+): Promise<{ background: Map<string, string[]>; focusSupport: Map<string, string[]> }> {
+  const background = new Map<string, string[]>();
+  const focusSupport = new Map<string, string[]>();
+  for (const id of mediaItemIds) {
+    background.set(id, []);
+    focusSupport.set(id, []);
+  }
+  if (mediaItemIds.length === 0) return { background, focusSupport };
+  const [bg, fs] = await Promise.all([
+    prisma.mediaItemBackgroundPerson.findMany({
+      where: { mediaItemId: { in: mediaItemIds } },
+      select: { mediaItemId: true, personId: true },
+    }),
+    prisma.mediaItemShownPerson.findMany({
+      where: { mediaItemId: { in: mediaItemIds }, focus: true },
+      select: { mediaItemId: true, personId: true },
+    }),
+  ]);
+  for (const r of bg) background.get(r.mediaItemId)?.push(r.personId);
+  for (const r of fs) focusSupport.get(r.mediaItemId)?.push(r.personId);
+  return { background, focusSupport };
+}
+
+/**
+ * Replace who of the support one image shows. Empty array = none of them.
+ * `focusIds` = who of them is the focus (ADR-0039); left out, everyone still
+ * shown keeps the focus mark they had.
+ */
+export async function setShownSupport(
+  mediaItemId: string,
+  personIds: string[],
+  focusIds?: string[],
+): Promise<void> {
   const unique = [...new Set(personIds)];
   await prisma.$transaction(async (tx) => {
+    const focus = new Set(
+      focusIds ??
+        (
+          await tx.mediaItemShownPerson.findMany({
+            where: { mediaItemId, focus: true },
+            select: { personId: true },
+          })
+        ).map((r) => r.personId),
+    );
     await tx.mediaItemShownPerson.deleteMany({ where: { mediaItemId } });
     if (unique.length > 0) {
       await tx.mediaItemShownPerson.createMany({
-        data: unique.map((personId) => ({ mediaItemId, personId })),
+        data: unique.map((personId) => ({ mediaItemId, personId, focus: focus.has(personId) })),
         skipDuplicates: true,
       });
     }
+  });
+}
+
+/**
+ * Replace the leads of one image who are only in the shot, not its focus
+ * (ADR-0039). Empty array = every shown lead is the focus. In the shot means
+ * shown: a lead marked here loses an exclusion they had.
+ */
+export async function setBackgroundPersons(mediaItemId: string, personIds: string[]): Promise<void> {
+  const unique = [...new Set(personIds)];
+  await prisma.$transaction(async (tx) => {
+    await tx.mediaItemBackgroundPerson.deleteMany({ where: { mediaItemId } });
+    if (unique.length === 0) return;
+    await tx.mediaItemHiddenPerson.deleteMany({ where: { mediaItemId, personId: { in: unique } } });
+    await tx.mediaItemBackgroundPerson.createMany({
+      data: unique.map((personId) => ({ mediaItemId, personId })),
+      skipDuplicates: true,
+    });
   });
 }
 
@@ -125,6 +194,8 @@ export async function setHiddenPersons(
   await prisma.$transaction(async (tx) => {
     await tx.mediaItemHiddenPerson.deleteMany({ where: { mediaItemId } });
     if (unique.length > 0) {
+      // Not shown wins over "only in the shot" (ADR-0039)
+      await tx.mediaItemBackgroundPerson.deleteMany({ where: { mediaItemId, personId: { in: unique } } });
       await tx.mediaItemHiddenPerson.createMany({
         data: unique.map((personId) => ({ mediaItemId, personId })),
         skipDuplicates: true,
@@ -148,6 +219,9 @@ export async function bulkHidePersons(
   await prisma.$transaction([
     prisma.mediaItemHiddenPerson.createMany({ data, skipDuplicates: true }),
     prisma.mediaItemShownPerson.deleteMany({
+      where: { mediaItemId: { in: mediaItemIds }, personId: { in: personIds } },
+    }),
+    prisma.mediaItemBackgroundPerson.deleteMany({
       where: { mediaItemId: { in: mediaItemIds }, personId: { in: personIds } },
     }),
   ]);
@@ -176,5 +250,42 @@ export async function bulkShowPersons(
       WHERE mi.id IN (${Prisma.join(mediaItemIds)}) AND sc."personId" IN (${Prisma.join(personIds)})
         AND rg.kind = 'ON_CAMERA' AND rd.presence = 'SUPPORT'
       ON CONFLICT DO NOTHING`,
+  ]);
+}
+
+/**
+ * Bulk Focus / In shot across many images (ADR-0039). Both also show the person:
+ * a lead loses their exclusion, someone appearing gets a shown mark — only where
+ * they are support in that image's session. "focus": a lead loses the background
+ * mark, support is marked as the focus. "background": a lead gets the background
+ * mark (only where they lead that image's session), support is shown, not the focus.
+ */
+export async function bulkSetFocus(
+  mediaItemIds: string[],
+  personIds: string[],
+  mode: "focus" | "background",
+): Promise<void> {
+  if (mediaItemIds.length === 0 || personIds.length === 0) return;
+  const focus = mode === "focus";
+  const where = { mediaItemId: { in: mediaItemIds }, personId: { in: personIds } };
+  const onCamera = (presence: "LEAD" | "SUPPORT") => Prisma.sql`
+      FROM "MediaItem" mi
+      JOIN "SessionContribution" sc ON sc."sessionId" = mi."sessionId"
+      JOIN "ContributionRoleDefinition" rd ON rd.id = sc."roleDefinitionId"
+      JOIN "ContributionRoleGroup" rg ON rg.id = rd."groupId"
+      WHERE mi.id IN (${Prisma.join(mediaItemIds)}) AND sc."personId" IN (${Prisma.join(personIds)})
+        AND rg.kind = 'ON_CAMERA' AND rd.presence = ${presence}::"RolePresence"`;
+  await prisma.$transaction([
+    prisma.mediaItemHiddenPerson.deleteMany({ where }),
+    focus
+      ? prisma.mediaItemBackgroundPerson.deleteMany({ where })
+      : prisma.$executeRaw`
+      INSERT INTO media_item_background_person ("mediaItemId", "personId")
+      SELECT DISTINCT mi.id, sc."personId" ${onCamera("LEAD")}
+      ON CONFLICT DO NOTHING`,
+    prisma.$executeRaw`
+      INSERT INTO media_item_shown_person ("mediaItemId", "personId", focus)
+      SELECT DISTINCT mi.id, sc."personId", ${focus}::boolean ${onCamera("SUPPORT")}
+      ON CONFLICT ("mediaItemId", "personId") DO UPDATE SET focus = EXCLUDED.focus`,
   ]);
 }

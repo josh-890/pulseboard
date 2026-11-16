@@ -5,6 +5,7 @@ import {
   EMPTY_PEOPLE_FILTER,
   isPeopleFilterActive,
   matchesPeopleFilter,
+  focusPeople,
   shownPeople,
 } from "@/lib/gallery-people-filter";
 import type { PeopleFilter } from "@/lib/gallery-people-filter";
@@ -24,12 +25,16 @@ export function usePeopleFilter(items: GalleryItem[], cast: GalleryCastMember[] 
   const filterItems = useCallback(
     (list: GalleryItem[], f: PeopleFilter = filter) =>
       isPeopleFilterActive(f)
-        ? list.filter((it) => matchesPeopleFilter(shownPeople(it, castIds), f))
+        ? list.filter((it) => matchesPeopleFilter(shownPeople(it, castIds), f, focusPeople(it, castIds)))
         : list,
     [filter, castIds],
   );
 
   const filteredItems = useMemo(() => filterItems(items), [filterItems, items]);
 
-  return { filter, setFilter, active, filteredItems, filterItems };
+  // The one person the filter asks for (must show / must be the focus), if exactly one
+  const wanted = Object.entries(filter).filter(([, state]) => state !== "exclude");
+  const singledOut = wanted.length === 1 ? wanted[0]![0] : null;
+
+  return { filter, setFilter, active, filteredItems, filterItems, singledOut };
 }

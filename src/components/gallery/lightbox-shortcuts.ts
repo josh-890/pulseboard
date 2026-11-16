@@ -21,6 +21,7 @@ export type ShortcutId =
   | "category"
   | "acts"
   | "compare"
+  | "background"
   | "cover"
   | "focal"
   | "filmstrip"
@@ -63,6 +64,7 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "category", label: "Assign to a detail category", keys: ["D"] },
       { id: "acts", label: "Evidence for an act (sessions with intensity)", keys: ["A"] },
       { id: "compare", label: "Compare tray — add / remove", keys: ["X"] },
+      { id: "background", label: "In the shot, not the focus (bg) ↔ the focus — the filtered person or the only lead", keys: ["N"] },
       { id: "cover", label: "Set as cover", keys: ["#"] },
     ],
   },

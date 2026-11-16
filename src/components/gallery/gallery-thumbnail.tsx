@@ -72,6 +72,17 @@ export function GalleryThumbnail({
     : 0;
   const isSubset = sessionCastCount > 0 && hiddenCount > 0;
   const shownCount = sessionCastCount - hiddenCount;
+  // ADR-0039: leads shown here but only in the shot (not the focus) — a `bg` hint
+  const backgroundIds = castSet
+    ? (item.backgroundPersonIds ?? []).filter((id) => castSet.has(id) && !(item.hiddenPersonIds ?? []).includes(id))
+    : [];
+  const hasBackground = backgroundIds.length > 0;
+  const badgeLabel = [
+    isSubset ? `${shownCount} of ${sessionCastCount} people shown` : null,
+    hasBackground ? `${backgroundIds.length} only in the shot, not the focus` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   function handleClick(e: React.MouseEvent) {
     if (selectable && onSelect) {
@@ -227,14 +238,18 @@ export function GalleryThumbnail({
             <AlertTriangle size={9} /> damaged
           </span>
         )}
-        {/* Subset badge — only when not all of the session cast is shown (ADR-0023) */}
-        {isSubset && (
+        {/* Subset badge — only when not all of the session cast is shown (ADR-0023),
+            or someone shown is only in the shot (`bg`, ADR-0039) */}
+        {(isSubset || hasBackground) && (
           <span
+            data-testid="people-badge"
             className="pointer-events-none inline-flex items-center gap-0.5 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white"
-            title={`${shownCount} of ${sessionCastCount} people shown`}
-            aria-label={`${shownCount} of ${sessionCastCount} people shown`}
+            title={badgeLabel}
+            aria-label={badgeLabel}
           >
-            <Users size={9} /> {shownCount}/{sessionCastCount}
+            <Users size={9} />
+            {isSubset && ` ${shownCount}/${sessionCastCount}`}
+            {hasBackground && <span className="ml-0.5 rounded-sm bg-sky-400/30 px-0.5 text-[9px] uppercase tracking-wide text-sky-100">bg</span>}
           </span>
         )}
         {/* Usage badges (MediaManager mode) */}

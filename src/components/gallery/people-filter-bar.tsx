@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Focus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
@@ -26,12 +26,13 @@ type PeopleFilterBarProps = {
   onChange: (filter: PeopleFilter) => void;
 };
 
-const CHIP_TITLE = "Click: must show → must not show → off";
+const CHIP_TITLE = "Click: must show → must be the focus (not only in the shot) → must not show → off";
 
 /**
  * "People shown" filter for a multi-person set (ADR-0023). Two rows:
  * the combinations the images actually contain (one click = exactly that group),
- * and three-state person chips for anything looser ("shows A, whoever else").
+ * and person chips for anything looser ("shows A, whoever else"; "A as the
+ * focus", ADR-0039).
  */
 export function PeopleFilterBar({ cast, items, visibleItems, filter, onChange }: PeopleFilterBarProps) {
   const castIds = useMemo(() => cast.map((c) => c.id), [cast]);
@@ -96,12 +97,19 @@ export function PeopleFilterBar({ cast, items, visibleItems, filter, onChange }:
               onClick={() => onChange(cycleChip(filter, c.id))}
               title={CHIP_TITLE}
               aria-label={`${c.name}: ${
-                state === "include" ? "must be shown" : state === "exclude" ? "must not be shown" : "any"
+                state === "include"
+                  ? "must be shown"
+                  : state === "focus"
+                    ? "must be the focus"
+                    : state === "exclude"
+                      ? "must not be shown"
+                      : "any"
               }`}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 state === "include" && "border-primary bg-primary text-primary-foreground shadow-sm",
+                state === "focus" && "border-emerald-500 bg-emerald-500/20 text-emerald-700 shadow-sm dark:text-emerald-200",
                 state === "exclude" &&
                   "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400 line-through decoration-red-500/70",
                 state === undefined &&
@@ -109,10 +117,11 @@ export function PeopleFilterBar({ cast, items, visibleItems, filter, onChange }:
               )}
             >
               {state === "include" && <Check size={11} aria-hidden />}
+              {state === "focus" && <Focus size={11} aria-hidden />}
               {state === "exclude" && <X size={11} aria-hidden />}
               {c.name}
               {state !== "exclude" && (
-                <span className={cn("tabular-nums", state === "include" ? "opacity-80" : "opacity-60")}>
+                <span className={cn("tabular-nums", state === "include" || state === "focus" ? "opacity-80" : "opacity-60")}>
                   {count}
                 </span>
               )}

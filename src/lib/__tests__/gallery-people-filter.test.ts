@@ -4,6 +4,7 @@ import {
   filterForCombination,
   isCombinationFilter,
   matchesPeopleFilter,
+  focusPeople,
   peopleCombinations,
   shownPeople,
 } from "@/lib/gallery-people-filter";
@@ -45,12 +46,22 @@ describe("matchesPeopleFilter", () => {
 });
 
 describe("cycleChip", () => {
-  it("goes off → include → exclude → off", () => {
+  it("goes off → include → focus → exclude → off", () => {
     const a = cycleChip({}, "A");
     expect(a).toEqual({ A: "include" });
-    const b = cycleChip(a, "A");
+    const f = cycleChip(a, "A");
+    expect(f).toEqual({ A: "focus" });
+    const b = cycleChip(f, "A");
     expect(b).toEqual({ A: "exclude" });
     expect(cycleChip(b, "A")).toEqual({});
+  });
+
+  it("focus only: shown and not marked as only in the shot (ADR-0039)", () => {
+    const bgA = { sessionCastIds: ["A", "B"], backgroundPersonIds: ["A"] };
+    const shown = shownPeople(bgA, CAST);
+    expect(matchesPeopleFilter(shown, { A: "include" }, focusPeople(bgA, CAST))).toBe(true);
+    expect(matchesPeopleFilter(shown, { A: "focus" }, focusPeople(bgA, CAST))).toBe(false);
+    expect(matchesPeopleFilter(shown, { B: "focus" }, focusPeople(bgA, CAST))).toBe(true);
   });
 });
 

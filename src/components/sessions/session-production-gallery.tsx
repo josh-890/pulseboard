@@ -24,6 +24,7 @@ import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
 import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
+import { applyBulkShown } from "@/lib/image-shown";
 import { BulkTagControls, GalleryTagFilter } from "@/components/tags";
 import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
@@ -155,6 +156,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     active: filterActive,
     filteredItems,
     filterItems,
+    singledOut: filteredPersonId,
   } = usePeopleFilter(displayItems, cast);
 
   // Group items by their first set link (for "Group by Set" mode)
@@ -312,15 +314,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                   selectedIds={[...selectedIds]}
                   onApplied={(pid, mode) => {
                     const apply = (it: GalleryItem): GalleryItem =>
-                      selectedIds.has(it.id)
-                        ? {
-                            ...it,
-                            hiddenPersonIds:
-                              mode === "hide"
-                                ? [...new Set([...(it.hiddenPersonIds ?? []), pid])]
-                                : (it.hiddenPersonIds ?? []).filter((x) => x !== pid),
-                          }
-                        : it;
+                      selectedIds.has(it.id) ? applyBulkShown(it, pid, mode) : it;
                     setLocalItems((prev) => prev.map(apply));
                     // Images the change moved out of the filtered view leave the selection too.
                     if (filterActive) pruneToVisible(filterItems(displayItems.map(apply)).map((it) => it.id));
@@ -555,8 +549,16 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),
             )
           }
-          onShownSupportChange={(id, shown) =>
-            setLocalItems((prev) => prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown } : it)))
+          onShownSupportChange={(id, shown, focus) =>
+            setLocalItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...it, shownSupportIds: shown, focusSupportIds: focus } : it)),
+            )
+          }
+          focusPersonId={filteredPersonId}
+          onBackgroundPersonsChange={(id, background, hidden) =>
+            setLocalItems((prev) =>
+              prev.map((it) => (it.id === id ? { ...it, backgroundPersonIds: background, hiddenPersonIds: hidden } : it)),
+            )
           }
         />
       )}
