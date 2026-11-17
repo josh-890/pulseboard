@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { photoSql } from "@/lib/media-role";
 import { prisma } from "@/lib/db";
 import { getCoverPhotosForSets, getHeadshotsForPersons, getMediaGalleryItemsByIds } from "./media-service";
 import { BRAND_SELECT, brandOf } from "./brand-of";
@@ -53,6 +54,7 @@ export async function getMakerShowcase(
       JOIN "MediaItem" mi ON mi.id = smi."mediaItemId"
       WHERE smi."setId" IN (SELECT id FROM sets)
         AND mi."mediaType" = 'PHOTO' AND NOT mi."isAnnotation" AND mi."decodeIssue" IS NULL
+        AND ${photoSql("mi")}
       GROUP BY mi.id, mi."isFavorite"
     ),
     marks AS (

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PHOTO_WHERE } from "@/lib/media-role";
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
 import { buildUrl } from "@/lib/media-url";
@@ -33,6 +34,9 @@ export async function GET(request: Request) {
       where.isAnnotation = false;
       where.motifTemplateId = null;
     }
+
+    // Photos only — cover art stays out of the pickers (ADR-0040)
+    where.OR = PHOTO_WHERE.OR;
 
     if (personId) {
       where.personMediaLinks = {

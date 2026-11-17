@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { photoSql } from "@/lib/media-role";
 import { prisma } from "@/lib/db";
 import type { GalleryItem } from "@/lib/types";
 import { getCoverPhotosForSets, getMediaGalleryItemsByIds } from "./media-service";
@@ -97,6 +98,8 @@ export async function getPersonShowcase(
       JOIN "MediaItem" mi ON mi.id = ids.id
       JOIN "Session" s ON s.id = mi."sessionId"
       WHERE mi."mediaType" = 'PHOTO' AND NOT mi."isAnnotation" AND mi."decodeIssue" IS NULL
+        -- Cover art stays out unless let into the photos (ADR-0040)
+        AND ${photoSql("mi")}
     ),
     marks AS (
       SELECT t."mediaItemId" AS id,

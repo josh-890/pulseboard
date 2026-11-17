@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, CheckSquare, Layers, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeftRight, BookImage, CheckSquare, Layers, Plus, Trash2, Upload, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
@@ -20,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { deleteMediaItemsAction } from "@/lib/actions/media-actions";
+import { deleteMediaItemsAction, setArtInPhotosAction, setMediaRoleAction } from "@/lib/actions/media-actions";
 import { setSessionCover } from "@/lib/actions/session-actions";
 import { applyGallerySort, GALLERY_SORT_OPTIONS } from "@/lib/gallery-sort";
 import { BulkPeopleShownControl } from "@/components/gallery/bulk-people-shown";
@@ -76,6 +78,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   const [groupStored, setGroupStored] = useStoredValue<"true" | "false">("gallery_group_session", "false");
   const groupBySet = groupStored === "true";
   const [, startTransition] = useTransition();
+  const router = useRouter();
   const dragCounterRef = useRef(0);
   const addFilesRef = useRef<((files: FileList | File[]) => void) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,6 +86,11 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
   useEffect(() => {
     setLocalItems(initialItems);
   }, [initialItems]);
+
+  // A cover picked elsewhere (the cover slot) arrives with the refresh
+  useEffect(() => {
+    setCoverId(initialCoverId ?? null);
+  }, [initialCoverId]);
 
   useEffect(() => {
     fetch("/api/collections/list")
@@ -252,6 +260,44 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     });
   }, [selectedIds, sessionId, clearSelection]);
 
+  // Cover art (ADR-0040): a file moved to cover art leaves the grid for the cover
+  // slot; the refresh brings the slot up to date
+  const handleSetRole = useCallback(
+    (mediaItemId: string, role: "PHOTO" | "COVER_ART") => {
+      setLocalItems((prev) =>
+        role === "COVER_ART"
+          ? prev.filter((it) => it.id !== mediaItemId)
+          : prev.map((it) => (it.id === mediaItemId ? { ...it, role, artInPhotos: false } : it)),
+      );
+      startTransition(async () => {
+        await setMediaRoleAction([mediaItemId], role);
+        router.refresh();
+      });
+    },
+    [router],
+  );
+  const handleSetArtInPhotos = useCallback(
+    (mediaItemId: string, on: boolean) => {
+      if (!on) setLocalItems((prev) => prev.filter((it) => it.id !== mediaItemId));
+      startTransition(async () => {
+        await setArtInPhotosAction(mediaItemId, on);
+        router.refresh();
+      });
+    },
+    [router],
+  );
+  const handleBulkCoverArt = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    setLocalItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
+    clearSelection();
+    startTransition(async () => {
+      const r = await setMediaRoleAction(ids, "COVER_ART");
+      if (r.success) toast.success(ids.length === 1 ? "Moved to cover art" : `${ids.length} files moved to cover art`);
+      else toast.error(r.error);
+      router.refresh();
+    });
+  }, [selectedIds, clearSelection, router]);
+
   const handleLightboxDelete = useCallback((id: string) => {
     // The lightbox advances to the next image itself (or closes if it was the last).
     setLocalItems((prev) => prev.filter((it) => it.id !== id));
@@ -293,6 +339,16 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
               <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 size={14} />
                 Delete
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleBulkCoverArt}
+                title="The publisher's cover, not photos of the session: move to the cover slot"
+              >
+                <BookImage size={14} />
+                Cover art
               </Button>
               <BulkTagControls
                 entityType="MEDIA_ITEM"
@@ -529,6 +585,8 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           onClose={closeLightbox}
           onSetCover={handleSetCover}
           coverMediaItemId={coverId}
+          onSetRole={handleSetRole}
+          onSetArtInPhotos={handleSetArtInPhotos}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           onDelete={handleLightboxDelete}
           sessionId={sessionId}

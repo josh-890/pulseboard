@@ -13,6 +13,7 @@ import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getG
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
+import { CoverArtButton } from "@/components/gallery/cover-art-button";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import { EditSetSheet } from "@/components/sets/edit-set-sheet";
@@ -74,8 +75,10 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
     const participants = set.participants;
 
     const participantIds = participants.map((p) => p.personId);
-    const [galleryItems, coverPhotoMap, headshotMap, participantEraMap, referenceTargets, castDirectory] = await Promise.all([
+    const [galleryItems, coverArt, coverPhotoMap, headshotMap, participantEraMap, referenceTargets, castDirectory] = await Promise.all([
       getSetMediaGallery(id, setData.coverMediaItemId),
+      // The set's cover art, apart from the photos (ADR-0040)
+      getSetMediaGallery(id, setData.coverMediaItemId, "art"),
       getCoverPhotosForSets([id]),
       getHeadshotsForPersons(participantIds),
       getSetParticipantEraMap(id),
@@ -217,6 +220,15 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         <SetHero
           set={set}
           coverPhoto={coverPhoto}
+          coverAction={
+            // The cover art (ADR-0040), managed in a sheet from the hero's cover
+            <CoverArtButton
+              items={coverArt}
+              coverMediaItemId={setData.coverMediaItemId ?? null}
+              coverPhotoUrl={coverPhoto?.url ?? null}
+              context={{ kind: "set", setId: id, sessionId: setData.sessionLinks?.find((l) => l.isPrimary)?.sessionId ?? null }}
+            />
+          }
           headshotMap={headshotMap}
           participantEraMap={Object.fromEntries(participantEraMap)}
           backdropEnabled={backdropEnabled}

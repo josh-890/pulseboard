@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/db";
+import { photoSql } from "@/lib/media-role";
 import {
   isEmptyResolved,
   parseTagQuery,
@@ -268,7 +269,9 @@ export async function findTagMatchIds(entity: TaggableEntity, q: ResolvedTagQuer
   if (within && within.length === 0) return [];
   const x = Prisma.sql`e.id`;
   const cond = isEmptyResolved(q) ? TRUE : tagQueryCondition(entity, q, x);
-  const scope = within ? Prisma.sql`AND e.id = ANY(${within})` : Prisma.empty;
+  const inScope = within ? Prisma.sql`AND e.id = ANY(${within})` : Prisma.empty;
+  // Images: photos only — cover art stays out unless let into the photos (ADR-0040)
+  const scope = entity === "MEDIA_ITEM" ? Prisma.sql`${inScope} AND ${photoSql("e")}` : inScope;
   const table = Prisma.raw(ENTITY_TABLE[entity]);
   // A positive clause narrows the work to its candidates, materialised first so
   // the planner probes the condition only for them; a NOT-only query scans.

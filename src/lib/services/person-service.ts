@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PHOTO_WHERE } from "@/lib/media-role";
 import { getCareerStats } from "@/lib/services/career-service";
 import { LEAD_ROLE } from "@/lib/services/session-contributors";
 import {
@@ -665,11 +666,12 @@ export async function getPersonSessionWorkHistory(personId: string): Promise<Per
           include: {
             label: { select: { id: true, name: true } },
             mediaItems: {
+              where: PHOTO_WHERE,
               take: 6,
               orderBy: { createdAt: "asc" },
               select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
             },
-            _count: { select: { mediaItems: true } },
+            _count: { select: { mediaItems: { where: PHOTO_WHERE } } },
             setSessionLinks: {
               include: {
                 set: {
@@ -761,11 +763,12 @@ export async function getPersonProductionSessions(personId: string): Promise<Per
         include: {
           label: { select: { name: true } },
           mediaItems: {
+            where: PHOTO_WHERE,
             take: 3,
             orderBy: { createdAt: "asc" },
             select: { id: true, variants: true, fileRef: true, originalWidth: true, originalHeight: true },
           },
-          _count: { select: { mediaItems: true } },
+          _count: { select: { mediaItems: { where: PHOTO_WHERE } } },
         },
       },
     },

@@ -55,6 +55,8 @@ export async function POST(request: Request) {
       const sourceVideoRef = (formData.get("sourceVideoRef") as string | null) || undefined;
       const sourceTimecodeRaw = formData.get("sourceTimecodeMs");
       const isAnnotation = formData.get("isAnnotation") === "true";
+      // "Upload cover art" in the cover slot (ADR-0040): art, and it becomes the cover
+      const asCoverArt = formData.get("role") === "COVER_ART";
       const sourceTimecodeMs = sourceTimecodeRaw ? Number(sourceTimecodeRaw) : undefined;
 
       const parsed = mediaUploadSchema.safeParse(metadata);
@@ -168,7 +170,18 @@ export async function POST(request: Request) {
         sourceTimecodeMs,
         isAnnotation,
         decodeIssue: uploadResult.decodeIssue,
+        ...(asCoverArt ? { role: "COVER_ART" as const } : {}),
       });
+      if (asCoverArt) {
+        if (setId) {
+          await prisma.set.update({
+            where: { id: setId },
+            data: { coverMediaItemId: mediaItem.id, coverIsProvisional: false },
+          });
+        } else {
+          await prisma.session.update({ where: { id: sessionId }, data: { coverMediaItemId: mediaItem.id } });
+        }
+      }
 
       return NextResponse.json({ mediaItem }, { status: 201 });
     } catch (err) {

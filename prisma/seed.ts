@@ -519,7 +519,6 @@ async function main() {
       setId: set.id,
       mediaItemId: media1.id,
       sortOrder: 0,
-      isCover: true,
       caption: "Cover image",
     },
   });
@@ -533,7 +532,6 @@ async function main() {
       setId: set.id,
       mediaItemId: media2.id,
       sortOrder: 1,
-      isCover: false,
     },
   });
 

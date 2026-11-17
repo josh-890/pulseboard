@@ -134,6 +134,10 @@ type GalleryInfoPanelProps = {
   // Set context
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
+  /** Cover art ⇄ photo (ADR-0040) */
+  onSetRole?: (mediaItemId: string, role: "PHOTO" | "COVER_ART") => void;
+  /** Cover art let into the photos as well */
+  onSetArtInPhotos?: (mediaItemId: string, on: boolean) => void;
   // Common actions
   onFavoriteToggle?: (itemId: string) => void;
   // Tags of this image (ADR-0033) — owned by the lightbox, shared with its `T` palette
@@ -177,6 +181,8 @@ export function GalleryInfoPanel({
   item,
   onSetCover,
   coverMediaItemId,
+  onSetRole,
+  onSetArtInPhotos,
   onFavoriteToggle,
   tagController,
   onOpenTagPalette,
@@ -218,6 +224,7 @@ export function GalleryInfoPanel({
   }, []);
 
   const isCover = coverMediaItemId === item.id;
+  const isArt = item.role === "COVER_ART";
 
   // Reference context helpers
   const links = useMemo(() => item.links ?? [], [item.links]);
@@ -569,8 +576,8 @@ export function GalleryInfoPanel({
         </>
       )}
 
-      {/* Cover toggle (set context) */}
-      {onSetCover && (
+      {/* Cover toggle (set context) + cover art ⇄ photo (ADR-0040) */}
+      {(onSetCover || onSetRole) && (
         <>
           <SectionHeader
             title="Cover"
@@ -581,6 +588,7 @@ export function GalleryInfoPanel({
           />
           {expandedSections.has("cover") && (
             <div className="flex flex-wrap gap-1.5 pb-2">
+              {onSetCover && (
               <button
                 type="button"
                 onClick={() => onSetCover(isCover ? null : item.id)}
@@ -596,6 +604,38 @@ export function GalleryInfoPanel({
               >
                 {isCover ? "Cover image" : "Set as cover"}
               </button>
+              )}
+              {onSetRole && (
+                <button
+                  type="button"
+                  onClick={() => onSetRole(item.id, isArt ? "PHOTO" : "COVER_ART")}
+                  title={
+                    isArt
+                      ? "Back to the photos: it counts as one of the set's photos again"
+                      : "The publisher's cover, not a photo of the set: it moves to the cover slot"
+                  }
+                  className="rounded-md bg-white/5 px-2.5 py-1 text-xs font-medium text-white/60 transition-all hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {isArt ? "Not cover art" : "This is cover art"}
+                </button>
+              )}
+              {isArt && onSetArtInPhotos && (
+                <button
+                  type="button"
+                  onClick={() => onSetArtInPhotos(item.id, !item.artInPhotos)}
+                  title="Cover art that also counts as a photo — in the grid, the showcase, filters and counts"
+                  aria-pressed={item.artInPhotos === true}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    item.artInPhotos
+                      ? "ring-2 ring-sky-500 bg-sky-500/20 text-sky-300"
+                      : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  In the photos too
+                </button>
+              )}
             </div>
           )}
         </>

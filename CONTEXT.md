@@ -103,6 +103,12 @@ _Retired:_ `SetLabelEvidence` — a set's labels are fully derivable (producer v
 Two records, deliberately. A **StagingSet** is the import's receipt and the work item: what the source delivered (raw participants, `externalId`, batch/item provenance, duplicate flags), alive until promoted or skipped. A **Set** is the curated record. **Promotion moves ownership**: the cast becomes `SetParticipant` (via sessions), and the **archive link moves from the StagingSet to the Set** — `StagingSet.promotedSetId` is all that ties them afterwards. So decisions before promotion belong in the staged-sets browser, and everything after belongs on the Set. A promoted row in that browser is a receipt with a link: it may *name* a waiting archive suggestion, but it does not act on it.
 _Avoid_: reading a promoted staging set's archive state from its own `archiveLinks` (they are empty — that is how a HIGH-confidence suggestion came to display as "not in archive"); offering the same write in both places.
 
+**Cover art vs. photo; the cover** (ADR-0040, 2026-11-18): every file is a **photo** or **cover art**
+(`MediaItem.role`). Cover art is the publisher's cover — a different kind of picture from the set's own —
+and stays out of the photos (grid, counts, showcases, filters, pickers) unless let in (`artInPhotos`).
+**The cover** is a pointer and may be either: cover art, or a photo picked when a set has none (it stays a
+photo).
+
 **Publisher cover vs. stand-in cover** (sharpened 2026-08-16, ADR-0031):
 Promotion carries the staged set's cover into the Set, but two unlike images come down that one path. A **publisher cover** came with the import: cover art, a *different photograph* from anything in the set, and the picture the transfer exists to preserve. A **stand-in** is the 512 px thumbnail the app made of a folder's own image so a set developed from an orphan folder shows something; once the folder is uploaded, the same picture is in the set at full size. Only a stand-in is provisional (`Set.coverIsProvisional`) — it holds the cover slot until a real image of the set arrives, then steps aside. Origin decides this, and origin is a fact in the data (the `archive/` vs `staging/` key), never a guess from the image's size.
 _Avoid_: calling every transferred cover a duplicate — measured on xpulse, the nearest set image is 14–19 bits away in dHash, where the same picture scores 0–6; letting an upload displace a cover somebody chose.

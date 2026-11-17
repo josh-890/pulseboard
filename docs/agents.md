@@ -295,7 +295,8 @@ This agent does it unattended:
   set's images does not queue it again. Video sets are not filled.
 - **Per set:** the folder's `jpg/jpeg/png/webp/gif`, numbered by file name in natural
   order (2 before 10). A designated cover (`Title-c.jpg`, `Title - c.jpg` — the cover
-  agent's rule) is sent **first** so it becomes the set's cover. `bmp/tif` are listed
+  agent's rule) is sent **first** so it becomes the set's cover; it arrives as **cover art**
+  (ADR-0040), outside the set's photos, and replaces a stand-in it copies. `bmp/tif` are listed
   as not uploadable.
 - **Resumable:** the server skips an image already in the set (same SHA-256, or the
   same file name — a copy you uploaded by hand through the browser is re-encoded and

@@ -18,6 +18,8 @@ type SessionHeroProps = {
   coverPhoto: CoverPhotoData | null;
   headshotMap: Map<string, HeadshotData>;
   backdropEnabled: boolean;
+  /** In the meta row after the media count: the way into the cover art (ADR-0040) */
+  coverAction?: React.ReactNode;
 };
 
 function ContributorAvatars({
@@ -145,6 +147,7 @@ export function SessionHero({
   coverPhoto,
   headshotMap,
   backdropEnabled,
+  coverAction,
 }: SessionHeroProps) {
   const contributorCount = session.contributions.length;
   const mediaCount = session._count.mediaItems;
@@ -218,6 +221,12 @@ export function SessionHero({
         {/* Meta row */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span>{mediaCount} media</span>
+          {coverAction && (
+            <>
+              <span>·</span>
+              {coverAction}
+            </>
+          )}
           <span>·</span>
           <span>{setLabel}</span>
           {session.project && (

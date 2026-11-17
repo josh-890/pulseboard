@@ -221,6 +221,14 @@ enum MediaType {
   VIDEO
 }
 
+// What a file is to its set/session (ADR-0040). COVER_ART = the publisher's
+// cover (transferred at promotion, or a `Title-c.jpg` upload): it sits in the
+// cover slot, outside the photos — unless artInPhotos lets it in as well.
+enum MediaRole {
+  PHOTO
+  COVER_ART
+}
+
 enum ResolutionStatus {
   UNRESOLVED
   RESOLVED
@@ -1349,6 +1357,11 @@ model MediaItem {
   // it does not set Set.firstMediaAt nor keep a set out of the archive upload queue.
   isTransferredCover Boolean @default(false)
 
+  // Cover art vs photo (ADR-0040). Photos = role PHOTO or artInPhotos
+  // (src/lib/media-role.ts holds the rule). The cover pointer may point at either.
+  role        MediaRole @default(PHOTO)
+  artInPhotos Boolean   @default(false)
+
   // The source file was damaged (e.g. "VipsJpeg: premature end of JPEG image")
   // and was decoded leniently, the way a browser shows it — missing parts come out
   // grey. Holds Sharp's strict-decode message; null = clean. Shown as a red frame
@@ -1383,6 +1396,7 @@ model MediaItem {
   @@index([isFavorite])
   @@index([decodeIssue])
   @@index([archiveRetry])
+  @@index([sessionId, role])
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +
@@ -1416,7 +1430,6 @@ model SetMediaItem {
   mediaItemId String
   mediaItem   MediaItem @relation(fields: [mediaItemId], references: [id])
   sortOrder   Int       @default(0)
-  isCover     Boolean   @default(false)
   caption     String?
   notes       String?
 

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PHOTO_WHERE } from "@/lib/media-role";
 import { buildPhotoUrls } from "@/lib/media-url";
 import { resolveMergeDirection, type MergeDirection } from "@/lib/session-merge-direction";
 import type { GalleryItem, SessionMergeCandidate, SessionMergeCard, SessionMergeComparison, SessionMergeReason } from "@/lib/types";
@@ -99,7 +100,7 @@ export async function getSessionMergeCards(ids: string[]): Promise<SessionMergeC
       createdAt: true,
       label: { select: { name: true } },
       project: { select: { name: true } },
-      _count: { select: { mediaItems: { where: { isAnnotation: false } } } },
+      _count: { select: { mediaItems: { where: { isAnnotation: false, ...PHOTO_WHERE } } } },
       setSessionLinks: {
         select: {
           set: {
@@ -115,7 +116,7 @@ export async function getSessionMergeCards(ids: string[]): Promise<SessionMergeC
           },
         },
       },
-      mediaItems: { where: { isAnnotation: false }, select: { variants: true, fileRef: true }, orderBy: { createdAt: "asc" }, take: 4 },
+      mediaItems: { where: { isAnnotation: false, ...PHOTO_WHERE }, select: { variants: true, fileRef: true }, orderBy: { createdAt: "asc" }, take: 4 },
       contributions: {
         where: ON_CAMERA,
         select: { person: { select: { id: true, icgId: true, aliases: { where: { isCommon: true }, select: { name: true }, take: 1 } } } },

@@ -986,9 +986,37 @@ Visual indicators for: Title, Channel, Credits (with unresolved count), Photos, 
 
 Inline editable text fields. Click to edit, changes auto-save.
 
+#### Cover art and the cover
+
+The publisher's cover is not one of the set's photos. A file is either a **photo** or **cover art**:
+
+- **Cover art** arrives by itself: the cover carried over when a staged set is promoted, and any uploaded
+  file named like `Title-c.jpg` / `Title - c.jpg`. It is reached from the hero's info line — **2 cover art** next to
+  the media count opens a side sheet — not in the photos — the grid, the image counts, the showcases (person, channel, label, artist), the people
+  filter, `person:` / `cast:`, smart collections and the pickers leave it out.
+- **The cover** is what the set shows on its card and hero. It can be cover art *or* a photo: when a set
+  comes without cover art, pick a photo with *Set as cover* (or <kbd>#</kbd>) — it stays a normal photo.
+- In the **Cover art** sheet (click "N cover art" / "no cover art" in the hero), per file: **Cover** (make it the cover; lit when it is), **In photos** (let it
+  into the photos as well — it then counts as one, with a *cover art* badge in the grid), **↶** (not cover
+  art — back to the photos) and 🗑. **Upload cover art** adds the publisher's cover and makes it the cover.
+- A promo image that came in among the photos: open it, info panel → *Cover* → **This is cover art**, or
+  select several and use **Cover art** in the selection bar.
+- A session's **Cover art** sheet follows the session gallery's **Group by Set** switch (the layers button —
+  in the sheet or above the grid, both switch together): **grouped**, each set has a heading (a link) and
+  its own *Upload cover art*; **flat**, all cover art in one list, each file naming its set. Either way
+  **Cover** makes a file the cover of *its set*.
+- **Which cover a session shows:** its own pick if you made one (<kbd>#</kbd> / *Set as cover* in the session
+  grid), otherwise the cover of its set **released first** (then the one added first), otherwise its first
+  photo. The sheet says which: *The session shows the cover of …* or *its own pick* with **Back to the
+  set's cover**.
+- **Duplicates:** when the real picture arrives, the 512 px stand-in made at promotion is deleted, and of
+  two identical cover-art files the larger one stays. Older duplicates: *Settings → System → Cover art
+  duplicates* lists them side by side (copies and stand-ins ticked, publisher crops of a photo not
+  ticked); untick what should stay, then delete.
+
 #### Photo Gallery
 
-- **Justified grid** of all set media items
+- **Justified grid** of the set's photos (cover art is reached from the hero's info line)
 - **Cover selection** — hover over a thumbnail to see the cover icon; click to set as the set's cover image
 - **Upload zone** — drag-and-drop or click to upload new media (anchored to the primary session)
 - **Browse & Add** — opens a sheet to search and add existing media from other sessions. Selected media creates SetMediaItem links without changing media ownership. Source sessions auto-link via SetSession.

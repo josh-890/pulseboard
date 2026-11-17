@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PHOTO_WHERE } from "@/lib/media-role";
 import { mergeContributionIntensityInTx } from "@/lib/services/intensity-service";
 import type { Prisma, SessionStatus, SessionType } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
@@ -90,7 +91,7 @@ export async function getSessions(filters: SessionFilters = {}) {
       },
       _count: {
         select: {
-          mediaItems: true,
+          mediaItems: { where: PHOTO_WHERE },
           setSessionLinks: true,
         },
       },
@@ -217,7 +218,7 @@ export async function getSessionsPaginated(
         },
         _count: {
           select: {
-            mediaItems: true,
+            mediaItems: { where: PHOTO_WHERE },
             setSessionLinks: true,
           },
         },
@@ -273,6 +274,8 @@ export async function getSessionById(id: string) {
               type: true,
               releaseDate: true,
               releaseDatePrecision: true,
+              coverMediaItemId: true,
+              createdAt: true,
               channel: {
                 select: {
                   id: true,
@@ -287,7 +290,7 @@ export async function getSessionById(id: string) {
       },
       _count: {
         select: {
-          mediaItems: true,
+          mediaItems: { where: PHOTO_WHERE },
         },
       },
     },
@@ -629,7 +632,7 @@ export async function searchSessions(q: string) {
       datePrecision: true,
       _count: {
         select: {
-          mediaItems: true,
+          mediaItems: { where: PHOTO_WHERE },
           contributions: true,
           setSessionLinks: true,
         },
@@ -645,7 +648,7 @@ export async function getPersonReferenceSession(personId: string) {
     where: { personId },
     include: {
       _count: {
-        select: { mediaItems: true },
+        select: { mediaItems: { where: PHOTO_WHERE } },
       },
     },
   });

@@ -16,6 +16,8 @@ import {
 import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
+import { isCoverArtFilename, PHOTO_WHERE, type MediaRoleValue } from "@/lib/media-role";
+import { absorbRedundantArt, cleanupDeletedFiles } from "./cover-art-service";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 import {
   toGalleryItem as toGalleryItemPure,
@@ -107,6 +109,8 @@ export type MediaItemForGallery = {
   sourceTimecodeMs: number | null;
   isFavorite: boolean; // global per-image favorite (ADR-0019)
   decodeIssue?: string | null; // damaged source, decoded leniently — red frame
+  role?: MediaRoleValue; // cover art or photo (ADR-0040)
+  artInPhotos?: boolean;
 
   // Optional relation slots — each maps to a single GalleryItem field.
   personMediaLinks?: Array<{
@@ -171,6 +175,8 @@ export function mapMediaItemToGalleryItem(
     decodeIssue: item.decodeIssue ?? null,
     sortOrder: firstLink?.sortOrder ?? 0,
     isCover: opts?.coverMediaItemId === item.id,
+    role: item.role,
+    artInPhotos: item.artInPhotos,
     // Per-person link surface — present only when caller included
     // personMediaLinks. The info panel relies on this to render
     // usage / body regions / era / notes sections.
@@ -199,9 +205,14 @@ export function mapMediaItemToGalleryItem(
 
 // ─── Session gallery (production photos) ────────────────────────────────────
 
-export async function getSessionMediaGallery(sessionId: string): Promise<GalleryItem[]> {
+/** Which files a set/session gallery loads: its photos (the grid) or its cover art (the slot, ADR-0040) */
+export type GalleryPart = "photos" | "art";
+
+const partWhere = (part: GalleryPart) => (part === "art" ? { role: "COVER_ART" as const } : PHOTO_WHERE);
+
+export async function getSessionMediaGallery(sessionId: string, part: GalleryPart = "photos"): Promise<GalleryItem[]> {
   const items = await prisma.mediaItem.findMany({
-    where: { sessionId },
+    where: { sessionId, ...partWhere(part) },
     include: {
       setMediaItems: { select: { setId: true, set: { select: { id: true, title: true } } } },
       mediaItemTags: TAG_CHIP_JOIN_SELECT,
@@ -320,6 +331,11 @@ type CreateMediaItemDirectInput = {
    * the archive upload agent still treats the set as never filled.
    */
   isTransferredCover?: boolean;
+  /**
+   * Cover art or photo (ADR-0040). Left out: a transferred cover, or a set
+   * upload named by the cover rule (`Title-c.jpg`), is cover art; the rest photos.
+   */
+  role?: MediaRoleValue;
   /** The file was damaged and decoded leniently (UploadResult.decodeIssue) */
   decodeIssue?: string | null;
   /** The archive agent's copy arrived incomplete — fetch it again (MediaItem.archiveRetry) */
@@ -331,8 +347,11 @@ export async function createMediaItemDirect(
 ): Promise<{ id: string; filename: string; urls: ReturnType<typeof buildPhotoUrls> }> {
   assertValidVariants(input.variants);
   const mediaItemId = randomUUID();
+  const role: MediaRoleValue =
+    input.role ??
+    (input.isTransferredCover || (input.setId && isCoverArtFilename(input.filename)) ? "COVER_ART" : "PHOTO");
 
-  await prisma.$transaction(async (tx) => {
+  const removed = await prisma.$transaction(async (tx) => {
     await tx.mediaItem.create({
       data: {
         id: mediaItemId,
@@ -351,6 +370,7 @@ export async function createMediaItemDirect(
         sourceTimecodeMs: input.sourceTimecodeMs,
         isAnnotation: input.isAnnotation ?? false,
         isTransferredCover: input.isTransferredCover ?? false,
+        role,
         decodeIssue: input.decodeIssue ?? null,
         archiveRetry: input.archiveRetry ?? false,
       },
@@ -425,8 +445,20 @@ export async function createMediaItemDirect(
           },
         });
       }
+
+      // The set's cover art this file makes redundant: a stand-in of it, or a
+      // smaller copy of the same publisher cover (ADR-0040)
+      return absorbRedundantArt(tx, input.setId, {
+        id: mediaItemId,
+        phash: input.phash ?? null,
+        originalWidth: input.originalWidth,
+        originalHeight: input.originalHeight,
+        isArt: role === "COVER_ART",
+      });
     }
+    return [];
   });
+  await cleanupDeletedFiles(removed);
 
   return {
     id: mediaItemId,
@@ -448,7 +480,7 @@ export async function getPersonMediaGallery(
   const items = await prisma.mediaItem.findMany({
     // Raw media only: exclude annotations AND Aligned images (motifTemplateId set,
     // ADR-0013) — both are derivatives shown in their own surfaces, not the gallery.
-    where: { sessionId, isAnnotation: false, motifTemplateId: null },
+    where: { sessionId, isAnnotation: false, motifTemplateId: null, ...PHOTO_WHERE },
     include: {
       personMediaLinks: {
         where: { personId },
@@ -514,6 +546,7 @@ export async function getPersonSessionsWithMedia(personId: string): Promise<Pers
     where: {
       isAnnotation: false,
       motifTemplateId: null,
+      ...PHOTO_WHERE,
       session: personSessionWhere(personId),
     },
     _count: { _all: true },
@@ -552,6 +585,7 @@ export async function getPersonMediaAcrossSessions(
     where: {
       isAnnotation: false,
       motifTemplateId: null,
+      ...PHOTO_WHERE,
       ...(options?.sessionId
         ? { sessionId: options.sessionId }
         : { session: personSessionWhere(personId) }),
@@ -590,9 +624,10 @@ export async function getPersonMediaAcrossSessions(
 export async function getSetMediaGallery(
   setId: string,
   coverMediaItemId?: string | null,
+  part: GalleryPart = "photos",
 ): Promise<GalleryItem[]> {
   const links = await prisma.setMediaItem.findMany({
-    where: { setId },
+    where: { setId, mediaItem: partWhere(part) },
     include: {
       mediaItem: {
         include: {
@@ -1384,28 +1419,40 @@ export async function getCoverPhotosForSessions(
 ): Promise<Map<string, CoverPhotoData>> {
   if (sessionIds.length === 0) return new Map();
 
-  // Fetch sessions to get explicit cover FK, plus all media items for fallback
+  // The session's own cover (a pick in its grid); else the cover of the set
+  // released first among those it is the primary session of (ADR-0040 — a
+  // session with several sets shows a set's cover, not a stray file); else its
+  // first photo. `lib/session-cover.ts` states the same rule for the cover slot.
+  const COVER_SELECT = { variants: true, fileRef: true, focalX: true, focalY: true } as const;
   const [sessions, mediaItems] = await Promise.all([
     prisma.session.findMany({
       where: { id: { in: sessionIds } },
       select: {
         id: true,
         coverMediaItemId: true,
-        coverMediaItem: {
-          select: { variants: true, fileRef: true, focalX: true, focalY: true },
+        coverMediaItem: { select: COVER_SELECT },
+        setSessionLinks: {
+          where: { isPrimary: true, set: { coverMediaItemId: { not: null } } },
+          orderBy: [{ set: { releaseDate: { sort: "asc", nulls: "last" } } }, { set: { createdAt: "asc" } }],
+          take: 1,
+          select: { set: { select: { coverMediaItem: { select: COVER_SELECT } } } },
         },
       },
     }),
     prisma.mediaItem.findMany({
-      where: { sessionId: { in: sessionIds } },
-      select: { sessionId: true, variants: true, fileRef: true, focalX: true, focalY: true },
+      where: { sessionId: { in: sessionIds }, isAnnotation: false, ...PHOTO_WHERE },
+      select: { sessionId: true, ...COVER_SELECT },
       orderBy: { createdAt: "asc" },
     }),
   ]);
 
-  // Build fallback map: first media item per session
+  // Build fallback map: the primary set's cover, else the first photo per session
   const fallbackMap = new Map<string, CoverPhotoData>();
-  for (const item of mediaItems) {
+  const setCovers = sessions.flatMap((se) => {
+    const c = se.setSessionLinks[0]?.set.coverMediaItem;
+    return c ? [{ sessionId: se.id, ...c }] : [];
+  });
+  for (const item of [...setCovers, ...mediaItems]) {
     if (fallbackMap.has(item.sessionId)) continue;
     const variants = (item.variants ?? {}) as PhotoVariants;
     const url = variants.gallery_512

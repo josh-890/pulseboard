@@ -43,6 +43,10 @@ export type GalleryItem = {
   tags?: import("./tag").TagChipData[];
   sortOrder: number;
   isCover: boolean;
+  /** Cover art or photo (ADR-0040); absent = photo */
+  role?: "PHOTO" | "COVER_ART";
+  /** Cover art let into the photos as well — the grid badges it */
+  artInPhotos?: boolean;
   /** Present only in MediaManager contexts */
   links?: PersonMediaLinkSummary[];
   /** Present only in MediaManager contexts */

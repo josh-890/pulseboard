@@ -35,6 +35,8 @@ import { BehindCameraContributorRow } from "@/components/sessions/behind-camera-
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
+import { CoverArtButton } from "@/components/gallery/cover-art-button";
+import { sessionSetsInCoverOrder } from "@/lib/session-cover";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
 import {
   IntensityPanelProvider,
@@ -133,6 +135,8 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   // Load data for reference sessions (MediaManager) vs regular sessions (SessionMediaGallery)
   let mediaItems: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
+  // The session's cover art, apart from the photos (ADR-0040)
+  let coverArt: Awaited<ReturnType<typeof getSessionMediaGallery>> = [];
   let galleryTagFilter: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] } | undefined;
   let mediaManagerData: {
     items: Awaited<ReturnType<typeof getMediaItemsWithLinks>>;
@@ -198,7 +202,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
       })),
     };
   } else {
-    mediaItems = await getSessionMediaGallery(id);
+    [mediaItems, coverArt] = await Promise.all([getSessionMediaGallery(id), getSessionMediaGallery(id, "art")]);
     // ADR-0033: tag filter over this session's images (facet counts within it)
     const galleryIds = mediaItems.map((m) => m.id);
     const [tagFilter, facets] = await Promise.all([
@@ -384,6 +388,28 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           coverPhoto={coverPhoto}
           headshotMap={headshotMap}
           backdropEnabled={backdropEnabled}
+          coverAction={
+            // The cover art of the session's sets (ADR-0040), managed in a sheet from the hero's cover
+            <CoverArtButton
+              items={coverArt}
+              coverMediaItemId={session.coverMediaItemId ?? null}
+              coverPhotoUrl={coverPhoto?.url ?? null}
+              context={{
+                kind: "session",
+                sessionId: id,
+                sets: sessionSetsInCoverOrder(
+                  session.setSessionLinks.map((l) => ({
+                    id: l.set.id,
+                    title: l.set.title,
+                    coverMediaItemId: l.set.coverMediaItemId,
+                    isPrimary: l.isPrimary,
+                    releaseDate: l.set.releaseDate,
+                    createdAt: l.set.createdAt,
+                  })),
+                ),
+              }}
+            />
+          }
         />
       )}
       {isReference && (

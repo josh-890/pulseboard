@@ -17,6 +17,7 @@ import {
   Upload,
   X,
   ArrowLeftRight,
+  BookImage,
 } from "lucide-react";
 import { toast } from "sonner";
 import { JustifiedGrid } from "@/components/gallery/justified-grid";
@@ -60,7 +61,7 @@ import {
   splitMediaToSessionAction,
 } from "@/lib/actions/set-actions";
 import { searchSessionsAction, createSession } from "@/lib/actions/session-actions";
-import { copyMediaItemToReferenceAction } from "@/lib/actions/media-actions";
+import { copyMediaItemToReferenceAction, setArtInPhotosAction, setMediaRoleAction } from "@/lib/actions/media-actions";
 import type { ReferenceCopyTarget } from "@/components/gallery/gallery-lightbox";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
@@ -191,6 +192,11 @@ export function SetDetailGallery({
   useEffect(() => {
     setLocalItems(initialItems);
   }, [initialItems]);
+
+  // A cover picked elsewhere (the cover slot) arrives with the refresh
+  useEffect(() => {
+    setCoverId(initialCoverId ?? null);
+  }, [initialCoverId]);
 
   useEffect(() => {
     fetch("/api/collections/list")
@@ -461,6 +467,44 @@ export function SetDetailGallery({
     [entityId],
   );
 
+  // Cover art (ADR-0040): a file moved to cover art leaves the grid for the cover
+  // slot; the refresh brings the slot up to date
+  const handleSetRole = useCallback(
+    (mediaItemId: string, role: "PHOTO" | "COVER_ART") => {
+      setLocalItems((prev) =>
+        role === "COVER_ART"
+          ? prev.filter((it) => it.id !== mediaItemId)
+          : prev.map((it) => (it.id === mediaItemId ? { ...it, role, artInPhotos: false } : it)),
+      );
+      startTransition(async () => {
+        await setMediaRoleAction([mediaItemId], role);
+        router.refresh();
+      });
+    },
+    [router],
+  );
+  const handleSetArtInPhotos = useCallback(
+    (mediaItemId: string, on: boolean) => {
+      if (!on) setLocalItems((prev) => prev.filter((it) => it.id !== mediaItemId));
+      startTransition(async () => {
+        await setArtInPhotosAction(mediaItemId, on);
+        router.refresh();
+      });
+    },
+    [router],
+  );
+  const handleBulkCoverArt = useCallback(() => {
+    const ids = Array.from(selectedIds);
+    setLocalItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
+    clearSelection();
+    startTransition(async () => {
+      const r = await setMediaRoleAction(ids, "COVER_ART");
+      if (r.success) toast.success(ids.length === 1 ? "Moved to cover art" : `${ids.length} files moved to cover art`);
+      else toast.error(r.error);
+      router.refresh();
+    });
+  }, [selectedIds, clearSelection, router]);
+
   const handleDeleteConfirm = useCallback(() => {
     const idsToDelete = Array.from(selectedIds);
     setDeleteDialogOpen(false);
@@ -715,6 +759,16 @@ export function SetDetailGallery({
             >
               <Unlink size={14} />
               Remove from set
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={handleBulkCoverArt}
+              title="The publisher's cover, not photos of the set: move to the cover slot"
+            >
+              <BookImage size={14} />
+              Cover art
             </Button>
             {isCompilation && (
               <Button
@@ -1066,6 +1120,8 @@ export function SetDetailGallery({
           onClose={closeLightbox}
           onSetCover={handleSetCover}
           coverMediaItemId={coverId}
+          onSetRole={handleSetRole}
+          onSetArtInPhotos={handleSetArtInPhotos}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           onDelete={handleLightboxDelete}
           sessionId={primarySessionId}

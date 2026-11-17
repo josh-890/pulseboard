@@ -43,6 +43,8 @@ type SetHeroProps = {
   // passes this in when an archive link exists, so users can manage even a
   // healthy link without surfacing the full panel inline.
   archiveOkChip?: React.ReactNode;
+  /** In the meta row after the media count: the way into the cover art (ADR-0040) */
+  coverAction?: React.ReactNode;
   /** The archive copy is a deliberate placeholder (ADR-0032). */
   archiveStub?: ArchiveStub | null;
 };
@@ -58,6 +60,7 @@ export function SetHero({
   archiveFileCount,
   hasSuggestion = false,
   archiveOkChip,
+  coverAction,
   archiveStub = null,
 }: SetHeroProps) {
   const typeLabel = set.type === "video" ? "Video" : "Photo";
@@ -126,7 +129,7 @@ export function SetHero({
       />
     </div>
   ) : (
-    <div className="mx-auto flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5 sm:mx-0">
+    <div className="relative mx-auto flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5 sm:mx-0">
       <Film size={40} className="text-entity-set/40" />
     </div>
   );
@@ -191,6 +194,12 @@ export function SetHero({
         {/* Meta row — pushed to the bottom, quieter */}
         <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground/80">
           <span>{mediaCount} media</span>
+          {coverAction && (
+            <>
+              <span>·</span>
+              {coverAction}
+            </>
+          )}
           {set.imageCount != null && (
             <>
               <span>·</span>

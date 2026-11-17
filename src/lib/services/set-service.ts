@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PHOTO_WHERE } from "@/lib/media-role";
 import { ArchiveLinkStatus } from "@/generated/prisma/client";
 import type { Prisma, SetType, ResolutionStatus } from "@/generated/prisma/client";
 import { normalizeForSearch } from "@/lib/normalize";
@@ -110,7 +111,7 @@ export async function getSets(filters: SetFilters = {}) {
       _count: {
         select: {
           creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
-          setMediaItems: true,
+          setMediaItems: { where: { mediaItem: PHOTO_WHERE } },
         },
       },
     },
@@ -307,7 +308,7 @@ export async function getSetsPaginated(
         _count: {
           select: {
             creditsRaw: { where: { resolutionStatus: "UNRESOLVED" } },
-            setMediaItems: true,
+            setMediaItems: { where: { mediaItem: PHOTO_WHERE } },
           },
         },
       },

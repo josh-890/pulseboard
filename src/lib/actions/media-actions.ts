@@ -832,3 +832,64 @@ export async function getDetailDuplicatesAction(personId: string): Promise<Detai
     }
   });
 }
+
+// ─── Cover art (ADR-0040) ────────────────────────────────────────────────────
+
+async function revalidatePlaces(ids: string[]): Promise<void> {
+  const { placesOfMedia } = await import("@/lib/services/cover-art-service");
+  const { setIds, sessionIds } = await placesOfMedia(ids);
+  for (const id of setIds) revalidatePath(`/sets/${id}`);
+  for (const id of sessionIds) revalidatePath(`/sessions/${id}`);
+  revalidatePath("/sets");
+}
+
+/** "This is cover art" / "Not cover art" on one or more files */
+export async function setMediaRoleAction(
+  mediaItemIds: string[],
+  role: "PHOTO" | "COVER_ART",
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { setMediaRole } = await import("@/lib/services/cover-art-service");
+      await setMediaRole(mediaItemIds, role);
+      await revalidatePlaces(mediaItemIds);
+      return { success: true };
+    } catch (err) {
+      console.error("[setMediaRoleAction]", err);
+      return { success: false, error: "Failed to change the file's role" };
+    }
+  });
+}
+
+/** "+ add to photos" / "Remove from photos" on a cover-art file */
+export async function setArtInPhotosAction(mediaItemId: string, on: boolean): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { setArtInPhotos } = await import("@/lib/services/cover-art-service");
+      await setArtInPhotos(mediaItemId, on);
+      await revalidatePlaces([mediaItemId]);
+      return { success: true };
+    } catch (err) {
+      console.error("[setArtInPhotosAction]", err);
+      return { success: false, error: "Failed to update the cover art" };
+    }
+  });
+}
+
+/** The reviewed cleanup of cover-art duplicates (ADR-0040) — only the ids you kept selected */
+export async function deleteCoverDuplicatesAction(
+  ids: string[],
+): Promise<{ success: true; deleted: number } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { deleteCoverDuplicates } = await import("@/lib/services/cover-art-cleanup-service");
+      const deleted = await deleteCoverDuplicates(ids);
+      revalidatePath("/settings/system/cover-duplicates");
+      revalidatePath("/sets");
+      return { success: true as const, deleted };
+    } catch (err) {
+      console.error("[deleteCoverDuplicatesAction]", err);
+      return { success: false as const, error: "Failed to delete the duplicates" };
+    }
+  });
+}

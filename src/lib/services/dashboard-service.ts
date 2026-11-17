@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { PHOTO_WHERE, photoSql } from "@/lib/media-role";
 import { getDisplayName } from "@/lib/utils";
 import { agentPassSummary, getAgentPass } from "@/lib/services/catalogue-cover-service";
 import { getAttributionQueue } from "./attribution-confirm-service";
@@ -32,7 +33,7 @@ export async function getDashboardKpis(): Promise<DashboardKpis> {
     prisma.set.count(),
     // Shoots only, like /sessions — not the one reference session every person has
     prisma.session.count({ where: { type: "PRODUCTION" } }),
-    prisma.mediaItem.count({ where: { isAnnotation: false } }),
+    prisma.mediaItem.count({ where: { isAnnotation: false, ...PHOTO_WHERE } }),
     prisma.stagingSet.count({ where: { status: { in: ["PENDING", "REVIEWING", "APPROVED"] } } }),
     prisma.archiveFolder.count({
       where: { missingOnDisk: false, OR: [{ archiveLink: null }, { archiveLink: { status: { not: "CONFIRMED" } } }] },
@@ -91,7 +92,7 @@ export async function getDashboardActivity(days = 14): Promise<ActivityDay[]> {
       FROM "SetMediaItem" smi
       JOIN "MediaItem" mi ON mi.id = smi."mediaItemId"
       JOIN "Set" s ON s.id = smi."setId"
-      WHERE mi."createdAt" >= ${since} AND NOT mi."isTransferredCover" AND NOT mi."isAnnotation"
+      WHERE mi."createdAt" >= ${since} AND NOT mi."isAnnotation" AND ${photoSql("mi")}
       GROUP BY 1, 2, 3, 6`,
     // Images that belong to no set (a person's reference session, …), per session and day
     prisma.$queryRaw<Array<{ sessionId: string; name: string; day: Date; n: bigint; last: Date }>>`

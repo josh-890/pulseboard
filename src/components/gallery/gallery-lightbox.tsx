@@ -60,6 +60,15 @@ type GalleryLightboxProps = {
   onFavoriteToggle?: (itemId: string) => void;
   onSetCover?: (mediaItemId: string | null) => void;
   coverMediaItemId?: string | null;
+  /**
+   * Cover art ⇄ photo (ADR-0040): "This is cover art" / "Not cover art". The file
+   * leaves the list this lightbox shows (grid photos or the slot's art).
+   */
+  onSetRole?: (mediaItemId: string, role: "PHOTO" | "COVER_ART") => void;
+  /** Cover art let into the photos as well (and back) */
+  onSetArtInPhotos?: (mediaItemId: string, on: boolean) => void;
+  /** What this lightbox lists — a file whose role change takes it out of the list leaves */
+  roleList?: "photos" | "art";
   // Person headshot context
   // Find similar
   onFindSimilar?: (mediaItemId: string) => void;
@@ -140,6 +149,9 @@ function SimpleLightbox({
   onFavoriteToggle,
   onSetCover,
   coverMediaItemId,
+  onSetRole,
+  onSetArtInPhotos,
+  roleList = "photos",
   onFindSimilar,
   sessionId,
   referenceContext,
@@ -247,6 +259,21 @@ function SimpleLightbox({
   );
 
   const item = localItems[currentIndex];
+
+  // Cover art ⇄ photo: the file leaves this list, like a delete (ADR-0040)
+  const handleSetRole = useCallback(
+    (id: string, role: "PHOTO" | "COVER_ART") => {
+      if (!onSetRole) return;
+      const wasLast = currentIndex >= localItems.length - 1;
+      onSetRole(id, role);
+      toast.success(role === "COVER_ART" ? "Moved to cover art" : "Moved to the photos");
+      const leaves = roleList === "photos" ? role === "COVER_ART" : role === "PHOTO";
+      if (!leaves) return;
+      setDeletedIds((prev) => new Set(prev).add(id));
+      if (localItems.length <= 1 || wasLast) onClose();
+    },
+    [onSetRole, roleList, currentIndex, localItems.length, onClose],
+  );
   const origin = useMediaOrigin(item?.id, showOrigin);
   // One controller for the current image's tags: the info panel lists them,
   // the `T` palette edits them — both see the same optimistic state.
@@ -840,6 +867,8 @@ function SimpleLightbox({
     item,
     onSetCover,
     coverMediaItemId,
+    onSetRole: onSetRole ? handleSetRole : undefined,
+    onSetArtInPhotos,
     // The info panel's ★ is the current image's: with its tiers
     onFavoriteToggle: () => setMark("favorite", !item.isFavorite),
     tagController,

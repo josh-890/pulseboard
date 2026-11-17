@@ -190,6 +190,19 @@ export function GalleryThumbnail({
         </span>
       )}
 
+      {/* Cover art let into the photos (ADR-0040) */}
+      {item.role === "COVER_ART" && (
+        <span
+          className={cn(
+            "absolute top-1.5 rounded-full bg-sky-600/90 px-1.5 py-0.5 text-[9px] font-semibold uppercase leading-none tracking-wide text-white pointer-events-none",
+            selectable || tileAction ? (item.isCover ? "left-14" : "left-8") : item.isCover ? "left-8" : "left-1.5",
+          )}
+          data-testid="cover-art-badge"
+        >
+          cover art
+        </span>
+      )}
+
       {tileAction && <div className="absolute left-1.5 top-1.5">{tileAction}</div>}
 
       {/* Open in lightbox — the click itself may be busy selecting */}
