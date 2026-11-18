@@ -1228,6 +1228,10 @@ model Set {
   // for ever, so a set whose full-size images arrive later still shows the
   // thumbnail. A real upload takes the place over; an explicit pick clears it.
   coverIsProvisional   Boolean       @default(false)
+  // The cover was picked by hand (Cover, #, Set as cover, Upload cover art): arrivals
+  // never replace it. An automatic cover is ranked and gives way to a better one
+  // (Title-c, then Title-cN, then other cover art, then a photo) — ADR-0040 addendum.
+  coverIsChosen        Boolean       @default(false)
   category             String?
   genre                String?
   isCompilation        Boolean       @default(false)

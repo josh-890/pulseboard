@@ -39,6 +39,9 @@ export type CoverArtSlotProps = {
   className?: string;
   /** Hosted in a sheet: told when the slot's own lightbox or delete confirmation is open */
   onOverlayChange?: (overlay: "lightbox" | "confirm" | null) => void;
+  /** Open the viewer on this file (the hero's cover was clicked); `onShown` acknowledges it */
+  showItemId?: string | null;
+  onShown?: () => void;
 };
 
 /** One block of the slot: a set (its art, its cover), or — session only — art in no set */
@@ -58,6 +61,8 @@ export function CoverArtSlot({
   context,
   className,
   onOverlayChange,
+  showItemId,
+  onShown,
 }: CoverArtSlotProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -122,6 +127,19 @@ export function CoverArtSlot({
     const homeOf = new Map(groups.flatMap((g) => g.items.map((it) => [it.id, g] as const)));
     return [{ key: "flat", group: null, entries: items.flatMap((item) => (homeOf.get(item.id) ? [{ item, home: homeOf.get(item.id)! }] : [])) }];
   }, [context.kind, grouped, groups, items]);
+
+  // The hero's cover asked to be shown: open the viewer on it, in the block that holds it
+  useEffect(() => {
+    if (!showItemId) return;
+    for (const b of blocks) {
+      const index = b.entries.findIndex((e) => e.item.id === showItemId);
+      if (index >= 0) {
+        setOpen({ key: b.key, index });
+        break;
+      }
+    }
+    onShown?.();
+  }, [showItemId, blocks, onShown]);
 
   function run(work: () => Promise<{ success: boolean; error?: string }>, done?: string) {
     startTransition(async () => {

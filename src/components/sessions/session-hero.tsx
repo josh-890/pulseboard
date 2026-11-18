@@ -4,6 +4,7 @@ import { Clapperboard, FolderKanban } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
 import { isSupport, leadsFirst, type BylineEntry } from "@/lib/services/session-contributors";
 import { CreditByline } from "@/components/shared/credit-byline";
+import { HeroCoverOpener } from "@/components/gallery/hero-cover-opener";
 import { EntityMark } from "@/components/shared/entity-mark";
 import { labelBrandOf } from "@/lib/services/brand-of";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
@@ -119,7 +120,7 @@ function CoverPanel({ coverPhoto }: { coverPhoto: CoverPhotoData | null }) {
 
   if (coverPhoto) {
     return (
-      <div className={panelClass}>
+      <HeroCoverOpener mediaItemId={coverPhoto.mediaItemId} isPhoto={coverPhoto.isPhoto} className={cn(panelClass, "block")}>
         <Image
           src={coverPhoto.url}
           alt=""
@@ -129,7 +130,7 @@ function CoverPanel({ coverPhoto }: { coverPhoto: CoverPhotoData | null }) {
           unoptimized
           sizes="180px"
         />
-      </div>
+      </HeroCoverOpener>
     );
   }
 

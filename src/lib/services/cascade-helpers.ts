@@ -155,7 +155,7 @@ export async function cascadeHardDeleteMediaItems(
   //    An empty slot is not a provisional one — the flag describes an occupant.
   await tx.set.updateMany({
     where: { coverMediaItemId: { in: mediaItemIds } },
-    data: { coverMediaItemId: null, coverIsProvisional: false },
+    data: { coverMediaItemId: null, coverIsProvisional: false, coverIsChosen: false },
   });
 
   // 2. Hard-delete SetMediaItem

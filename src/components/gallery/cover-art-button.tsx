@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { OPEN_COVER_ART, type OpenCoverDetail } from "@/lib/cover-viewer";
 import { BookImage } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,33 @@ export type CoverArtButtonProps = Omit<CoverArtSlotProps, "className" | "onOverl
 export function CoverArtButton(props: CoverArtButtonProps) {
   const [open, setOpen] = useState(false);
   const [overlay, setOverlay] = useState<"lightbox" | "confirm" | null>(null);
+  const [showItemId, setShowItemId] = useState<string | null>(null);
   const count = props.items.length;
+  // Opened for the hero's cover: only the viewer is wanted — closing it closes the sheet too
+  const fromHero = useRef<"asked" | "showing" | null>(null);
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent<OpenCoverDetail>).detail.mediaItemId;
+      if (!props.items.some((it) => it.id === id)) return;
+      e.preventDefault();
+      if (!open) fromHero.current = "asked";
+      setShowItemId(id);
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_COVER_ART, onOpen);
+    return () => window.removeEventListener(OPEN_COVER_ART, onOpen);
+  }, [props.items, open]);
+
+  const onOverlayChange = useCallback((o: "lightbox" | "confirm" | null) => {
+    setOverlay(o);
+    if (o === "lightbox" && fromHero.current === "asked") fromHero.current = "showing";
+    else if (o === null && fromHero.current === "showing") {
+      fromHero.current = null;
+      setOpen(false);
+    }
+  }, []);
+  const onShown = useCallback(() => setShowItemId(null), []);
 
   return (
     <Sheet
@@ -25,6 +52,7 @@ export function CoverArtButton(props: CoverArtButtonProps) {
       // While the lightbox or a confirmation is up, an Esc or a click there is theirs
       onOpenChange={(next) => {
         if (!next && overlay) return;
+        if (!next) fromHero.current = null;
         setOpen(next);
       }}
     >
@@ -54,7 +82,7 @@ export function CoverArtButton(props: CoverArtButtonProps) {
           </SheetDescription>
         </SheetHeader>
         <div className="px-4 pb-4">
-          <CoverArtSlot {...props} onOverlayChange={setOverlay} className="border-0 bg-transparent p-0 shadow-none backdrop-blur-none sm:p-0" />
+          <CoverArtSlot {...props} onOverlayChange={onOverlayChange} showItemId={showItemId} onShown={onShown} className="border-0 bg-transparent p-0 shadow-none backdrop-blur-none sm:p-0" />
         </div>
       </SheetContent>
     </Sheet>

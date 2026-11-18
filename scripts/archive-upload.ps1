@@ -93,9 +93,10 @@ function Get-NaturalKey {
 }
 
 # The designated-cover marker, the same pattern as archive-cover.ps1 ($COVER_PATTERN):
-# a stem ending in a lone "c" after any non-alphanumeric separator — "Title-c.jpg",
-# "Title - c.jpg". -match is case-insensitive.
-$COVER_PATTERN = '(^|[^a-z0-9])c\.(jpe?g|png|webp)$'
+# a stem ending in a lone "c" (or "c1", "c2" …) after any non-alphanumeric separator —
+# "Title-c.jpg", "Title - c.jpg", "Title - c1.jpg"; by name the plain "-c" comes first.
+# -match is case-insensitive. The app ranks the cover itself, so the order is a courtesy.
+$COVER_PATTERN = '(^|[^a-z0-9])c[0-9]*\.(jpe?g|png|webp)$'
 function Test-DesignatedCover {
     param([System.IO.FileInfo]$File)
     return $File.Name -match $COVER_PATTERN

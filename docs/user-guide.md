@@ -1016,6 +1016,16 @@ The publisher's cover is not one of the set's photos. A file is either a **photo
   two identical cover-art files the larger one stays. Older duplicates: *Settings → System → Cover art
   duplicates* lists them side by side (copies and stand-ins ticked, publisher crops of a photo not
   ticked); untick what should stay, then delete.
+- **Which file becomes the cover by itself:** `Title-c` first, then `Title-c1`, `Title-c2` … (all of them are cover
+  art), then the cover carried over from the import, then a photo. A better file arriving later takes the place
+  of an automatic cover, whatever order the files are uploaded in. **A cover you pick** (*Cover* in the sheet, <kbd>#</kbd>,
+  *Set as cover*, *Upload cover art*) is never replaced; clearing it hands the choice back.
+- **Click the cover in the hero** to see it big: cover art opens in the cover-art viewer (with its actions —
+  Cover, In photos, Not cover art); a photo opens in the gallery's viewer, where ← → walks on through the photos.
+- **Cover check:** *Settings → System → Cover check* lists sets whose automatic cover is not their best cover art,
+  current cover next to the cover art, in four groups — a `-c1` that is the cover while `-c` is there, the import
+  cover, a photo from the same upload (all ticked) and a photo from another upload (not ticked: maybe your pick).
+  **Apply** switches the ticked sets; the others keep their cover, which then counts as picked by you.
 
 #### Photo Gallery
 

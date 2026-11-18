@@ -160,7 +160,7 @@ export async function mergeSetRecords(
     prisma.set.findUniqueOrThrow({
       where: { id: setIdA },
       select: {
-        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true, coverIsChosen: true,
         channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
@@ -170,7 +170,7 @@ export async function mergeSetRecords(
     prisma.set.findUniqueOrThrow({
       where: { id: setIdB },
       select: {
-        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true,
+        id: true, title: true, externalId: true, channelId: true, type: true, isComplete: true, coverMediaItemId: true, coverIsProvisional: true, coverIsChosen: true,
         channel: { select: { labelId: true } },
         _count: { select: { setMediaItems: true } },
         archiveLinks: { select: { status: true, archivePath: true } },
@@ -343,6 +343,7 @@ export async function mergeSetRecords(
     if (!surviving.coverMediaItemId && absorbed.coverMediaItemId) {
       updates.coverMediaItemId = absorbed.coverMediaItemId
       updates.coverIsProvisional = absorbed.coverIsProvisional
+      updates.coverIsChosen = absorbed.coverIsChosen
     }
     if (Object.keys(updates).length > 0) {
       await tx.set.update({ where: { id: survivingId }, data: updates })

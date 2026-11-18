@@ -15,6 +15,7 @@ import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
 import { heroByline, isSupport, leadsFirst } from "@/lib/services/session-contributors";
 import { CreditByline } from "@/components/shared/credit-byline";
+import { HeroCoverOpener } from "@/components/gallery/hero-cover-opener";
 import { EntityMark } from "@/components/shared/entity-mark";
 import { brandOf, labelBrandOf } from "@/lib/services/brand-of";
 
@@ -134,7 +135,11 @@ export function SetHero({
   );
 
   const coverPanel = coverPhoto ? (
-    <div className="relative mx-auto h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl sm:mx-0">
+    <HeroCoverOpener
+      mediaItemId={coverPhoto.mediaItemId}
+      isPhoto={coverPhoto.isPhoto}
+      className="relative mx-auto block h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl sm:mx-0"
+    >
       <Image
         src={coverPhoto.url}
         alt=""
@@ -144,7 +149,7 @@ export function SetHero({
         unoptimized
         sizes="180px"
       />
-    </div>
+    </HeroCoverOpener>
   ) : (
     <div className="relative mx-auto flex h-[250px] w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-entity-set/20 to-entity-set/5 sm:mx-0">
       <Film size={40} className="text-entity-set/40" />

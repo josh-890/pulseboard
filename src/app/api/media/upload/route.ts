@@ -176,7 +176,7 @@ export async function POST(request: Request) {
         if (setId) {
           await prisma.set.update({
             where: { id: setId },
-            data: { coverMediaItemId: mediaItem.id, coverIsProvisional: false },
+            data: { coverMediaItemId: mediaItem.id, coverIsProvisional: false, coverIsChosen: true },
           });
         } else {
           await prisma.session.update({ where: { id: sessionId }, data: { coverMediaItemId: mediaItem.id } });

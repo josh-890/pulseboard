@@ -893,3 +893,22 @@ export async function deleteCoverDuplicatesAction(
     }
   });
 }
+
+/** The cover check (ADR-0040 addendum): ticked sets switch to their cover art, the rest keep their cover as picked */
+export async function applyCoverCheckAction(
+  switchSetIds: string[],
+  keepSetIds: string[],
+): Promise<{ success: true; switched: number; kept: number } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { applyCoverCheck } = await import("@/lib/services/cover-check-service");
+      const r = await applyCoverCheck(switchSetIds, keepSetIds);
+      revalidatePath("/settings/system/cover-check");
+      revalidatePath("/sets");
+      return { success: true as const, ...r };
+    } catch (err) {
+      console.error("[applyCoverCheckAction]", err);
+      return { success: false as const, error: "Failed to update the covers" };
+    }
+  });
+}

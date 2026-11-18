@@ -91,3 +91,24 @@ Pulseboard needs both: publisher artwork, and a picked photo when a set comes wi
 - The archive upload queue is unchanged: `firstMediaAt` still ignores only the transferred cover, and an
   uploaded `-c.jpg` is an upload.
 - `SetMediaItem.isCover` was never read and is dropped.
+
+## Addendum 2026-11-19 — `-cN` and the automatic cover
+
+**Problem.** On xpulse 182 sets held their `Title-c` without showing it. In 47 of them `Title-c1` was the cover:
+the archive agent uploads files in parallel, every arrival read "no cover yet", and the last commit won. In 25 a photo
+of the same upload won the same race. In 93 the cover carried over at promotion stayed, because first-come never
+gives way. `Title-c1`, `-c2` … (259 files) counted as photos.
+
+**Decision.**
+1. `isCoverArtFilename` takes `c` plus optional digits (`Title-c1.jpg`); the migration makes those files cover art
+   (roles only).
+2. **Ranked automatic cover** (`coverRank`, `arrivalTakesCover` in `lib/media-role.ts`): `Title-c` (0) → `Title-cN` (N)
+   → other cover art → a photo. An arrival takes an empty slot, a stand-in's place, or an automatic cover it
+   outranks. `createMediaItemDirect` locks the set row (`FOR NO KEY UPDATE` — the SetMediaItem insert holds KEY
+   SHARE, so `FOR UPDATE` would deadlock parallel arrivals), so the result no longer depends on order.
+3. **`Set.coverIsChosen`**: set by a pick (`setSetCover`, Upload cover art), cleared when the cover is cleared or its
+   file deleted, carried over by a set merge. A chosen cover is never replaced by an arrival.
+4. **Existing data:** `/settings/system/cover-check` (`cover-check-service.ts`) lists sets with an automatic cover
+   worse than their best named cover art: variant / import / same upload (ticked) and photo from another upload
+   (not ticked — it may have been picked before picks were remembered). Apply switches the ticked sets; the
+   others are marked chosen. Only a named file (`-c`, `-cN`) is ever proposed — never the stand-in over a photo.

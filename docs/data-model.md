@@ -195,7 +195,8 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
   links via `categoryId` to a `MediaCategory` (admin-configurable; categories
   with `entityModel` drive body-mark / body-mod / procedure linking).
 - Cover photo is `Set.coverMediaItemId` / `Session.coverMediaItemId` (nullable); it may point at a photo or
-  at cover art.
+  at cover art. `Set.coverIsProvisional` = the occupant is a stand-in; `Set.coverIsChosen` = picked by hand,
+  never replaced by an arrival (ADR-0040 addendum; otherwise the better-ranked file wins, `coverRank`).
 - `MediaItem.role` (`MediaRole`: PHOTO | COVER_ART, ADR-0040) + `artInPhotos` — cover art (the publisher's
   cover: the transferred staging cover, a set upload named `Title-c.jpg`) sits in the cover slot outside
   the photos unless `artInPhotos`; "photos" = `role = PHOTO OR artInPhotos` (`src/lib/media-role.ts`).

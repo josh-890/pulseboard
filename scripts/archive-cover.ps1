@@ -97,7 +97,9 @@ $IMAGE_PATTERN = '\.(jpe?g|png|webp|bmp)$'
 # anchored on "-c" alone would miss over half of them. Requiring a non-alphanumeric
 # character before the "c" is what stops it matching ordinary words ending in c.
 # PowerShell's -match is case-insensitive, so ".JPG" is covered.
-$COVER_PATTERN = '(^|[^a-z0-9])c\.(jpe?g|png|webp)$'
+# "Title-c1.jpg", "Title - c2.jpg" … count too (2026-11-19); sorted by name, the plain
+# "-c" still comes first ("." sorts before the digits).
+$COVER_PATTERN = '(^|[^a-z0-9])c[0-9]*\.(jpe?g|png|webp)$'
 
 # ── Cover selection ───────────────────────────────────────────────────────────
 

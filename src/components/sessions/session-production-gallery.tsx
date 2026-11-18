@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { OPEN_COVER_PHOTO, type OpenCoverDetail } from "@/lib/cover-viewer";
 import Link from "next/link";
 import { ArrowLeftRight, BookImage, CheckSquare, Layers, Plus, Trash2, Upload, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -156,6 +157,18 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
     displayItems.forEach((item, i) => map.set(item.id, i));
     return map;
   }, [displayItems]);
+
+  // The hero's cover, clicked: open it here when it is one of these photos (lib/cover-viewer)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const idx = indexMap.get((e as CustomEvent<OpenCoverDetail>).detail.mediaItemId);
+      if (idx === undefined) return;
+      e.preventDefault();
+      setLightboxIndex(idx);
+    };
+    window.addEventListener(OPEN_COVER_PHOTO, onOpen);
+    return () => window.removeEventListener(OPEN_COVER_PHOTO, onOpen);
+  }, [indexMap]);
 
   // People-shown filter (ADR-0023): include / exclude per cast member.
   const {

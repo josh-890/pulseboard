@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCoverArtFilename, isPhotoItem } from "@/lib/media-role";
+import { coverRank, COVER_RANK, isCoverArtFilename, isPhotoItem } from "@/lib/media-role";
 import { redundantArtCopies } from "@/lib/services/cover-art-service";
 
 // Cover art vs photo (ADR-0040)
@@ -11,9 +11,11 @@ describe("isCoverArtFilename — the cover agent's rule", () => {
     "Title_c.webp",
     "c.png",
     "MetArt - Elle D - Pamilya (19 Dec 2013)-c.jpeg",
+    "2025-12-13-S18 Gold - Disco Ball Babydoll - c1.jpg",
+    "Title-c2.png",
   ])("%s is cover art", (name) => expect(isCoverArtFilename(name)).toBe(true));
 
-  it.each(["Jasmine - Music - 054.jpg", "Monaco.jpg", "abc.jpg", "cover.jpg", "Title-c.gif", "Title-cc.jpg", "Title-c.jpg.txt"])(
+  it.each(["Jasmine - Music - 054.jpg", "Monaco.jpg", "abc.jpg", "cover.jpg", "Title-c.gif", "Title-cc.jpg", "Title-c.jpg.txt", "Title-c1a.jpg", "Title-1c.jpg"])(
     "%s is not",
     (name) => expect(isCoverArtFilename(name)).toBe(false),
   );
@@ -46,5 +48,18 @@ describe("redundantArtCopies", () => {
   });
   it("never itself", () => {
     expect(redundantArtCopies(kept, [kept])).toEqual([]);
+  });
+});
+
+describe("coverRank — the automatic cover (ADR-0040 addendum)", () => {
+  const art = (filename: string) => coverRank({ filename, role: "COVER_ART" });
+  it("Title-c beats Title-c1 beats Title-c2 beats other art beats a photo", () => {
+    const ranks = [art("X - c.jpg"), art("X - c1.jpg"), art("X - c2.jpg"), art("cover.jpg"), coverRank({ filename: "X - 001.jpg", role: "PHOTO" })];
+    expect([...ranks].sort((a, b) => a - b)).toEqual(ranks);
+    expect(new Set(ranks).size).toBe(ranks.length);
+    expect(ranks[3]).toBe(COVER_RANK.otherArt);
+  });
+  it("a -c file marked Not cover art ranks as a photo", () => {
+    expect(coverRank({ filename: "X-c.jpg", role: "PHOTO" })).toBe(COVER_RANK.photo);
   });
 });

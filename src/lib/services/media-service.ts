@@ -16,7 +16,7 @@ import {
 import { pruneArchiveUploadFailed } from "./archive-upload-failed";
 import type { PersonMediaLink } from "@/generated/prisma/client";
 import { hammingDistance } from "@/lib/image-hash";
-import { isCoverArtFilename, PHOTO_WHERE, type MediaRoleValue } from "@/lib/media-role";
+import { arrivalTakesCover, isCoverArtFilename, PHOTO_WHERE, type MediaRoleValue } from "@/lib/media-role";
 import { absorbRedundantArt, cleanupDeletedFiles } from "./cover-art-service";
 import { buildUrl, buildPhotoUrls } from "@/lib/media-url";
 import {
@@ -414,19 +414,39 @@ export async function createMediaItemDirect(
       // A file the archive agent could not upload has arrived after all
       await pruneArchiveUploadFailed(tx, input.setId, [input.filename]);
 
-      // Auto-assign the cover if the set has none — or if what sits there is a
-      // stand-in and this is a real picture of the set. A provisional cover
-      // never displaces another one: the first stand-in stays until something
-      // better than a stand-in arrives.
+      // The automatic cover (ADR-0040 addendum): an empty slot takes this file, a
+      // real file takes a stand-in's place, and a better-ranked file (Title-c,
+      // then Title-cN, then other art, then a photo) takes an automatic cover's —
+      // never one picked by hand. The row lock makes parallel arrivals (the
+      // archive agent uploads several at once) decide one after the other.
+      // NO KEY UPDATE: the SetMediaItem insert above holds KEY SHARE on the row, which
+      // FOR UPDATE would wait on — two parallel arrivals would deadlock.
+      await tx.$queryRaw`SELECT 1 FROM "Set" WHERE id = ${input.setId} FOR NO KEY UPDATE`;
       const set = await tx.set.findUnique({
         where: { id: input.setId },
-        select: { coverMediaItemId: true, coverIsProvisional: true },
+        select: {
+          coverMediaItemId: true,
+          coverIsProvisional: true,
+          coverIsChosen: true,
+          coverMediaItem: { select: { filename: true, role: true } },
+        },
       });
       const isProvisional = input.provisionalCover ?? false;
-      if (set && (!set.coverMediaItemId || (set.coverIsProvisional && !isProvisional))) {
+      if (
+        set &&
+        arrivalTakesCover(
+          {
+            coverId: set.coverMediaItemId,
+            provisional: set.coverIsProvisional,
+            chosen: set.coverIsChosen,
+            cover: set.coverMediaItem,
+          },
+          { filename: input.filename, role, provisional: isProvisional },
+        )
+      ) {
         await tx.set.update({
           where: { id: input.setId },
-          data: { coverMediaItemId: mediaItemId, coverIsProvisional: isProvisional },
+          data: { coverMediaItemId: mediaItemId, coverIsProvisional: isProvisional, coverIsChosen: false },
         });
       }
 
@@ -1344,7 +1364,16 @@ export type CoverPhotoData = {
   url: string;
   focalX: number | null;
   focalY: number | null;
+  /** The file shown — the hero opens it in the viewer */
+  mediaItemId?: string;
+  /** In the photos (a photo, or cover art let in): the gallery's viewer; else the cover-art one */
+  isPhoto?: boolean;
 };
+
+const coverIdentity = (m: { id: string; role: MediaRoleValue; artInPhotos: boolean }) => ({
+  mediaItemId: m.id,
+  isPhoto: m.role === "PHOTO" || m.artInPhotos,
+});
 
 export async function getCoverPhotosForSets(
   setIds: string[],
@@ -1357,7 +1386,7 @@ export async function getCoverPhotosForSets(
     select: {
       id: true,
       coverMediaItem: {
-        select: { variants: true, fileRef: true, focalX: true, focalY: true },
+        select: { id: true, role: true, artInPhotos: true, variants: true, fileRef: true, focalX: true, focalY: true },
       },
     },
   });
@@ -1377,6 +1406,7 @@ export async function getCoverPhotosForSets(
         url,
         focalX: s.coverMediaItem.focalX ?? null,
         focalY: s.coverMediaItem.focalY ?? null,
+        ...coverIdentity(s.coverMediaItem),
       });
     }
   }
@@ -1386,7 +1416,7 @@ export async function getCoverPhotosForSets(
   if (missingIds.length > 0) {
     const fallbackLinks = await prisma.setMediaItem.findMany({
       where: { setId: { in: missingIds } },
-      include: { mediaItem: { select: { variants: true, fileRef: true, focalX: true, focalY: true } } },
+      include: { mediaItem: { select: { id: true, role: true, artInPhotos: true, variants: true, fileRef: true, focalX: true, focalY: true } } },
       orderBy: { sortOrder: "asc" },
     });
 
@@ -1404,6 +1434,7 @@ export async function getCoverPhotosForSets(
         url,
         focalX: link.mediaItem.focalX ?? null,
         focalY: link.mediaItem.focalY ?? null,
+        ...coverIdentity(link.mediaItem),
       });
     }
   }
@@ -1423,7 +1454,7 @@ export async function getCoverPhotosForSessions(
   // released first among those it is the primary session of (ADR-0040 — a
   // session with several sets shows a set's cover, not a stray file); else its
   // first photo. `lib/session-cover.ts` states the same rule for the cover slot.
-  const COVER_SELECT = { variants: true, fileRef: true, focalX: true, focalY: true } as const;
+  const COVER_SELECT = { id: true, role: true, artInPhotos: true, variants: true, fileRef: true, focalX: true, focalY: true } as const;
   const [sessions, mediaItems] = await Promise.all([
     prisma.session.findMany({
       where: { id: { in: sessionIds } },
@@ -1462,7 +1493,7 @@ export async function getCoverPhotosForSessions(
         : item.fileRef
           ? buildUrl(item.fileRef)
           : null;
-    if (url) fallbackMap.set(item.sessionId, { url, focalX: item.focalX ?? null, focalY: item.focalY ?? null });
+    if (url) fallbackMap.set(item.sessionId, { url, focalX: item.focalX ?? null, focalY: item.focalY ?? null, ...coverIdentity(item) });
   }
 
   // Prefer explicit cover over fallback
@@ -1482,6 +1513,7 @@ export async function getCoverPhotosForSessions(
           url,
           focalX: session.coverMediaItem.focalX ?? null,
           focalY: session.coverMediaItem.focalY ?? null,
+          ...coverIdentity(session.coverMediaItem),
         });
         continue;
       }

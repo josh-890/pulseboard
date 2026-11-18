@@ -440,11 +440,11 @@ export async function setSetCover(
   return withTenantFromHeaders(async () => {
     try {
       // A pick is a pick: whatever you choose here is no longer a stand-in, and
-      // clearing the cover is not an invitation for the next upload to fill it
-      // with a thumbnail either.
+      // no arrival replaces it (coverIsChosen). Clearing the cover hands the slot
+      // back to the automatic rule.
       await prisma.set.update({
         where: { id: setId },
-        data: { coverMediaItemId: mediaItemId, coverIsProvisional: false },
+        data: { coverMediaItemId: mediaItemId, coverIsProvisional: false, coverIsChosen: mediaItemId !== null },
       });
       revalidatePath("/sets");
       revalidatePath(`/sets/${setId}`);

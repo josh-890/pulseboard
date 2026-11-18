@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { OPEN_COVER_PHOTO, type OpenCoverDetail } from "@/lib/cover-viewer";
 import { useRouter } from "next/navigation";
 import {
   CheckSquare,
@@ -294,6 +295,18 @@ export function SetDetailGallery({
     items.forEach((item, i) => map.set(item.id, i));
     return map;
   }, [items]);
+
+  // The hero's cover, clicked: open it here when it is one of these photos (lib/cover-viewer)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const idx = indexMap.get((e as CustomEvent<OpenCoverDetail>).detail.mediaItemId);
+      if (idx === undefined) return;
+      e.preventDefault();
+      setLightboxIndex(idx);
+    };
+    window.addEventListener(OPEN_COVER_PHOTO, onOpen);
+    return () => window.removeEventListener(OPEN_COVER_PHOTO, onOpen);
+  }, [indexMap]);
 
   const deepLinkIndex = deepLinkPhotoId && mounted ? indexMap.get(deepLinkPhotoId) : undefined;
   const openIndex = lightboxIndex ?? deepLinkIndex ?? null;

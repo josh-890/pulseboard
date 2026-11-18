@@ -235,8 +235,8 @@ Picks one image per folder, downscales it locally, POSTs only the thumbnail. The
 workspace is otherwise a text-only tree, which makes judging tens of thousands of
 orphan folders guesswork.
 
-Selection: a stem ending in a lone `c` after any separator (`Title-c.jpg`,
-`Title - c.jpg`); otherwise the first image by name. Videosets use `frames\`.
+Selection: a stem ending in a lone `c` (or `c1`, `c2` …, 2026-11-19) after any separator (`Title-c.jpg`,
+`Title - c.jpg`, `Title - c1.jpg`), the plain `-c` first by name; otherwise the first image by name. Videosets use `frames\`.
 
 ```powershell
 .\archive-cover.ps1 -Limit 50 -DryRun     # cautious first pass
@@ -294,8 +294,9 @@ This agent does it unattended:
   the first image from any route (manual or agent) and never cleared, so deleting a
   set's images does not queue it again. Video sets are not filled.
 - **Per set:** the folder's `jpg/jpeg/png/webp/gif`, numbered by file name in natural
-  order (2 before 10). A designated cover (`Title-c.jpg`, `Title - c.jpg` — the cover
-  agent's rule) is sent **first** so it becomes the set's cover; it arrives as **cover art**
+  order (2 before 10). A designated cover (`Title-c.jpg`, `Title - c.jpg`, `Title - c1.jpg` — the cover
+  agent's rule) is sent **first**; which file becomes the set's cover no longer depends on the order — the
+  app ranks `-c` over `-cN` over the import cover over a photo (ADR-0040 addendum); it arrives as **cover art**
   (ADR-0040), outside the set's photos, and replaces a stand-in it copies. `bmp/tif` are listed
   as not uploadable.
 - **Resumable:** the server skips an image already in the set (same SHA-256, or the
