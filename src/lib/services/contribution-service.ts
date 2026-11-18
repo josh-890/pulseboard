@@ -32,9 +32,10 @@ export async function getSessionBehindCameraCredits(
     },
     select: {
       rawName: true,
-      resolvedArtist: { select: { id: true, name: true } },
-      roleDefinition: { select: { name: true } },
+      resolvedArtist: { select: { id: true, name: true, logoKey: true, markFont: true, markColor: true } },
+      roleDefinition: { select: { name: true, presence: true } },
     },
+    orderBy: { createdAt: "asc" },
   });
 
   return credits.map((c) => ({
@@ -42,6 +43,10 @@ export async function getSessionBehindCameraCredits(
     resolvedArtistName: c.resolvedArtist?.name ?? null,
     rawName: c.rawName,
     roleName: c.roleDefinition?.name ?? "Photographer",
+    presence: c.roleDefinition?.presence ?? null,
+    brand: c.resolvedArtist
+      ? { logoKey: c.resolvedArtist.logoKey, markFont: c.resolvedArtist.markFont, markColor: c.resolvedArtist.markColor }
+      : null,
   }));
 }
 

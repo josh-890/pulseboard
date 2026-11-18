@@ -45,6 +45,10 @@ export type BehindCameraCredit = {
   resolvedArtistName: string | null;
   rawName: string;
   roleName: string;
+  /** The role's presence (LEAD / SUPPORT) — the byline names LEAD only */
+  presence?: string | null;
+  /** The resolved artist's mark fields */
+  brand?: { logoKey: string | null; markFont: string | null; markColor: string | null } | null;
 };
 
 export type SessionContributor =
@@ -91,4 +95,51 @@ export function isSupport(p: WithPresence): boolean {
 /** The leads first, then support — each in its own order */
 export function leadsFirst<T extends WithPresence>(list: readonly T[]): T[] {
   return [...list.filter((p) => !isSupport(p)), ...list.filter(isSupport)];
+}
+
+/**
+ * The behind-camera roles named in a hero's byline ("by Photographer"): a
+ * behind-camera role that is LEAD. Other behind-camera roles (SUPPORT, e.g. makeup)
+ * stay in the credits list only. No role name is hard-coded.
+ */
+export const BYLINE_ROLE = { group: { kind: "BEHIND_CAMERA" as const }, presence: "LEAD" as const };
+
+/** A credit as the byline reads it — a set credit or a session's behind-camera credit */
+export type BylineCredit = {
+  artistId: string | null;
+  artistName: string | null;
+  rawName: string;
+  roleName: string;
+  groupKind: RoleGroupKindName | string | null;
+  presence: string | null;
+  ignored?: boolean;
+  /** The resolved artist's mark fields, when known */
+  brand?: { logoKey: string | null; markFont: string | null; markColor: string | null } | null;
+};
+
+export type BylineEntry = {
+  artistId: string | null;
+  name: string;
+  roleName: string;
+  brand: { logoKey: string | null; markFont: string | null; markColor: string | null } | null;
+};
+
+/**
+ * The names for a hero's byline, in credit order: byline roles only, ignored credits
+ * left out, one entry per artist (or per raw name while unresolved).
+ */
+export function heroByline(credits: readonly BylineCredit[]): BylineEntry[] {
+  const out: BylineEntry[] = [];
+  const seen = new Set<string>();
+  for (const c of credits) {
+    if (c.ignored) continue;
+    if (c.groupKind !== BYLINE_ROLE.group.kind || c.presence !== BYLINE_ROLE.presence) continue;
+    const name = (c.artistName ?? c.rawName).trim();
+    if (!name) continue;
+    const key = c.artistId ?? `raw:${name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ artistId: c.artistId, name, roleName: c.roleName, brand: c.artistId ? (c.brand ?? null) : null });
+  }
+  return out;
 }

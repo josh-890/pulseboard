@@ -15,7 +15,7 @@ import { getPersonProfileFramings } from "@/lib/services/profile-service";
 import { getCollectionsForPerson } from "@/lib/services/collection-service";
 import { getAllCategoryGroups } from "@/lib/services/category-service";
 import { getContributorsWithEntities, getSessionBehindCameraCredits } from "@/lib/services/contribution-service";
-import { mergeSessionContributors, type SessionContributor } from "@/lib/services/session-contributors";
+import { heroByline, mergeSessionContributors, type SessionContributor } from "@/lib/services/session-contributors";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import {
@@ -388,6 +388,17 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           coverPhoto={coverPhoto}
           headshotMap={headshotMap}
           backdropEnabled={backdropEnabled}
+          byline={heroByline(
+            behindCameraCredits.map((c) => ({
+              artistId: c.artistId,
+              artistName: c.resolvedArtistName,
+              rawName: c.rawName,
+              roleName: c.roleName,
+              groupKind: "BEHIND_CAMERA",
+              presence: c.presence ?? null,
+              brand: c.brand ?? null,
+            })),
+          )}
           coverAction={
             // The cover art of the session's sets (ADR-0040), managed in a sheet from the hero's cover
             <CoverArtButton

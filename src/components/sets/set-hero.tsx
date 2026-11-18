@@ -13,7 +13,8 @@ import type { getSetById } from "@/lib/services/set-service";
 import type { CoverPhotoData, HeadshotData } from "@/lib/services/media-service";
 import type { ArchiveStatus } from "@/generated/prisma/client";
 import { resolveCreditedAs } from "@/lib/sets/credited-as";
-import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
+import { heroByline, isSupport, leadsFirst } from "@/lib/services/session-contributors";
+import { CreditByline } from "@/components/shared/credit-byline";
 import { EntityMark } from "@/components/shared/entity-mark";
 import { brandOf, labelBrandOf } from "@/lib/services/brand-of";
 
@@ -116,6 +117,22 @@ export function SetHero({
     };
   });
 
+  // "by Photographer" — the behind-camera lead credits as a byline next to the channel
+  const byline = heroByline(
+    set.creditsRaw.map((c) => ({
+      artistId: c.resolvedArtist?.id ?? null,
+      artistName: c.resolvedArtist?.name ?? null,
+      rawName: c.rawName,
+      roleName: c.roleDefinition?.name ?? "",
+      groupKind: c.roleDefinition?.group.kind ?? null,
+      presence: c.roleDefinition?.presence ?? null,
+      ignored: c.resolutionStatus === "IGNORED",
+      brand: c.resolvedArtist
+        ? { logoKey: c.resolvedArtist.logoKey, markFont: c.resolvedArtist.markFont, markColor: c.resolvedArtist.markColor }
+        : null,
+    })),
+  );
+
   const coverPanel = coverPhoto ? (
     <div className="relative mx-auto h-[250px] w-[180px] shrink-0 overflow-hidden rounded-xl sm:mx-0">
       <Image
@@ -167,7 +184,13 @@ export function SetHero({
               </Link>
             </>
           )}
-          {(set.releaseDate || set.channel) && <span>·</span>}
+          {byline.length > 0 && (
+            <>
+              {(set.releaseDate || set.channel) && <span>·</span>}
+              <CreditByline entries={byline} trailTitle={`${set.title} · Photographers`} />
+            </>
+          )}
+          {(set.releaseDate || set.channel || byline.length > 0) && <span>·</span>}
           <span
             className="inline-flex items-center text-muted-foreground/80"
             title={`${typeLabel} set`}

@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Clapperboard, FolderKanban } from "lucide-react";
 import { cn, focalStyle, formatPartialDateISO, getInitialsFromName, computeProductionAge } from "@/lib/utils";
-import { isSupport, leadsFirst } from "@/lib/services/session-contributors";
+import { isSupport, leadsFirst, type BylineEntry } from "@/lib/services/session-contributors";
+import { CreditByline } from "@/components/shared/credit-byline";
 import { EntityMark } from "@/components/shared/entity-mark";
 import { labelBrandOf } from "@/lib/services/brand-of";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
@@ -20,6 +21,8 @@ type SessionHeroProps = {
   backdropEnabled: boolean;
   /** In the meta row after the media count: the way into the cover art (ADR-0040) */
   coverAction?: React.ReactNode;
+  /** "by Photographer" from the session's sets' behind-camera lead credits */
+  byline?: BylineEntry[];
 };
 
 function ContributorAvatars({
@@ -148,6 +151,7 @@ export function SessionHero({
   headshotMap,
   backdropEnabled,
   coverAction,
+  byline = [],
 }: SessionHeroProps) {
   const contributorCount = session.contributions.length;
   const mediaCount = session._count.mediaItems;
@@ -182,6 +186,12 @@ export function SessionHero({
               <EntityMark brand={labelBrandOf(session.label)} variant="tile" size="xs" />
               {session.label.name}
             </Link>
+          )}
+          {byline.length > 0 && (
+            <>
+              {(session.date || session.label) && <span>·</span>}
+              <CreditByline entries={byline} trailTitle={`${session.name} · Photographers`} />
+            </>
           )}
         </div>
 

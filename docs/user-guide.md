@@ -787,6 +787,9 @@ Click **"Add Session"** to create a production session:
 - Header with status badge, project/label links, participant/set counts
 - **Inline editable** fields: name, description, location, notes
 - **Gallery** — media grid with batch upload zone and lightbox
+- **By the photographer** — the hero's first line reads `date · label · by [mark] Name`: the session's sets'
+  photographers (behind-camera *lead* roles; other crew stays in Contributors). A resolved artist links to their page;
+  a credit not resolved yet is shown dimmed, without a link. The set hero shows the same next to the channel.
 - **Contributors** — list of persons with role badges (Model, Appearance, Photographer), the models first.
   **Model or Appearance** (ADR-0037): click the role pill of someone on camera to switch. *Appearance* is for
   someone who is in the shoot without it being about them — a guest, a partner in a few frames. They stay in the
