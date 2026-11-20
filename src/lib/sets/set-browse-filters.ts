@@ -1,4 +1,5 @@
 import type { SetFilters, SetSort, CastCountBucket } from "@/lib/services/set-service";
+import { parseToneBuckets } from "@/lib/tone";
 
 /**
  * Single source of truth for the Set browser's SetFilters ⇄ URL-params
@@ -32,6 +33,7 @@ export function setFiltersToParams(filters: SetFilters): Record<string, string> 
   if (filters.labelIds && filters.labelIds.length > 0) r.label = filters.labelIds.join(",");
   if (filters.personId) r.personId = filters.personId;
   if (filters.castCounts && filters.castCounts.length > 0) r.castCount = filters.castCounts.join(",");
+  if (filters.tones && filters.tones.length > 0) r.tone = filters.tones.join(",");
   if (filters.ratings && filters.ratings.length > 0) r.rating = filters.ratings.map(String).join(",");
   if (filters.hasMedia) r.hasMedia = "true";
   if (filters.archiveFilter) r.archiveFilter = filters.archiveFilter;
@@ -66,6 +68,7 @@ export function paramsToSetFilters(s: Record<string, string>): SetFilters {
     labelIds: s.label ? s.label.split(",").filter(Boolean) : undefined,
     personId: s.personId || undefined,
     castCounts: s.castCount ? parseCastCounts(s.castCount) : undefined,
+    tones: parseToneBuckets(s.tone),
     ratings: s.rating ? parseRatings(s.rating) : undefined,
     hasMedia: s.hasMedia === "true" ? true : undefined,
     archiveFilter: VALID_ARCHIVE.has(s.archiveFilter) ? (s.archiveFilter as SetFilters["archiveFilter"]) : undefined,

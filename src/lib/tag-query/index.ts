@@ -19,7 +19,7 @@ export {
   removeExclusion,
 } from "./edit";
 export type { TagFacetState, GroupMatchMode } from "./edit";
-export { PREDICATE_SUPPORT, predicateSuggestions, predicateLabel } from "./predicates";
+export { PREDICATE_SUPPORT, predicateSuggestions, predicateLabel, normalizeToneValue } from "./predicates";
 export { removePredicate } from "./edit";
 export { tokenAtCaret, completionsFor, applyCompletion } from "./complete";
 export type { Completion, CompletionGroup, TokenAtCaret } from "./complete";

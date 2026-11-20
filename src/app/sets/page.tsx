@@ -1,3 +1,5 @@
+import { ToneSwatch } from "@/components/shared/tone-swatch";
+import { TONE_BUCKETS, TONE_BUCKET_LABEL } from "@/lib/tone";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { listSavedFilters } from "@/lib/services/saved-filter-service";
 import { Suspense } from "react";
@@ -38,6 +40,7 @@ type SetsPageProps = {
     personName?: string;
     personSupport?: string;
     castCount?: string;
+    tone?: string;
     hasMedia?: string;
     archiveFilter?: string;
     noArchiveLink?: string;
@@ -167,6 +170,18 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
         { value: "4", label: "4" },
         { value: "5plus", label: "5+" },
       ],
+    },
+    {
+      // Color / B&W over the set's photos (ADR-0041) — a single photo of the other kind makes it Mixed
+      type: "swatches",
+      param: "tone",
+      label: "Tone",
+      options: TONE_BUCKETS.map((b) => ({
+        value: b,
+        label: TONE_BUCKET_LABEL[b],
+        swatch: <ToneSwatch tone={b} size="xs" />,
+        count: facetCounts.tone[b] ?? 0,
+      })),
     },
     {
       type: "typeahead",

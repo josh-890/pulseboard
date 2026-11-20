@@ -67,6 +67,8 @@ type GalleryLightboxProps = {
   onSetRole?: (mediaItemId: string, role: "PHOTO" | "COVER_ART") => void;
   /** Cover art let into the photos as well (and back) */
   onSetArtInPhotos?: (mediaItemId: string, on: boolean) => void;
+  /** Color / B&W by hand (ADR-0041); null = back to the measurement */
+  onSetTone?: (mediaItemId: string, tone: "COLOR" | "MONO" | null) => void;
   /** What this lightbox lists — a file whose role change takes it out of the list leaves */
   roleList?: "photos" | "art";
   // Person headshot context
@@ -151,6 +153,7 @@ function SimpleLightbox({
   coverMediaItemId,
   onSetRole,
   onSetArtInPhotos,
+  onSetTone,
   roleList = "photos",
   onFindSimilar,
   sessionId,
@@ -869,6 +872,7 @@ function SimpleLightbox({
     coverMediaItemId,
     onSetRole: onSetRole ? handleSetRole : undefined,
     onSetArtInPhotos,
+    onSetTone,
     // The info panel's ★ is the current image's: with its tiers
     onFavoriteToggle: () => setMark("favorite", !item.isFavorite),
     tagController,

@@ -201,6 +201,9 @@ MediaItem ──< PersonMediaLink >── Person     (usage / category / slot)
   cover: the transferred staging cover, a set upload named `Title-c.jpg`) sits in the cover slot outside
   the photos unless `artInPhotos`; "photos" = `role = PHOTO OR artInPhotos` (`src/lib/media-role.ts`).
   Index `(sessionId, role)`. `SetMediaItem.isCover` (never read) was dropped.
+- `MediaItem.tone` (`MediaTone`: COLOR | MONO, ADR-0041), `chroma` (Float, color left once the tint is
+  removed — `src/lib/image-tone.ts`), `toneIsManual` (decided by hand, wins). Null tone = not measured yet.
+  Index `(tone)`. A set's / session's tone (color only · B&W only · mixed) is computed live over its photos.
 - `ArchiveFolder.discoveredAt` — when a scan first found the folder (null for folders
   found before 2026-10-11). `AgentRun` (`agent_run`) — one reported run of an agent
   (agent, startedAt, finishedAt, ok, dryRun, summary, details JSON); the dashboard.

@@ -172,6 +172,8 @@ export async function uploadArchiveImage(input: {
     mimeType: input.mimeType,
     decodeIssue,
     archiveRetry,
+    tone: stored.tone,
+    chroma: stored.chroma,
   };
   const flags = { ...(decodeIssue ? { decodeIssue } : {}), ...(archiveRetry ? { archiveRetry } : {}) };
 

@@ -3,12 +3,14 @@ import { prisma } from "@/lib/db";
 import {
   parseTagQuery,
   PREDICATE_SUPPORT,
+  normalizeToneValue,
   resolveTerm,
   type CatalogTag,
   type QueryPredicate,
   type ResolvedPredicate,
 } from "@/lib/tag-query";
 import type { TaggableEntity } from "@/lib/tag-domains";
+import { photoSql } from "@/lib/media-role";
 import { intensityCap } from "@/lib/intensity";
 import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
 
@@ -56,6 +58,15 @@ export async function resolvePredicates(
         const n = Number(value);
         const op = p.op === ":" ? "=" : p.op;
         if (Number.isInteger(n) && n >= 0 && n <= 5) r = { kind: "rating", op, value: n };
+        break;
+      }
+      case "tone": {
+        const t = normalizeToneValue(value);
+        if (t === "mixed" && entity === "MEDIA_ITEM") {
+          problems.push("tone:mixed is for sets and sessions — an image is color or B&W");
+          continue;
+        }
+        if (t) r = { kind: "tone", value: t };
         break;
       }
       case "type":
@@ -459,5 +470,30 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
       return intensitySql(entity, p, x);
     case "rated":
       return entity === "SESSION" || entity === "SET" ? ratedSql(entity, p.value, x) : Prisma.sql`FALSE`;
+    case "tone":
+      return toneSql(entity, p.value, x);
   }
+}
+
+/**
+ * Color / B&W (ADR-0041). An image: its tone. A set or session: over its
+ * measured photos (cover art and videos never count) — all color, all B&W, or
+ * both; one photo of the other kind makes it mixed.
+ */
+export function toneSql(entity: TaggableEntity, value: "color" | "bw" | "mixed", x: Prisma.Sql): Prisma.Sql {
+  if (entity === "MEDIA_ITEM") {
+    if (value === "mixed") return Prisma.sql`FALSE`;
+    const t = value === "bw" ? "MONO" : "COLOR";
+    return Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" mi WHERE mi.id = ${x} AND mi.tone::text = ${t})`;
+  }
+  if (entity !== "SET" && entity !== "SESSION") return Prisma.sql`FALSE`;
+  const has = (t: "MONO" | "COLOR") =>
+    entity === "SET"
+      ? Prisma.sql`EXISTS (SELECT 1 FROM "SetMediaItem" smi JOIN "MediaItem" mi ON mi.id = smi."mediaItemId"
+          WHERE smi."setId" = ${x} AND mi."mediaType" = 'PHOTO' AND ${photoSql("mi")} AND mi.tone::text = ${t})`
+      : Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" mi
+          WHERE mi."sessionId" = ${x} AND mi."mediaType" = 'PHOTO' AND ${photoSql("mi")} AND mi.tone::text = ${t})`;
+  if (value === "bw") return Prisma.sql`(${has("MONO")} AND NOT ${has("COLOR")})`;
+  if (value === "color") return Prisma.sql`(${has("COLOR")} AND NOT ${has("MONO")})`;
+  return Prisma.sql`(${has("MONO")} AND ${has("COLOR")})`;
 }

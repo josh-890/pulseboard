@@ -47,6 +47,10 @@ export type GalleryItem = {
   role?: "PHOTO" | "COVER_ART";
   /** Cover art let into the photos as well — the grid badges it */
   artInPhotos?: boolean;
+  /** Color or black & white (ADR-0041); absent/null = not measured yet */
+  tone?: "COLOR" | "MONO" | null;
+  /** The tone was set by hand — it wins over the measurement */
+  toneIsManual?: boolean;
   /** Present only in MediaManager contexts */
   links?: PersonMediaLinkSummary[];
   /** Present only in MediaManager contexts */

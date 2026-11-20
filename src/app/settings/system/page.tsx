@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookImage, ChevronRight, TriangleAlert } from "lucide-react";
+import { ToneSwatch } from "@/components/shared/tone-swatch";
 import { DatabaseMaintenance } from "@/components/settings/database-maintenance";
 
 export default function SystemPage() {
@@ -35,6 +36,20 @@ export default function SystemPage() {
           <span className="block text-sm font-semibold">Cover check</span>
           <span className="block text-xs text-muted-foreground">
             Sets whose automatic cover is not their best cover art (Title-c before Title-c1, the import cover, a photo) — review, then switch
+          </span>
+        </span>
+        <ChevronRight size={16} className="text-muted-foreground" aria-hidden="true" />
+      </Link>
+
+      <Link
+        href="/settings/system/tone-check"
+        className="flex items-center gap-3 rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm transition-colors hover:bg-card/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ToneSwatch tone="mixed" size="sm" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Tone check</span>
+          <span className="block text-xs text-muted-foreground">
+            Photos close to the line between color and black &amp; white (sepia, very pale color) — decide each one
           </span>
         </span>
         <ChevronRight size={16} className="text-muted-foreground" aria-hidden="true" />

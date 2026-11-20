@@ -123,6 +123,8 @@ export async function transferStagingCoverToSet(
     variants: uploadResult.variants,
     hash: computeSha256(buffer),
     phash: await computeDHash(buffer),
+    tone: uploadResult.tone,
+    chroma: uploadResult.chroma,
     provisionalCover: isProvisionalCoverKey(key),
     // Not an upload: the set still waits for its archive images (archive-upload.ps1)
     isTransferredCover: true,

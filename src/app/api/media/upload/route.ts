@@ -120,6 +120,8 @@ export async function POST(request: Request) {
           filename: file.name,
           mimeType: file.type,
           decodeIssue: uploadResult.decodeIssue,
+          tone: uploadResult.tone,
+          chroma: uploadResult.chroma,
         });
 
         return NextResponse.json(
@@ -170,6 +172,8 @@ export async function POST(request: Request) {
         sourceTimecodeMs,
         isAnnotation,
         decodeIssue: uploadResult.decodeIssue,
+        tone: uploadResult.tone,
+        chroma: uploadResult.chroma,
         ...(asCoverArt ? { role: "COVER_ART" as const } : {}),
       });
       if (asCoverArt) {

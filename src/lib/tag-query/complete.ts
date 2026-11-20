@@ -36,6 +36,7 @@ const PREDICATE_VALUES: Record<string, string[]> = {
   is: ["fav", "untagged"],
   has: ["workflow"],
   type: ["photo", "video"],
+  tone: ["bw", "color", "mixed"],
 };
 
 export type TokenAtCaret = {

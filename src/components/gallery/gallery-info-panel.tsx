@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { GalleryCastMember, MediaItemOrigin } from "@/lib/types/gallery";
 import { LightboxOriginSection } from "./lightbox-origin-section";
+import { ToneSwatch } from "@/components/shared/tone-swatch";
 import { PeopleShownChips } from "./people-shown-chips";
 import { LightboxDetailUses } from "./lightbox-detail-uses";
 import type { CollectionSummary } from "@/lib/services/collection-service";
@@ -138,6 +139,8 @@ type GalleryInfoPanelProps = {
   onSetRole?: (mediaItemId: string, role: "PHOTO" | "COVER_ART") => void;
   /** Cover art let into the photos as well */
   onSetArtInPhotos?: (mediaItemId: string, on: boolean) => void;
+  /** Color / B&W by hand (ADR-0041); null hands it back to the measurement */
+  onSetTone?: (mediaItemId: string, tone: "COLOR" | "MONO" | null) => void;
   // Common actions
   onFavoriteToggle?: (itemId: string) => void;
   // Tags of this image (ADR-0033) — owned by the lightbox, shared with its `T` palette
@@ -183,6 +186,7 @@ export function GalleryInfoPanel({
   coverMediaItemId,
   onSetRole,
   onSetArtInPhotos,
+  onSetTone,
   onFavoriteToggle,
   tagController,
   onOpenTagPalette,
@@ -205,7 +209,7 @@ export function GalleryInfoPanel({
   origin,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["origin", "cover", "headshot", "favorite", "usage", "people-shown", "tags", "focal", "info", "source"]),
+    new Set(["origin", "tone", "cover", "headshot", "favorite", "usage", "people-shown", "tags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -573,6 +577,58 @@ export function GalleryInfoPanel({
             onToggle={toggleSection}
           />
           {expandedSections.has("origin") && <LightboxOriginSection origin={origin} />}
+        </>
+      )}
+
+      {/* Color / B&W (ADR-0041): measured, or set by hand */}
+      {onSetTone && (
+        <>
+          <SectionHeader
+            title="Tone"
+            icon={<ToneSwatch tone={item.tone === "MONO" ? "mono" : "color"} size="xs" />}
+            section="tone"
+            expanded={expandedSections.has("tone")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("tone") && (
+            <div className="flex flex-wrap items-center gap-2 pb-2" data-testid="lightbox-tone">
+              <div role="radiogroup" aria-label="Color or black & white" className="inline-flex rounded-md bg-white/5 p-0.5">
+                {(["COLOR", "MONO"] as const).map((t) => {
+                  const on = item.tone === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => !on && onSetTone(item.id, t)}
+                      data-value={t}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-all",
+                        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        on ? "bg-white/15 text-white ring-1 ring-white/30" : "text-white/55 hover:bg-white/10 hover:text-white",
+                      )}
+                    >
+                      <ToneSwatch tone={t === "MONO" ? "mono" : "color"} size="xs" />
+                      {t === "MONO" ? "B&W" : "Color"}
+                    </button>
+                  );
+                })}
+              </div>
+              {item.toneIsManual ? (
+                <button
+                  type="button"
+                  onClick={() => onSetTone(item.id, null)}
+                  title="Set by hand — click to go back to what was measured"
+                  className="text-[11px] text-white/50 underline-offset-2 hover:text-white hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  by hand · reset
+                </button>
+              ) : (
+                <span className="text-[11px] text-white/40">{item.tone ? "measured" : "not measured yet"}</span>
+              )}
+            </div>
+          )}
         </>
       )}
 

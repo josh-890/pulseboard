@@ -912,3 +912,41 @@ export async function applyCoverCheckAction(
     }
   });
 }
+
+// ─── Color / B&W (ADR-0041) ──────────────────────────────────────────────────
+
+/** "Color" / "B&W" by hand on one or more photos; null hands them back to the measurement */
+export async function setMediaToneAction(
+  mediaItemIds: string[],
+  tone: "COLOR" | "MONO" | null,
+): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { setMediaTone } = await import("@/lib/services/tone-service");
+      await setMediaTone(mediaItemIds, tone);
+      await revalidatePlaces(mediaItemIds);
+      return { success: true };
+    } catch (err) {
+      console.error("[setMediaToneAction]", err);
+      return { success: false, error: "Failed to change color / B&W" };
+    }
+  });
+}
+
+/** The tone check's decisions (Settings → System → Tone check) */
+export async function applyToneCheckAction(
+  decisions: { id: string; tone: "COLOR" | "MONO" }[],
+): Promise<{ success: true; saved: number } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const { applyToneCheck } = await import("@/lib/services/tone-service");
+      const saved = await applyToneCheck(decisions);
+      revalidatePath("/settings/system/tone-check");
+      revalidatePath("/sets");
+      return { success: true as const, saved };
+    } catch (err) {
+      console.error("[applyToneCheckAction]", err);
+      return { success: false as const, error: "Failed to save the decisions" };
+    }
+  });
+}

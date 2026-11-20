@@ -18,6 +18,7 @@ export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity
   act: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
   intensity: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
   rated: ["SET", "SESSION"],
+  tone: ["MEDIA_ITEM", "SET", "SESSION"],
 };
 
 /** Completions the query box offers for predicates, per browser */
@@ -43,8 +44,22 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
     { kind: "rated", insert: "rated:unrated", hint: "no model's intensity recorded yet" },
     { kind: "rated", insert: "rated:review", hint: "intensity to review — not all confirmed" },
     { kind: "rated", insert: "rated:done", hint: "every model's intensity confirmed" },
+    { kind: "tone", insert: "tone:bw", hint: entity === "MEDIA_ITEM" ? "black & white" : "all photos black & white" },
+    { kind: "tone", insert: "tone:color", hint: entity === "MEDIA_ITEM" ? "in color" : "all photos in color" },
+    ...(entity === "MEDIA_ITEM" ? [] : [{ kind: "tone" as const, insert: "tone:mixed", hint: "color and black & white photos" }]),
   ];
   return all.filter((s) => PREDICATE_SUPPORT[s.kind].includes(entity)).map(({ insert, hint }) => ({ insert, hint }));
+}
+
+const TONE_TEXT: Record<string, string> = { color: "Color", bw: "B&W", mixed: "Color & B&W" };
+
+/** tone: values as written → canonical ("mono", "b&w", "bw" all mean B&W) */
+export function normalizeToneValue(v: string): "color" | "bw" | "mixed" | null {
+  const s = v.trim().toLowerCase();
+  if (s === "color" || s === "colour") return "color";
+  if (s === "bw" || s === "b&w" || s === "mono" || s === "monochrome" || s === "blackwhite") return "bw";
+  if (s === "mixed") return "mixed";
+  return null;
 }
 
 const RATED_TEXT: Record<string, string> = { unrated: "Not rated yet", review: "Intensity to review", done: "Intensity confirmed" };
@@ -80,6 +95,8 @@ export function predicateLabel(p: QueryPredicate): string {
     }
     case "rated":
       return RATED_TEXT[v.toLowerCase()] ?? `rated ${v}`;
+    case "tone":
+      return TONE_TEXT[normalizeToneValue(v) ?? ""] ?? `tone ${v}`;
     default:
       return `${p.key}${p.op}${v}`;
   }

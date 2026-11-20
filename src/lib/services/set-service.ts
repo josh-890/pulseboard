@@ -1,3 +1,5 @@
+import { setIdsByTone, setIdsPerToneBucket } from "./tone-service";
+import { TONE_BUCKETS, type ToneBucket } from "@/lib/tone";
 import { prisma } from "@/lib/db";
 import { PHOTO_WHERE } from "@/lib/media-role";
 import { ArchiveLinkStatus } from "@/generated/prisma/client";
@@ -38,6 +40,8 @@ export type SetFilters = {
   // Multi-select cast-size buckets: a set matches if its distinct-person count
   // falls in ANY selected bucket ("5plus" = ≥5). Empty/absent = no filter.
   castCounts?: CastCountBucket[];
+  /** Color / B&W / mixed over the set's photos (ADR-0041); any of these */
+  tones?: ToneBucket[];
   hasMedia?: boolean;
   sort?: SetSort;
   archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
@@ -184,6 +188,10 @@ export async function buildSetWhere(filters: Omit<SetFilters, "sort">): Promise<
 
   if (castCounts && castCounts.length > 0) {
     andClause(where, { id: { in: await setIdsByCastCounts(castCounts) } });
+  }
+
+  if (filters.tones && filters.tones.length > 0) {
+    andClause(where, { id: { in: await setIdsByTone(filters.tones) } });
   }
 
   // Multi-select rating: same shape as PersonFilters. Numeric buckets
@@ -473,6 +481,8 @@ export type SetFacetCounts = {
   // count excludes the rating filter from its own selection so users
   // see the effect of toggling a bucket.
   rating: Record<string, number>;
+  /** Keyed by ToneBucket; excludes the tone filter from its own selection */
+  tone: Record<string, number>;
 };
 
 export async function getSetFacetCounts(
@@ -482,12 +492,17 @@ export async function getSetFacetCounts(
   const castIds = filters.castCounts && filters.castCounts.length > 0
     ? await setIdsByCastCounts(filters.castCounts)
     : null;
+  const toneBuckets = await setIdsPerToneBucket();
+  const toneIds = filters.tones && filters.tones.length > 0 ? filters.tones.flatMap((b) => toneBuckets[b]) : null;
 
-  function buildBase(overrides: Partial<Pick<SetFilters, "type" | "channelIds" | "labelIds" | "ratings">> = {}): Prisma.SetWhereInput {
+  function buildBase(
+    overrides: Partial<Pick<SetFilters, "type" | "channelIds" | "labelIds" | "ratings" | "tones">> = {},
+  ): Prisma.SetWhereInput {
     const merged = { ...filters, ...overrides };
     const w: Prisma.SetWhereInput = {};
     if (filters.ids && filters.ids.length > 0) w.id = { in: filters.ids };
     if (castIds) andClause(w, { id: { in: castIds } });
+    if (toneIds && merged.tones && merged.tones.length > 0) andClause(w, { id: { in: toneIds } });
     if (merged.type && merged.type !== "all") w.type = merged.type;
     if (filters.q) w.title = { contains: filters.q, mode: "insensitive" };
     if (merged.channelIds && merged.channelIds.length > 0) w.channelId = { in: merged.channelIds };
@@ -523,6 +538,13 @@ export async function getSetFacetCounts(
     return w;
   }
 
+  const toneCounts = Promise.all(
+    TONE_BUCKETS.map((b) =>
+      prisma.set
+        .count({ where: { AND: [buildBase({ tones: undefined }), { id: { in: toneBuckets[b] } }] } })
+        .then((count) => [b, count] as const),
+    ),
+  );
   const [typeGroups, channelGroups, ratingGroups, ...labelCounts] = await Promise.all([
     prisma.set.groupBy({ by: ["type"], where: buildBase({ type: undefined }), _count: { _all: true } }),
     prisma.set.groupBy({ by: ["channelId"], where: buildBase({ channelIds: undefined }), _count: { _all: true } }),
@@ -540,6 +562,7 @@ export async function getSetFacetCounts(
     rating: Object.fromEntries(
       ratingGroups.map((r) => [r.rating === null ? "unrated" : String(r.rating), r._count._all]),
     ),
+    tone: Object.fromEntries(await toneCounts),
   };
 }
 

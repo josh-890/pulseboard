@@ -1027,6 +1027,26 @@ The publisher's cover is not one of the set's photos. A file is either a **photo
   cover, a photo from the same upload (all ticked) and a photo from another upload (not ticked: maybe your pick).
   **Apply** switches the ticked sets; the others keep their cover, which then counts as picked by you.
 
+#### Color and black & white
+
+Every photo is measured when it arrives: **Color** or **B&W** (toned prints like sepia count as B&W).
+
+- **Sets:** the **Tone** filter on `/sets` — three tiles, *Color* (only color photos), *B&W* (only black &
+  white) and *Mixed* (both; one photo of the other kind is enough), each with how many sets it would show. Pick
+  one or several. On a set card, a small round badge shows the share: a grey disc for B&W only, a pie for mixed
+  (hover: "12 of 96 B&W"); color-only sets have none. Cover art and videos never count.
+- **In a set or session:** when it holds both kinds, a pill above the photos — **All · Color · B&W**, with counts
+  (they follow the people filter). A photo you correct while *B&W* or *Color* is chosen stays in view until you
+  choose again.
+- **Wrong?** In the viewer, info panel → **Tone** → *Color* / *B&W* (it then says *by hand · reset* — reset goes
+  back to what was measured), or select several and **Mark Color / B&W** in the selection bar. Your decision
+  always wins.
+- **Close calls:** *Settings → System → Tone check* shows the photos nearest the line (very pale color, toned
+  prints) that nobody has decided yet. Tap a photo to flip it, then **Save** — every photo on the page is then
+  decided and leaves the list.
+- **Search:** `tone:bw`, `tone:color` (images, sets, sessions) and `tone:mixed` (sets, sessions) — also in smart
+  collections.
+
 #### Photo Gallery
 
 - **Justified grid** of the set's photos (cover art is reached from the hero's info line)

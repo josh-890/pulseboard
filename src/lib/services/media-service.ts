@@ -1,3 +1,6 @@
+import type { ToneValue } from "@/lib/tone";
+import type { ToneCounts } from "@/lib/tone";
+import { getToneCountsForSets } from "./tone-service";
 import { randomUUID } from "crypto";
 import { TAG_CHIP_JOIN_SELECT, toTagChips } from "@/lib/tag-chip";
 import { prisma } from "@/lib/db";
@@ -111,6 +114,8 @@ export type MediaItemForGallery = {
   decodeIssue?: string | null; // damaged source, decoded leniently — red frame
   role?: MediaRoleValue; // cover art or photo (ADR-0040)
   artInPhotos?: boolean;
+  tone?: ToneValue | null; // color or B&W (ADR-0041)
+  toneIsManual?: boolean;
 
   // Optional relation slots — each maps to a single GalleryItem field.
   personMediaLinks?: Array<{
@@ -177,6 +182,8 @@ export function mapMediaItemToGalleryItem(
     isCover: opts?.coverMediaItemId === item.id,
     role: item.role,
     artInPhotos: item.artInPhotos,
+    tone: item.tone ?? null,
+    toneIsManual: item.toneIsManual ?? false,
     // Per-person link surface — present only when caller included
     // personMediaLinks. The info panel relies on this to render
     // usage / body regions / era / notes sections.
@@ -340,6 +347,9 @@ type CreateMediaItemDirectInput = {
   decodeIssue?: string | null;
   /** The archive agent's copy arrived incomplete — fetch it again (MediaItem.archiveRetry) */
   archiveRetry?: boolean;
+  /** Color or black & white, measured at upload (UploadResult.tone / chroma, ADR-0041) */
+  tone?: ToneValue | null;
+  chroma?: number | null;
 };
 
 export async function createMediaItemDirect(
@@ -373,6 +383,8 @@ export async function createMediaItemDirect(
         role,
         decodeIssue: input.decodeIssue ?? null,
         archiveRetry: input.archiveRetry ?? false,
+        tone: input.tone ?? null,
+        chroma: input.chroma ?? null,
       },
     });
 
@@ -841,6 +853,7 @@ export async function copyMediaToReferenceSession(
     select: {
       filename: true, fileRef: true, mimeType: true, size: true,
       originalWidth: true, originalHeight: true, variants: true, hash: true, phash: true,
+      tone: true, chroma: true, toneIsManual: true,
     },
   });
   if (!source) throw new Error("Source media item not found");
@@ -863,6 +876,9 @@ export async function copyMediaToReferenceSession(
       variants: newVariants as Record<string, string>,
       hash: source.hash,
       phash: source.phash,
+      tone: source.tone,
+      chroma: source.chroma,
+      toneIsManual: source.toneIsManual,
       isAnnotation: false,
       copiedFromMediaItemId: sourceMediaItemId,
     },
@@ -1368,6 +1384,8 @@ export type CoverPhotoData = {
   mediaItemId?: string;
   /** In the photos (a photo, or cover art let in): the gallery's viewer; else the cover-art one */
   isPhoto?: boolean;
+  /** Sets only: B&W and measured photo counts — the card's tone badge (ADR-0041) */
+  tone?: ToneCounts;
 };
 
 const coverIdentity = (m: { id: string; role: MediaRoleValue; artInPhotos: boolean }) => ({
@@ -1437,6 +1455,12 @@ export async function getCoverPhotosForSets(
         ...coverIdentity(link.mediaItem),
       });
     }
+  }
+
+  const tones = await getToneCountsForSets(setIds);
+  for (const [setId, cover] of result) {
+    const t = tones.get(setId);
+    if (t) cover.tone = t;
   }
 
   return result;
@@ -1650,11 +1674,15 @@ export async function replaceMediaItemFile(
     decodeIssue: string | null;
     /** Only the archive agent sets it; any other replacement ends the re-fetch */
     archiveRetry?: boolean;
+    /** New pixels, new measurement — a correction by hand belonged to the old file */
+    tone?: ToneValue | null;
+    chroma?: number | null;
   },
 ): Promise<void> {
   await prisma.mediaItem.update({
     where: { id: mediaItemId },
     data: {
+      ...(newData.tone ? { tone: newData.tone, chroma: newData.chroma ?? null, toneIsManual: false } : {}),
       decodeIssue: newData.decodeIssue,
       archiveRetry: newData.archiveRetry ?? false,
       variants: newData.variants as unknown as Record<string, string>,

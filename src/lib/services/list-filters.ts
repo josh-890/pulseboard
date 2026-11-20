@@ -1,3 +1,4 @@
+import { parseToneBuckets } from "@/lib/tone";
 import { findTagMatchIds, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
 import { getIntensityMax } from "@/lib/services/intensity-catalog-service";
 import { getPotentialDuplicatePairs } from "@/lib/services/set-merge-service";
@@ -59,7 +60,7 @@ const SET_ARCHIVE_FILTERS = new Set(["noArchive", "verified", "changed", "missin
 
 export async function setListFilters(params: ListParams) {
   const {
-    q, type, sort, channel, label, personId, personSupport, castCount, hasMedia, archiveFilter, noArchiveLink, duplicates,
+    q, type, sort, channel, label, personId, personSupport, castCount, tone, hasMedia, archiveFilter, noArchiveLink, duplicates,
     releaseDateFrom, releaseDateTo, rating, tags, intensity, rated,
   } = params;
 
@@ -105,6 +106,7 @@ export async function setListFilters(params: ListParams) {
     personId: personId || undefined,
     personInclSupport: personSupport === "true" || undefined,
     castCounts: castCounts.length > 0 ? castCounts : undefined,
+    tones: parseToneBuckets(tone),
     hasMedia: hasMedia === "true" ? true : undefined,
     sort: sort && SET_SORTS.has(sort) ? (sort as SetSort) : undefined,
     archiveFilter: archiveFilter && SET_ARCHIVE_FILTERS.has(archiveFilter) ? (archiveFilter as SetFilters["archiveFilter"]) : undefined,

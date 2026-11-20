@@ -229,6 +229,11 @@ enum MediaRole {
   COVER_ART
 }
 
+enum MediaTone {
+  COLOR
+  MONO
+}
+
 enum ResolutionStatus {
   UNRESOLVED
   RESOLVED
@@ -1366,6 +1371,14 @@ model MediaItem {
   role        MediaRole @default(PHOTO)
   artInPhotos Boolean   @default(false)
 
+  // Color or black & white (ADR-0041). Measured from the pixels at upload
+  // (src/lib/image-tone.ts) — chroma = color left once the tint is removed,
+  // tone = toneOf(chroma). Null = not measured yet. A correction by hand sets
+  // toneIsManual and wins over the measurement.
+  tone         MediaTone?
+  chroma       Float?
+  toneIsManual Boolean    @default(false)
+
   // The source file was damaged (e.g. "VipsJpeg: premature end of JPEG image")
   // and was decoded leniently, the way a browser shows it — missing parts come out
   // grey. Holds Sharp's strict-decode message; null = clean. Shown as a red frame
@@ -1401,6 +1414,7 @@ model MediaItem {
   @@index([decodeIssue])
   @@index([archiveRetry])
   @@index([sessionId, role])
+  @@index([tone])
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +

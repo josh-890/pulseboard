@@ -399,6 +399,8 @@ export async function adoptPortraitAsHeadshot(personId: string, portraitKey: str
     variants: upload.variants,
     hash: computeSha256(buffer),
     phash: await computeDHash(buffer),
+    tone: upload.tone,
+    chroma: upload.chroma,
   });
   const avatarCat = await prisma.mediaCategory.findFirst({ where: { isAvatarSource: true }, select: { id: true } });
   if (avatarCat) {

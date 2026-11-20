@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { PutObjectCommand, GetObjectCommand, DeleteObjectsCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { minioClient, getMinioBucket } from "./minio";
 import type { PhotoVariants } from "@/lib/types";
+import { measureTone, type ToneValue } from "./image-tone";
 
 type ProfileVariant = {
   name: string;
@@ -38,6 +39,9 @@ export type UploadResult = {
   originalHeight: number;
   /** Set when the file was damaged and decoded leniently (MediaItem.decodeIssue) */
   decodeIssue: string | null;
+  /** Color or black & white, measured from the normalized pixels (ADR-0041) */
+  tone: ToneValue;
+  chroma: number;
 };
 
 export type UploadPhotoOptions = {
@@ -91,6 +95,7 @@ export async function uploadPhotoToStorage(
     console.warn(`[storage] sharp: damaged file decoded leniently — ${decodeIssue}`);
   }
   console.log(`[storage] sharp: normalized (${normalized.length} bytes)`);
+  const { tone, chroma } = await measureTone(normalized);
 
   // Step 3 — Generate all variant buffers sequentially (CPU-bound Sharp work)
   type VariantEntry = { key: string; buffer: Buffer; name: keyof PhotoVariants };
@@ -143,6 +148,8 @@ export async function uploadPhotoToStorage(
     originalWidth,
     originalHeight,
     decodeIssue,
+    tone,
+    chroma,
   };
 }
 

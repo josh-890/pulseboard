@@ -29,6 +29,9 @@ import type { TagFacetGroup } from "@/lib/services/tag-filter-service";
 import { applyTagChangeToItems } from "@/lib/gallery-tag-update";
 import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
+import { ToneFilterPill } from "@/components/gallery/tone-filter-pill";
+import { ToneMarkButtons } from "@/components/gallery/tone-mark-buttons";
+import { tallyTones, useToneFilter } from "@/lib/hooks/use-tone-filter";
 import { SortableGallery } from "@/components/gallery/sortable-gallery";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
 import type { CollectionContext, ProductionContext } from "@/components/gallery/gallery-lightbox";
@@ -62,7 +65,7 @@ import {
   splitMediaToSessionAction,
 } from "@/lib/actions/set-actions";
 import { searchSessionsAction, createSession } from "@/lib/actions/session-actions";
-import { copyMediaItemToReferenceAction, setArtInPhotosAction, setMediaRoleAction } from "@/lib/actions/media-actions";
+import { copyMediaItemToReferenceAction, setArtInPhotosAction, setMediaRoleAction, setMediaToneAction } from "@/lib/actions/media-actions";
 import type { ReferenceCopyTarget } from "@/components/gallery/gallery-lightbox";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
@@ -279,7 +282,7 @@ export function SetDetailGallery({
   // The tag filter narrows the base list, so every view (flat, by session, by
   // clip, people filter) shows only matching images.
   const tagMatchSet = useMemo(() => (tagFilter?.matchIds ? new Set(tagFilter.matchIds) : null), [tagFilter]);
-  const items = useMemo(
+  const baseItems = useMemo(
     () =>
       applyGallerySort(
         localItems
@@ -289,6 +292,8 @@ export function SetDetailGallery({
       ),
     [localItems, coverId, sortMode, tagMatchSet],
   );
+  // Color / B&W (ADR-0041) narrows the base list the same way
+  const { tone, setTone, keep: keepTone, available: toneAvailable, items } = useToneFilter(baseItems, isReordering);
 
   const indexMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -333,6 +338,7 @@ export function SetDetailGallery({
     filterItems,
     singledOut: filteredPersonId,
   } = usePeopleFilter(items, cast);
+  const toneCounts = useMemo(() => tallyTones(filterItems(baseItems)), [filterItems, baseItems]);
 
   // True when gallery items actually span multiple sessions (drives "Group by session" visibility)
   const hasMultipleSessions = useMemo(() => {
@@ -496,6 +502,21 @@ export function SetDetailGallery({
     },
     [router],
   );
+  // Color / B&W by hand (ADR-0041) — the photo stays in view under the current tone choice
+  const handleSetTone = useCallback(
+    (mediaItemId: string, tone: "COLOR" | "MONO" | null) => {
+      keepTone([mediaItemId]);
+      if (tone) {
+        setLocalItems((prev) => prev.map((it) => (it.id === mediaItemId ? { ...it, tone, toneIsManual: true } : it)));
+      }
+      startTransition(async () => {
+        const r = await setMediaToneAction([mediaItemId], tone);
+        if (!r.success) toast.error(r.error);
+        router.refresh();
+      });
+    },
+    [keepTone, router],
+  );
   const handleSetArtInPhotos = useCallback(
     (mediaItemId: string, on: boolean) => {
       if (!on) setLocalItems((prev) => prev.filter((it) => it.id !== mediaItemId));
@@ -506,6 +527,23 @@ export function SetDetailGallery({
     },
     [router],
   );
+  const handleBulkTone = useCallback(
+    (tone: "COLOR" | "MONO") => {
+      const ids = Array.from(selectedIds);
+      keepTone(ids);
+      setLocalItems((prev) => prev.map((it) => (selectedIds.has(it.id) ? { ...it, tone, toneIsManual: true } : it)));
+      clearSelection();
+      startTransition(async () => {
+        const r = await setMediaToneAction(ids, tone);
+        const what = tone === "MONO" ? "B&W" : "color";
+        if (r.success) toast.success(ids.length === 1 ? `Marked ${what}` : `${ids.length} photos marked ${what}`);
+        else toast.error(r.error);
+        router.refresh();
+      });
+    },
+    [selectedIds, keepTone, clearSelection, router],
+  );
+
   const handleBulkCoverArt = useCallback(() => {
     const ids = Array.from(selectedIds);
     setLocalItems((prev) => prev.filter((it) => !selectedIds.has(it.id)));
@@ -612,6 +650,12 @@ export function SetDetailGallery({
           shown={items.length}
           total={localItems.length}
         />
+      )}
+      {/* Color / B&W (ADR-0041) — only when the set holds both */}
+      {toneAvailable && !isReordering && (
+        <div className="mb-3">
+          <ToneFilterPill value={tone} counts={toneCounts} onChange={setTone} />
+        </div>
       )}
       {/* People-shown filter (ADR-0023) — only when the set has ≥2 cast members */}
       {cast && cast.length >= 2 && !isReordering && (
@@ -783,6 +827,7 @@ export function SetDetailGallery({
               <BookImage size={14} />
               Cover art
             </Button>
+            <ToneMarkButtons onMark={handleBulkTone} />
             {isCompilation && (
               <Button
                 variant="outline"
@@ -1135,6 +1180,7 @@ export function SetDetailGallery({
           coverMediaItemId={coverId}
           onSetRole={handleSetRole}
           onSetArtInPhotos={handleSetArtInPhotos}
+          onSetTone={handleSetTone}
           onFindSimilar={(mediaItemId) => window.open(`/media/similar?id=${mediaItemId}`, "_blank")}
           onDelete={handleLightboxDelete}
           sessionId={primarySessionId}

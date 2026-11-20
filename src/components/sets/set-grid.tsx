@@ -1,5 +1,6 @@
 "use client";
 
+import type { ToneCounts } from "@/lib/tone";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ImageIcon, Loader2, CheckSquare, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { SetCard } from "./set-card";
@@ -38,6 +39,7 @@ type CoverPhotoData = {
   url: string;
   focalX: number | null;
   focalY: number | null;
+  tone?: ToneCounts;
 };
 
 type HeadshotData = {
@@ -142,6 +144,7 @@ function hasActiveFilters(filters: SetFilters): boolean {
     (filters.labelIds && filters.labelIds.length > 0) ||
     filters.personId ||
     (filters.castCounts && filters.castCounts.length > 0) ||
+    (filters.tones && filters.tones.length > 0) ||
     (filters.ratings && filters.ratings.length > 0) ||
     filters.hasMedia ||
     filters.archiveFilter ||

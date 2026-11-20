@@ -1,5 +1,7 @@
 "use client";
 
+import type { ToneCounts } from "@/lib/tone";
+import { ToneBadge } from "@/components/shared/tone-badge";
 import { Fragment, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,6 +22,8 @@ type CoverPhotoData = {
   url: string;
   focalX: number | null;
   focalY: number | null;
+  /** B&W and measured photo counts (ADR-0041) */
+  tone?: ToneCounts;
 };
 
 type HeadshotData = {
@@ -298,9 +302,14 @@ export function SetCard({
             )}
 
             <CoverBadges {...coverBadgeProps} />
-            {intensity && (
-              <span className="absolute bottom-1.5 left-1.5" title="Intensity of this set">
-                <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+            {(intensity || coverPhoto?.tone) && (
+              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                <ToneBadge counts={coverPhoto?.tone} />
+                {intensity && (
+                  <span title="Intensity of this set">
+                    <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+                  </span>
+                )}
               </span>
             )}
 
@@ -391,9 +400,14 @@ export function SetCard({
           )}
 
           <CoverBadges {...coverBadgeProps} />
-            {intensity && (
-              <span className="absolute bottom-1.5 left-1.5" title="Intensity of this set">
-                <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+            {(intensity || coverPhoto?.tone) && (
+              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+                <ToneBadge counts={coverPhoto?.tone} />
+                {intensity && (
+                  <span title="Intensity of this set">
+                    <IntensityValue value={intensity.value} max={intensity.max} className="text-[11px] shadow-sm" />
+                  </span>
+                )}
               </span>
             )}
 

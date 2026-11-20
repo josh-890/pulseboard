@@ -94,6 +94,16 @@ type MultiFacetFilter = {
   sortable?: boolean;
 };
 
+// Visual multi-select shown inline: each option a tile + label + count, toggled
+// independently (URL like multifacet: `?tone=mono,mixed`). For a short list
+// whose options are best told apart by eye — the tone filter (ADR-0041).
+type SwatchFilter = {
+  type: "swatches";
+  param: string;
+  label: string;
+  options: { value: string; label: string; swatch: React.ReactNode; count?: number }[];
+};
+
 type ToggleFilter = {
   type: "toggle";
   param: string;
@@ -132,7 +142,7 @@ type TagsFilter = {
   problems?: string[];
 };
 
-type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter | TagsFilter;
+type FilterGroup = PillFilter | FacetFilter | MultiFacetFilter | SwatchFilter | ToggleFilter | DateRangeFilter | TypeaheadFilter | TagsFilter;
 
 type GroupByOption = {
   value: string;
@@ -441,7 +451,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           params: [group.param],
         });
       }
-    } else if (group.type === "multifacet") {
+    } else if (group.type === "multifacet" || group.type === "swatches") {
       const paramValue = searchParams.get(group.param);
       if (!paramValue) continue;
       const selected = paramValue.split(",").filter(Boolean);
@@ -456,7 +466,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
           key: `${group.param}:${opt.value}`,
           label: (
             <>
-              {group.label}: {opt.displayLabel ?? opt.label}
+              {group.label}: {"swatch" in opt ? <span className="inline-flex items-center gap-1">{opt.swatch}{opt.label}</span> : (opt.displayLabel ?? opt.label)}
             </>
           ),
           params: [group.param],
@@ -584,7 +594,7 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
   const advancedActiveCount = advancedFilterGroups.reduce((n, g) => {
     if (g.type === "daterange") return n + (searchParams.get(g.paramFrom) || searchParams.get(g.paramTo) ? 1 : 0);
     if (g.type === "toggle") return n + (searchParams.get(g.param) === "true" ? 1 : 0);
-    if (g.type === "multifacet") return n + (searchParams.get(g.param) ? 1 : 0);
+    if (g.type === "multifacet" || g.type === "swatches") return n + (searchParams.get(g.param) ? 1 : 0);
     if (g.type === "pill") {
       const v = searchParams.get(g.param);
       return n + (v && v !== (g.defaultValue ?? "all") ? 1 : 0);
@@ -616,6 +626,50 @@ export function BrowserToolbar({ config, children }: BrowserToolbarProps) {
                 {option.label}
                 {option.count !== undefined && !isActive && (
                   <span className="ml-1 opacity-60">{option.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (group.type === "swatches") {
+      const current = searchParams.get(group.param);
+      const selected = current ? current.split(",").filter(Boolean) : [];
+      return (
+        <div
+          key={group.param}
+          role="group"
+          aria-label={`Filter by ${group.label}`}
+          data-testid={`swatch-filter-${group.param}`}
+          className="inline-flex items-center gap-0.5 rounded-full border border-white/20 bg-card/50 p-0.5"
+        >
+          {group.options.map((option) => {
+            const isActive = selected.includes(option.value);
+            const empty = option.count === 0 && !isActive;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => handleMultiFacetToggle(group.param, option.value)}
+                aria-pressed={isActive}
+                disabled={empty}
+                title={empty ? `No ${option.label} sets here` : undefined}
+                data-value={option.value}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all duration-150",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "disabled:cursor-not-allowed disabled:opacity-40",
+                  isActive
+                    ? "bg-primary/15 text-foreground ring-1 ring-primary/60 shadow-sm"
+                    : "text-muted-foreground hover:bg-card/80 hover:text-foreground",
+                )}
+              >
+                {option.swatch}
+                <span>{option.label}</span>
+                {option.count !== undefined && (
+                  <span className="tabular-nums opacity-60">{option.count}</span>
                 )}
               </button>
             );

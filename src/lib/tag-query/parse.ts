@@ -21,7 +21,7 @@ import type { QueryPredicate, TagClause, TagQuery, TagSourceFilter, TagTerm } fr
 // Prefix order: [-|~] [@level:] [=] reference. Unparseable tokens are reported,
 // never silently dropped into a different meaning.
 
-export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "cast", "persontag", "label", "type", "act", "intensity", "rated"]);
+export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "cast", "persontag", "label", "type", "act", "intensity", "rated", "tone"]);
 
 const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", session: "session" };
 
