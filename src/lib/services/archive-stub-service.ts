@@ -10,7 +10,10 @@
 import { prisma } from '@/lib/db'
 import { clearArchiveFolderCover } from '@/lib/services/archive-cover-service'
 import type { StubReason } from '@/generated/prisma/client'
-import { reconcileStub } from '@/lib/archive-stub'
+import { reconcileStub, toArchiveStub } from '@/lib/archive-stub'
+import type { ArchiveStub } from '@/lib/archive-stub'
+import { PHOTO_WHERE } from '@/lib/media-role'
+import { buildUrl } from '@/lib/media-url'
 
 export type MarkStubInput = { reason: StubReason; note?: string | null }
 
@@ -44,6 +47,118 @@ export async function endArchiveFolderStub(folderId: string): Promise<void> {
     data: { stubSince: null, stubReason: null, stubNote: null, stubEndedAt: new Date() },
   })
   await clearArchiveFolderCover(folderId)
+}
+
+// ─── The Stubs view (ADR-0032 §7) ───────────────────────────────────────────
+
+/**
+ * A folder counts as touched after it was marked when its leaf directory changed
+ * more than this after `stubSince` — margin for the scan writing `.pb\STUB` itself.
+ */
+const TOUCHED_MARGIN_MS = 60 * 60 * 1000
+
+export type ArchiveStubEntry = {
+  id: string
+  folderName: string
+  fullPath: string
+  chanFolderName: string | null
+  isVideo: boolean
+  missingOnDisk: boolean
+  coverUrl: string | null
+  coverError: string | null
+  /** Files the last scan counted in the folder */
+  fileCount: number | null
+  stub: ArchiveStub
+  /** Leaf folder LastWriteTime as the last Full scan saw it */
+  folderChangedAt: Date | null
+  scannedAt: Date
+  /**
+   * Files were added, removed or renamed after the folder was marked — the
+   * upgrade may have happened. Overwriting files under the same names does not
+   * move the folder's time, so false proves nothing.
+   */
+  touchedSinceStub: boolean
+  /** The promoted set or the staged set the folder is linked to (CONFIRMED) */
+  set: { id: string; title: string; photos: number; hadMedia: boolean } | null
+  stagingSet: { id: string; title: string } | null
+}
+
+/** Every stub folder: touched ones first, then the most recently marked. */
+export async function getArchiveStubs(): Promise<ArchiveStubEntry[]> {
+  const folders = await prisma.archiveFolder.findMany({
+    where: { stubSince: { not: null } },
+    select: {
+      id: true,
+      folderName: true,
+      fullPath: true,
+      chanFolderName: true,
+      isVideo: true,
+      missingOnDisk: true,
+      coverKey: true,
+      coverError: true,
+      fileCount: true,
+      stubSince: true,
+      stubReason: true,
+      stubNote: true,
+      leafDirModifiedAt: true,
+      scannedAt: true,
+      archiveLink: {
+        select: {
+          status: true,
+          set: {
+            select: {
+              id: true,
+              title: true,
+              firstMediaAt: true,
+              _count: { select: { setMediaItems: { where: { mediaItem: { mediaType: 'PHOTO', ...PHOTO_WHERE } } } } },
+            },
+          },
+          stagingSet: { select: { id: true, title: true } },
+        },
+      },
+    },
+  })
+  const entries = folders.flatMap((f): ArchiveStubEntry[] => {
+    const stub = toArchiveStub(f)
+    if (!stub) return []
+    const link = f.archiveLink?.status === 'CONFIRMED' ? f.archiveLink : null
+    return [
+      {
+        id: f.id,
+        folderName: f.folderName,
+        fullPath: f.fullPath,
+        chanFolderName: f.chanFolderName,
+        isVideo: f.isVideo,
+        missingOnDisk: f.missingOnDisk,
+        coverUrl: f.coverKey ? buildUrl(f.coverKey) : null,
+        coverError: f.coverError,
+        fileCount: f.fileCount,
+        stub,
+        folderChangedAt: f.leafDirModifiedAt,
+        scannedAt: f.scannedAt,
+        touchedSinceStub:
+          f.leafDirModifiedAt !== null && f.leafDirModifiedAt.getTime() > stub.since.getTime() + TOUCHED_MARGIN_MS,
+        set: link?.set
+          ? {
+              id: link.set.id,
+              title: link.set.title,
+              photos: link.set._count.setMediaItems,
+              hadMedia: link.set.firstMediaAt !== null,
+            }
+          : null,
+        stagingSet: link?.set ? null : (link?.stagingSet ?? null),
+      },
+    ]
+  })
+  return entries.sort(
+    (a, b) =>
+      Number(b.touchedSinceStub) - Number(a.touchedSinceStub) || b.stub.since.getTime() - a.stub.since.getTime(),
+  )
+}
+
+/** Stub folders still on disk — the tab count */
+export async function countArchiveStubs(): Promise<number> {
+  return prisma.archiveFolder.count({ where: { stubSince: { not: null }, missingOnDisk: false } })
 }
 
 /** The "re-import media" offer has been taken or declined. */

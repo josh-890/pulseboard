@@ -322,7 +322,7 @@ export async function getNeedsYou(): Promise<NeedsYouItem[]> {
       href: "/archive",
       hint: "Click the amber chip on the folder to say which tag it means",
     },
-    { key: "stubs", label: "Stub copies waiting for the real set", count: stubs, href: "/archive" },
+    { key: "stubs", label: "Stub copies waiting for the real set", count: stubs, href: "/archive/stubs" },
   ];
   return items.filter((i) => i.count > 0);
 }

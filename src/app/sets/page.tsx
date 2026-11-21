@@ -274,6 +274,7 @@ export default async function SetsPage({ searchParams }: SetsPageProps) {
       { value: "changed",     label: "Changed" },
       { value: "missing",     label: "Missing" },
       { value: "notImported", label: "Not imported" },
+      { value: "stub",        label: "Stub" },
     ],
   });
 

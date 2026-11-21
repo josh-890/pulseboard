@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { getAppScrollEl } from '@/lib/scroll-container'
-import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw, CheckSquare } from 'lucide-react'
+import { FolderSearch, Camera, Film, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, RefreshCw, CheckSquare, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RematchStatus } from '@/lib/services/archive-rematch-status'
 import { getArchiveItemsAction, getArchiveChannelSummariesAction, reparseFolderNamesAction, scanArchiveForAliasesAction } from '@/lib/actions/archive-actions'
@@ -65,6 +65,8 @@ type Props = {
   tagFacets: TagFacetGroup[]
   /** Channel marks by archive folder name — shown on the channel group headers */
   channelBrands: Record<string, EntityBrand & { channelId: string }>
+  /** Stub folders on disk — the Stubs tab opens its own page (ADR-0032 §7) */
+  stubCount: number
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -251,6 +253,7 @@ export function ArchiveWorkspaceClient({
   initialTags,
   tagFacets,
   channelBrands,
+  stubCount,
 }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab)
   const [counts, setCounts] = useState<WorkspaceCounts>(initialPage.counts)
@@ -908,6 +911,18 @@ export function ArchiveWorkspaceClient({
                 </button>
               )
             })}
+            {/* Stubs: its own page, so it reads as a tab but navigates */}
+            <Link
+              href="/archive/stubs"
+              data-testid="archive-stubs-tab"
+              className="flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Hourglass size={11} className="text-violet-500" aria-hidden />
+              Stubs
+              <span className="rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">
+                {stubCount}
+              </span>
+            </Link>
           </div>
 
           {/* Filter bar */}

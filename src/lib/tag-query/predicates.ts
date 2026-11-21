@@ -19,6 +19,7 @@ export const PREDICATE_SUPPORT: Record<ResolvedPredicate["kind"], TaggableEntity
   intensity: ["MEDIA_ITEM", "SET", "SESSION", "PERSON"],
   rated: ["SET", "SESSION"],
   tone: ["MEDIA_ITEM", "SET", "SESSION"],
+  archive: ["SET", "ARCHIVE_FOLDER"],
 };
 
 /** Completions the query box offers for predicates, per browser */
@@ -47,6 +48,7 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
     { kind: "tone", insert: "tone:bw", hint: entity === "MEDIA_ITEM" ? "black & white" : "all photos black & white" },
     { kind: "tone", insert: "tone:color", hint: entity === "MEDIA_ITEM" ? "in color" : "all photos in color" },
     ...(entity === "MEDIA_ITEM" ? [] : [{ kind: "tone" as const, insert: "tone:mixed", hint: "color and black & white photos" }]),
+    { kind: "archive", insert: "archive:stub", hint: entity === "SET" ? "archive copy is a stub" : "stub folder" },
   ];
   return all.filter((s) => PREDICATE_SUPPORT[s.kind].includes(entity)).map(({ insert, hint }) => ({ insert, hint }));
 }
@@ -97,6 +99,8 @@ export function predicateLabel(p: QueryPredicate): string {
       return RATED_TEXT[v.toLowerCase()] ?? `rated ${v}`;
     case "tone":
       return TONE_TEXT[normalizeToneValue(v) ?? ""] ?? `tone ${v}`;
+    case "archive":
+      return v.toLowerCase() === "stub" ? "Stub archive copy" : `archive ${v}`;
     default:
       return `${p.key}${p.op}${v}`;
   }

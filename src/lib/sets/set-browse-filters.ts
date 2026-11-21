@@ -19,7 +19,7 @@ const VALID_SORTS = new Set<string>([
   "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated", "rating-desc", "rating-asc",
 ]);
 const VALID_CAST = new Set<string>(["1", "2", "3", "4", "5plus"]);
-const VALID_ARCHIVE = new Set<string>(["noArchive", "verified", "changed", "missing", "notImported"]);
+const VALID_ARCHIVE = new Set<string>(["noArchive", "verified", "changed", "missing", "notImported", "stub"]);
 
 function isoDate(d: Date): string {
   return d.toISOString().split("T")[0];

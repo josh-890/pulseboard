@@ -899,7 +899,7 @@ Hover the dot for a tooltip with folder path and file count.
   **Cast** size filter counts the models
 - **Release Date / Added** — date range filters
 - **Has media** — toggle to show only sets with uploaded media
-- **Archive** — No archive, Verified, Changed, Missing, Not imported
+- **Archive** — No archive, Verified, Changed, Missing, Not imported, Stub (the archive copy is a placeholder)
 
 **Sorting:** Newest/Oldest release, Title A→Z/Z→A, Recently added, Recently updated, Most media.
 
@@ -2342,6 +2342,23 @@ the finished thing (ADR-0032).
 - A violet **Stub** pill then shows on the set page, the staged-set row and panel,
   and the archive row. Hover it for the reason, note and date. Click it to change
   the reason or note.
+
+**Finding them:** the **Stubs** tab on `/archive` (also the dashboard's *Stub
+copies* line) opens `/archive/stubs`, every stub folder in one list:
+
+- per folder: files on disk, photos in the set, when it was marked and when the
+  folder last changed, and the set or staged set it belongs to;
+- **changed since marked** (violet) — files were added, removed or renamed after you
+  marked it, so the real set may be in by now. These come first, and the
+  *Changed since marked* switch shows only them. Files overwritten under the same
+  names do not change the folder's time, so an unflagged folder may still be done;
+- a line saying what ending it sets off: *the archive upload fills the set*, or
+  *had images once — upload by hand* (the agent only fills sets that never had
+  images), or *promote it after ending* for a staged set;
+- the **Stub** pill in the row → **End stub** — the folder leaves the list.
+
+On `/sets` the stub sets are under **Advanced → Archive → Stub**, or type
+`archive:stub` in the query box (sets and archive folders).
 
 **Upgrading:** replace the **media** inside the same folder and leave `.pb\`
 alone — the folder keeps its identity, its people and its link. Changing media does

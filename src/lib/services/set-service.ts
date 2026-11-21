@@ -44,7 +44,7 @@ export type SetFilters = {
   tones?: ToneBucket[];
   hasMedia?: boolean;
   sort?: SetSort;
-  archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported'
+  archiveFilter?: 'noArchive' | 'verified' | 'changed' | 'missing' | 'notImported' | 'stub'
   noArchiveLink?: boolean
   ids?: string[]
   // Multi-select star rating, same shape as PersonFilters.ratings.
@@ -253,6 +253,9 @@ export async function buildSetWhere(filters: Omit<SetFilters, "sort">): Promise<
   } else if (archiveFilter === 'notImported') {
     where.archiveLinks = { some: { status: confirmed } }
     where.coherenceSnapshot = { hasMediaInApp: false }
+  } else if (archiveFilter === 'stub') {
+    // The archive copy is a placeholder until the real set arrives (ADR-0032)
+    where.archiveLinks = { some: { status: confirmed, archiveFolder: { stubSince: { not: null } } } }
   }
 
   if (hasMedia === true) {

@@ -103,6 +103,11 @@ the app offers to re-import the set's media and re-bake its aligned images.
 A set whose archive copy is a stub is not **Verified** in the career stats; it has
 its own column. `/archive` gets a **Stubs** view — the Cutoff Unmet list.
 
+_Built 2026-11-21:_ `/archive/stubs`, reached from a **Stubs** tab on `/archive` and
+the dashboard. A folder whose leaf directory changed after it was marked is flagged
+*changed since marked* and listed first — a hint, not a rule (overwritten files
+leave the time alone; §5). `/sets` filters with Archive → Stub and `archive:stub`.
+
 ## Consequences
 
 - One migration (`archive_folder`: `stubSince`, `stubReason`, `stubNote`,

@@ -69,6 +69,9 @@ export async function resolvePredicates(
         if (t) r = { kind: "tone", value: t };
         break;
       }
+      case "archive":
+        if (value.toLowerCase() === "stub") r = { kind: "archive", value: "stub" };
+        break;
       case "type":
         if (value.toLowerCase() === "photo" || value.toLowerCase() === "video") {
           r = { kind: "type", value: value.toLowerCase() as "photo" | "video" };
@@ -472,7 +475,22 @@ export function predicateSql(entity: TaggableEntity, p: ResolvedPredicate, x: Pr
       return entity === "SESSION" || entity === "SET" ? ratedSql(entity, p.value, x) : Prisma.sql`FALSE`;
     case "tone":
       return toneSql(entity, p.value, x);
+    case "archive":
+      return stubSql(entity, x);
   }
+}
+
+/**
+ * The archive copy is a stub (ADR-0032). A folder: its own flag. A set: its
+ * confirmed archive folder carries it.
+ */
+export function stubSql(entity: TaggableEntity, x: Prisma.Sql): Prisma.Sql {
+  if (entity === "ARCHIVE_FOLDER")
+    return Prisma.sql`EXISTS (SELECT 1 FROM archive_folder af WHERE af.id = ${x} AND af."stubSince" IS NOT NULL)`;
+  if (entity === "SET")
+    return Prisma.sql`EXISTS (SELECT 1 FROM "ArchiveLink" al JOIN archive_folder af ON af.id = al."archiveFolderId"
+      WHERE al."setId" = ${x} AND al.status = 'CONFIRMED' AND af."stubSince" IS NOT NULL)`;
+  return Prisma.sql`FALSE`;
 }
 
 /**

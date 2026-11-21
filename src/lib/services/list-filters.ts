@@ -56,7 +56,7 @@ const SET_SORTS = new Set<string>([
   "date-desc", "date-asc", "title-asc", "title-desc", "newest", "media-desc", "updated",
   "rating-desc", "rating-asc",
 ]);
-const SET_ARCHIVE_FILTERS = new Set(["noArchive", "verified", "changed", "missing", "notImported"]);
+const SET_ARCHIVE_FILTERS = new Set(["noArchive", "verified", "changed", "missing", "notImported", "stub"]);
 
 export async function setListFilters(params: ListParams) {
   const {

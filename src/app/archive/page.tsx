@@ -1,5 +1,6 @@
 import { withTenantFromHeaders } from '@/lib/tenant-context'
 import { getArchiveWorkspace, getArchiveChannelSummaries } from '@/lib/services/archive-service'
+import { countArchiveStubs } from '@/lib/services/archive-stub-service'
 import { getTagFacets } from '@/lib/services/tag-filter-service'
 import { getChannelBrandsByFolder } from '@/lib/services/brand-of'
 import { ArchiveWorkspaceClient } from '@/components/archive/archive-workspace-client'
@@ -42,13 +43,14 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
     // For phantom/untracked we still use the flat page for the initial render.
     const isFolderTab = tab === 'all' || tab === 'orphan' || tab === 'linked'
 
-    const [page, channelData, tagFacets, channelBrands] = await Promise.all([
+    const [page, channelData, tagFacets, channelBrands, stubCount] = await Promise.all([
       getArchiveWorkspace(filters),
       isFolderTab
         ? getArchiveChannelSummaries(tab as 'all' | 'orphan' | 'linked', { isVideo, hasSuggestion: hasSuggestion || undefined, tags })
         : null,
       getTagFacets('ARCHIVE_FOLDER'),
       getChannelBrandsByFolder(),
+      countArchiveStubs(),
     ])
 
     return (
@@ -62,6 +64,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Sear
         initialTags={tags}
         tagFacets={tagFacets}
         channelBrands={channelBrands}
+        stubCount={stubCount}
       />
     )
   })
