@@ -1353,9 +1353,15 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   (one), Coverage (one), Style, Context.
 - **Camera:** framing (one), camera angle (one), facing (one), lens.
 - **Expression:** gaze, eyes, mouth, blush, tears.
-- **Enter** writes the photo and moves on; **→** moves on **without writing**; **←**
-  goes back; **Esc** leaves. The bar above the buttons shows what Enter would change
-  (`+ kneeling`, `− standing`).
+- **Enter** writes the photo and moves on; **→** (Skip) moves on **without writing**;
+  **←** goes back; **Esc** leaves. The bar above the buttons shows what Enter would
+  change (`+ kneeling`, `− standing`).
+- **Nothing is dropped silently:** leaving a photo you changed — Skip, →, ←, the
+  filmstrip, Back, Esc — first shows an amber *Not written* bar. **Enter** writes and
+  goes where you were heading; the **same move again** (or *Discard*) drops the
+  changes; *Stay* keeps you on the photo. An offer carried over from the last photo
+  that you did not touch is not a change. Closing the tab with unwritten changes asks
+  too.
 - **Pins:** a pinned tab (📌 — Clothing and Camera by default) is **carried over**:
   the next photo is offered what you last wrote there, dashed, as long as it has
   nothing of its own in that tab. Enter takes the offer; a tap changes it. The pins

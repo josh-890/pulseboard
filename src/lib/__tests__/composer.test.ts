@@ -6,6 +6,7 @@ import {
   impliedTags,
   matrixGarments,
   openDraft,
+  unsavedChanges,
   refinementOptions,
   statesForGarment,
   toggleTag,
@@ -122,6 +123,14 @@ describe("carry-over", () => {
 
   it("the composition is the difference", () => {
     expect(compositionOf(["standing", "portrait"], ["kneeling", "portrait", "bra"])).toEqual({ adds: ["kneeling", "bra"], removes: ["standing"] });
+  });
+});
+
+describe("unsavedChanges", () => {
+  it("counts the user's own edits, not an untouched carried-over offer", () => {
+    expect(unsavedChanges(["standing"], ["standing", "full-body"], ["full-body"])).toEqual({ adds: [], removes: [] });
+    expect(unsavedChanges(["standing"], ["kneeling", "full-body"], ["full-body"])).toEqual({ adds: ["kneeling"], removes: ["standing"] });
+    expect(unsavedChanges([], [], ["full-body"]), "an offer dropped is no loss").toEqual({ adds: [], removes: [] });
   });
 });
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, CornerDownLeft, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, CornerDownLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import {
   impliedTags,
   openDraft,
   pathByTag,
+  unsavedChanges,
   toggleTag,
   findCombination,
   type ComposerCatalog,
@@ -32,6 +33,12 @@ export type ComposerWorkbenchProps = {
 };
 
 const PIN_KEY = "composer.pinned";
+
+/** Where the user is leaving to: another photo, or out of the workbench */
+type LeaveTarget = { kind: "photo"; index: number } | { kind: "back" };
+
+const sameAsk = (a: LeaveTarget | null, b: LeaveTarget) =>
+  !!a && a.kind === b.kind && (a.kind === "back" || (b.kind === "photo" && a.index === b.index));
 
 function readPins(catalog: ComposerCatalog): Set<string> {
   try {
@@ -63,6 +70,8 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const [creating, setCreating] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [saving, setSaving] = useState(0);
+  /** Where the user wanted to go while this photo had unwritten changes — asked once */
+  const [leaveAsk, setLeaveAsk] = useState<LeaveTarget | null>(null);
 
   const photo = photos[index];
   const [draftState, setDraftState] = useState(() =>
@@ -82,6 +91,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
       const target = photos[i];
       if (!target) return;
       setIndex(i);
+      setLeaveAsk(null);
       setDraftState(openDraft(catalog, ownMap[target.id] ?? [], written, pinned));
       const url = new URL(window.location.href);
       url.searchParams.set("photo", target.id);
@@ -121,9 +131,10 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     [catalog, toggle],
   );
 
-  /** Enter: write what changed, remember it for carry-over, go on */
+  /** Enter: write what changed, remember it for carry-over, go on — to the next photo, or where the user was leaving to */
   const applyAndNext = useCallback(() => {
     if (!photo) return;
+    const target = leaveAsk;
     const before = own[photo.id] ?? [];
     const { adds, removes } = compositionOf(before, draft);
     const written = draft;
@@ -141,15 +152,36 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         } else setOwn((o) => ({ ...o, [id]: r.tags[id] ?? o[id] }));
       });
     }
+    if (target?.kind === "back") return void router.push(backHref);
+    if (target?.kind === "photo") return void open(target.index, nextOwn, written);
     if (index < photos.length - 1) open(index + 1, nextOwn, written);
     else {
       setDraftState({ draft, proposed: [] });
       toast.success("Last photo — all written");
     }
-  }, [photo, own, draft, index, photos.length, open]);
+  }, [photo, own, draft, index, photos.length, open, leaveAsk, router, backHref]);
 
-  const next = useCallback(() => index < photos.length - 1 && open(index + 1, own, lastWritten), [index, photos.length, open, own, lastWritten]);
-  const prev = useCallback(() => index > 0 && open(index - 1, own, lastWritten), [index, open, own, lastWritten]);
+  // Unwritten work on this photo: leaving asks once — the same move again discards
+  const unsaved = photo ? unsavedChanges(own[photo.id] ?? [], draft, proposed) : { adds: [], removes: [] };
+  const dirty = unsaved.adds.length + unsaved.removes.length > 0;
+  const leaveTo = useCallback(
+    (target: LeaveTarget) => {
+      if (dirty && !sameAsk(leaveAsk, target)) return setLeaveAsk(target);
+      if (target.kind === "back") router.push(backHref);
+      else open(target.index, own, lastWritten);
+    },
+    [dirty, leaveAsk, router, backHref, open, own, lastWritten],
+  );
+  const next = useCallback(() => index < photos.length - 1 && leaveTo({ kind: "photo", index: index + 1 }), [index, photos.length, leaveTo]);
+  const prev = useCallback(() => index > 0 && leaveTo({ kind: "photo", index: index - 1 }), [index, leaveTo]);
+
+  // Closing or reloading the tab with unwritten work (or a write still on its way)
+  useEffect(() => {
+    if (!dirty && saving === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty, saving]);
 
   const togglePin = useCallback(
     (pathId: string) => {
@@ -185,7 +217,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         e.preventDefault();
         prev();
       } else if (e.key === "Escape") {
-        router.push(backHref);
+        leaveTo({ kind: "back" });
       } else if (/^[1-9]$/.test(e.key)) {
         const p = catalog.paths[Number(e.key) - 1];
         if (p) setActivePathId(p.id);
@@ -193,7 +225,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [applyAndNext, next, prev, router, backHref, catalog.paths]);
+  }, [applyAndNext, next, prev, leaveTo, catalog.paths]);
 
   const implied = useMemo(() => new Set(impliedTags(catalog, draft)), [catalog, draft]);
   const proposedSet = useMemo(() => new Set(proposed), [proposed]);
@@ -231,7 +263,15 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   return (
     <div ref={shellRef} className="flex h-[calc(100dvh-4rem)] flex-col" data-testid="composer-workbench">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 px-3 py-2 text-sm">
-        <Link href={backHref} className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+        <Link
+          href={backHref}
+          onClick={(e) => {
+            if (!dirty || sameAsk(leaveAsk, { kind: "back" })) return;
+            e.preventDefault();
+            setLeaveAsk({ kind: "back" });
+          }}
+          className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft size={14} /> Back
         </Link>
         <span className="min-w-0 truncate font-medium">{title}</span>
@@ -294,6 +334,27 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
           />
 
           <footer className="space-y-2 border-t border-border/60 p-3">
+            {leaveAsk && dirty && (
+              <div
+                role="alert"
+                data-testid="composer-unsaved"
+                className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-amber-500/50 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-200"
+              >
+                <AlertTriangle size={14} aria-hidden className="shrink-0" />
+                <span className="min-w-0 flex-1">
+                  Not written: {[...unsaved.adds.map((id) => `+ ${name(id)}`), ...unsaved.removes.map((id) => `− ${name(id)}`)].join(" · ")}.{" "}
+                  <span className="text-amber-700/80 dark:text-amber-300/80">
+                    <kbd className="font-medium">Enter</kbd> writes · {leaveAsk.kind === "back" ? "Back / Esc" : "the same move"} again discards
+                  </span>
+                </span>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => leaveTo(leaveAsk)} data-testid="composer-discard">
+                  Discard
+                </Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setLeaveAsk(null)}>
+                  Stay
+                </Button>
+              </div>
+            )}
             <div className="flex min-h-[1.5rem] flex-wrap items-center gap-1 text-[11px]" data-testid="composer-diff" aria-live="polite">
               {adds.length === 0 && removes.length === 0 ? (
                 <span className="text-muted-foreground">No changes on this photo</span>
@@ -342,7 +403,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         paths={catalog.paths}
         coverage={coverage}
         currentIndex={index}
-        onJump={(i) => open(i, own, lastWritten)}
+        onJump={(i) => i !== index && leaveTo({ kind: "photo", index: i })}
       />
     </div>
   );

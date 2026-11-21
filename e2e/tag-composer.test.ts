@@ -115,3 +115,33 @@ test("Enter writes and carries the pinned paths over; → moves on without writi
   await page.keyboard.press("Enter");
   await expect.poll(() => tagsOf(m(3))).toEqual(["full-body"]);
 });
+
+test("leaving a photo with unwritten changes asks once; the same move again discards, Enter writes", async ({ page }) => {
+  await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
+  await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
+  await tile(page, "lying").click();
+
+  // Skip warns and stays
+  await page.getByTestId("composer-skip").click();
+  await expect(page.getByTestId("composer-unsaved")).toContainText("+ lying");
+  await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
+
+  // The same move again discards
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("composer-position")).toHaveText("3 / 3");
+  expect(await tagsOf(m(2))).toEqual([]);
+
+  // Back to 2, change, try to leave, then Enter writes and goes where we were heading
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
+  await tile(page, "lying").click();
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByTestId("composer-unsaved")).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("composer-position")).toHaveText("1 / 3");
+  await expect.poll(() => tagsOf(m(2))).toContain("lying");
+
+  // An untouched carried-over offer is no unsaved work: → just moves on
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("composer-unsaved")).toHaveCount(0);
+});

@@ -180,6 +180,17 @@ export function compositionOf(own: string[], draft: string[]): { adds: string[];
 }
 
 /**
+ * What the user changed on this photo and has not written: the draft against
+ * the photo's own tags, leaving out carried-over proposals nobody touched (an
+ * offer skipped is not work lost). Leaving the photo with any of this asks first.
+ */
+export function unsavedChanges(own: string[], draft: string[], proposed: string[]): { adds: string[]; removes: string[] } {
+  const { adds, removes } = compositionOf(own, draft);
+  const offered = new Set(proposed);
+  return { adds: adds.filter((id) => !offered.has(id)), removes };
+}
+
+/**
  * The draft a photo opens with. Its own tags, plus — for every pinned path the
  * photo has nothing in yet — what was last written in that path (carry-over).
  * The carried tags come back as `proposed`, so they read as an offer.
