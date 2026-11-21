@@ -12,6 +12,7 @@ export type ComposerRefinementProps = {
   tileState: (tagId: string) => TileState;
   style: PathStyle;
   onToggle: (tagId: string, additive: boolean) => void;
+  countOf?: (tagId: string) => { n: number; of: number } | undefined;
 };
 
 /**
@@ -19,7 +20,7 @@ export type ComposerRefinementProps = {
  * refinements of every chosen base posture, unfolded in place — one block
  * each, so a duo (standing + kneeling) is refined in one pass.
  */
-export function ComposerRefinement({ catalog, path, draft, tileState, style, onToggle }: ComposerRefinementProps) {
+export function ComposerRefinement({ catalog, path, draft, tileState, style, onToggle, countOf }: ComposerRefinementProps) {
   const options = refinementOptions(catalog, path, draft);
   if (options.length === 0)
     return (
@@ -37,7 +38,7 @@ export function ComposerRefinement({ catalog, path, draft, tileState, style, onT
           ) : (
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
               {o.tagIds.map((id) => (
-                <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} />
+                <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
               ))}
             </div>
           )}

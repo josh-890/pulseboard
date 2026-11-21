@@ -25,6 +25,7 @@ export type ComposerMatrixProps = {
   onCombination: (rule: ComposerStateRule, garmentId: string) => void;
   /** `${stateGroupId}:${garmentId}` while its combination is being created */
   creating: string | null;
+  countOf?: (tagId: string) => { n: number; of: number } | undefined;
 };
 
 /**
@@ -34,7 +35,7 @@ export type ComposerMatrixProps = {
  * none. Below, the generic states (`torn-clothes`) and the plain groups of the
  * section (Position, Fit) as tiles.
  */
-export function ComposerMatrix({ catalog, section, draft, tileState, style, onToggle, onCombination, creating }: ComposerMatrixProps) {
+export function ComposerMatrix({ catalog, section, draft, tileState, style, onToggle, onCombination, creating, countOf }: ComposerMatrixProps) {
   const garments = matrixGarments(catalog, draft);
   const ruleGroups = new Set(catalog.stateRules.map((r) => r.stateGroupId));
   const plainGroups = section.groupIds.filter((g) => !ruleGroups.has(g));
@@ -59,7 +60,8 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
                   .filter((r) => section.groupIds.includes(r.stateGroupId))
                   .map((rule) => {
                     const combo = findCombination(catalog, rule, gid);
-                    const on = combo ? draft.includes(combo.id) : false;
+                    const state = combo ? tileState(combo.id) : "off";
+                    const on = state === "on" || state === "add" || state === "proposed";
                     const busy = creating === `${rule.stateGroupId}:${gid}`;
                     const label = combinationName(rule, garment);
                     return (
@@ -69,14 +71,23 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
                         onClick={() => onCombination(rule, gid)}
                         disabled={busy}
                         aria-pressed={on}
+                        data-state={state}
                         data-testid="composer-matrix-chip"
                         data-tag={label}
                         title={combo ? label : `${label} — created on first use`}
                         className={cn(
                           "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors duration-150",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          on ? cn(style.on, style.text, "font-medium") : "border-border/50 bg-card/60 text-muted-foreground hover:text-foreground",
-                          !combo && !on && "border-dashed",
+                          state === "add"
+                            ? "border-emerald-500/60 bg-emerald-500/15 font-medium text-emerald-700 dark:text-emerald-300"
+                            : state === "remove"
+                              ? "border-rose-500/60 bg-rose-500/10 text-rose-700 line-through dark:text-rose-300"
+                              : on
+                                ? cn(style.on, style.text, "font-medium")
+                                : state === "partial"
+                                  ? "border-border bg-muted/40 text-foreground"
+                                  : "border-border/50 bg-card/60 text-muted-foreground hover:text-foreground",
+                          !combo && "border-dashed",
                         )}
                       >
                         {busy && <Loader2 size={10} className="animate-spin" />}
@@ -95,7 +106,7 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
           {rulesHere.map((r) => {
             const t = catalog.tags[r.genericTagId];
-            return t ? <ComposerTile key={t.id} tag={t} state={tileState(t.id)} style={style} onToggle={onToggle} /> : null;
+            return t ? <ComposerTile key={t.id} tag={t} state={tileState(t.id)} style={style} onToggle={onToggle} count={countOf?.(t.id)} /> : null;
           })}
         </div>
       </div>
@@ -105,7 +116,7 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
           <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{catalog.groups[g]?.name}</p>
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
             {(catalog.groups[g]?.tagIds ?? []).map((id) => (
-              <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} />
+              <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
             ))}
           </div>
         </div>

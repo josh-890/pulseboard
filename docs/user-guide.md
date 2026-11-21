@@ -1367,6 +1367,21 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   nothing of its own in that tab. Enter takes the offer; a tap changes it. The pins
   are remembered in this browser.
 - The **filmstrip** shows one dot per tab under each photo, lit when it has tags there.
+- **Many photos at once:**
+  - **Select** in the filmstrip — **Ctrl/⌘-click** adds or drops a photo, **Shift-click**
+    selects the run from the current photo. The tiles then show how many of the
+    selected photos have each tag (`12/30`, a grey tile = some have it, filled = all).
+    A click adds the tag to all (a base posture or an exclusive tag also removes the
+    others of its kind), a click on a tag all of them have removes it, a second click
+    takes either back. **Enter** (or *Apply to N photos*) writes it; **Esc** clears the
+    selection.
+  - **Paint** (top right): pick tags for the brush, then press and drag over the
+    filmstrip — each photo touched gets them. Hold **Alt** to erase what the brush
+    holds. **Esc** ends painting.
+  - **Pass** (top right): pick one section — Base posture, Framing, Camera angle,
+    Facing or Gaze — and go photo by photo: a key **1–9** writes that tag (replacing
+    the photo's other tag in the section) and moves on; **0** clears the section;
+    **→** / Space skips; **Esc** ends the pass. Writes happen at once in this mode.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
   so `looking_at_viewer` in the query box finds `looking-at-viewer`.
 

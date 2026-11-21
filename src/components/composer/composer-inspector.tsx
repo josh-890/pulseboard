@@ -21,6 +21,8 @@ export type ComposerInspectorProps = {
   creating: string | null;
   /** photo's draft tag count per path — shown on the tabs */
   countByPath: Record<string, number>;
+  /** On a selection: how many selected photos carry a tag */
+  countOf?: (tagId: string) => { n: number; of: number } | undefined;
 };
 
 /**
@@ -41,6 +43,7 @@ export function ComposerInspector({
   onCombination,
   creating,
   countByPath,
+  countOf,
 }: ComposerInspectorProps) {
   const path = catalog.paths.find((p) => p.id === activePathId) ?? catalog.paths[0];
   const style = pathStyle(path.name);
@@ -96,7 +99,7 @@ export function ComposerInspector({
           <section key={section.id} aria-label={section.name}>
             <h3 className="mb-1.5 text-xs font-semibold">{section.name}</h3>
             {section.kind === "REFINEMENT" ? (
-              <ComposerRefinement catalog={catalog} path={path} draft={draft} tileState={tileState} style={style} onToggle={onToggle} />
+              <ComposerRefinement catalog={catalog} path={path} draft={draft} tileState={tileState} style={style} onToggle={onToggle} countOf={countOf} />
             ) : section.kind === "MATRIX" ? (
               <ComposerMatrix
                 catalog={catalog}
@@ -107,6 +110,7 @@ export function ComposerInspector({
                 onToggle={onToggle}
                 onCombination={onCombination}
                 creating={creating}
+                countOf={countOf}
               />
             ) : (
               <div className="space-y-2">
@@ -120,7 +124,7 @@ export function ComposerInspector({
                     )}
                     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                       {(catalog.groups[g]?.tagIds ?? []).map((id) => (
-                        <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} />
+                        <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
                       ))}
                     </div>
                   </div>

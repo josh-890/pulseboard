@@ -7,6 +7,14 @@ import {
   matrixGarments,
   openDraft,
   unsavedChanges,
+  tagCounts,
+  toggleInComposition,
+  EMPTY_COMPOSITION,
+  applyCompositionTo,
+  eraserOf,
+  compositionView,
+  passChoice,
+  withoutTags,
   refinementOptions,
   statesForGarment,
   toggleTag,
@@ -147,5 +155,51 @@ describe("state matrix", () => {
     expect(statesForGarment(catalog, "bra").map((r) => r.stateGroupId)).toEqual(["damage"]);
     expect(statesForGarment(catalog, "standing")).toEqual([]);
     expect(matrixGarments(catalog, ["torn-bra", "panties", "standing"])).toEqual(["bra", "panties"]);
+  });
+});
+
+describe("selection (S3)", () => {
+  const counts = tagCounts([["standing", "contrapposto", "portrait"], ["standing", "portrait"], ["kneeling"]]);
+  const N = 3;
+  it("counts direct tags across the photos", () => {
+    expect(counts.get("standing")).toBe(2);
+    expect(counts.get("kneeling")).toBe(1);
+  });
+
+  it("adding a base posture marks the other bases and their refinements for removal", () => {
+    expect(toggleInComposition(catalog, EMPTY_COMPOSITION, "lying", counts, N)).toEqual({
+      adds: ["lying"],
+      removes: ["standing", "kneeling", "contrapposto"],
+    });
+  });
+
+  it("Shift adds without touching the others; clicking again takes it back with what it caused", () => {
+    expect(toggleInComposition(catalog, EMPTY_COMPOSITION, "lying", counts, N, true)).toEqual({ adds: ["lying"], removes: [] });
+    const c = toggleInComposition(catalog, EMPTY_COMPOSITION, "lying", counts, N);
+    expect(toggleInComposition(catalog, c, "lying", counts, N)).toEqual({ adds: [], removes: [] });
+  });
+
+  it("a tag every photo has is removed; an exclusive tag replaces the group's others", () => {
+    const all = tagCounts([["portrait"], ["portrait"]]);
+    expect(toggleInComposition(catalog, EMPTY_COMPOSITION, "portrait", all, 2)).toEqual({ adds: [], removes: ["portrait"] });
+    expect(toggleInComposition(catalog, EMPTY_COMPOSITION, "full-body", all, 2)).toEqual({ adds: ["full-body"], removes: ["portrait"] });
+  });
+
+  it("applies to one photo, keeping what it does not touch", () => {
+    expect(applyCompositionTo(catalog, ["standing", "contrapposto", "bra"], { adds: ["kneeling"], removes: ["standing"] })).toEqual([
+      "bra",
+      "kneeling",
+    ]);
+    expect(eraserOf({ adds: ["bra"], removes: ["panties"] })).toEqual({ adds: [], removes: ["bra"] });
+    expect(compositionView({ adds: ["lying"], removes: ["standing"] }, counts).sort()).toEqual(
+      ["contrapposto", "kneeling", "lying", "portrait"].sort(),
+    );
+  });
+
+  it("pass mode replaces the section's tag and drops orphaned refinements", () => {
+    const section = new Set(["standing", "kneeling", "lying"]);
+    expect(passChoice(catalog, ["standing", "contrapposto", "portrait"], section, "kneeling")).toEqual(["portrait", "kneeling"]);
+    expect(passChoice(catalog, ["kneeling"], section, "kneeling")).toEqual(["kneeling"]);
+    expect(withoutTags(catalog, ["lying", "on-side", "bra"], ["lying"])).toEqual(["bra"]);
   });
 });

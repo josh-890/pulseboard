@@ -145,3 +145,72 @@ test("leaving a photo with unwritten changes asks once; the same move again disc
   await page.keyboard.press("ArrowRight");
   await expect(page.getByTestId("composer-unsaved")).toHaveCount(0);
 });
+
+test.describe("many photos at once (S3)", () => {
+  test.beforeAll(async () => {
+    await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+    // photo 1 standing, photo 2 kneeling, photo 3 nothing
+    await db.query(
+      `INSERT INTO media_item_tag ("mediaItemId", "tagDefinitionId") SELECT $1, id FROM tag_definition WHERE slug = 'standing'`,
+      [m(1)],
+    );
+    await db.query(
+      `INSERT INTO media_item_tag ("mediaItemId", "tagDefinitionId") SELECT $1, id FROM tag_definition WHERE slug = 'kneeling'`,
+      [m(2)],
+    );
+  });
+
+  test("a selection counts n/N and one composition lands on all of them", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
+    await page.getByTestId("composer-strip-photo").nth(2).click({ modifiers: ["Shift"] });
+    await expect(page.getByTestId("composer-selection-banner")).toContainText("3 photos selected");
+    await expect(tile(page, "standing")).toHaveAttribute("data-state", "partial");
+    await expect(tile(page, "standing").getByTestId("composer-tile-count")).toHaveText("1/3");
+
+    await tile(page, "sitting").click(); // a base posture: the others present are marked for removal
+    await expect(page.getByTestId("composer-composition")).toContainText("+ sitting");
+    await expect(page.getByTestId("composer-composition")).toContainText("− standing");
+    await page.keyboard.press("Enter");
+    for (const k of [1, 2, 3]) await expect.poll(() => tagsOf(m(k))).toEqual(["sitting"]);
+    await expect(tile(page, "sitting")).toHaveAttribute("data-state", "on");
+  });
+
+  test("the brush paints over the filmstrip; Alt erases", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
+    await page.getByTestId("composer-paint-toggle").click();
+    await page.getByTestId("composer-path-Camera").click();
+    await tile(page, "portrait").click();
+    const strip = page.getByTestId("composer-strip-photo");
+    const a = (await strip.nth(0).boundingBox())!;
+    const c = (await strip.nth(2).boundingBox())!;
+    await page.mouse.move(a.x + a.width / 2, a.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(c.x + c.width / 2, c.y + 20, { steps: 8 });
+    await page.mouse.up();
+    for (const k of [1, 2, 3]) await expect.poll(() => tagsOf(m(k))).toContain("portrait");
+
+    const b = (await strip.nth(1).boundingBox())!;
+    await page.keyboard.down("Alt");
+    await page.mouse.move(b.x + b.width / 2, b.y + 20);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.keyboard.up("Alt");
+    await expect.poll(() => tagsOf(m(2))).not.toContain("portrait");
+    expect(await tagsOf(m(1))).toContain("portrait");
+  });
+
+  test("pass mode: a key per photo writes the section's tag and moves on", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
+    await page.getByTestId("composer-pass-toggle").click();
+    await expect(page.getByTestId("composer-pass")).toBeVisible();
+    // Base posture: 1 standing · 2 sitting · 3 kneeling
+    await page.keyboard.press("3");
+    await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("composer-position")).toHaveText("3 / 3");
+    await page.keyboard.press("0");
+    await expect.poll(() => tagsOf(m(1))).toEqual(["kneeling", "portrait"]);
+    expect(await tagsOf(m(2))).toEqual(["sitting"]);
+    await expect.poll(() => tagsOf(m(3))).toEqual(["portrait"]);
+  });
+});

@@ -245,3 +245,109 @@ export function matrixGarments(catalog: ComposerCatalog, draft: string[]): strin
   }
   return out;
 }
+
+// ─── Many photos at once (S3) ───────────────────────────────────────────────
+
+/** Tags to add and tags to remove — one composition for a selection or a brush */
+export type Composition = { adds: string[]; removes: string[] };
+
+export const EMPTY_COMPOSITION: Composition = { adds: [], removes: [] };
+
+/** tag id → how many of the photos carry it (direct tags) */
+export function tagCounts(tagLists: string[][]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const list of tagLists) for (const id of new Set(list)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return counts;
+}
+
+/** Drop tags, and the refinements no remaining base posture leads to */
+export function withoutTags(catalog: ComposerCatalog, own: string[], ids: Iterable<string>): string[] {
+  const drop = new Set(ids);
+  return dropOrphans(catalog, own.filter((id) => !drop.has(id)));
+}
+
+/**
+ * A tile click on a selection (Hydrus-style counts). Rules:
+ *   - a tag being added or removed goes back to untouched (an add also takes
+ *     back the removals it caused)
+ *   - a tag every photo has is marked for removal (a base posture takes its
+ *     refinements with it)
+ *   - otherwise it is added; a base posture (unless `additive`) or a tag of an
+ *     exclusive group marks the others of its kind present on the photos for
+ *     removal, and refinements of other base postures with them
+ */
+export function toggleInComposition(
+  catalog: ComposerCatalog,
+  comp: Composition,
+  tagId: string,
+  counts: Map<string, number>,
+  total: number,
+  additive = false,
+): Composition {
+  const { base, refinement } = postureSets(catalog);
+  const present = (id: string) => (counts.get(id) ?? 0) > 0;
+  const groupOf = (id: string) => catalog.tags[id]?.groupId;
+  const exclusive = catalog.groups[groupOf(tagId) ?? ""]?.isExclusive ?? false;
+  const isBase = base.has(tagId);
+  const sameKind = (id: string) => (isBase ? base.has(id) || refinement.has(id) : exclusive && groupOf(id) === groupOf(tagId));
+
+  if (comp.adds.includes(tagId))
+    return { adds: comp.adds.filter((x) => x !== tagId), removes: comp.removes.filter((x) => !sameKind(x)) };
+  if (comp.removes.includes(tagId)) return { adds: comp.adds, removes: comp.removes.filter((x) => x !== tagId) };
+
+  const removes = new Set(comp.removes);
+  let adds = comp.adds;
+  if (total > 0 && (counts.get(tagId) ?? 0) === total) {
+    removes.add(tagId);
+    if (isBase) for (const r of refinement) if (present(r) && ancestorsOf(catalog, r).includes(tagId)) removes.add(r);
+    return { adds, removes: [...removes] };
+  }
+
+  removes.delete(tagId);
+  if (isBase && !additive) {
+    adds = adds.filter((x) => !base.has(x) && !(refinement.has(x) && !ancestorsOf(catalog, x).includes(tagId)));
+    for (const b of base) if (b !== tagId && present(b)) removes.add(b);
+    for (const r of refinement) if (present(r) && !ancestorsOf(catalog, r).includes(tagId)) removes.add(r);
+  } else if (exclusive) {
+    adds = adds.filter((x) => groupOf(x) !== groupOf(tagId));
+    for (const id of catalog.groups[groupOf(tagId)!].tagIds) if (id !== tagId && present(id)) removes.add(id);
+  }
+  return { adds: [...adds, tagId], removes: [...removes] };
+}
+
+/**
+ * What a selection looks like through its composition, for the refinement and
+ * matrix sections: tags some photo has or the composition adds, minus removals.
+ */
+export function compositionView(comp: Composition, counts: Map<string, number>): string[] {
+  const removed = new Set(comp.removes);
+  const out = [...counts.keys()].filter((id) => !removed.has(id));
+  for (const id of comp.adds) if (!out.includes(id)) out.push(id);
+  return out;
+}
+
+/** A photo's tags after a composition — for the optimistic view; the server's answer wins */
+export function applyCompositionTo(catalog: ComposerCatalog, own: string[], comp: Composition): string[] {
+  let next = withoutTags(catalog, own, comp.removes);
+  for (const id of comp.adds) {
+    if (next.includes(id)) continue;
+    const g = catalog.tags[id]?.groupId;
+    if (g && catalog.groups[g]?.isExclusive) next = next.filter((x) => catalog.tags[x]?.groupId !== g);
+    next = [...next, id];
+  }
+  return next;
+}
+
+/** The brush turned eraser (Alt): what it would add, it takes away */
+export function eraserOf(comp: Composition): Composition {
+  return { adds: [], removes: comp.adds };
+}
+
+/**
+ * Pass mode (Prodigy): one key per photo picks the section's tag — replacing
+ * whatever the photo had in that section. Already held: nothing changes.
+ */
+export function passChoice(catalog: ComposerCatalog, own: string[], sectionTagIds: Set<string>, tagId: string): string[] {
+  if (own.includes(tagId)) return own;
+  return toggleTag(catalog, own.filter((id) => !sectionTagIds.has(id)), tagId, false);
+}

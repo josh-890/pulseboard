@@ -3,12 +3,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ChevronLeft, ChevronRight, CornerDownLeft, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Brush, ChevronLeft, ChevronRight, CornerDownLeft, Layers, ListChecks, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
+  applyCompositionTo,
   compositionOf,
+  compositionView,
+  EMPTY_COMPOSITION,
+  eraserOf,
+  passChoice,
+  tagCounts,
+  toggleInComposition,
+  withoutTags,
+  type Composition,
   impliedTags,
   openDraft,
   pathByTag,
@@ -22,6 +31,8 @@ import { applyCompositionAction, ensureStateCombinationAction } from "@/lib/acti
 import type { ComposerPhoto } from "@/lib/services/composer-service";
 import { ComposerInspector } from "./composer-inspector";
 import { ComposerFilmstrip } from "./composer-filmstrip";
+import { ComposerPass } from "./composer-pass";
+import { ComposerCompositionBar } from "./composer-composition-bar";
 import type { TileState } from "./composer-tile";
 
 export type ComposerWorkbenchProps = {
@@ -58,6 +69,11 @@ function readPins(catalog: ComposerCatalog): Set<string> {
  * along the bottom. Enter writes the draft and moves on; → moves on without
  * writing; ← goes back; 1–4 switch paths; Esc leaves. Pinned paths carry the
  * last written tags over to the next photo as a proposal.
+ *
+ * Many photos at once (S3): Ctrl/⌘- or Shift-click in the filmstrip selects —
+ * tiles then count ("12/30") and clicks build one composition, applied with
+ * Enter; Paint turns the same composition into a brush for the filmstrip (Alt
+ * erases); Pass walks one section photo by photo with keys 1–9.
  */
 export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, photos, initialPhotoId }: ComposerWorkbenchProps) {
   const router = useRouter();
@@ -72,6 +88,12 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const [saving, setSaving] = useState(0);
   /** Where the user wanted to go while this photo had unwritten changes — asked once */
   const [leaveAsk, setLeaveAsk] = useState<LeaveTarget | null>(null);
+  /** S3: a selection in the filmstrip, the brush, the pass */
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [painting, setPainting] = useState(false);
+  const [passSectionId, setPassSectionId] = useState<string | null>(null);
+  const [comp, setComp] = useState<Composition>(EMPTY_COMPOSITION);
+  const [applying, setApplying] = useState(false);
 
   const photo = photos[index];
   const [draftState, setDraftState] = useState(() =>
@@ -85,6 +107,14 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   }, [initialCatalog]);
 
   const byPath = useMemo(() => pathByTag(catalog), [catalog]);
+
+  const bulk = selected.size >= 2 && !painting && !passSectionId;
+  const compMode = bulk || painting;
+  const counts = useMemo(
+    () => (bulk ? tagCounts([...selected].map((id) => own[id] ?? [])) : new Map<string, number>()),
+    [bulk, selected, own],
+  );
+  const total = bulk ? selected.size : 0;
 
   const open = useCallback(
     (i: number, ownMap: Record<string, string[]>, written: string[]) => {
@@ -102,9 +132,10 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
 
   const toggle = useCallback(
     (tagId: string, additive: boolean) => {
+      if (compMode) return setComp((c) => toggleInComposition(catalog, c, tagId, counts, total, additive));
       setDraftState((s) => ({ draft: toggleTag(catalog, s.draft, tagId, additive), proposed: s.proposed.filter((id) => id !== tagId) }));
     },
-    [catalog],
+    [catalog, compMode, counts, total],
   );
 
   const onCombination = useCallback(
@@ -125,10 +156,44 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
             ? c.groups
             : { ...c.groups, [t.groupId]: { ...c.groups[t.groupId], tagIds: [...c.groups[t.groupId].tagIds, t.id] } },
         }));
-        setDraftState((s) => ({ draft: s.draft.includes(t.id) ? s.draft : [...s.draft, t.id], proposed: s.proposed }));
+        if (compMode) setComp((c) => (c.adds.includes(t.id) ? c : { adds: [...c.adds, t.id], removes: c.removes.filter((x) => x !== t.id) }));
+        else setDraftState((s) => ({ draft: s.draft.includes(t.id) ? s.draft : [...s.draft, t.id], proposed: s.proposed }));
       });
     },
-    [catalog, toggle],
+    [catalog, toggle, compMode],
+  );
+
+  /**
+   * Write new tag lists for photos (pass, paint): optimistic, one request per
+   * distinct change, the server's answer wins, a failure puts the photo back.
+   */
+  const writePhotos = useCallback(
+    (updates: Record<string, string[]>, ownNow: Record<string, string[]>) => {
+      const groups = new Map<string, { comp: Composition; ids: string[] }>();
+      for (const [id, tags] of Object.entries(updates)) {
+        const c = compositionOf(ownNow[id] ?? [], tags);
+        if (!c.adds.length && !c.removes.length) continue;
+        const key = JSON.stringify(c);
+        const g = groups.get(key) ?? { comp: c, ids: [] };
+        g.ids.push(id);
+        groups.set(key, g);
+      }
+      if (groups.size === 0) return ownNow;
+      const nextOwn = { ...ownNow, ...updates };
+      setOwn(nextOwn);
+      for (const { comp: c, ids } of groups.values()) {
+        setSaving((n) => n + 1);
+        void applyCompositionAction(ids, c.adds, c.removes).then((r) => {
+          setSaving((n) => n - 1);
+          if (!r.success) {
+            toast.error(r.error);
+            setOwn((o) => ({ ...o, ...Object.fromEntries(ids.map((id) => [id, ownNow[id] ?? []])) }));
+          } else setOwn((o) => ({ ...o, ...r.tags }));
+        });
+      }
+      return nextOwn;
+    },
+    [],
   );
 
   /** Enter: write what changed, remember it for carry-over, go on — to the next photo, or where the user was leaving to */
@@ -200,6 +265,108 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     [catalog.paths],
   );
 
+  // ── S3: selection, brush, pass ─────────────────────────────────────────────
+
+  const selectedInOrder = useMemo(() => photos.filter((p) => selected.has(p.id)).map((p) => p.id), [photos, selected]);
+
+  const onSelect = useCallback(
+    (i: number, how: "toggle" | "range") => {
+      setPassSectionId(null);
+      setSelected((sel) => {
+        if (how === "range") {
+          const [a, b] = [Math.min(index, i), Math.max(index, i)];
+          return new Set(photos.slice(a, b + 1).map((p) => p.id));
+        }
+        const n = new Set(sel.size === 0 ? [photos[index].id] : sel);
+        const id = photos[i].id;
+        if (n.has(id)) n.delete(id);
+        else n.add(id);
+        return n;
+      });
+    },
+    [index, photos],
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelected(new Set());
+    setComp(EMPTY_COMPOSITION);
+  }, []);
+
+  const applyToSelection = useCallback(() => {
+    if (!bulk || (!comp.adds.length && !comp.removes.length)) return;
+    const ids = selectedInOrder;
+    const before = Object.fromEntries(ids.map((id) => [id, own[id] ?? []]));
+    setOwn((o) => ({ ...o, ...Object.fromEntries(ids.map((id) => [id, applyCompositionTo(catalog, o[id] ?? [], comp)])) }));
+    setApplying(true);
+    void applyCompositionAction(ids, comp.adds, comp.removes).then((r) => {
+      setApplying(false);
+      if (!r.success) {
+        toast.error(r.error);
+        setOwn((o) => ({ ...o, ...before }));
+        return;
+      }
+      setOwn((o) => ({ ...o, ...r.tags }));
+      setComp(EMPTY_COMPOSITION);
+      toast.success(`Written on ${ids.length} photos`);
+    });
+  }, [bulk, comp, selectedInOrder, own, catalog]);
+
+  const onStroke = useCallback(
+    (ids: string[], erase: boolean) => {
+      if (!comp.adds.length && !comp.removes.length) return void toast.info("Pick tags for the brush first");
+      const brush = erase ? eraserOf(comp) : comp;
+      const updates: Record<string, string[]> = {};
+      for (const id of ids) {
+        let tags = withoutTags(catalog, own[id] ?? [], brush.removes);
+        for (const a of brush.adds) if (!tags.includes(a)) tags = toggleTag(catalog, tags, a, false);
+        updates[id] = tags;
+      }
+      writePhotos(updates, own);
+    },
+    [comp, catalog, own, writePhotos],
+  );
+
+  const passSections = useMemo(
+    () => catalog.paths.flatMap((p) => p.sections.filter((s) => s.passable).map((section) => ({ section, pathName: p.name }))),
+    [catalog.paths],
+  );
+  const passSection = passSections.find((s) => s.section.id === passSectionId)?.section ?? null;
+  const passTagIds = useMemo(
+    () => (passSection ? passSection.groupIds.flatMap((g) => catalog.groups[g]?.tagIds ?? []) : []),
+    [passSection, catalog.groups],
+  );
+
+  const passWrite = useCallback(
+    (tags: string[]) => {
+      if (!photo) return;
+      const nextOwn = writePhotos({ [photo.id]: tags }, own);
+      if (index < photos.length - 1) open(index + 1, nextOwn, lastWritten);
+      else toast.success("Last photo — pass done");
+    },
+    [photo, own, writePhotos, index, photos.length, open, lastWritten],
+  );
+  const passChoose = useCallback(
+    (tagId: string) => photo && passWrite(passChoice(catalog, own[photo.id] ?? [], new Set(passTagIds), tagId)),
+    [photo, passWrite, catalog, own, passTagIds],
+  );
+  const passClear = useCallback(
+    () => photo && passWrite(withoutTags(catalog, own[photo.id] ?? [], passTagIds)),
+    [photo, passWrite, catalog, own, passTagIds],
+  );
+
+  const startPass = useCallback(() => {
+    setPainting(false);
+    setSelected(new Set());
+    setComp(EMPTY_COMPOSITION);
+    setPassSectionId((cur) => (cur ? null : (passSections[0]?.section.id ?? null)));
+  }, [passSections]);
+  const startPaint = useCallback(() => {
+    setPassSectionId(null);
+    setSelected(new Set());
+    setComp(EMPTY_COMPOSITION);
+    setPainting((p) => !p);
+  }, []);
+
   // Keyboard: the workbench is a keyboard tool
   const shellRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -207,6 +374,35 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (passSectionId) {
+        if (/^[1-9]$/.test(e.key)) {
+          const t = passTagIds[Number(e.key) - 1];
+          if (t) passChoose(t);
+        } else if (e.key === "0") passClear();
+        else if (e.key === "ArrowRight" || e.key === " ") {
+          e.preventDefault();
+          if (index < photos.length - 1) open(index + 1, own, lastWritten);
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          if (index > 0) open(index - 1, own, lastWritten);
+        } else if (e.key === "Escape") setPassSectionId(null);
+        return;
+      }
+      if (painting) {
+        if (e.key === "Escape") setPainting(false);
+        return;
+      }
+      if (bulk) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          applyToSelection();
+        } else if (e.key === "Escape") clearSelection();
+        else if (/^[1-9]$/.test(e.key)) {
+          const p = catalog.paths[Number(e.key) - 1];
+          if (p) setActivePathId(p.id);
+        }
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         applyAndNext();
@@ -225,15 +421,26 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [applyAndNext, next, prev, leaveTo, catalog.paths]);
+  }, [applyAndNext, next, prev, leaveTo, catalog.paths, passSectionId, passTagIds, passChoose, passClear, index, photos.length, open, own, lastWritten, painting, bulk, applyToSelection, clearSelection]);
 
   const implied = useMemo(() => new Set(impliedTags(catalog, draft)), [catalog, draft]);
   const proposedSet = useMemo(() => new Set(proposed), [proposed]);
   const draftSet = useMemo(() => new Set(draft), [draft]);
+  const addSet = useMemo(() => new Set(comp.adds), [comp.adds]);
+  const removeSet = useMemo(() => new Set(comp.removes), [comp.removes]);
   const tileState = useCallback(
-    (id: string): TileState => (proposedSet.has(id) ? "proposed" : draftSet.has(id) ? "on" : implied.has(id) ? "implied" : "off"),
-    [proposedSet, draftSet, implied],
+    (id: string): TileState => {
+      if (compMode) {
+        if (addSet.has(id)) return "add";
+        if (removeSet.has(id)) return "remove";
+        const n = counts.get(id) ?? 0;
+        return total > 0 && n === total ? "on" : n > 0 ? "partial" : "off";
+      }
+      return proposedSet.has(id) ? "proposed" : draftSet.has(id) ? "on" : implied.has(id) ? "implied" : "off";
+    },
+    [compMode, addSet, removeSet, counts, total, proposedSet, draftSet, implied],
   );
+  const countOf = useCallback((id: string) => (bulk ? { n: counts.get(id) ?? 0, of: total } : undefined), [bulk, counts, total]);
 
   const coverage = useMemo(() => {
     const out: Record<string, Set<string>> = {};
@@ -288,6 +495,30 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
             </>
           )}
         </span>
+        <div className="flex items-center gap-1">
+          <Button
+            variant={passSectionId ? "default" : "outline"}
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={startPass}
+            aria-pressed={!!passSectionId}
+            data-testid="composer-pass-toggle"
+            title="One section, photo by photo — a key per photo"
+          >
+            <ListChecks size={14} /> Pass
+          </Button>
+          <Button
+            variant={painting ? "default" : "outline"}
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={startPaint}
+            aria-pressed={painting}
+            data-testid="composer-paint-toggle"
+            title="Pick tags, then drag over the filmstrip — Alt erases"
+          >
+            <Brush size={14} /> Paint
+          </Button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
@@ -319,20 +550,64 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         </div>
 
         <aside className="flex min-h-0 flex-col border-t border-border/60 bg-card/80 backdrop-blur-md lg:w-[30rem] lg:border-l lg:border-t-0">
-          <ComposerInspector
-            catalog={catalog}
-            activePathId={activePathId}
-            onPath={setActivePathId}
-            pinned={pinned}
-            onPin={togglePin}
-            draft={draft}
-            tileState={tileState}
-            onToggle={toggle}
-            onCombination={onCombination}
-            creating={creating}
-            countByPath={countByPath}
-          />
+          {bulk && (
+            <div className="flex items-center gap-2 border-b border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs" data-testid="composer-selection-banner">
+              <Layers size={14} className="shrink-0 text-sky-600 dark:text-sky-300" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">{selected.size} photos selected</span> — tiles show how many have each tag; clicks build one change. Enter
+                applies · Esc clears
+              </span>
+              <button type="button" onClick={clearSelection} aria-label="Clear selection" className="rounded p-0.5 hover:bg-sky-500/20">
+                <X size={14} />
+              </button>
+            </div>
+          )}
+          {painting && (
+            <div className="flex items-center gap-2 border-b border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs" data-testid="composer-paint-banner">
+              <Brush size={14} className="shrink-0 text-emerald-600 dark:text-emerald-300" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="font-medium">Paint</span> — pick tags, then drag over the filmstrip. Alt-drag erases. Esc ends.
+              </span>
+            </div>
+          )}
+          {passSectionId ? (
+            <ComposerPass
+              catalog={catalog}
+              sections={passSections}
+              sectionId={passSectionId}
+              onSection={setPassSectionId}
+              tagIds={passTagIds}
+              own={own[photo.id] ?? []}
+              onChoose={passChoose}
+            />
+          ) : (
+            <ComposerInspector
+              catalog={catalog}
+              activePathId={activePathId}
+              onPath={setActivePathId}
+              pinned={pinned}
+              onPin={togglePin}
+              draft={compMode ? compositionView(comp, counts) : draft}
+              tileState={tileState}
+              onToggle={toggle}
+              onCombination={onCombination}
+              creating={creating}
+              countByPath={countByPath}
+              countOf={countOf}
+            />
+          )}
 
+          {compMode ? (
+            <ComposerCompositionBar
+              mode={painting ? "paint" : "selection"}
+              comp={comp}
+              count={selected.size}
+              name={name}
+              busy={applying}
+              onApply={applyToSelection}
+              onClear={() => setComp(EMPTY_COMPOSITION)}
+            />
+          ) : passSectionId ? null : (
           <footer className="space-y-2 border-t border-border/60 p-3">
             {leaveAsk && dirty && (
               <div
@@ -395,6 +670,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               </Button>
             </div>
           </footer>
+          )}
         </aside>
       </div>
 
@@ -403,7 +679,15 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         paths={catalog.paths}
         coverage={coverage}
         currentIndex={index}
-        onJump={(i) => i !== index && leaveTo({ kind: "photo", index: i })}
+        onJump={(i) => {
+          if (passSectionId) return open(i, own, lastWritten);
+          if (selected.size) setSelected(new Set());
+          if (i !== index) leaveTo({ kind: "photo", index: i });
+        }}
+        selected={selected}
+        onSelect={onSelect}
+        painting={painting}
+        onStroke={onStroke}
       />
     </div>
   );
