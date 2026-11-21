@@ -517,6 +517,22 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
     await tx.$executeRaw`
       DELETE FROM tag_extra_parent ep USING tag_definition td
       WHERE ep."tagId" = td.id AND ep."parentId" = td."parentId"`;
+    // Examples (ADR-0042, S4): the target keeps its own; a source's photo it does not
+    // have yet joins as a plain example, as long as there is room for five
+    await tx.$executeRaw`
+      UPDATE tag_example e SET "tagId" = ${targetId}, "isTitle" = false
+      WHERE e."tagId" = ANY(${sourceIds}::text[])
+        AND NOT EXISTS (SELECT 1 FROM tag_example t WHERE t."tagId" = ${targetId} AND t."mediaItemId" = e."mediaItemId")`;
+    await tx.$executeRaw`
+      DELETE FROM tag_example WHERE id IN (
+        SELECT id FROM (
+          SELECT id, row_number() OVER (ORDER BY "isTitle" DESC, "sortOrder", "createdAt") AS n
+          FROM tag_example WHERE "tagId" = ${targetId}
+        ) ranked WHERE n > 5)`;
+    await tx.$executeRaw`
+      UPDATE tag_example SET "isTitle" = true
+      WHERE id = (SELECT id FROM tag_example WHERE "tagId" = ${targetId} ORDER BY "sortOrder", "createdAt" LIMIT 1)
+        AND NOT EXISTS (SELECT 1 FROM tag_example WHERE "tagId" = ${targetId} AND "isTitle")`;
     await tx.$executeRaw`
       INSERT INTO tag_confusable ("tagAId", "tagBId")
       SELECT LEAST(a, b), GREATEST(a, b) FROM (

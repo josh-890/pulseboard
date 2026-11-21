@@ -4,6 +4,7 @@ import { buildPhotoUrls } from "@/lib/media-url";
 import { parsePhotoVariants } from "@/lib/types";
 import { toTagName } from "@/lib/tag-names";
 import { setExtraParents } from "@/lib/services/tag-service";
+import { getTitleExamples } from "@/lib/services/tag-example-service";
 import {
   combinationName,
   composerTagIds,
@@ -68,6 +69,9 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
         parentIds: [...(t.parentId ? [t.parentId] : []), ...t.extraParents.map((p) => p.parentId)],
       };
 
+  const titles = await getTitleExamples(Object.keys(tags));
+  for (const [id, ex] of Object.entries(titles)) if (tags[id]) tags[id].example = ex;
+
   const stateRules: ComposerStateRule[] = rules.map((r) => ({
     stateGroupId: r.stateGroupId,
     genericTagId: r.genericTagId,
@@ -104,6 +108,8 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
 export type ComposerPhoto = {
   id: string;
   filename: string;
+  width: number;
+  height: number;
   thumbUrl: string | null;
   viewUrl: string | null;
   /** The photo's own tags in Composer groups (direct rows only) */
@@ -113,6 +119,8 @@ export type ComposerPhoto = {
 type PhotoRow = {
   id: string;
   filename: string;
+  originalWidth: number;
+  originalHeight: number;
   variants: unknown;
   fileRef: string | null;
   mediaItemTags: { tagDefinitionId: string }[];
@@ -121,6 +129,8 @@ type PhotoRow = {
 const PHOTO_SELECT = {
   id: true,
   filename: true,
+  originalWidth: true,
+  originalHeight: true,
   variants: true,
   fileRef: true,
   mediaItemTags: { select: { tagDefinitionId: true } },
@@ -131,6 +141,8 @@ function toPhoto(row: PhotoRow, composerIds: Set<string>): ComposerPhoto {
   return {
     id: row.id,
     filename: row.filename,
+    width: row.originalWidth,
+    height: row.originalHeight,
     thumbUrl: urls.gallery_512 ?? urls.view_1200 ?? (urls.original || null),
     viewUrl: urls.view_1200 ?? urls.full_2400 ?? (urls.original || null),
     tagIds: row.mediaItemTags.map((t) => t.tagDefinitionId).filter((id) => composerIds.has(id)),

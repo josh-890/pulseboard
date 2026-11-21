@@ -3,7 +3,7 @@
 import { Pin, PinOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ComposerCatalog, ComposerStateRule } from "@/lib/composer";
-import { ComposerTile, type TileState } from "./composer-tile";
+import { ComposerTile, wantsVisualTiles, type TileState } from "./composer-tile";
 import { ComposerMatrix } from "./composer-matrix";
 import { ComposerRefinement } from "./composer-refinement";
 import { pathStyle } from "./composer-path-style";
@@ -111,10 +111,13 @@ export function ComposerInspector({
                 onCombination={onCombination}
                 creating={creating}
                 countOf={countOf}
+                tileAspect={path.tileAspect}
               />
             ) : (
               <div className="space-y-2">
-                {section.groupIds.map((g) => (
+                {section.groupIds.map((g) => {
+                  const v = wantsVisualTiles((catalog.groups[g]?.tagIds ?? []).map((id) => catalog.tags[id]));
+                  return (
                   <div key={g}>
                     {section.groupIds.length > 1 && (
                       <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -122,13 +125,23 @@ export function ComposerInspector({
                         {catalog.groups[g]?.isExclusive && <span className="ml-1 normal-case tracking-normal">· one</span>}
                       </p>
                     )}
-                    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    <div className={cn("grid gap-1.5", v ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
                       {(catalog.groups[g]?.tagIds ?? []).map((id) => (
-                        <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
+                        <ComposerTile
+                          key={id}
+                          tag={catalog.tags[id]}
+                          state={tileState(id)}
+                          style={style}
+                          onToggle={onToggle}
+                          count={countOf?.(id)}
+                          visual={v}
+                          tileAspect={path.tileAspect}
+                        />
                       ))}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
                 {path.sections[path.sections.indexOf(section) + 1]?.kind === "REFINEMENT" && (
                   <p className="text-[10px] text-muted-foreground">Click replaces · Shift-click adds a second (two people)</p>
                 )}

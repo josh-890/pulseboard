@@ -11,7 +11,7 @@ import {
   type ComposerSection,
   type ComposerStateRule,
 } from "@/lib/composer";
-import { ComposerTile, type TileState } from "./composer-tile";
+import { ComposerTile, wantsVisualTiles, type TileState } from "./composer-tile";
 import type { PathStyle } from "./composer-path-style";
 
 export type ComposerMatrixProps = {
@@ -26,6 +26,7 @@ export type ComposerMatrixProps = {
   /** `${stateGroupId}:${garmentId}` while its combination is being created */
   creating: string | null;
   countOf?: (tagId: string) => { n: number; of: number } | undefined;
+  tileAspect?: string;
 };
 
 /**
@@ -35,7 +36,7 @@ export type ComposerMatrixProps = {
  * none. Below, the generic states (`torn-clothes`) and the plain groups of the
  * section (Position, Fit) as tiles.
  */
-export function ComposerMatrix({ catalog, section, draft, tileState, style, onToggle, onCombination, creating, countOf }: ComposerMatrixProps) {
+export function ComposerMatrix({ catalog, section, draft, tileState, style, onToggle, onCombination, creating, countOf, tileAspect }: ComposerMatrixProps) {
   const garments = matrixGarments(catalog, draft);
   const ruleGroups = new Set(catalog.stateRules.map((r) => r.stateGroupId));
   const plainGroups = section.groupIds.filter((g) => !ruleGroups.has(g));
@@ -103,10 +104,21 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
 
       <div>
         <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Any clothes</p>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        <div className={cn("grid gap-1.5", wantsVisualTiles(rulesHere.map((r) => catalog.tags[r.genericTagId]).filter(Boolean)) ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
           {rulesHere.map((r) => {
             const t = catalog.tags[r.genericTagId];
-            return t ? <ComposerTile key={t.id} tag={t} state={tileState(t.id)} style={style} onToggle={onToggle} count={countOf?.(t.id)} /> : null;
+            return t ? (
+              <ComposerTile
+                key={t.id}
+                tag={t}
+                state={tileState(t.id)}
+                style={style}
+                onToggle={onToggle}
+                count={countOf?.(t.id)}
+                visual={wantsVisualTiles(rulesHere.map((x) => catalog.tags[x.genericTagId]).filter(Boolean))}
+                tileAspect={tileAspect}
+              />
+            ) : null;
           })}
         </div>
       </div>
@@ -114,9 +126,18 @@ export function ComposerMatrix({ catalog, section, draft, tileState, style, onTo
       {plainGroups.map((g) => (
         <div key={g}>
           <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{catalog.groups[g]?.name}</p>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          <div className={cn("grid gap-1.5", wantsVisualTiles((catalog.groups[g]?.tagIds ?? []).map((id) => catalog.tags[id])) ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
             {(catalog.groups[g]?.tagIds ?? []).map((id) => (
-              <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
+              <ComposerTile
+                key={id}
+                tag={catalog.tags[id]}
+                state={tileState(id)}
+                style={style}
+                onToggle={onToggle}
+                count={countOf?.(id)}
+                visual={wantsVisualTiles((catalog.groups[g]?.tagIds ?? []).map((x) => catalog.tags[x]))}
+                tileAspect={tileAspect}
+              />
             ))}
           </div>
         </div>

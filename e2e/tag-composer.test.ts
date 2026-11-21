@@ -34,6 +34,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await db.query(`DELETE FROM tag_example WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
   await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
   await db.query(`DELETE FROM "SetMediaItem" WHERE "setId" = $1`, [SET]);
   await db.query(`DELETE FROM "MediaItem" WHERE "sessionId" = $1`, [SESSION]);
@@ -212,5 +213,39 @@ test.describe("many photos at once (S3)", () => {
     await expect.poll(() => tagsOf(m(1))).toEqual(["kneeling", "portrait"]);
     expect(await tagsOf(m(2))).toEqual(["sitting"]);
     await expect.poll(() => tagsOf(m(3))).toEqual(["portrait"]);
+  });
+});
+
+test.describe("examples and the tag card (S4)", () => {
+  test.beforeAll(async () => {
+    await db.query(`DELETE FROM tag_example WHERE tag_example."tagId" = (SELECT id FROM tag_definition WHERE slug = 'seiza') AND "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+  });
+
+  test("the card shows the definition and what not to confuse it with; the photo on screen becomes the tile", async ({ page }) => {
+    const had = await db.query(`SELECT count(*)::int n FROM tag_example e JOIN tag_definition t ON t.id = e."tagId" WHERE t.slug = 'seiza'`);
+    test.skip(had.rows[0].n >= 5, "seiza already has five examples on this database");
+    await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
+    // seiza is a refinement of sitting — make sure sitting is held (earlier tests may have set it)
+    if ((await tile(page, "sitting").getAttribute("data-state")) !== "on") await tile(page, "sitting").click();
+    const wrap = tile(page, "seiza").locator("..");
+    await wrap.hover();
+    await wrap.getByTestId("tag-card-open").click();
+    const card = page.getByTestId("tag-card");
+    await expect(card).toContainText("Knees on the floor");
+    await expect(card.getByTestId("tag-card-confusables")).toContainText("kneeling");
+
+    await card.getByTestId("tag-card-use-photo").click();
+    await page.getByTestId("example-crop-save").click();
+    await expect.poll(async () =>
+      (await db.query(`SELECT count(*)::int n FROM tag_example e JOIN tag_definition t ON t.id = e."tagId" WHERE t.slug = 'seiza' AND e."mediaItemId" = $1`, [m(2)])).rows[0].n,
+    ).toBe(1);
+    if (had.rows[0].n === 0) await expect(tile(page, "seiza")).toHaveAttribute("data-visual", "true");
+  });
+
+  test("the Camera path draws pictograms", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose`);
+    await page.getByTestId("composer-path-Camera").click();
+    await expect(tile(page, "from-behind").getByTestId("camera-pictogram")).toBeVisible();
+    await expect(tile(page, "full-body")).toHaveAttribute("data-visual", "true");
   });
 });

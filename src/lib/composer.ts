@@ -12,6 +12,8 @@ export type ComposerTag = {
   groupId: string;
   /** First parent, then the further parents (ADR-0042) */
   parentIds: string[];
+  /** The title example (S4): a photo of the user's, cropped to the tile */
+  example?: { url: string; crop: { x: number; y: number; w: number; h: number } } | null;
 };
 
 export type ComposerGroup = { id: string; name: string; isExclusive: boolean; tagIds: string[] };

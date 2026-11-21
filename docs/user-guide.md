@@ -1382,6 +1382,17 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
     Facing or Gaze — and go photo by photo: a key **1–9** writes that tag (replacing
     the photo's other tag in the section) and moves on; **0** clears the section;
     **→** / Space skips; **Esc** ends the pass. Writes happen at once in this mode.
+- **Pictures on the tiles:** hover a tile for a moment (long-press on a phone, or the
+  ⓘ in its corner) and its **card** opens — the definition, the spellings that find it,
+  its **examples**, the photos already tagged with it, and **Do not confuse with**
+  (`seiza` next to `kneeling`, each with its example). **Use the photo on screen**, or
+  tap a tagged photo, and frame what shows the tag best: the frame keeps the tile's
+  shape (Figure 3:4, the rest square) — drag it, drag its corner, arrow keys nudge.
+  The first example becomes the tile; up to five per tag, ★ picks the tile, × removes
+  one. Once a group has a picture, its tiles become a picture grid (tags without one
+  show their definition in the same shape). The Camera tab draws its own pictograms —
+  how much of the person the frame holds, where the camera is, which way the body
+  faces.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
   so `looking_at_viewer` in the query box finds `looking-at-viewer`.
 

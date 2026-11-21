@@ -33,6 +33,8 @@ import { ComposerInspector } from "./composer-inspector";
 import { ComposerFilmstrip } from "./composer-filmstrip";
 import { ComposerPass } from "./composer-pass";
 import { ComposerCompositionBar } from "./composer-composition-bar";
+import { ComposerCardContext, type ComposerCardContextValue } from "./composer-card-context";
+import type { TagExampleThumb } from "@/lib/tag-example";
 import type { TileState } from "./composer-tile";
 
 export type ComposerWorkbenchProps = {
@@ -440,6 +442,17 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     },
     [compMode, addSet, removeSet, counts, total, proposedSet, draftSet, implied],
   );
+  // The tag cards (S4): the photo on screen, each tag's tile shape, and tile images that change
+  const cardContext = useMemo<ComposerCardContextValue>(
+    () => ({
+      photo: photo ? { id: photo.id, viewUrl: photo.viewUrl, width: photo.width, height: photo.height, filename: photo.filename } : null,
+      tileAspectOf: (tagId: string) => catalog.paths.find((p) => p.id === byPath.get(tagId))?.tileAspect ?? "1:1",
+      onTitleChanged: (tagId: string, example: TagExampleThumb | null) =>
+        setCatalog((c) => (c.tags[tagId] ? { ...c, tags: { ...c.tags, [tagId]: { ...c.tags[tagId], example } } } : c)),
+    }),
+    [photo, catalog.paths, byPath],
+  );
+
   const countOf = useCallback((id: string) => (bulk ? { n: counts.get(id) ?? 0, of: total } : undefined), [bulk, counts, total]);
 
   const coverage = useMemo(() => {
@@ -468,6 +481,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     );
 
   return (
+    <ComposerCardContext.Provider value={cardContext}>
     <div ref={shellRef} className="flex h-[calc(100dvh-4rem)] flex-col" data-testid="composer-workbench">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-border/60 px-3 py-2 text-sm">
         <Link
@@ -579,6 +593,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               tagIds={passTagIds}
               own={own[photo.id] ?? []}
               onChoose={passChoose}
+              tileAspect={catalog.paths.find((p) => p.sections.some((x) => x.id === passSectionId))?.tileAspect}
             />
           ) : (
             <ComposerInspector
@@ -690,5 +705,6 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         onStroke={onStroke}
       />
     </div>
+    </ComposerCardContext.Provider>
   );
 }

@@ -1415,6 +1415,8 @@ model MediaItem {
   @@index([archiveRetry])
   @@index([sessionId, role])
   @@index([tone])
+  /// Used as a tag's example (ADR-0042)
+  tagExamples TagExample[]
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +
@@ -2237,6 +2239,7 @@ model TagDefinition {
   confusedBy        TagConfusable[]    @relation("TagConfusableB")
   stateRuleTargets  TagStateRuleTarget[]
   stateRuleGeneric  TagStateRule[]     @relation("TagStateRuleGeneric")
+  examples          TagExample[]
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -2262,6 +2265,28 @@ model TagExtraParent {
   @@id([tagId, parentId])
   @@index([parentId])
   @@map("tag_extra_parent")
+}
+
+// A tag's example (ADR-0042, S4): one of the user's own photos with a crop, shown
+// as the Composer tile and in the tag's card. One title example and up to four
+// more per tag. The crop is a rectangle in the photo, as fractions (0..1).
+model TagExample {
+  id          String        @id @default(cuid())
+  tagId       String
+  mediaItemId String
+  cropX       Float         @default(0)
+  cropY       Float         @default(0)
+  cropW       Float         @default(1)
+  cropH       Float         @default(1)
+  isTitle     Boolean       @default(false)
+  sortOrder   Int           @default(0)
+  createdAt   DateTime      @default(now())
+  tag         TagDefinition @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  mediaItem   MediaItem     @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, mediaItemId])
+  @@index([mediaItemId])
+  @@map("tag_example")
 }
 
 // "Do not confuse with": seiza ↔ kneeling. Stored once per pair (tagAId < tagBId).

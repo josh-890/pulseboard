@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { ComposerCatalog, ComposerSection } from "@/lib/composer";
-import { ComposerTile } from "./composer-tile";
+import { ComposerTile, wantsVisualTiles } from "./composer-tile";
 import { pathStyle } from "./composer-path-style";
 
 export type ComposerPassProps = {
@@ -16,6 +16,7 @@ export type ComposerPassProps = {
   /** The current photo's own tags */
   own: string[];
   onChoose: (tagId: string) => void;
+  tileAspect?: string;
 };
 
 /**
@@ -23,7 +24,8 @@ export type ComposerPassProps = {
  * photos one after the other; a key 1–9 writes that tag (replacing the photo's
  * other tag in the section) and moves on. 0 clears, → skips, Esc ends.
  */
-export function ComposerPass({ catalog, sections, sectionId, onSection, tagIds, own, onChoose }: ComposerPassProps) {
+export function ComposerPass({ catalog, sections, sectionId, onSection, tagIds, own, onChoose, tileAspect }: ComposerPassProps) {
+  const visual = wantsVisualTiles(tagIds.map((id) => catalog.tags[id]));
   const current = sections.find((s) => s.section.id === sectionId);
   const style = pathStyle(current?.pathName ?? "");
   return (
@@ -56,7 +58,7 @@ export function ComposerPass({ catalog, sections, sectionId, onSection, tagIds, 
           Press a key to write it on this photo and move on. <kbd className="font-medium">0</kbd> clears the section,{" "}
           <kbd className="font-medium">→</kbd> skips, <kbd className="font-medium">Esc</kbd> ends the pass.
         </p>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        <div className={cn("grid gap-1.5", visual ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
           {tagIds.map((id, i) => (
             <ComposerTile
               key={id}
@@ -65,6 +67,8 @@ export function ComposerPass({ catalog, sections, sectionId, onSection, tagIds, 
               style={style}
               onToggle={() => onChoose(id)}
               shortcut={i < 9 ? String(i + 1) : undefined}
+              visual={visual}
+              tileAspect={tileAspect}
             />
           ))}
         </div>

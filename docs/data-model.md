@@ -244,7 +244,9 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   MATRIX, passable) ──< `ComposerSectionGroup` >── TagGroup. `TagStateRule`
   (one per state group: genericTag, namePattern `torn-{x}`) ──<
   `TagStateRuleTarget` (a garment group or a garment tag, nameOverride for
-  irregular names like `panty-pull`).
+  irregular names like `panty-pull`). `TagExample` (`tag_example`: tagId,
+  mediaItemId, cropX/Y/W/H as fractions, isTitle, sortOrder; unique per
+  tag + photo; ≤ 5 per tag, enforced in the service) — the tag's tile picture.
 - `TagSlotSet` (name, `isActive` — at most one) ──< `TagSlot` (position 1–9 → TagDefinition):
   quick-tag key bindings. Deleting a tag or set cascades to its slots; merging repoints them.
 - `SavedFilter` (scope, name, params, pinned): saved browser views; scope `media` rows are

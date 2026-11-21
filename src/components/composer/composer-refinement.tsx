@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { refinementOptions, type ComposerCatalog, type ComposerPath } from "@/lib/composer";
-import { ComposerTile, type TileState } from "./composer-tile";
+import { ComposerTile, wantsVisualTiles, type TileState } from "./composer-tile";
 import type { PathStyle } from "./composer-path-style";
 
 export type ComposerRefinementProps = {
@@ -30,20 +30,32 @@ export function ComposerRefinement({ catalog, path, draft, tileState, style, onT
     );
   return (
     <div className="space-y-2.5" data-testid="composer-refinement">
-      {options.map((o) => (
+      {options.map((o) => {
+        const v = wantsVisualTiles(o.tagIds.map((id) => catalog.tags[id]));
+        return (
         <div key={o.baseId} data-base={catalog.tags[o.baseId]?.name}>
           <p className={cn("mb-1 text-[11px] font-medium", style.text)}>{catalog.tags[o.baseId]?.name} ▸</p>
           {o.tagIds.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">No refinements.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            <div className={cn("grid gap-1.5", v ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3")}>
               {o.tagIds.map((id) => (
-                <ComposerTile key={id} tag={catalog.tags[id]} state={tileState(id)} style={style} onToggle={onToggle} count={countOf?.(id)} />
+                <ComposerTile
+                  key={id}
+                  tag={catalog.tags[id]}
+                  state={tileState(id)}
+                  style={style}
+                  onToggle={onToggle}
+                  count={countOf?.(id)}
+                  visual={v}
+                  tileAspect={path.tileAspect}
+                />
               ))}
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
