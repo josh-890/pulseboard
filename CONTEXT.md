@@ -324,7 +324,7 @@ Session (production) → Set (publication) → Image. The levels CONTENT tags ap
 The level of the content chain a tag usually belongs to (Location → session, Outfit → set, Pose → image). It is a **hint only**: it ranks the picker and presets a filter's source, and never blocks tagging. Set on the group; a tag may override it.
 
 **Parent tag**:
-Implication: a tag with a parent counts as the parent when filtering (Bikini ⊂ Swimwear). There is one parent per tag and the chain is acyclic. `=tag` in a query means "exactly this tag, without children".
+Implication: a tag with a parent counts as the parent when filtering (Bikini ⊂ Swimwear). A tag may have **several parents** (ADR-0042: `torn-pantyhose` ⊂ `pantyhose`, ⊂ `torn-clothes`); the first (`parentId`) places it in the tree, the rest are **further parents**. The graph is acyclic. `=tag` in a query means "exactly this tag, without children".
 
 **Direct vs inherited tag / effective tags**:
 A **direct** tag is a row on the entity itself. An image's **effective tags** are its direct tags plus those **inherited** from its session and from every set containing it (a set also inherits from its sessions). Inherited tags are **computed, never copied**.
@@ -340,6 +340,31 @@ A tag in a `WORKFLOW` group: a to-do marker (needs-crop, check-cast) that is rem
 
 **Smart collection**:
 A saved media filter, shown next to the static **Collections**: live, never hand-maintained. It can be **frozen** into a static collection. Distinct from a **Collection** (hand-curated membership) and from **Favorites** (a flag, ADR-0019).
+
+### Tag Composer (added 2026-11-21, ADR-0042)
+
+**Composer**:
+The guided way to tag the people in photos — posture, clothing, camera, expression — writing ordinary tags on the **photo** (never the set). Vocabulary from Danbooru, spelled in kebab-case; the Danbooru name is an alias.
+_Avoid_: "wizard" (it has no fixed order), "pose tagger" (it is more than pose).
+
+**Composition**:
+What the Composer will write: tags to **add** and tags to **remove** (a Danbooru tag script). Applied to the current photo, a selection, or painted over thumbnails; in an exclusive group an added tag replaces the old one.
+
+**Path** (code model & DB table: `ComposerPath`):
+A Composer tab — Figure · Clothing · Camera · Expression. A **pinned** path is carried over to the next photo as a proposal (**carry-over**): Enter writes it, → moves on without writing.
+
+**Section** (code model & DB table: `ComposerSection`):
+A block of a path made of tag groups: plain **tiles**, a **refinement** (the children of the chosen base postures, unfolding in place) or the **state matrix**. A **passable** section is offered in **pass mode** — one section, photo by photo, keys 1–9.
+
+**State matrix** (code model & DB table: `TagStateRule`):
+A state (Damage, Wet, Lift, Pull …) × a garment → a **combination tag** named by the state's pattern (`torn-{x}` → `torn-bra`), created when first used, with the garment and the generic state (`torn-clothes`) as its parents.
+_Avoid_: two loose tags (`bra` + `torn`) — they lose which garment is torn.
+
+**Confusable** (code model & DB table: `TagConfusable`):
+"Do not confuse with": two tags whose boundary matters (`seiza` ↔ `kneeling`), shown side by side.
+
+**Impression** (Clothing path):
+What the clothing *does*, on three axes — **Formality** (casual → evening-wear, exclusive), **Coverage** (modest → barely-clothed, exclusive), **Style** (elegant, sexy, edgy …) — plus **Context** (inappropriate-attire, costume, uniform). Subjective by design; the clothing's own state lives in the state matrix.
 
 ### Intensity (added 2026-10-21, ADR-0036)
 

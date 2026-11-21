@@ -2191,6 +2191,12 @@ model TagGroup {
   sortOrder    Int             @default(0)
   createdAt    DateTime        @default(now())
   tags         TagDefinition[]
+  /// Composer sections showing this group (ADR-0042)
+  composerSections ComposerSectionGroup[]
+  /// The state matrix rule when this is a state group (Damage, Wet, Lift …)
+  stateRule        TagStateRule?
+  /// State rules that apply to this garment group
+  stateRuleTargets TagStateRuleTarget[]
 
   @@index([sortOrder])
   @@map("tag_group")
@@ -2223,6 +2229,14 @@ model TagDefinition {
   channelTags       ChannelTag[]
   labelTags         LabelTag[]
   artistTags        ArtistTag[]
+  /// Further parents beyond `parentId` — a tag may imply several (ADR-0042).
+  /// `parentId` stays the first parent: the tree shows the tag under it.
+  extraParents      TagExtraParent[]   @relation("TagExtraParentChild")
+  extraChildren     TagExtraParent[]   @relation("TagExtraParentParent")
+  confusables       TagConfusable[]    @relation("TagConfusableA")
+  confusedBy        TagConfusable[]    @relation("TagConfusableB")
+  stateRuleTargets  TagStateRuleTarget[]
+  stateRuleGeneric  TagStateRule[]     @relation("TagStateRuleGeneric")
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -2231,6 +2245,117 @@ model TagDefinition {
   @@index([sortOrder])
   @@index([nameNorm])
   @@map("tag_definition")
+}
+
+// ─── Tag Composer (ADR-0042) ──────────────────────────────────────────────────
+
+// A further parent of a tag: torn-pantyhose ⊂ pantyhose (parentId) and ⊂
+// torn-clothes (here). Implication is computed, never stored on the entities —
+// a filter on a parent finds every tag that implies it, through either relation.
+model TagExtraParent {
+  tagId     String
+  parentId  String
+  sortOrder Int           @default(0)
+  tag       TagDefinition @relation("TagExtraParentChild", fields: [tagId], references: [id], onDelete: Cascade)
+  parent    TagDefinition @relation("TagExtraParentParent", fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@id([tagId, parentId])
+  @@index([parentId])
+  @@map("tag_extra_parent")
+}
+
+// "Do not confuse with": seiza ↔ kneeling. Stored once per pair (tagAId < tagBId).
+model TagConfusable {
+  tagAId String
+  tagBId String
+  tagA   TagDefinition @relation("TagConfusableA", fields: [tagAId], references: [id], onDelete: Cascade)
+  tagB   TagDefinition @relation("TagConfusableB", fields: [tagBId], references: [id], onDelete: Cascade)
+
+  @@id([tagAId, tagBId])
+  @@index([tagBId])
+  @@map("tag_confusable")
+}
+
+enum ComposerSectionKind {
+  /// Tiles of the section's groups
+  TILES
+  /// The children of the base postures chosen in the section before it
+  REFINEMENT
+  /// Garment × state: a garment, then the states that fit it
+  MATRIX
+}
+
+// A Composer path — a tab: Figure · Clothing · Camera · Expression
+model ComposerPath {
+  id         String            @id @default(cuid())
+  name       String            @unique
+  sortOrder  Int               @default(0)
+  /// Tile shape for this path's examples: "3:4" or "1:1"
+  tileAspect String            @default("1:1")
+  /// Carried over to the next photo by default (the pin)
+  pinned     Boolean           @default(false)
+  sections   ComposerSection[]
+
+  @@map("composer_path")
+}
+
+model ComposerSection {
+  id         String                 @id @default(cuid())
+  pathId     String
+  path       ComposerPath           @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  name       String
+  sortOrder  Int                    @default(0)
+  kind       ComposerSectionKind    @default(TILES)
+  /// Offered in pass mode (one section, photo by photo, keys 1–9)
+  passable   Boolean                @default(false)
+  groups     ComposerSectionGroup[]
+
+  @@unique([pathId, name])
+  @@map("composer_section")
+}
+
+model ComposerSectionGroup {
+  sectionId String
+  groupId   String
+  sortOrder Int             @default(0)
+  section   ComposerSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  group     TagGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([sectionId, groupId])
+  @@index([groupId])
+  @@map("composer_section_group")
+}
+
+// The state matrix: a state group (Damage) applies to garments, naming the
+// combination by a pattern (`torn-{x}`); the combination implies the garment and
+// the generic state tag (torn-clothes).
+model TagStateRule {
+  id             String               @id @default(cuid())
+  stateGroupId   String               @unique
+  stateGroup     TagGroup             @relation(fields: [stateGroupId], references: [id], onDelete: Cascade)
+  genericTagId   String
+  genericTag     TagDefinition        @relation("TagStateRuleGeneric", fields: [genericTagId], references: [id], onDelete: Cascade)
+  /// `{x}` stands for the garment's name: `torn-{x}`, `{x}-pull`
+  namePattern    String
+  targets        TagStateRuleTarget[]
+
+  @@map("tag_state_rule")
+}
+
+// One garment group, or one garment tag, a state applies to
+model TagStateRuleTarget {
+  id       String         @id @default(cuid())
+  ruleId   String
+  rule     TagStateRule   @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  groupId  String?
+  group    TagGroup?      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tagId    String?
+  tag      TagDefinition? @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  /// A combination name that breaks the pattern: panties → panty-pull
+  nameOverride String?
+
+  @@index([ruleId])
+  @@map("tag_state_rule_target")
 }
 
 // Quick-tag slots (ADR-0033): named sets of up to nine tags bound to the keys

@@ -1292,7 +1292,9 @@ A good catalogue stays searchable as it grows. The rules:
    standing in for words (`skimpy-to-nude`, not `Skimpy2Nude`). What you see is what
    you type — in the query box (no quotes needed), as a `#…` file, in the palette.
    **Aliases** may keep any spelling (`B&W`, German words): they are how other
-   spellings find the tag. **Group names** stay readable headings (`Mood & Light`);
+   spellings find the tag. The query box also reads any spelling in the one
+   spelling, so `from_behind` or `Looking at viewer` find `from-behind` and
+   `looking-at-viewer` (Danbooru names work as typed). **Group names** stay readable headings (`Mood & Light`);
    in a query you type their short form (`mood-light:`).
 8. **Level:** tag where the property holds — nail polish usually on the set or
    folder (images inherit it), an outfit colour on the images when it changes within
@@ -1321,17 +1323,46 @@ an accessory, "wears glasses" is the vision-aids attribute.
 | Nails | `nails-natural`, `nails-polished` ⊃ `nailpolish-red`, `nailpolish-black`, `nails-french` | a polish colour implies polished |
 | Grooming | `grooming-shaved`, `grooming-trimmed`, `grooming-natural` | exclusive — one per shoot |
 | Body decoration | `decoration-body-paint`, `decoration-glitter`, `decoration-temporary-tattoo` | real tattoos are body marks |
-| Outfit | `lingerie` ⊃ `corset`, `babydoll`; `nightwear`, `top`, `skirt`, `shorts`, `bodysuit`, `uniform`, … | garments |
+| Garments | Tops, Bottoms, One-piece, Swimwear, Lingerie, Footwear (`high-heels`, `boots`), Legwear (`thighhighs`, `pantyhose`) | per photo, through the Composer (below) |
 | Outfit color | `outfit-red`, `outfit-black`, `outfit-white`, … `outfit-multicolor` | main colour |
 | Outfit material | `material-lace`, `material-leather`, `material-latex`, `material-sheer`, … | |
-| Footwear | `footwear-heels`, `footwear-boots`, `footwear-barefoot` | |
-| Legwear | `legwear-stockings`, `legwear-pantyhose`, `legwear-fishnets`, `legwear-socks` | |
 | Accessories | `accessory-glasses`, `accessory-sunglasses`, `accessory-choker`, `accessory-hat` | |
-| View | `view-front`, `view-back`, `view-side` | exclusive, per image — combine with a pose: `squatting view-front` |
 
 Added per tenant by `scripts/add-body-outfit-tags.ts` (add-only: existing groups and
 tags are never changed). It also moved `tanlines` from Theme into `skin-tanlines` —
 `tanlines` stays an alias, so `#tanlines` files keep working.
+
+### The Composer: pose, clothing, camera, expression (ADR-0042)
+
+A workbench for tagging the people in photos, one photo after the other. Open it with
+**Compose** above a set's or session's photos, from a selection (it opens on the first
+selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
+
+- **Four tabs** — **Figure**, **Clothing**, **Camera**, **Expression** (keys **1–4**).
+  Each is a surface of tiles: the tag and its one-line definition. Everything goes on
+  the **photo**, never the set: clothing changes during a set.
+- **Figure:** pick a **base posture**. A click replaces it, **Shift-click adds a
+  second** (two people: standing + kneeling). Its **refinements** unfold underneath
+  (`seiza`, `on-one-knee`, `contrapposto` …), one block per base posture; drop a base
+  and its refinements go with it. Then torso, arms, legs, head, motion.
+- **Clothing:** pick the garments; the **state matrix** then offers each garment its
+  states — `bra ▸ torn-bra · wet-bra · bra-pull · open-bra …`. A dashed chip is a
+  combination that does not exist yet: the first tap creates it, implying the garment
+  and the general state (`torn-bra` counts as `bra` and as `torn-clothes`, shown as a
+  faint tick). Then **Undress**, **Position**, **Fit** and **Impression** — Formality
+  (one), Coverage (one), Style, Context.
+- **Camera:** framing (one), camera angle (one), facing (one), lens.
+- **Expression:** gaze, eyes, mouth, blush, tears.
+- **Enter** writes the photo and moves on; **→** moves on **without writing**; **←**
+  goes back; **Esc** leaves. The bar above the buttons shows what Enter would change
+  (`+ kneeling`, `− standing`).
+- **Pins:** a pinned tab (📌 — Clothing and Camera by default) is **carried over**:
+  the next photo is offered what you last wrote there, dashed, as long as it has
+  nothing of its own in that tab. Enter takes the offer; a tap changes it. The pins
+  are remembered in this browser.
+- The **filmstrip** shows one dot per tab under each photo, lit when it has tags there.
+- Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
+  so `looking_at_viewer` in the query box finds `looking-at-viewer`.
 
 ### The tag browser (/tags, ADR-0033)
 

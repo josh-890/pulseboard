@@ -101,19 +101,42 @@ export function rankForEntity<T extends Pick<TagDefinitionWithGroup, "typicalLev
     .map(({ t }) => t);
 }
 
-/** Reject a parent assignment that would make the hierarchy cyclic. */
+/**
+ * Reject a parent assignment that would make the implication graph cyclic. The
+ * graph has two kinds of edge — `parentId` and the further parents
+ * (tag_extra_parent, ADR-0042) — and a cycle through any mix of them is refused.
+ */
 async function assertNoCycle(tagId: string, parentId: string | null): Promise<void> {
   if (!parentId) return;
   if (parentId === tagId) throw new Error("A tag cannot be its own parent");
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
-    WITH RECURSIVE ancestors AS (
-      SELECT id, "parentId" FROM tag_definition WHERE id = ${parentId}
+    WITH RECURSIVE edges AS (
+      SELECT id AS child, "parentId" AS parent FROM tag_definition WHERE "parentId" IS NOT NULL
+      UNION ALL
+      SELECT "tagId", "parentId" FROM tag_extra_parent
+    ), ancestors AS (
+      SELECT ${parentId}::text AS id
       UNION
-      SELECT td.id, td."parentId" FROM tag_definition td JOIN ancestors a ON td.id = a."parentId"
+      SELECT e.parent FROM edges e JOIN ancestors a ON e.child = a.id
     )
     SELECT id FROM ancestors WHERE id = ${tagId}
   `;
   if (rows.length > 0) throw new Error("That parent would create a cycle");
+}
+
+/**
+ * The further parents of a tag (ADR-0042): torn-pantyhose implies pantyhose
+ * (its `parentId`) and torn-clothes (here). Replaces the whole list; the
+ * `parentId` is never repeated here. Each parent is checked for cycles.
+ */
+export async function setExtraParents(tagId: string, parentIds: string[]): Promise<void> {
+  const tag = await prisma.tagDefinition.findUniqueOrThrow({ where: { id: tagId }, select: { parentId: true } });
+  const wanted = [...new Set(parentIds)].filter((p) => p !== tag.parentId);
+  for (const p of wanted) await assertNoCycle(tagId, p);
+  await prisma.$transaction([
+    prisma.tagExtraParent.deleteMany({ where: { tagId } }),
+    prisma.tagExtraParent.createMany({ data: wanted.map((parentId, sortOrder) => ({ tagId, parentId, sortOrder })) }),
+  ]);
 }
 
 // ─── Group CRUD ─────────────────────────────────────────────────────────────
@@ -290,6 +313,8 @@ export async function updateTagDefinition(
   return prisma.$transaction(async (tx) => {
     const before = await tx.tagDefinition.findUniqueOrThrow({ where: { id }, select: { name: true } });
     const updated = await tx.tagDefinition.update({ where: { id }, data: updateData });
+    // The first parent is never also a further parent (ADR-0042)
+    if (data.parentId) await tx.tagExtraParent.deleteMany({ where: { tagId: id, parentId: data.parentId } });
     // A rename keeps the old name as an alias: `#OldName` files in the archive
     // (ADR-0034) and saved queries still mean this tag. Skipped when the slug did
     // not change or another alias already owns it.
@@ -477,6 +502,30 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       where: { parentId: { in: sourceIds } },
       data: { parentId: targetId },
     });
+    // Further parents (ADR-0042) follow the same way, in both directions; an
+    // edge that would duplicate one already there, or point the target at
+    // itself, is dropped.
+    await tx.$executeRaw`
+      INSERT INTO tag_extra_parent ("tagId", "parentId", "sortOrder")
+      SELECT CASE WHEN "tagId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "tagId" END,
+             CASE WHEN "parentId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "parentId" END,
+             "sortOrder"
+      FROM tag_extra_parent
+      WHERE "tagId" = ANY(${sourceIds}::text[]) OR "parentId" = ANY(${sourceIds}::text[])
+      ON CONFLICT DO NOTHING`;
+    await tx.$executeRaw`DELETE FROM tag_extra_parent WHERE "tagId" = "parentId"`;
+    await tx.$executeRaw`
+      DELETE FROM tag_extra_parent ep USING tag_definition td
+      WHERE ep."tagId" = td.id AND ep."parentId" = td."parentId"`;
+    await tx.$executeRaw`
+      INSERT INTO tag_confusable ("tagAId", "tagBId")
+      SELECT LEAST(a, b), GREATEST(a, b) FROM (
+        SELECT CASE WHEN "tagAId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "tagAId" END AS a,
+               CASE WHEN "tagBId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "tagBId" END AS b
+        FROM tag_confusable
+        WHERE "tagAId" = ANY(${sourceIds}::text[]) OR "tagBId" = ANY(${sourceIds}::text[])
+      ) x WHERE a <> b
+      ON CONFLICT DO NOTHING`;
 
     // Quick-tag slots keep pointing at the merged tag (the FK would cascade-delete them)
     await tx.tagSlot.updateMany({ where: { tagDefinitionId: { in: sourceIds } }, data: { tagDefinitionId: targetId } });

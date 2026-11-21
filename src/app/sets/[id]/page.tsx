@@ -13,6 +13,7 @@ import { getSetMediaGallery, getCoverPhotosForSets, getHeadshotsForPersons, getG
 import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
+import { hasComposer } from "@/lib/services/composer-service";
 import { CoverArtButton } from "@/components/gallery/cover-art-button";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
@@ -52,7 +53,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
   return withTenantFromHeaders(async () => {
     const [{ id }, { tags: tagsParam, photo: photoParam }] = await Promise.all([params, searchParams]);
 
-    const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions, setIntensity, intensityCatalogFull, cookieStore] =
+    const [set, channels, roleGroups, setEntityTags, backdropEnabled, archiveSuggestions, setIntensity, intensityCatalogFull, cookieStore, composer] =
       await Promise.all([
         getSetById(id),
         getChannelsForSelect(),
@@ -63,6 +64,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
         getSetIntensity(id),
         getIntensityCatalog(),
         cookies(),
+        hasComposer(),
       ]);
     // Intensity on the set (2026-10-24): its sessions', minus what it leaves out — once the catalog has acts
     const intensityCatalog = sessionIntensityCatalog(intensityCatalogFull);
@@ -288,6 +290,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
             }))}
             copyToReferenceTargets={copyToReferenceTargets}
             cast={castDirectory}
+            composeHref={composer && setData.type === "photo" ? `/sets/${id}/compose` : undefined}
           />
           }
           sidebar={<>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Columns2, Crosshair, FolderPlus, HelpCircle, ImagePlus, PanelRight, PanelRightClose, Rows3, X } from "lucide-react";
+import { Columns2, Crosshair, FolderPlus, HelpCircle, ImagePlus, PanelRight, PanelRightClose, Rows3, X, Shapes } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SlotState } from "@/components/tags/tag-slot-bar";
 import type { MarkKey } from "@/lib/media-mark-tiers";
@@ -38,6 +38,8 @@ export type LightboxToolbarProps = {
   onTag: () => void;
   onArm: () => void;
   onCategory: () => void;
+  /** ADR-0042: open this photo in the tag workbench — only where a Composer exists */
+  onCompose?: () => void;
   /** ADR-0036, 3b: acts this photo can be evidence for — only in a session gallery with intensity */
   acts?: { acts: EvidenceAct[]; linked: string[]; onToggle: (contributionActId: string, linked: boolean) => void };
   armedTag: PaletteTag | null;
@@ -111,6 +113,11 @@ export function LightboxToolbar(props: LightboxToolbarProps) {
             <LightboxToolbarButton label="Assign to a detail category" shortcut="category" onClick={props.onCategory} className="bg-white/10">
               <ImagePlus size={16} />
             </LightboxToolbarButton>
+            {props.onCompose && (
+              <LightboxToolbarButton label="Compose: tag pose, clothing, camera" onClick={props.onCompose} className="bg-white/10">
+                <Shapes size={16} />
+              </LightboxToolbarButton>
+            )}
             {props.acts && (
               <LightboxActPill
                 acts={props.acts.acts}

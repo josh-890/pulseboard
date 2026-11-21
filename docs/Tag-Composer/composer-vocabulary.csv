@@ -1,0 +1,261 @@
+﻿path;section;group;exclusive;tag;danbooru;danbooru_check;parents;definition;confusable;origin
+Figure;Base posture;Posture;;standing;standing;verified;;Body carried by one or both feet, essentially upright.;"squatting; kneeling";existing
+Figure;Base posture;Posture;;sitting;sitting;verified;;Buttocks rest on a surface (chair, floor, bed, heels).;"kneeling; reclining";existing
+Figure;Base posture;Posture;;kneeling;kneeling;verified;;"One or both knees on the ground; buttocks NOT resting on the heels.";"seiza; all-fours";existing
+Figure;Base posture;Posture;;lying;lying;verified;;Body flat on a surface, carried by back, stomach or side.;reclining;existing
+Figure;Base posture;Posture;;squatting;squatting;verified;;Knees fully bent, buttocks near the heels, feet on the ground, knees free.;"kneeling; crouching";existing
+Figure;Base posture;Posture;;crouching;crouching;unverified;;"Knees bent and body lowered, leaning forward, ready to move; less deep than squatting.";squatting;excel
+Figure;Base posture;Posture;;all-fours;all_fours;verified;;Hands and knees both on the ground.;kneeling;excel
+Figure;Refinement;Posture detail;;standing-on-one-leg;standing_on_one_leg;verified;standing;Only one foot carries the weight, the other leg lifted.;leg-up;excel
+Figure;Refinement;Posture detail;;contrapposto;contrapposto;verified;standing;Weight on one leg, hips and shoulders tilted against each other (S-curve).;;excel
+Figure;Refinement;Posture detail;;leaning-against-wall;against_wall;verified;standing;Standing, back or shoulder supported by a wall.;;excel
+Figure;Refinement;Posture detail;;seiza;seiza;verified;sitting;Knees on the floor, buttocks on the heels, insteps flat. Counts as sitting.;kneeling;excel
+Figure;Refinement;Posture detail;;wariza;wariza;verified;sitting;Buttocks on the floor between the feet, lower legs splayed out to both sides (W-sitting).;yokozuwari;excel
+Figure;Refinement;Posture detail;;yokozuwari;yokozuwari;verified;sitting;Both legs folded to the same side, buttocks on the floor.;wariza;excel
+Figure;Refinement;Posture detail;;indian-style;indian_style;verified;sitting;Cross-legged on the floor, legs crossed at the ankles.;"lotus-position; butterfly-sitting";excel
+Figure;Refinement;Posture detail;;lotus-position;lotus_position;unverified;sitting;Cross-legged with each foot on the opposite thigh, soles up.;indian-style;excel
+Figure;Refinement;Posture detail;;butterfly-sitting;butterfly_sitting;verified;sitting;Soles pressed together, knees falling outward.;indian-style;excel
+Figure;Refinement;Posture detail;;figure-four-sitting;figure_four_sitting;unverified;sitting;One ankle resting on the opposite knee, usually on a chair.;crossed-legs;excel
+Figure;Refinement;Posture detail;;hugging-own-legs;hugging_own_legs;verified;sitting;Knees drawn up, arms wrapped around them.;"fetal-position; knees-to-chest";excel
+Figure;Refinement;Posture detail;;knees-up;knees_up;verified;sitting;Sitting with knees raised, feet on the surface.;hugging-own-legs;excel
+Figure;Refinement;Posture detail;;reclining;reclining;verified;sitting;Upper body leaning far back, half sitting, half lying.;"lying; leaning-back";excel
+Figure;Refinement;Posture detail;;straddling;straddling;verified;sitting;Legs on either side of an object (chair back, bench, armrest).;;excel
+Figure;Refinement;Posture detail;;on-one-knee;on_one_knee;verified;kneeling;Only one knee on the ground, the other leg bent with the foot down.;kneeling;excel
+Figure;Refinement;Posture detail;;on-back;on_back;verified;lying;Lying on the back, face up.;reclining;excel
+Figure;Refinement;Posture detail;;on-stomach;on_stomach;verified;lying;"Lying on the stomach; upper body may be propped up.";all-fours;excel
+Figure;Refinement;Posture detail;;on-side;on_side;verified;lying;Lying on one side, hips stacked.;;excel
+Figure;Refinement;Posture detail;;fetal-position;fetal_position;verified;on-side;On the side, curled up, knees and arms drawn to the chest.;hugging-own-legs;excel
+Figure;Refinement;Posture detail;;the-pose;the_pose;verified;on-stomach;On the stomach with the lower legs raised, feet in the air.;legs-up;excel
+Figure;Torso;Torso;;arched-back;arched_back;verified;;Spine curved, chest pushed forward, hollow lower back.;bent-back;excel
+Figure;Torso;Torso;;bent-back;bent_back;not in list — check;;Upper body bent backwards (backbend).;"arched-back; leaning-back";excel
+Figure;Torso;Torso;;leaning-forward;leaning_forward;verified;;Upper body tilted forward, mild to moderate.;bent-over;excel
+Figure;Torso;Torso;;bent-over;bent_over;verified;;Upper body bent far forward, often near horizontal.;leaning-forward;excel
+Figure;Torso;Torso;;leaning-back;leaning_back;verified;;Upper body tilted backward.;"reclining; bent-back";excel
+Figure;Torso;Torso;;twisted-torso;twisted_torso;verified;;Shoulders turned against the hips.;;excel
+Figure;Arms & hands;Arms & hands;;arms-up;arms_up;verified;;Both arms raised above the head.;arm-up;excel
+Figure;Arms & hands;Arms & hands;;arm-up;arm_up;verified;;One arm raised.;arms-up;excel
+Figure;Arms & hands;Arms & hands;;arms-behind-head;arms_behind_head;verified;;Hands clasped or resting behind the head.;hand-in-own-hair;new
+Figure;Arms & hands;Arms & hands;;arms-behind-back;arms_behind_back;verified;;Arms held behind the back.;;excel
+Figure;Arms & hands;Arms & hands;;spread-arms;spread_arms;verified;;Arms stretched out to the sides.;outstretched-arms;excel
+Figure;Arms & hands;Arms & hands;;outstretched-arm;outstretched_arm;verified;;One arm stretched toward the camera or forward.;reaching;excel
+Figure;Arms & hands;Arms & hands;;outstretched-arms;outstretched_arms;verified;;Both arms stretched forward.;spread-arms;excel
+Figure;Arms & hands;Arms & hands;;reaching;reaching;verified;;Arm extended toward something.;outstretched-arm;excel
+Figure;Arms & hands;Arms & hands;;crossed-arms;crossed_arms;verified;;Arms folded across the chest.;covering-breasts;excel
+Figure;Arms & hands;Arms & hands;;hand-on-hip;hand_on_hip;verified;;One hand on the hip.;hands-on-hips;excel
+Figure;Arms & hands;Arms & hands;;hands-on-hips;hands_on_hips;verified;;Both hands on the hips.;hand-on-hip;excel
+Figure;Arms & hands;Arms & hands;;hand-in-pocket;hand_in_pocket;verified;;One hand in a pocket.;;excel
+Figure;Arms & hands;Arms & hands;;hands-in-pockets;hands_in_pockets;verified;;Both hands in pockets.;;excel
+Figure;Arms & hands;Arms & hands;;arm-support;arm_support;verified;;Upper body propped on the arms.;;excel
+Figure;Arms & hands;Arms & hands;;hand-on-own-chin;hand_on_own_chin;verified;;Hand resting at the chin.;;excel
+Figure;Arms & hands;Arms & hands;;hand-in-own-hair;hand_in_own_hair;verified;;Hand touching or running through the hair.;arms-behind-head;new
+Figure;Arms & hands;Arms & hands;;hand-on-own-chest;hand_on_own_chest;verified;;Hand placed on the chest.;covering-breasts;new
+Figure;Arms & hands;Arms & hands;;hands-on-own-thighs;hands_on_own_thighs;verified;;Hands resting on the thighs.;;new
+Figure;Arms & hands;Arms & hands;;covering-breasts;covering_breasts;verified;;Arm or hands covering the breasts.;"crossed-arms; hand-on-own-chest";new
+Figure;Arms & hands;Arms & hands;;covering-crotch;covering_crotch;verified;;Hand(s) covering the crotch.;;new
+Figure;Legs & feet;Legs & feet;;crossed-legs;crossed_legs;verified;;One leg over the other, usually at the knee.;"crossed-ankles; figure-four-sitting";excel
+Figure;Legs & feet;Legs & feet;;crossed-ankles;crossed_ankles;verified;;Ankles crossed.;crossed-legs;excel
+Figure;Legs & feet;Legs & feet;;legs-apart;legs_apart;verified;;Feet clearly apart.;spread-legs;excel
+Figure;Legs & feet;Legs & feet;;spread-legs;spread_legs;verified;;Legs spread wide (wider than legs-apart).;legs-apart;excel
+Figure;Legs & feet;Legs & feet;;leg-up;leg_up;verified;;One leg raised.;standing-on-one-leg;excel
+Figure;Legs & feet;Legs & feet;;legs-up;legs_up;verified;;Both legs raised.;the-pose;excel
+Figure;Legs & feet;Legs & feet;;knees-to-chest;knees_to_chest;verified;;Knees pulled to the chest (sitting or lying).;hugging-own-legs;excel
+Figure;Legs & feet;Legs & feet;;knees-together-feet-apart;knees_together_feet_apart;verified;;Knees touching, feet apart.;pigeon-toed;excel
+Figure;Legs & feet;Legs & feet;;pigeon-toed;pigeon-toed;verified;;Toes pointing inward.;knees-together-feet-apart;excel
+Figure;Legs & feet;Legs & feet;;split;split;verified;;Legs extended in opposite directions on the ground.;standing-split;excel
+Figure;Legs & feet;Legs & feet;;standing-split;standing_split;verified;standing;Standing on one leg, the other raised high (vertical split).;split;new
+Figure;Legs & feet;Legs & feet;;tiptoes;tiptoes;verified;;On the balls of the feet / toes.;;excel
+Figure;Head;Head;;head-tilt;head_tilt;verified;;Head tilted to one side.;;excel
+Figure;Head;Head;;head-down;head_down;verified;;Head lowered.;looking-down;excel
+Figure;Head;Head;;head-back;head_back;verified;;Head thrown back.;looking-up;excel
+Figure;Motion;Motion;;walking;walking;verified;;Caught mid-step.;running;new
+Figure;Motion;Motion;;running;running;verified;;Running.;walking;new
+Figure;Motion;Motion;;jumping;jumping;verified;;Both feet off the ground.;;new
+Figure;Motion;Motion;;dancing;dancing;verified;;Dancing movement.;;new
+Figure;Motion;Motion;;stretching;stretching;verified;;Stretching the body or limbs.;arms-up;new
+Camera;Framing;Framing;yes;close-up;close-up;verified;;Face, or a small part of the body, fills the frame.;"portrait; detail";existing
+Camera;Framing;Framing;yes;portrait;portrait;verified;;Head and shoulders.;"close-up; upper-body";existing
+Camera;Framing;Framing;yes;upper-body;upper_body;verified;;From the head to about the waist.;"portrait; cowboy-shot";rename:half-body
+Camera;Framing;Framing;yes;cowboy-shot;cowboy_shot;verified;;From the head to about mid-thigh.;"upper-body; full-body";new
+Camera;Framing;Framing;yes;full-body;full_body;verified;;Head to feet visible.;wide-shot;existing
+Camera;Framing;Framing;yes;wide-shot;wide_shot;verified;;The person small within a lot of surroundings.;full-body;excel
+Camera;Framing;Framing;yes;lower-body;lower_body;verified;;Waist down only.;detail;new
+Camera;Framing;Framing;yes;detail;;;;A body part or garment detail, not the person as a whole.;close-up;existing
+Camera;Camera angle;Camera angle;yes;eye-level;eye_level;not in list — check;;Camera at the person's eye height, neutral.;;excel
+Camera;Camera angle;Camera angle;yes;from-above;from_above;verified;;Camera above the person, looking down.;;excel
+Camera;Camera angle;Camera angle;yes;from-below;from_below;verified;;Camera below the person, looking up.;;excel
+Camera;Facing;Facing;yes;facing-viewer;facing_viewer;verified;;Body front turned to the camera.;three-quarter-view;rename:view-front
+Camera;Facing;Facing;yes;three-quarter-view;three-quarter_view;not in list — check;;Body turned about 45° from the camera.;"facing-viewer; from-side";excel
+Camera;Facing;Facing;yes;from-side;from_side;verified;;Seen from the side (90°).;three-quarter-view;rename:view-side
+Camera;Facing;Facing;yes;from-behind;from_behind;verified;;Seen from behind.;"facing-away; looking-back";rename:view-back
+Camera;Facing;Facing;yes;facing-away;facing_away;verified;;Turned away from the camera, back or side toward it.;from-behind;excel
+Camera;Lens & perspective;Lens & perspective;;dutch-angle;dutch_angle;verified;;Horizon tilted.;;excel
+Camera;Lens & perspective;Lens & perspective;;fisheye;fisheye;verified;;Strong fisheye distortion.;;excel
+Camera;Lens & perspective;Lens & perspective;;foreshortening;foreshortening;verified;;"Strong perspective shortening; a limb close to the lens looks huge.";;excel
+Camera;Lens & perspective;Lens & perspective;;pov;pov;verified;;Seen from a participant's eyes (first person).;;excel
+Expression;Gaze;Gaze;;looking-at-viewer;looking_at_viewer;verified;;Looking straight into the camera.;facing-viewer;excel
+Expression;Gaze;Gaze;;looking-away;looking_away;verified;;Looking somewhere other than the camera.;looking-to-the-side;excel
+Expression;Gaze;Gaze;;looking-to-the-side;looking_to_the_side;verified;;Looking sideways.;looking-away;excel
+Expression;Gaze;Gaze;;looking-down;looking_down;verified;;Gaze lowered.;head-down;excel
+Expression;Gaze;Gaze;;looking-up;looking_up;verified;;Gaze raised.;head-back;excel
+Expression;Gaze;Gaze;;looking-back;looking_back;verified;;Looking back over the shoulder toward the camera.;from-behind;excel
+Expression;Gaze;Gaze;;looking-afar;looking_afar;verified;;Gazing into the distance.;looking-away;excel
+Expression;Eyes;Eyes;;closed-eyes;closed_eyes;verified;;Both eyes closed.;half-closed-eyes;excel
+Expression;Eyes;Eyes;;half-closed-eyes;half-closed_eyes;verified;;Eyes half closed, heavy lids.;closed-eyes;excel
+Expression;Eyes;Eyes;;one-eye-closed;one_eye_closed;verified;;One eye closed (wink).;;excel
+Expression;Eyes;Eyes;;wide-eyed;wide-eyed;verified;;Eyes wide open.;;excel
+Expression;Mouth;Mouth;;smile;smile;verified;;Smiling, mouth usually closed.;"grin; light-smile";excel
+Expression;Mouth;Mouth;;light-smile;light_smile;verified;smile;Faint smile.;smile;excel
+Expression;Mouth;Mouth;;grin;grin;verified;smile;Broad smile showing teeth.;smile;excel
+Expression;Mouth;Mouth;;smirk;smirk;verified;;One-sided, knowing smile.;light-smile;excel
+Expression;Mouth;Mouth;;seductive-smile;seductive_smile;verified;smile;Smile with a lowered gaze or raised brow, inviting.;smirk;excel
+Expression;Mouth;Mouth;;open-mouth;open_mouth;verified;;Mouth open.;parted-lips;excel
+Expression;Mouth;Mouth;;parted-lips;parted_lips;verified;;Lips slightly apart.;open-mouth;excel
+Expression;Mouth;Mouth;;closed-mouth;closed_mouth;verified;;Mouth closed.;;excel
+Expression;Mouth;Mouth;;tongue-out;tongue_out;verified;;Tongue showing.;;excel
+Expression;Mouth;Mouth;;lip-biting;lip_biting;verified;;Biting the lower lip.;;excel
+Expression;Mouth;Mouth;;pout;pout;verified;;Lips pushed forward.;;excel
+Expression;Face;Face;;blush;blush;verified;;Visible reddening of the cheeks.;;excel
+Expression;Face;Face;;tears;tears;verified;;Visible tears.;;excel
+Clothing;Garments;Tops;;top;;;;A top of any kind (generic).;"shirt; tank-top";existing
+Clothing;Garments;Tops;;shirt;shirt;verified;;Shirt with collar or buttons.;"blouse; t-shirt";existing
+Clothing;Garments;Tops;;t-shirt;t-shirt;verified;shirt;T-shirt.;;new
+Clothing;Garments;Tops;;blouse;blouse;verified;;Blouse.;shirt;existing
+Clothing;Garments;Tops;;tank-top;tank_top;verified;;Sleeveless top.;crop-top;new
+Clothing;Garments;Tops;;crop-top;crop_top;verified;;Top ending above the navel.;tank-top;new
+Clothing;Garments;Tops;;sweater;sweater;verified;;Knitted pullover.;;existing
+Clothing;Garments;Tops;;jacket;jacket;verified;;Jacket.;coat;new
+Clothing;Garments;Tops;;coat;coat;verified;;Coat.;jacket;new
+Clothing;Garments;Bottoms;;skirt;skirt;verified;;Skirt.;dress;existing
+Clothing;Garments;Bottoms;;miniskirt;miniskirt;verified;skirt;Very short skirt.;;new
+Clothing;Garments;Bottoms;;shorts;shorts;verified;;Shorts.;;existing
+Clothing;Garments;Bottoms;;jeans;jeans;verified;pants;Denim trousers.;;existing
+Clothing;Garments;Bottoms;;pants;pants;verified;;Trousers.;leggings;new
+Clothing;Garments;Bottoms;;leggings;leggings;verified;;Footless tight legwear worn as trousers.;pantyhose;excel
+Clothing;Garments;One-piece;;dress;dress;verified;;Dress.;skirt;existing
+Clothing;Garments;One-piece;;evening-gown;evening_gown;verified;dress;Long formal dress.;;new
+Clothing;Garments;One-piece;;bodysuit;bodysuit;verified;;One-piece garment covering torso, often to the crotch.;"leotard; one-piece-swimsuit";existing
+Clothing;Garments;One-piece;;leotard;leotard;verified;;Tight one-piece, legs fully open.;bodysuit;new
+Clothing;Garments;One-piece;;robe;robe;verified;;Robe or bathrobe.;kimono;existing
+Clothing;Garments;One-piece;;kimono;kimono;verified;;Kimono.;robe;new
+Clothing;Garments;One-piece;;nightgown;nightgown;verified;;Nightgown, sleepwear dress.;negligee;rename:nightwear
+Clothing;Garments;One-piece;;towel;towel;verified;;Only wrapped in a towel.;;new
+Clothing;Garments;Swimwear;;swimsuit;swimsuit;verified;;Swimsuit (generic).;;rename:swimwear
+Clothing;Garments;Swimwear;;bikini;bikini;verified;swimsuit;Two-piece swimsuit.;;existing
+Clothing;Garments;Swimwear;;one-piece-swimsuit;one-piece_swimsuit;verified;swimsuit;One-piece swimsuit.;bodysuit;rename:one-piece
+Clothing;Garments;Swimwear;;bikini-top-only;bikini_top_only;verified;bikini;Only the bikini top is worn.;;new
+Clothing;Garments;Swimwear;;bikini-bottom-only;bikini_bottom_only;verified;bikini;Only the bikini bottom is worn.;topless;new
+Clothing;Garments;Lingerie;;lingerie;lingerie;verified;;Decorative underwear, not everyday.;;existing
+Clothing;Garments;Lingerie;;bra;bra;verified;;Bra.;;new
+Clothing;Garments;Lingerie;;panties;panties;verified;;Panties.;thong;new
+Clothing;Garments;Lingerie;;thong;thong;verified;panties;Thong.;g-string;new
+Clothing;Garments;Lingerie;;g-string;g-string;verified;panties;G-string.;thong;new
+Clothing;Garments;Lingerie;;corset;corset;verified;;Corset.;bodysuit;existing
+Clothing;Garments;Lingerie;;garter-belt;garter_belt;verified;;Garter belt.;garter-straps;new
+Clothing;Garments;Lingerie;;garter-straps;garter_straps;verified;;Straps holding up stockings.;garter-belt;new
+Clothing;Garments;Lingerie;;babydoll;babydoll;verified;lingerie;Short, loose nightie.;negligee;existing
+Clothing;Garments;Lingerie;;negligee;negligee;verified;lingerie;Sheer, thin night dress.;"nightgown; babydoll";new
+Clothing;Garments;Footwear;;shoes;shoes;verified;;Closed shoes below the ankle.;boots;new
+Clothing;Garments;Footwear;;high-heels;high_heels;verified;;Heeled shoes.;;rename:footwear-heels
+Clothing;Garments;Footwear;;boots;boots;verified;;Boots above the ankle.;;rename:footwear-boots
+Clothing;Garments;Footwear;;sneakers;sneakers;verified;shoes;Sneakers.;;rename:footwear-sneakers
+Clothing;Garments;Footwear;;sandals;sandals;verified;;Open sandals.;;rename:footwear-sandals
+Clothing;Garments;Footwear;;slippers;slippers;verified;;Slippers.;;excel
+Clothing;Garments;Legwear;;thighhighs;thighhighs;verified;;Stockings ending at the thigh.;"pantyhose; kneehighs";rename:legwear-stockings
+Clothing;Garments;Legwear;;pantyhose;pantyhose;verified;;Tights up to the waist, covering the feet.;"thighhighs; leggings";rename:legwear-pantyhose
+Clothing;Garments;Legwear;;kneehighs;kneehighs;verified;;Socks or stockings to the knee.;socks;rename:legwear-knee-socks
+Clothing;Garments;Legwear;;socks;socks;verified;;Socks.;kneehighs;rename:legwear-socks
+Clothing;Garments;Legwear;;fishnets;fishnets;verified;;Fishnet legwear.;;rename:legwear-fishnets
+Clothing;Undress;Undress;;nude;nude;verified;;"Naked; small accessories may remain.";completely-nude;new
+Clothing;Undress;Undress;;completely-nude;completely_nude;verified;nude;Naked, nothing at all (no shoes, no jewellery).;nude;new
+Clothing;Undress;Undress;;topless;topless;verified;;Nothing covering the breasts, bottom covered.;"bottomless; no-bra";new
+Clothing;Undress;Undress;;bottomless;bottomless;verified;;Nothing covering the crotch and buttocks, top covered.;topless;new
+Clothing;Undress;Undress;;underwear-only;underwear_only;verified;;Only underwear or lingerie, no outer clothes.;;excel
+Clothing;Undress;Undress;;no-bra;no_bra;verified;;Clothes on top but no bra underneath.;topless;excel
+Clothing;Undress;Undress;;no-panties;no_panties;verified;;Clothes on bottom but no panties underneath.;bottomless;excel
+Clothing;Undress;Undress;;barefoot;barefoot;verified;;No shoes and no legwear on the feet.;no-shoes;rename:footwear-barefoot
+Clothing;Undress;Undress;;no-shoes;no_shoes;verified;;No shoes, but socks or legwear may be on.;barefoot;excel
+Clothing;Undress;Undress;;partially-undressed;partially_undressed;verified;;Some clothes removed or displaced.;undressing;excel
+Clothing;Undress;Undress;;undressing;undressing;verified;;Caught in the act of taking clothes off.;partially-undressed;excel
+Clothing;State matrix;Damage;;torn-clothes;torn_clothes;verified;;Clothes ripped or damaged.;;excel
+Clothing;State matrix;Damage;;torn-shirt;torn_shirt;verified;"torn-clothes; shirt";;;matrix-seed
+Clothing;State matrix;Damage;;torn-dress;torn_dress;verified;"torn-clothes; dress";;;matrix-seed
+Clothing;State matrix;Damage;;torn-pantyhose;torn_pantyhose;verified;"torn-clothes; pantyhose";;;matrix-seed
+Clothing;State matrix;Damage;;torn-panties;torn_panties;verified;"torn-clothes; panties";;;matrix-seed
+Clothing;State matrix;Damage;;torn-bra;torn_bra;not in list — check;"torn-clothes; bra";;;matrix-seed
+Clothing;State matrix;Damage;;torn-thighhighs;torn_thighhighs;verified;"torn-clothes; thighhighs";;;matrix-seed
+Clothing;State matrix;Wet;;wet-clothes;wet_clothes;verified;;Clothes visibly wet.;;excel
+Clothing;State matrix;Wet;;wet-shirt;wet_shirt;verified;"wet-clothes; shirt";;;matrix-seed
+Clothing;State matrix;Wet;;wet-dress;wet_dress;verified;"wet-clothes; dress";;;matrix-seed
+Clothing;State matrix;Wet;;wet-panties;wet_panties;verified;"wet-clothes; panties";;;matrix-seed
+Clothing;State matrix;Wet;;wet-swimsuit;wet_swimsuit;verified;"wet-clothes; swimsuit";;;matrix-seed
+Clothing;State matrix;See-through;;see-through-clothes;see-through;verified;;Fabric lets the skin show through (material or wet).;;excel
+Clothing;State matrix;See-through;;see-through-shirt;see-through_shirt;verified;"see-through-clothes; shirt";;;matrix-seed
+Clothing;State matrix;See-through;;see-through-panties;see-through_panties;not in list — check;"see-through-clothes; panties";;;matrix-seed
+Clothing;State matrix;See-through;;see-through-bra;see-through_bra;not in list — check;"see-through-clothes; bra";;;matrix-seed
+Clothing;State matrix;Open;;open-clothes;open_clothes;verified;;Unbuttoned or unzipped, opened at the front.;;excel
+Clothing;State matrix;Open;;open-shirt;open_shirt;verified;"open-clothes; shirt";;;matrix-seed
+Clothing;State matrix;Open;;open-jacket;open_jacket;verified;"open-clothes; jacket";;;matrix-seed
+Clothing;State matrix;Open;;open-dress;open_dress;verified;"open-clothes; dress";;;matrix-seed
+Clothing;State matrix;Open;;open-bra;open_bra;verified;"open-clothes; bra";;;matrix-seed
+Clothing;State matrix;Open;;open-robe;open_robe;verified;"open-clothes; robe";;;matrix-seed
+Clothing;State matrix;Open;;open-kimono;open_kimono;verified;"open-clothes; kimono";;;matrix-seed
+Clothing;State matrix;Lift;;clothes-lift;clothes_lift;verified;;Garment lifted up, revealing what is below.;;excel
+Clothing;State matrix;Lift;;shirt-lift;shirt_lift;verified;"clothes-lift; shirt";;;matrix-seed
+Clothing;State matrix;Lift;;skirt-lift;skirt_lift;verified;"clothes-lift; skirt";;;matrix-seed
+Clothing;State matrix;Lift;;dress-lift;dress_lift;verified;"clothes-lift; dress";;;matrix-seed
+Clothing;State matrix;Lift;;sweater-lift;sweater_lift;verified;"clothes-lift; sweater";;;matrix-seed
+Clothing;State matrix;Lift;;bra-lift;bra_lift;verified;"clothes-lift; bra";;;matrix-seed
+Clothing;State matrix;Lift;;bikini-lift;bikini_lift;verified;"clothes-lift; bikini";;;matrix-seed
+Clothing;State matrix;Pull;;clothes-pull;clothes_pull;verified;;Garment pulled down or aside by a hand.;;excel
+Clothing;State matrix;Pull;;shirt-pull;shirt_pull;verified;"clothes-pull; shirt";;;matrix-seed
+Clothing;State matrix;Pull;;skirt-pull;skirt_pull;verified;"clothes-pull; skirt";;;matrix-seed
+Clothing;State matrix;Pull;;dress-pull;dress_pull;verified;"clothes-pull; dress";;;matrix-seed
+Clothing;State matrix;Pull;;bra-pull;bra_pull;verified;"clothes-pull; bra";;;matrix-seed
+Clothing;State matrix;Pull;;panty-pull;panty_pull;verified;"clothes-pull; panties";;;matrix-seed
+Clothing;State matrix;Pull;;bikini-pull;bikini_pull;verified;"clothes-pull; bikini";;;matrix-seed
+Clothing;State matrix;Pull;;pants-pull;pants_pull;verified;"clothes-pull; pants";;;matrix-seed
+Clothing;State matrix;Pull;;swimsuit-pull;swimsuit_pull;verified;"clothes-pull; swimsuit";;;matrix-seed
+Clothing;State matrix;Aside;;clothing-aside;clothing_aside;verified;;Garment moved to the side, still worn.;;excel
+Clothing;State matrix;Aside;;panties-aside;panties_aside;verified;"clothing-aside; panties";;;matrix-seed
+Clothing;State matrix;Aside;;bikini-bottom-aside;bikini_bottom_aside;verified;"clothing-aside; bikini";;;matrix-seed
+Clothing;State matrix;Aside;;swimsuit-aside;swimsuit_aside;verified;"clothing-aside; swimsuit";;;matrix-seed
+Clothing;State matrix;Unworn;;unworn-clothes;unworn_clothes;verified;;Garment taken off and visible in the picture.;;excel
+Clothing;State matrix;Unworn;;unworn-shoes;unworn_shoes;verified;"unworn-clothes; shoes";;;matrix-seed
+Clothing;State matrix;Unworn;;unworn-panties;unworn_panties;verified;"unworn-clothes; panties";;;matrix-seed
+Clothing;State matrix;Unworn;;unworn-bra;unworn_bra;verified;"unworn-clothes; bra";;;matrix-seed
+Clothing;State matrix;Position;;clothes-down;clothes_down;verified;;Top pulled far down (to the elbows or waist).;clothes-pull;excel
+Clothing;State matrix;Position;;off-shoulder;off_shoulder;verified;;Garment slipped or worn off the shoulders.;strap-slip;excel
+Clothing;State matrix;Position;;strap-slip;strap_slip;verified;;A strap has slipped off the shoulder.;off-shoulder;excel
+Clothing;State matrix;Position;;wardrobe-malfunction;wardrobe_malfunction;verified;;Accidental exposure: a garment slipped or failed.;;new
+Clothing;State matrix;Position;;panties-around-one-leg;panties_around_one_leg;verified;panties;Panties hanging around one leg.;;excel
+Clothing;State matrix;Position;;pants-down;pants_down;verified;pants;Trousers pulled down.;;new
+Clothing;State matrix;Position;;shoe-dangle;shoe_dangle;verified;shoes;Shoe hanging from the toes.;;excel
+Clothing;State matrix;Position;;single-shoe;single_shoe;verified;;Only one shoe on.;;excel
+Clothing;State matrix;Fit;;tight-clothes;tight_clothes;verified;;Clothes clinging tightly to the body.;skin-tight;excel
+Clothing;State matrix;Fit;;skin-tight;skin_tight;verified;tight-clothes;Like a second skin.;tight-clothes;excel
+Clothing;State matrix;Fit;;loose-clothes;loose_clothes;verified;;Loose, oversized clothes.;;excel
+Clothing;Impression;Formality;yes;casual;casual;verified;;Everyday clothes.;smart-casual;rename:casual (Outfit)
+Clothing;Impression;Formality;yes;smart-casual;;;;Casual but noticeably put together.;"casual; dressy";new
+Clothing;Impression;Formality;yes;dressy;;;;Cocktail level: dressed up, not formal.;formal;new
+Clothing;Impression;Formality;yes;formal;formal;verified;;Formal wear: suit, formal dress.;evening-wear;new
+Clothing;Impression;Formality;yes;evening-wear;;;;Gala level: evening gown, black tie.;formal;new
+Clothing;Impression;Coverage;yes;modest;;;;Covers most of the body.;;new
+Clothing;Impression;Coverage;yes;revealing-clothes;revealing_clothes;verified;;Clothes showing much skin by design.;skimpy;new
+Clothing;Impression;Coverage;yes;skimpy;;;;"Very little fabric; barely covers.";"revealing-clothes; barely-clothed";new
+Clothing;Impression;Coverage;yes;barely-clothed;;;;Almost nothing on (e.g. only an open shirt or tiny pieces).;"skimpy; nude";new
+Clothing;Impression;Style;;elegant;;;;Refined, graceful.;glamorous;new
+Clothing;Impression;Style;;glamorous;;;;Showy luxury, high-gloss.;elegant;new
+Clothing;Impression;Style;;sexy;;;;Clothes chosen to look seductive.;;new
+Clothing;Impression;Style;;girly;;;;Cute, feminine, playful.;romantic;new
+Clothing;Impression;Style;;romantic;;;;Soft, delicate, lace and flowing fabric.;girly;new
+Clothing;Impression;Style;;sporty;;;;Athletic, sportswear look.;;rename:sport (Outfit)
+Clothing;Impression;Style;;edgy;;;;Rock, leather, provocative.;gothic;new
+Clothing;Impression;Style;;gothic;gothic;verified;;Dark gothic style.;edgy;new
+Clothing;Impression;Style;;vintage;;;;Retro, older fashion.;;new
+Clothing;Impression;Style;;bohemian;;;;Boho, loose, natural layers.;;new
+Clothing;Impression;Style;;preppy;;;;Clean college style.;;new
+Clothing;Impression;Style;;streetwear;;;;Urban street fashion.;;new
+Clothing;Impression;Style;;fetish-wear;;;;Latex, leather harness, bondage-style clothing.;edgy;new
+Clothing;Impression;Context;;inappropriate-attire;;;;Clothes that do not fit the setting (e.g. lingerie at the office).;;new
+Clothing;Impression;Context;;costume;costume;verified;;Costume or cosplay.;uniform;rename:costume (Outfit)
+Clothing;Impression;Context;;uniform;uniform;verified;;Uniform (school, nurse, police, maid …).;costume;rename:uniform (Outfit)

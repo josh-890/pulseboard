@@ -38,6 +38,7 @@ export async function loadTagCatalog(): Promise<CatalogTag[]> {
       parentId: true,
       groupId: true,
       aliases: { select: { name: true } },
+      extraParents: { select: { parentId: true }, orderBy: { sortOrder: "asc" } },
       group: { select: { slug: true, name: true, isExclusive: true, kind: true, domain: true } },
     },
   });
@@ -47,6 +48,7 @@ export async function loadTagCatalog(): Promise<CatalogTag[]> {
     slug: t.slug,
     aliases: t.aliases.map((a) => a.name),
     parentId: t.parentId,
+    extraParentIds: t.extraParents.map((p) => p.parentId),
     groupId: t.groupId,
     groupSlug: t.group.slug,
     isExclusive: t.group.isExclusive,

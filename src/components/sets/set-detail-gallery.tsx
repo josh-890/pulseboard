@@ -31,6 +31,7 @@ import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
 import { ToneFilterPill } from "@/components/gallery/tone-filter-pill";
 import { ToneMarkButtons } from "@/components/gallery/tone-mark-buttons";
+import { ComposeEntryLink } from "@/components/composer/compose-entry-link";
 import { tallyTones, useToneFilter } from "@/lib/hooks/use-tone-filter";
 import { SortableGallery } from "@/components/gallery/sortable-gallery";
 import { GalleryLightbox } from "@/components/gallery/gallery-lightbox";
@@ -140,6 +141,8 @@ type SetDetailGalleryProps = {
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
   /** `?photo=` — the way back from favorites / collections: open the viewer on it */
   initialPhotoId?: string | null;
+  /** ADR-0042: the tag workbench — absent where the tenant has no Composer */
+  composeHref?: string;
 };
 
 const noSubscribe = () => () => {};
@@ -157,6 +160,7 @@ export function SetDetailGallery({
   cast,
   tagFilter,
   initialPhotoId,
+  composeHref,
 }: SetDetailGalleryProps) {
   const router = useRouter();
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
@@ -652,9 +656,10 @@ export function SetDetailGallery({
         />
       )}
       {/* Color / B&W (ADR-0041) — only when the set holds both */}
-      {toneAvailable && !isReordering && (
-        <div className="mb-3">
-          <ToneFilterPill value={tone} counts={toneCounts} onChange={setTone} />
+      {(toneAvailable || composeHref) && !isReordering && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {toneAvailable && <ToneFilterPill value={tone} counts={toneCounts} onChange={setTone} />}
+          {composeHref && <ComposeEntryLink href={composeHref} className="ml-auto" />}
         </div>
       )}
       {/* People-shown filter (ADR-0023) — only when the set has ≥2 cast members */}
@@ -828,6 +833,7 @@ export function SetDetailGallery({
               Cover art
             </Button>
             <ToneMarkButtons onMark={handleBulkTone} />
+            {composeHref && <ComposeEntryLink href={composeHref} photoId={items.find((it) => selectedIds.has(it.id))?.id} />}
             {isCompilation && (
               <Button
                 variant="outline"
@@ -1173,6 +1179,7 @@ export function SetDetailGallery({
 
       {openIndex !== null && (
         <GalleryLightbox
+          composeHref={composeHref}
           items={items}
           initialIndex={openIndex}
           onClose={closeLightbox}

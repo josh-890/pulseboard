@@ -233,8 +233,18 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
 - `TagLevel` (`SESSION | SET | MEDIA_ITEM`) — typical level inside the content
   chain; ranking hint only. Tag value overrides the group's.
 - `TagGroupKind` (`DESCRIPTIVE | WORKFLOW`) — workflow markers never inherit.
-- `TagDefinition` is unique by `(groupId, name)` and `(groupId, slug)`; `parentId`
-  is an acyclic implication chain. `TagAlias.slug` is globally unique.
+- `TagDefinition` is unique by `(groupId, name)` and `(groupId, slug)`. `parentId`
+  is the first parent; `TagExtraParent` (`tag_extra_parent`: tagId, parentId,
+  sortOrder) holds further parents (ADR-0042). Together they form an acyclic
+  implication graph — a filter on any parent finds every tag implying it.
+  `TagAlias.slug` is globally unique (Danbooru spellings: `danbooru-<slug>`).
+- **Tag Composer (ADR-0042):** `TagConfusable` (`tag_confusable`, a pair stored
+  once, A < B) — "do not confuse with". `ComposerPath` (name, sortOrder,
+  tileAspect, pinned) ──< `ComposerSection` (name, `kind` TILES | REFINEMENT |
+  MATRIX, passable) ──< `ComposerSectionGroup` >── TagGroup. `TagStateRule`
+  (one per state group: genericTag, namePattern `torn-{x}`) ──<
+  `TagStateRuleTarget` (a garment group or a garment tag, nameOverride for
+  irregular names like `panty-pull`).
 - `TagSlotSet` (name, `isActive` — at most one) ──< `TagSlot` (position 1–9 → TagDefinition):
   quick-tag key bindings. Deleting a tag or set cascades to its slots; merging repoints them.
 - `SavedFilter` (scope, name, params, pinned): saved browser views; scope `media` rows are

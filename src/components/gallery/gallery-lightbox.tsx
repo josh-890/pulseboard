@@ -69,6 +69,8 @@ type GalleryLightboxProps = {
   onSetArtInPhotos?: (mediaItemId: string, on: boolean) => void;
   /** Color / B&W by hand (ADR-0041); null = back to the measurement */
   onSetTone?: (mediaItemId: string, tone: "COLOR" | "MONO" | null) => void;
+  /** ADR-0042: the tag workbench for this gallery — `?photo=` is added */
+  composeHref?: string;
   /** What this lightbox lists — a file whose role change takes it out of the list leaves */
   roleList?: "photos" | "art";
   // Person headshot context
@@ -154,6 +156,7 @@ function SimpleLightbox({
   onSetRole,
   onSetArtInPhotos,
   onSetTone,
+  composeHref,
   roleList = "photos",
   onFindSimilar,
   sessionId,
@@ -944,6 +947,7 @@ function SimpleLightbox({
         onTag={() => setTagPaletteOpen(true)}
         onArm={() => setArmPaletteOpen(true)}
         onCategory={() => setAssignOpen(true)}
+        onCompose={composeHref && item ? () => router.push(`${composeHref}?photo=${item.id}`) : undefined}
         acts={
           actEvidence && item
             ? {

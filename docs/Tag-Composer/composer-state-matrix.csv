@@ -1,0 +1,9 @@
+state_group;generic_tag;name_pattern;applies_to;irregular_names
+Damage;torn-clothes;torn-{x};Tops, Bottoms, One-piece, Swimwear, Lingerie, Legwear;
+Wet;wet-clothes;wet-{x};Tops, Bottoms, One-piece, Swimwear, Lingerie, Legwear;
+See-through;see-through-clothes;see-through-{x};Tops, One-piece, Swimwear, Lingerie, Legwear;
+Open;open-clothes;open-{x};shirt, blouse, jacket, coat, sweater, dress, robe, kimono, nightgown, bra;
+Lift;clothes-lift;{x}-lift;Tops, skirt, miniskirt, dress, bikini, swimsuit, bra;
+Pull;clothes-pull;{x}-pull;Tops, Bottoms, One-piece, Swimwear, Lingerie, Legwear;panties → panty-pull
+Aside;clothing-aside;{x}-aside;panties, thong, g-string, bikini, swimsuit;bikini → bikini-bottom-aside
+Unworn;unworn-clothes;unworn-{x};Tops, Bottoms, One-piece, Swimwear, Lingerie, Footwear, Legwear;

@@ -35,6 +35,7 @@ import { GroupSelectToggle } from "@/components/gallery/group-select-toggle";
 import { PeopleFilterBar } from "@/components/gallery/people-filter-bar";
 import { ToneFilterPill } from "@/components/gallery/tone-filter-pill";
 import { ToneMarkButtons } from "@/components/gallery/tone-mark-buttons";
+import { ComposeEntryLink } from "@/components/composer/compose-entry-link";
 import { tallyTones, useToneFilter } from "@/lib/hooks/use-tone-filter";
 import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
 import { BulkActEvidence, useActEvidence, type GalleryIntensity } from "@/components/intensity";
@@ -62,11 +63,13 @@ type SessionProductionGalleryProps = {
   intensity?: GalleryIntensity;
   /** ?photo= — open this image in the viewer (the dashboard's damaged images) */
   initialPhotoId?: string | null;
+  /** ADR-0042: the tag workbench — absent where the tenant has no Composer */
+  composeHref?: string;
 };
 
 const noSubscribe = () => () => {};
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, initialPhotoId }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, initialPhotoId, composeHref }: SessionProductionGalleryProps) {
   const actEvidence = useActEvidence(intensity);
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
@@ -402,6 +405,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 Cover art
               </Button>
               <ToneMarkButtons onMark={handleBulkTone} />
+              {composeHref && <ComposeEntryLink href={composeHref} photoId={displayItems.find((it) => selectedIds.has(it.id))?.id} />}
               <BulkTagControls
                 entityType="MEDIA_ITEM"
                 entityIds={[...selectedIds]}
@@ -481,9 +485,10 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
       )}
 
       {/* Color / B&W (ADR-0041) — only when the session holds both */}
-      {toneAvailable && (
-        <div className="mb-3">
-          <ToneFilterPill value={tone} counts={toneCounts} onChange={setTone} />
+      {(toneAvailable || (composeHref && displayItems.length > 0)) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {toneAvailable && <ToneFilterPill value={tone} counts={toneCounts} onChange={setTone} />}
+          {composeHref && displayItems.length > 0 && <ComposeEntryLink href={composeHref} className="ml-auto" />}
         </div>
       )}
       {/* People-shown filter (ADR-0023) — only when the session has ≥2 contributors */}
@@ -638,6 +643,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
 
       {openIndex !== null && (
         <GalleryLightbox
+          composeHref={composeHref}
           items={displayItems}
           initialIndex={openIndex}
           onClose={closeLightbox}

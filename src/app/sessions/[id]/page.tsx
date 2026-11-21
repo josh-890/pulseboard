@@ -35,6 +35,7 @@ import { BehindCameraContributorRow } from "@/components/sessions/behind-camera-
 import { SessionHero } from "@/components/sessions/session-hero";
 import { SessionTagSection } from "@/components/sessions/session-tag-section";
 import { SessionProductionGallery, SessionUploadButton } from "@/components/sessions/session-production-gallery";
+import { hasComposer } from "@/lib/services/composer-service";
 import { CoverArtButton } from "@/components/gallery/cover-art-button";
 import { sessionSetsInCoverOrder } from "@/lib/session-cover";
 import type { ProductionContext } from "@/components/gallery/gallery-lightbox";
@@ -106,11 +107,12 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   return withTenantFromHeaders(async () => {
     const [{ id }, resolvedSearchParams] = await Promise.all([params, searchParams]);
 
-  const [session, labels, projects, backdropEnabled] = await Promise.all([
+  const [session, labels, projects, backdropEnabled, composer] = await Promise.all([
     getSessionById(id),
     getLabels(),
     getProjects(),
     getHeroBackdropEnabled(),
+    hasComposer(),
   ]);
 
   if (!session) notFound();
@@ -473,6 +475,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
               }
             >
               <SessionProductionGallery
+                composeHref={composer ? `/sessions/${id}/compose` : undefined}
                 items={mediaItems.map((item) => ({
                   ...item,
                   createdAt: item.createdAt.toISOString() as unknown as Date,

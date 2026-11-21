@@ -1,10 +1,12 @@
 import type { TagDomain, TagGroupKind } from "@/generated/prisma/client";
 import type { ResolvedPredicate, TagQuery, TagSourceFilter, TagTerm } from "./types";
+import { toTagName } from "@/lib/tag-names";
 
 // Map a TagQuery onto tag ids (ADR-0033). Pure: the catalogue is passed in.
 //   - a bare name matches tag name, alias or slug in any group (several
 //     groups may answer — all of them count)
-//   - a tag implies its sub-tags unless the term is exact (`=`)
+//   - a tag implies its sub-tags unless the term is exact (`=`) — a sub-tag is
+//     any tag with this one among its parents (`parentId` or a further parent)
 //   - `group:*` is every tag of the group
 //   - a term nothing answers to is reported in `unknown`; a clause made only
 //     of unknown terms matches nothing (rather than everything)
@@ -15,6 +17,8 @@ export type CatalogTag = {
   slug: string;
   aliases: string[];
   parentId: string | null;
+  /** Further parents (ADR-0042) — a tag implies all of them; optional for pure callers */
+  extraParentIds?: string[];
   groupId: string;
   groupSlug: string;
   isExclusive: boolean;
@@ -39,13 +43,15 @@ export type ResolvedTagQuery = {
   predicates?: ResolvedPredicate[];
 };
 
-function descendants(catalog: CatalogTag[], rootIds: Set<string>): Set<string> {
+export function descendants(catalog: CatalogTag[], rootIds: Set<string>): Set<string> {
   const result = new Set(rootIds);
   let grew = true;
   while (grew) {
     grew = false;
     for (const t of catalog) {
-      if (t.parentId && result.has(t.parentId) && !result.has(t.id)) {
+      if (result.has(t.id)) continue;
+      const implied = (t.parentId && result.has(t.parentId)) || (t.extraParentIds ?? []).some((p) => result.has(p));
+      if (implied) {
         result.add(t.id);
         grew = true;
       }
@@ -54,17 +60,27 @@ function descendants(catalog: CatalogTag[], rootIds: Set<string>): Set<string> {
   return result;
 }
 
+/**
+ * A term names a tag by its name, slug or an alias — as written, or in the one
+ * spelling (`toTagName`), so `looking_at_viewer` and `Looking at viewer` find
+ * `looking-at-viewer` (ADR-0042: Danbooru spellings work in the query box).
+ */
+function names(term: string): (t: CatalogTag) => boolean {
+  const norm = toTagName(term);
+  return (t) =>
+    t.slug === term ||
+    t.name.toLowerCase() === term ||
+    (norm !== "" && t.slug === norm) ||
+    t.aliases.some((a) => a.toLowerCase() === term || (norm !== "" && toTagName(a) === norm));
+}
+
 function matchTerm(term: TagTerm, catalog: CatalogTag[]): CatalogTag[] {
   if (term.group !== null) {
     const inGroup = catalog.filter((t) => t.groupSlug === term.group);
     if (term.tag === "*") return inGroup;
-    return inGroup.filter(
-      (t) => t.slug === term.tag || t.name.toLowerCase() === term.tag || t.aliases.some((a) => a.toLowerCase() === term.tag),
-    );
+    return inGroup.filter(names(term.tag));
   }
-  return catalog.filter(
-    (t) => t.slug === term.tag || t.name.toLowerCase() === term.tag || t.aliases.some((a) => a.toLowerCase() === term.tag),
-  );
+  return catalog.filter(names(term.tag));
 }
 
 export function resolveTerm(term: TagTerm, catalog: CatalogTag[]): ResolvedTerm {
