@@ -34,7 +34,7 @@ import { ComposerFilmstrip } from "./composer-filmstrip";
 import { ComposerPass } from "./composer-pass";
 import { ComposerCompositionBar } from "./composer-composition-bar";
 import { ComposerCardContext, type ComposerCardContextValue } from "./composer-card-context";
-import type { TagExampleThumb } from "@/lib/tag-example";
+import { DEFAULT_FRAMING, FRAMING, type TagExampleThumb } from "@/lib/tag-example";
 import type { TileState } from "./composer-tile";
 
 export type ComposerWorkbenchProps = {
@@ -447,6 +447,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     () => ({
       photo: photo ? { id: photo.id, viewUrl: photo.viewUrl, width: photo.width, height: photo.height, filename: photo.filename } : null,
       tileAspectOf: (tagId: string) => catalog.paths.find((p) => p.id === byPath.get(tagId))?.tileAspect ?? "1:1",
+      framingOf: (tagId: string) => FRAMING[catalog.paths.find((p) => p.id === byPath.get(tagId))?.name ?? ""] ?? DEFAULT_FRAMING,
       onTitleChanged: (tagId: string, example: TagExampleThumb | null) =>
         setCatalog((c) => (c.tags[tagId] ? { ...c, tags: { ...c.tags, [tagId]: { ...c.tags[tagId], example } } } : c)),
     }),

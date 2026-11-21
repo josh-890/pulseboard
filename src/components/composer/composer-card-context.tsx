@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { TagExampleThumb } from "@/lib/tag-example";
+import type { Framing, TagExampleThumb } from "@/lib/tag-example";
 
 // What a tag's card needs from the workbench around it (ADR-0042, S4): the photo
 // on screen (to make it an example), the tile shape of a tag, and a way to tell
@@ -12,6 +12,8 @@ export type ComposerCardPhoto = { id: string; viewUrl: string | null; width: num
 export type ComposerCardContextValue = {
   photo: ComposerCardPhoto | null;
   tileAspectOf: (tagId: string) => string;
+  /** The framing rule of the path that shows the tag */
+  framingOf: (tagId: string) => Framing;
   onTitleChanged: (tagId: string, example: TagExampleThumb | null) => void;
 };
 

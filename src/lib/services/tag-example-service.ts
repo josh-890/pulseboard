@@ -2,7 +2,17 @@ import { prisma } from "@/lib/db";
 import { PHOTO_WHERE } from "@/lib/media-role";
 import { buildPhotoUrls } from "@/lib/media-url";
 import { parsePhotoVariants } from "@/lib/types";
-import { MAX_EXAMPLES, type Crop, type TagExampleThumb } from "@/lib/tag-example";
+import {
+  aspectOf,
+  cropFromBox,
+  DEFAULT_FRAMING,
+  FRAMING,
+  MAX_EXAMPLES,
+  type Box,
+  type Crop,
+  type Framing,
+  type TagExampleThumb,
+} from "@/lib/tag-example";
 
 // Tag examples (ADR-0042, S4): the user's own photos, cropped, as a tag's tile
 // and in its card — one title example and up to four more. Proposals are photos
@@ -40,7 +50,17 @@ export async function getTitleExamples(tagIds: string[]): Promise<Record<string,
   return out;
 }
 
-export type TagCardExample = { id: string; mediaItemId: string; url: string; crop: Crop; isTitle: boolean };
+export type TagCardExample = {
+  id: string;
+  mediaItemId: string;
+  url: string;
+  crop: Crop;
+  /** The subject box it was framed from (null for an older free crop) */
+  box: Box | null;
+  width: number;
+  height: number;
+  isTitle: boolean;
+};
 
 export type TagCardProposal = { mediaItemId: string; thumbUrl: string; viewUrl: string; width: number; height: number };
 
@@ -67,7 +87,20 @@ export async function getTagCard(tagId: string): Promise<TagCard | null> {
       aliases: { select: { name: true } },
       examples: {
         orderBy: [{ isTitle: "desc" }, { sortOrder: "asc" }],
-        select: { id: true, mediaItemId: true, isTitle: true, cropX: true, cropY: true, cropW: true, cropH: true, mediaItem: { select: { variants: true, fileRef: true } } },
+        select: {
+          id: true,
+          mediaItemId: true,
+          isTitle: true,
+          cropX: true,
+          cropY: true,
+          cropW: true,
+          cropH: true,
+          boxX: true,
+          boxY: true,
+          boxW: true,
+          boxH: true,
+          mediaItem: { select: { variants: true, fileRef: true, originalWidth: true, originalHeight: true } },
+        },
       },
       confusables: { select: { tagB: { select: { id: true, name: true, description: true } } } },
       confusedBy: { select: { tagA: { select: { id: true, name: true, description: true } } } },
@@ -79,7 +112,10 @@ export async function getTagCard(tagId: string): Promise<TagCard | null> {
   const otherTitles = await getTitleExamples(others.map((o) => o.id));
   const examples: TagCardExample[] = tag.examples.flatMap((e) => {
     const { viewUrl } = urlsOf(e.mediaItem);
-    return viewUrl ? [{ id: e.id, mediaItemId: e.mediaItemId, url: viewUrl, crop: cropOf(e), isTitle: e.isTitle }] : [];
+    const box = e.boxX !== null && e.boxY !== null && e.boxW !== null && e.boxH !== null ? { x: e.boxX, y: e.boxY, w: e.boxW, h: e.boxH } : null;
+    return viewUrl
+      ? [{ id: e.id, mediaItemId: e.mediaItemId, url: viewUrl, crop: cropOf(e), box, width: e.mediaItem.originalWidth, height: e.mediaItem.originalHeight, isTitle: e.isTitle }]
+      : [];
   });
 
   let proposals: TagCardProposal[] = [];
@@ -114,16 +150,31 @@ export async function getTagCard(tagId: string): Promise<TagCard | null> {
   };
 }
 
-const validCrop = (c: Crop) =>
-  [c.x, c.y, c.w, c.h].every((v) => Number.isFinite(v)) && c.w > 0 && c.h > 0 && c.x >= 0 && c.y >= 0 && c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001;
+const validBox = (b: Box) =>
+  [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(v)) && b.w >= 0.01 && b.h >= 0.01 && b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.0001 && b.y + b.h <= 1.0001;
+
+/** The tile shape and framing rule of the Composer path that shows a tag (square, default rule otherwise) */
+async function framingOfTag(tagId: string): Promise<{ tileAspect: number; framing: Framing }> {
+  const tag = await prisma.tagDefinition.findUniqueOrThrow({ where: { id: tagId }, select: { groupId: true } });
+  const link = await prisma.composerSectionGroup.findFirst({
+    where: { groupId: tag.groupId },
+    select: { section: { select: { path: { select: { name: true, tileAspect: true } } } } },
+  });
+  const path = link?.section.path;
+  return { tileAspect: aspectOf(path?.tileAspect ?? "1:1"), framing: (path && FRAMING[path.name]) || DEFAULT_FRAMING };
+}
 
 /**
- * Add a photo as an example (or re-crop it if it is one already). The first
- * example becomes the title. Refused beyond five.
+ * Add a photo as an example (or re-frame it if it is one already) from a box
+ * around the subject: the path's framing rule makes the crop (ADR-0042, S4).
+ * The first example becomes the title. Refused beyond five.
  */
-export async function addTagExample(tagId: string, mediaItemId: string, crop: Crop): Promise<void> {
-  if (!validCrop(crop)) throw new Error("That crop is outside the photo");
-  const data = { cropX: crop.x, cropY: crop.y, cropW: crop.w, cropH: crop.h };
+export async function addTagExample(tagId: string, mediaItemId: string, box: Box): Promise<void> {
+  if (!validBox(box)) throw new Error("Draw a box around the subject inside the photo");
+  const photo = await prisma.mediaItem.findUniqueOrThrow({ where: { id: mediaItemId }, select: { originalWidth: true, originalHeight: true } });
+  const { tileAspect, framing } = await framingOfTag(tagId);
+  const crop = cropFromBox(box, photo.originalWidth / Math.max(1, photo.originalHeight), tileAspect, framing);
+  const data = { cropX: crop.x, cropY: crop.y, cropW: crop.w, cropH: crop.h, boxX: box.x, boxY: box.y, boxW: box.w, boxH: box.h };
   await prisma.$transaction(async (tx) => {
     const existing = await tx.tagExample.findUnique({ where: { tagId_mediaItemId: { tagId, mediaItemId } } });
     if (existing) return void (await tx.tagExample.update({ where: { id: existing.id }, data }));
@@ -131,6 +182,27 @@ export async function addTagExample(tagId: string, mediaItemId: string, crop: Cr
     if (count >= MAX_EXAMPLES) throw new Error(`A tag has at most ${MAX_EXAMPLES} examples — remove one first`);
     await tx.tagExample.create({ data: { tagId, mediaItemId, ...data, isTitle: count === 0, sortOrder: count } });
   });
+}
+
+/**
+ * Re-frame every example that has a subject box under today's rules — after a
+ * framing rule or a path's tile shape changed. Returns how many were updated.
+ */
+export async function reframeTagExamples(): Promise<number> {
+  const rows = await prisma.tagExample.findMany({
+    where: { boxX: { not: null }, boxY: { not: null }, boxW: { not: null }, boxH: { not: null } },
+    select: { id: true, tagId: true, boxX: true, boxY: true, boxW: true, boxH: true, mediaItem: { select: { originalWidth: true, originalHeight: true } } },
+  });
+  const rules = new Map<string, { tileAspect: number; framing: Framing }>();
+  let n = 0;
+  for (const r of rows) {
+    if (!rules.has(r.tagId)) rules.set(r.tagId, await framingOfTag(r.tagId));
+    const { tileAspect, framing } = rules.get(r.tagId)!;
+    const crop = cropFromBox({ x: r.boxX!, y: r.boxY!, w: r.boxW!, h: r.boxH! }, r.mediaItem.originalWidth / Math.max(1, r.mediaItem.originalHeight), tileAspect, framing);
+    await prisma.tagExample.update({ where: { id: r.id }, data: { cropX: crop.x, cropY: crop.y, cropW: crop.w, cropH: crop.h } });
+    n++;
+  }
+  return n;
 }
 
 /** Make an example the tag's title (its tile) */

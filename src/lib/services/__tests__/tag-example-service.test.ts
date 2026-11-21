@@ -10,7 +10,7 @@ let groupId = "";
 let sessionId = "";
 const t: Record<string, string> = {};
 const p: string[] = [];
-const crop = { x: 0.1, y: 0.1, w: 0.5, h: 0.5 };
+const box = { x: 0.3, y: 0.2, w: 0.4, h: 0.6 };
 
 beforeAll(async () => {
   groupId = (await prisma.tagGroup.create({ data: { name: RUN, slug: RUN, domain: "CONTENT" } })).id;
@@ -47,14 +47,16 @@ afterAll(async () => {
 
 describe("tag examples", () => {
   it("the first example is the title; up to five; re-adding re-crops", async () => {
-    for (let i = 0; i < 5; i++) await addTagExample(t.kneeling, p[i], crop);
-    await expect(addTagExample(t.kneeling, p[6], crop)).rejects.toThrow(/at most 5/);
-    await addTagExample(t.kneeling, p[0], { x: 0, y: 0, w: 1, h: 1 });
+    for (let i = 0; i < 5; i++) await addTagExample(t.kneeling, p[i], box);
+    await expect(addTagExample(t.kneeling, p[6], box)).rejects.toThrow(/at most 5/);
+    await addTagExample(t.kneeling, p[0], { x: 0.1, y: 0.1, w: 0.2, h: 0.3 });
     const rows = await prisma.tagExample.findMany({ where: { tagId: t.kneeling }, orderBy: { sortOrder: "asc" } });
     expect(rows).toHaveLength(5);
-    expect(rows[0]).toMatchObject({ mediaItemId: p[0], isTitle: true, cropW: 1 });
+    expect(rows[0]).toMatchObject({ mediaItemId: p[0], isTitle: true, boxW: 0.2 });
+    // the crop is the rule's: the subject fills 85 % of the crop's height (default framing, tag outside the Composer)
+    expect(0.3 / rows[0].cropH).toBeCloseTo(0.85);
     expect(rows.filter((r) => r.isTitle)).toHaveLength(1);
-    await expect(addTagExample(t.seiza, p[0], { x: 0.8, y: 0, w: 0.5, h: 0.5 })).rejects.toThrow(/outside/);
+    await expect(addTagExample(t.seiza, p[0], { x: 0.8, y: 0, w: 0.5, h: 0.5 })).rejects.toThrow(/inside the photo/);
   });
 
   it("the title can change; removing it hands it on", async () => {
@@ -67,7 +69,7 @@ describe("tag examples", () => {
   });
 
   it("the card: definition, examples, confusables with their title, proposals from tagged photos", async () => {
-    await addTagExample(t.seiza, p[3], crop);
+    await addTagExample(t.seiza, p[3], box);
     const card = await getTagCard(t.kneeling);
     expect(card).toMatchObject({ name: `${RUN}-kneeling`, description: "kneeling def" });
     expect(card!.examples).toHaveLength(4);
@@ -78,7 +80,7 @@ describe("tag examples", () => {
   });
 
   it("a merge carries examples to the target, at most five, one title", async () => {
-    await addTagExample(t.merged, p[6], crop);
+    await addTagExample(t.merged, p[6], box);
     await mergeTagDefinitions([t.merged], t.kneeling);
     const rows = await prisma.tagExample.findMany({ where: { tagId: t.kneeling } });
     expect(rows.length).toBe(5);

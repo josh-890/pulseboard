@@ -77,8 +77,14 @@ The comparison covered:
    - Context: `inappropriate-attire`, `costume`, `uniform`.
 9. **Intensity stays separate** (ADR-0036). The Composer has no act tags and no acts path.
 10. **Visuals come from examples.**
-    - Any tag can show the user's own photos as examples: a title example plus up to four more, each with
-      a stored crop. The tile shape is set per path.
+    - Any tag can show the user's own photos as examples: a title example plus up to four more. The tile
+      shape is set per path.
+    - **Comparable, not free** (amended 2026-11-22): the user draws a box tightly around the subject, and a
+      rule per path makes the crop — the subject fills the same share of every tile (Figure 85 %, hung 7 %
+      below the top edge, like a fashion shop's model line; Expression 70 %; Clothing and Camera 85 %,
+      centred). The scale always holds; where the photo ends the tile shows a neutral mat. Box and crop are
+      both stored, so a changed rule re-frames every example. A free frame was tried first and dropped:
+      examples did not compare. Later, pose estimation can propose the box.
     - Pictograms are used only for camera angles.
     - Without an example, a tile shows its text.
     - This arrives in slice S4.

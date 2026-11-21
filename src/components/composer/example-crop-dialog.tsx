@@ -4,100 +4,112 @@ import { useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { aspectOf, defaultCrop, moveCrop, resizeCrop, type Crop } from "@/lib/tag-example";
+import { aspectOf, boxFromCorners, cropFromBox, type Box, type Framing } from "@/lib/tag-example";
+import { TagExampleImage } from "./tag-example-image";
+import { tileAspectClass } from "./composer-path-style";
 
 export type ExampleCropDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tagName: string;
   photo: { viewUrl: string; width: number; height: number };
-  /** "3:4" or "1:1" — the tile's shape, which the crop keeps */
+  /** "3:4" or "1:1" — the tile's shape */
   tileAspect: string;
-  initialCrop?: Crop;
+  /** The path's rule: how much of the tile the subject fills, and where */
+  framing: Framing;
+  initialBox?: Box | null;
   busy: boolean;
-  onSave: (crop: Crop) => void;
+  onSave: (box: Box) => void;
 };
 
+const pct = (v: number) => `${v * 100}%`;
+
 /**
- * Crop a photo to a tag's tile (ADR-0042, S4): a frame of the tile's shape over
- * the photo — drag it to move, drag its corner to resize, arrow keys nudge.
- * Stored as fractions of the photo; no image is generated. Mounted when opened,
- * so it always starts from `initialCrop` (or the largest centred frame).
+ * Frame an example the comparable way (ADR-0042, S4): draw a box tightly around
+ * the subject — the whole person, the face, the garment. The path's rule makes
+ * the crop (dashed), so every tile of the path shows its subject at the same
+ * size; the tile on the right shows the result. Draw again to replace the box.
  */
-export function ExampleCropDialog({ open, onOpenChange, tagName, photo, tileAspect, initialCrop, busy, onSave }: ExampleCropDialogProps) {
+export function ExampleCropDialog({ open, onOpenChange, tagName, photo, tileAspect, framing, initialBox, busy, onSave }: ExampleCropDialogProps) {
   const imageAspect = photo.width / Math.max(1, photo.height);
   const tile = aspectOf(tileAspect);
-  const [crop, setCrop] = useState<Crop>(() => initialCrop ?? defaultCrop(imageAspect, tile));
-  const boxRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ kind: "move" | "resize"; x: number; y: number; start: Crop } | null>(null);
+  const [box, setBox] = useState<Box | null>(initialBox ?? null);
+  const areaRef = useRef<HTMLDivElement>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const d = drag.current;
-    const box = boxRef.current?.getBoundingClientRect();
-    if (!d || !box) return;
-    const dx = (e.clientX - d.x) / box.width;
-    const dy = (e.clientY - d.y) / box.height;
-    setCrop(d.kind === "move" ? moveCrop(d.start, dx, dy, imageAspect, tile) : resizeCrop(d.start, dx, imageAspect, tile));
+  const at = (e: React.PointerEvent) => {
+    const r = areaRef.current!.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
   };
-  const start = (kind: "move" | "resize") => (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { kind, x: e.clientX, y: e.clientY, start: crop };
-  };
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    const step = e.shiftKey ? 0.05 : 0.01;
-    const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-    const m = moves[e.key];
-    if (!m) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setCrop((c) => moveCrop(c, m[0], m[1], imageAspect, tile));
-  };
+  const crop = box ? cropFromBox(box, imageAspect, tile, framing) : null;
+  const drawable = !!box && box.w >= 0.01 && box.h >= 0.01;
 
-  const pct = (v: number) => `${v * 100}%`;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl" onKeyDown={(e) => e.stopPropagation()}>
+      <DialogContent className="max-w-4xl" onKeyDown={(e) => e.stopPropagation()}>
         <DialogHeader>
           <DialogTitle>Example for {tagName}</DialogTitle>
-          <DialogDescription>Drag the frame to what shows the tag best; drag its corner to resize. Arrow keys nudge.</DialogDescription>
+          <DialogDescription>
+            Draw a box tightly around the subject — the whole person, the face, or the garment. The tile is framed from
+            it the same way for every example.
+          </DialogDescription>
         </DialogHeader>
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center">
           <div
-            ref={boxRef}
-            className="relative max-h-[65vh] select-none overflow-hidden rounded-md bg-black"
-            onPointerMove={onPointerMove}
-            onPointerUp={() => (drag.current = null)}
+            ref={areaRef}
+            className="relative w-fit cursor-crosshair touch-none select-none overflow-hidden rounded-md bg-black"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              (e.target as HTMLElement).setPointerCapture(e.pointerId);
+              const p = at(e);
+              start.current = p;
+              setBox({ x: p.x, y: p.y, w: 0, h: 0 });
+            }}
+            onPointerMove={(e) => {
+              if (!start.current) return;
+              const p = at(e);
+              setBox(boxFromCorners(start.current.x, start.current.y, p.x, p.y));
+            }}
+            onPointerUp={() => (start.current = null)}
             data-testid="example-crop-box"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- MinIO URL */}
-            <img src={photo.viewUrl} alt="" draggable={false} className="block max-h-[65vh] w-auto max-w-full" />
-            <div className="pointer-events-none absolute inset-0 bg-black/50" style={{ clipPath: `polygon(0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${pct(crop.x)} ${pct(crop.y)}, ${pct(crop.x)} ${pct(crop.y + crop.h)}, ${pct(crop.x + crop.w)} ${pct(crop.y + crop.h)}, ${pct(crop.x + crop.w)} ${pct(crop.y)}, ${pct(crop.x)} ${pct(crop.y)})` }} />
-            <div
-              role="group"
-              tabIndex={0}
-              aria-roledescription="crop frame"
-              aria-label={`Example frame, ${Math.round(crop.x * 100)}% from the left, ${Math.round(crop.y * 100)}% from the top, ${Math.round(crop.w * 100)}% wide — arrow keys move it`}
-              onKeyDown={onKeyDown}
-              onPointerDown={start("move")}
-              className="absolute cursor-move rounded-sm border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              style={{ left: pct(crop.x), top: pct(crop.y), width: pct(crop.w), height: pct(crop.h) }}
-              data-testid="example-crop-frame"
-            >
-              <span
-                onPointerDown={start("resize")}
-                className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border-2 border-white bg-primary"
+            <img src={photo.viewUrl} alt="" draggable={false} className="block max-h-[60vh] min-h-48 w-auto min-w-48 max-w-full" />
+            {crop && drawable && (
+              <div
+                className="pointer-events-none absolute rounded-sm border-2 border-dashed border-white/80"
+                style={{ left: pct(crop.x), top: pct(crop.y), width: pct(crop.w), height: pct(crop.h) }}
                 aria-hidden
               />
-            </div>
+            )}
+            {box && (
+              <div
+                className="pointer-events-none absolute border-2 border-primary bg-primary/10"
+                style={{ left: pct(box.x), top: pct(box.y), width: pct(box.w), height: pct(box.h) }}
+                data-testid="example-subject-box"
+                aria-hidden
+              />
+            )}
+          </div>
+          <div className="w-32 shrink-0 space-y-1 text-center">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Tile</p>
+            {crop && drawable ? (
+              <TagExampleImage url={photo.viewUrl} crop={crop} className={`${tileAspectClass(tileAspect)} w-full rounded-md ring-1 ring-border`} />
+            ) : (
+              <div className={`${tileAspectClass(tileAspect)} flex w-full items-center justify-center rounded-md border border-dashed border-border p-2 text-[11px] text-muted-foreground`}>
+                Draw a box on the photo
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              The subject fills {Math.round(framing.fill * 100)} %{framing.topMargin !== undefined ? ", the head near the top" : ", centred"}.
+            </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => onSave(crop)} disabled={busy} className="gap-1.5" data-testid="example-crop-save">
+          <Button onClick={() => box && onSave(box)} disabled={busy || !drawable} className="gap-1.5" data-testid="example-crop-save">
             {busy && <Loader2 size={14} className="animate-spin" />}
             Save example
           </Button>

@@ -5,7 +5,7 @@ import { ImagePlus, Info, Loader2, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { aspectOf, MAX_EXAMPLES, type Crop } from "@/lib/tag-example";
+import { DEFAULT_FRAMING, MAX_EXAMPLES, type Box } from "@/lib/tag-example";
 import {
   addTagExampleAction,
   getTagCardAction,
@@ -16,14 +16,13 @@ import type { TagCard } from "@/lib/services/tag-example-service";
 import { useComposerCard } from "./composer-card-context";
 import { ExampleCropDialog } from "./example-crop-dialog";
 import { TagExampleImage } from "./tag-example-image";
+import { tileAspectClass } from "./composer-path-style";
 
 export type TagCardPopoverProps = {
   tagId: string;
   tagName: string;
   children: ReactNode;
 };
-
-const ASPECT_CLASS: Record<string, string> = { "3:4": "aspect-[3/4]", "1:1": "aspect-square" };
 
 /**
  * A tag's card (ADR-0042, S4): its definition, its examples (★ makes one the
@@ -37,13 +36,13 @@ export function TagCardPopover({ tagId, tagName, children }: TagCardPopoverProps
   const [card, setCard] = useState<TagCard | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [cropFor, setCropFor] = useState<{ mediaItemId: string; viewUrl: string; width: number; height: number; crop?: Crop } | null>(null);
+  const [cropFor, setCropFor] = useState<{ mediaItemId: string; viewUrl: string; width: number; height: number; box?: Box | null } | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
 
   const tileAspect = ctx?.tileAspectOf(tagId) ?? "1:1";
-  const aspectClass = ASPECT_CLASS[tileAspect] ?? "aspect-square";
+  const aspectClass = tileAspectClass(tileAspect);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,10 +74,10 @@ export function TagCardPopover({ tagId, tagName, children }: TagCardPopoverProps
     ctx?.onTitleChanged(tagId, title ? { url: title.url, crop: title.crop } : null);
   };
 
-  const save = async (crop: Crop) => {
+  const save = async (box: Box) => {
     if (!cropFor) return;
     setBusy(true);
-    const r = await addTagExampleAction(tagId, cropFor.mediaItemId, crop);
+    const r = await addTagExampleAction(tagId, cropFor.mediaItemId, box);
     setBusy(false);
     if (!r.success) return void toast.error(r.error);
     setCropFor(null);
@@ -172,7 +171,15 @@ export function TagCardPopover({ tagId, tagName, children }: TagCardPopoverProps
                 <ul className="grid grid-cols-5 gap-1" data-testid="tag-card-examples">
                   {card.examples.map((ex) => (
                     <li key={ex.id} className="group/ex relative">
-                      <TagExampleImage url={ex.url} crop={ex.crop} className={cn(aspectClass, "rounded", ex.isTitle && "ring-2 ring-primary")} />
+                      <button
+                        type="button"
+                        onClick={() => setCropFor({ mediaItemId: ex.mediaItemId, viewUrl: ex.url, width: ex.width, height: ex.height, box: ex.box })}
+                        aria-label="Frame again"
+                        title="Frame again"
+                        className="block w-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <TagExampleImage url={ex.url} crop={ex.crop} className={cn(aspectClass, "rounded", ex.isTitle && "ring-2 ring-primary")} />
+                      </button>
                       <div className="absolute inset-x-0 bottom-0 flex justify-between p-0.5 opacity-0 transition-opacity group-hover/ex:opacity-100 focus-within:opacity-100">
                         <button
                           type="button"
@@ -261,16 +268,12 @@ export function TagCardPopover({ tagId, tagName, children }: TagCardPopoverProps
           tagName={tagName}
           photo={cropFor}
           tileAspect={tileAspect}
-          initialCrop={cropFor.crop}
+          framing={ctx?.framingOf(tagId) ?? DEFAULT_FRAMING}
+          initialBox={cropFor.box}
           busy={busy}
           onSave={save}
         />
       )}
     </Popover>
   );
-}
-
-/** Aspect ratio class for a path's tile shape — shared with the tile */
-export function tileAspectClass(tileAspect: string): string {
-  return ASPECT_CLASS[tileAspect] ?? (aspectOf(tileAspect) < 1 ? "aspect-[3/4]" : "aspect-square");
 }

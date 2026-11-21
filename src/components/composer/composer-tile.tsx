@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import type { ComposerTag } from "@/lib/composer";
 import type { PathStyle } from "./composer-path-style";
 import { CameraPictogram, hasCameraPictogram } from "./camera-pictogram";
-import { TagCardPopover, tileAspectClass } from "./tag-card-popover";
+import { TagCardPopover } from "./tag-card-popover";
+import { tileAspectClass } from "./composer-path-style";
 import { TagExampleImage } from "./tag-example-image";
 
 /**

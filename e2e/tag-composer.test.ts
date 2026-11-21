@@ -235,11 +235,25 @@ test.describe("examples and the tag card (S4)", () => {
     await expect(card.getByTestId("tag-card-confusables")).toContainText("kneeling");
 
     await card.getByTestId("tag-card-use-photo").click();
+    // Draw a box around the subject; the rule makes the crop
+    await expect(page.getByTestId("example-crop-save")).toBeDisabled();
+    const area = (await page.getByTestId("example-crop-box").boundingBox())!;
+    await page.mouse.move(area.x + area.width * 0.3, area.y + area.height * 0.1);
+    await page.mouse.down();
+    await page.mouse.move(area.x + area.width * 0.7, area.y + area.height * 0.9, { steps: 6 });
+    await page.mouse.up();
+    await expect(page.getByTestId("example-subject-box")).toBeVisible();
     await page.getByTestId("example-crop-save").click();
     await expect.poll(async () =>
       (await db.query(`SELECT count(*)::int n FROM tag_example e JOIN tag_definition t ON t.id = e."tagId" WHERE t.slug = 'seiza' AND e."mediaItemId" = $1`, [m(2)])).rows[0].n,
     ).toBe(1);
     if (had.rows[0].n === 0) await expect(tile(page, "seiza")).toHaveAttribute("data-visual", "true");
+    // the box is kept, and the crop follows the Figure rule: the subject fills 85 % of the tile's height
+    const ex = await db.query(
+      `SELECT "boxH", "cropH" FROM tag_example e JOIN tag_definition t ON t.id = e."tagId" WHERE t.slug = 'seiza' AND e."mediaItemId" = $1`,
+      [m(2)],
+    );
+    expect(ex.rows[0].boxH / ex.rows[0].cropH).toBeCloseTo(0.85, 2);
   });
 
   test("the Camera path draws pictograms", async ({ page }) => {

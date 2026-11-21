@@ -1386,10 +1386,15 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   ⓘ in its corner) and its **card** opens — the definition, the spellings that find it,
   its **examples**, the photos already tagged with it, and **Do not confuse with**
   (`seiza` next to `kneeling`, each with its example). **Use the photo on screen**, or
-  tap a tagged photo, and frame what shows the tag best: the frame keeps the tile's
-  shape (Figure 3:4, the rest square) — drag it, drag its corner, arrow keys nudge.
-  The first example becomes the tile; up to five per tag, ★ picks the tile, × removes
-  one. Once a group has a picture, its tiles become a picture grid (tags without one
+  tap a tagged photo, and **draw a box tightly around the subject** — the whole
+  person, the face, the garment. You do not frame the tile yourself: a rule per tab
+  does, so every example of a tab compares. **Figure** (3:4): the person fills 85 %
+  of the tile, the head 7 % below its top edge. **Expression**: the face fills 70 %,
+  centred. **Clothing** and **Camera**: the subject fills 85 %, centred. Where the
+  photo ends (a lying person in a tall tile) the tile shows a neutral band rather
+  than changing the scale. The preview beside the photo shows the tile; draw again
+  to replace the box. The first example becomes the tile; up to five per tag, ★ picks
+  the tile, × removes one, a click on an example frames it again. Once a group has a picture, its tiles become a picture grid (tags without one
   show their definition in the same shape). The Camera tab draws its own pictograms —
   how much of the person the frame holds, where the camera is, which way the body
   faces.

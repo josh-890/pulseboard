@@ -16,46 +16,6 @@ export function aspectOf(tileAspect: string): number {
   return r > 0 && Number.isFinite(r) ? r : 1;
 }
 
-const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-
-/**
- * The crop's height for a width, so the crop has the tile's shape in pixels:
- * (w·W)/(h·H) = tile  ⇒  h = w · (W/H) / tile.
- */
-function heightFor(w: number, imageAspect: number, tileAspect: number): number {
-  return (w * imageAspect) / tileAspect;
-}
-
-/** Keep a crop inside the photo, its shape fixed, at least 5 % wide */
-export function fitCrop(c: Crop, imageAspect: number, tileAspect: number): Crop {
-  let w = Math.max(0.05, Math.min(1, c.w));
-  let h = heightFor(w, imageAspect, tileAspect);
-  if (h > 1) {
-    h = 1;
-    w = (h * tileAspect) / imageAspect;
-  }
-  return { x: clamp01(Math.min(c.x, 1 - w)), y: clamp01(Math.min(c.y, 1 - h)), w, h };
-}
-
-/** The largest centred crop of the tile's shape — the starting point in the editor */
-export function defaultCrop(imageAspect: number, tileAspect: number): Crop {
-  const w = Math.min(1, tileAspect / imageAspect);
-  const h = heightFor(w, imageAspect, tileAspect);
-  return fitCrop({ x: (1 - w) / 2, y: Math.max(0, (1 - h) / 2), w, h }, imageAspect, tileAspect);
-}
-
-/** Drag the whole crop by a fraction of the photo */
-export function moveCrop(c: Crop, dx: number, dy: number, imageAspect: number, tileAspect: number): Crop {
-  return fitCrop({ ...c, x: c.x + dx, y: c.y + dy }, imageAspect, tileAspect);
-}
-
-/** Drag the bottom-right corner: the width follows, the height keeps the shape */
-export function resizeCrop(c: Crop, dw: number, imageAspect: number, tileAspect: number): Crop {
-  const maxW = Math.min(1 - c.x, ((1 - c.y) * tileAspect) / imageAspect);
-  const w = Math.max(0.05, Math.min(maxW, c.w + dw));
-  return { ...c, w, h: heightFor(w, imageAspect, tileAspect) };
-}
-
 /**
  * Position an image so the crop fills its box. The box must have the crop's
  * shape (the tile's), so both percentages hold at once.
@@ -63,4 +23,58 @@ export function resizeCrop(c: Crop, dw: number, imageAspect: number, tileAspect:
 export function cropStyle(c: Crop): { width: string; height: string; left: string; top: string } {
   const pct = (v: number) => `${(v * 100).toFixed(3)}%`;
   return { width: pct(1 / c.w), height: pct(1 / c.h), left: pct(-c.x / c.w), top: pct(-c.y / c.h) };
+}
+
+// ─── Comparable examples: a box around the subject, a rule per path ─────────
+
+/**
+ * How a path frames its examples, so every tile of it compares: the subject
+ * (the box the user draws around it) fills `fill` of the tile in its limiting
+ * direction, centred — or, with `topMargin`, hung from the top (the head always
+ * the same distance below the tile's edge, like a fashion shop's model line).
+ */
+export type Framing = { fill: number; topMargin?: number };
+
+export const FRAMING: Record<string, Framing> = {
+  Figure: { fill: 0.85, topMargin: 0.07 },
+  Expression: { fill: 0.7 },
+  Clothing: { fill: 0.85 },
+  Camera: { fill: 0.85 },
+};
+
+export const DEFAULT_FRAMING: Framing = { fill: 0.85 };
+
+/** A box around the subject, as fractions of the photo */
+export type Box = Crop;
+
+/**
+ * The crop a subject box gets under a path's framing rule. Worked in a space
+ * where the photo is `imageAspect` wide and 1 high; the crop keeps the tile's
+ * shape. The scale always holds — that is what makes tiles compare. A crop that
+ * fits in the photo is pushed back inside where it would cross an edge; one
+ * larger than the photo in a direction (a lying person in a 3:4 tile) stays
+ * centred on the subject, and the tile shows a neutral band there, like a mat.
+ */
+export function cropFromBox(box: Box, imageAspect: number, tileAspect: number, framing: Framing = DEFAULT_FRAMING): Crop {
+  const A = imageAspect;
+  const bw = Math.max(1e-3, box.w * A);
+  const bh = Math.max(1e-3, box.h);
+  const fill = Math.min(1, Math.max(0.1, framing.fill));
+  const heightLimited = bh >= bw / tileAspect;
+  const ch = Math.max(bh / fill, bw / fill / tileAspect);
+  const cw = ch * tileAspect;
+  const cx = (box.x + box.w / 2) * A;
+  let x0 = cx - cw / 2;
+  let y0 = heightLimited && framing.topMargin !== undefined ? box.y - framing.topMargin * ch : box.y + bh / 2 - ch / 2;
+  if (cw <= A) x0 = Math.min(Math.max(0, x0), A - cw);
+  if (ch <= 1) y0 = Math.min(Math.max(0, y0), 1 - ch);
+  return { x: x0 / A, y: y0, w: cw / A, h: ch };
+}
+
+/** A box normalised from two corners in any order, kept inside the photo */
+export function boxFromCorners(ax: number, ay: number, bx: number, by: number): Box {
+  const c = (v: number) => Math.min(1, Math.max(0, v));
+  const [x1, x2] = [c(Math.min(ax, bx)), c(Math.max(ax, bx))];
+  const [y1, y2] = [c(Math.min(ay, by)), c(Math.max(ay, by))];
+  return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }

@@ -15,3 +15,10 @@ const FALLBACK: PathStyle = { dot: "bg-primary", ring: "ring-primary/60", on: "b
 export function pathStyle(name: string): PathStyle {
   return STYLES[name] ?? FALLBACK;
 }
+
+const ASPECT_CLASS: Record<string, string> = { "3:4": "aspect-[3/4]", "1:1": "aspect-square" };
+
+/** The Tailwind aspect class for a path's tile shape ("3:4", "1:1") */
+export function tileAspectClass(tileAspect: string): string {
+  return ASPECT_CLASS[tileAspect] ?? "aspect-square";
+}

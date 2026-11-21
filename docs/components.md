@@ -157,7 +157,7 @@ The header's KPI box (`KpiStatsPanel` in `person-detail-tabs.tsx`) shows **INTEN
 | `ComposerPass` | Client | `catalog`, `sections`, `sectionId`, `onSection`, `tagIds`, `own`, `onChoose` | `components/composer/composer-pass.tsx`: pass mode — passable section picker, numbered tiles (1–9) |
 | `ComposerCompositionBar` | Client | `mode` (selection/paint), `comp`, `count`, `name`, `busy`, `onApply`, `onClear` | `components/composer/composer-composition-bar.tsx`: the footer for one change on many photos |
 | `TagCardPopover` | Client | `tagId`, `tagName`, `children` | `components/composer/tag-card-popover.tsx`: a tag's card — definition, examples (★ title, × remove), proposals, the photo on screen, "Do not confuse with" |
-| `ExampleCropDialog` | Client | `open`, `onOpenChange`, `tagName`, `photo`, `tileAspect`, `initialCrop?`, `busy`, `onSave` | `components/composer/example-crop-dialog.tsx`: a fixed-shape frame over the photo (drag, corner, arrow keys) |
+| `ExampleCropDialog` | Client | `open`, `onOpenChange`, `tagName`, `photo`, `tileAspect`, `framing`, `initialBox?`, `busy`, `onSave(box)` | `components/composer/example-crop-dialog.tsx`: draw a box around the subject; the path's rule frames the tile (dashed outline + live tile preview) |
 | `TagExampleImage` | Server/Client | `url`, `crop`, `className` | `components/composer/tag-example-image.tsx`: a crop filling a box of the tile's shape |
 | `CameraPictogram` | Server/Client | `tagName`, `className` | `components/composer/camera-pictogram.tsx`: built-in SVGs for the Camera path (`hasCameraPictogram`) |
 | `ComposeEntryLink` | Server/Client | `href`, `photoId?`, `label?` | `components/composer/compose-entry-link.tsx`: the "Compose" link into the workbench |

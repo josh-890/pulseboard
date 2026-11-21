@@ -25,8 +25,9 @@ export async function getTagCardAction(tagId: string) {
   return withTenantFromHeaders(() => getTagCard(tagId));
 }
 
-export async function addTagExampleAction(tagId: string, mediaItemId: string, crop: { x: number; y: number; w: number; h: number }) {
-  return run("add the example", () => addTagExample(tagId, mediaItemId, crop));
+/** `box` — around the subject, as fractions of the photo; the path's rule frames it */
+export async function addTagExampleAction(tagId: string, mediaItemId: string, box: { x: number; y: number; w: number; h: number }) {
+  return run("add the example", () => addTagExample(tagId, mediaItemId, box));
 }
 
 export async function setTitleExampleAction(exampleId: string) {

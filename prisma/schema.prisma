@@ -2269,7 +2269,8 @@ model TagExtraParent {
 
 // A tag's example (ADR-0042, S4): one of the user's own photos with a crop, shown
 // as the Composer tile and in the tag's card. One title example and up to four
-// more per tag. The crop is a rectangle in the photo, as fractions (0..1).
+// more per tag. The user draws a box around the subject; the path's framing rule
+// turns it into the crop, so every tile of a path compares (fractions, 0..1).
 model TagExample {
   id          String        @id @default(cuid())
   tagId       String
@@ -2278,6 +2279,12 @@ model TagExample {
   cropY       Float         @default(0)
   cropW       Float         @default(1)
   cropH       Float         @default(1)
+  /// The box around the subject the crop is computed from (path framing rule);
+  /// kept so a changed rule can re-frame every example. Null = an older free crop.
+  boxX        Float?
+  boxY        Float?
+  boxW        Float?
+  boxH        Float?
   isTitle     Boolean       @default(false)
   sortOrder   Int           @default(0)
   createdAt   DateTime      @default(now())
