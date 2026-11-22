@@ -137,6 +137,15 @@ Expression;Mouth;Mouth;;lip-biting;lip_biting;verified;;Biting the lower lip.;;e
 Expression;Mouth;Mouth;;pout;pout;verified;;Lips pushed forward.;;excel;;MANY;;;;
 Expression;Face;Face;;blush;blush;verified;;Visible reddening of the cheeks.;;excel;;MANY;;;;
 Expression;Face;Face;;tears;tears;verified;;Visible tears.;;excel;;MANY;;;;
+Expression;Named expressions;Named expressions;;laughing;laughing;verified;"closed-eyes; open-mouth; smile";Laughing: eyes squeezed shut, mouth open in a smile.;"grin; happy-tears";new;;MANY;;;;
+Expression;Named expressions;Named expressions;;surprised;surprised;verified;"wide-eyed; open-mouth";Surprise: eyes wide open, mouth open.;;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;smug;smug;verified;"smirk; half-closed-eyes";Self-satisfied: a one-sided smile under heavy lids.;naughty-face;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;naughty-face;naughty_face;verified;"seductive-smile; half-closed-eyes; blush";A mischievous, inviting look: heavy lids, a seductive smile, blushing.;smug;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;shy;shy;verified;"blush; looking-down";Shy: blushing, gaze lowered.;embarrassed;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;embarrassed;embarrassed;verified;"blush; looking-away";Embarrassed: blushing, looking away from the camera.;shy;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;tongue-out-wink;";p";verified;"one-eye-closed; tongue-out";A playful wink with the tongue out.;;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;happy-tears;happy_tears;verified;"tears; smile";Crying with joy: tears and a smile.;laughing;new;;MANY;;;;
+Expression;Named expressions;Named expressions;;kissing-viewer;kissing_viewer;verified;"pout; closed-eyes";A kiss toward the camera: lips pushed forward, eyes closed.;;new;;MANY;;;;
 Clothing;Garments;Tops;;top;;;;A top of any kind (generic).;"shirt; tank-top";existing;;MANY;;;;
 Clothing;Garments;Tops;;shirt;shirt;verified;;Shirt with collar or buttons.;"blouse; t-shirt";existing;;MANY;;;;
 Clothing;Garments;Tops;;t-shirt;t-shirt;verified;shirt;T-shirt.;;new;;MANY;;;;

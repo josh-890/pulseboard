@@ -160,11 +160,13 @@ portrait;GROUP;Region;POSSIBLE;
 from-behind;GROUP;Eyes;IMPOSSIBLE;the face is turned away
 from-behind;GROUP;Mouth;IMPOSSIBLE;the face is turned away
 from-behind;GROUP;Face;IMPOSSIBLE;the face is turned away
+from-behind;GROUP;Named expressions;IMPOSSIBLE;the face is turned away
 from-behind;GROUP;Gaze;IMPOSSIBLE;
 from-behind;TAG;looking-back;TYPICAL;…unless she looks back
 facing-away;GROUP;Eyes;IMPOSSIBLE;the face is turned away
 facing-away;GROUP;Mouth;IMPOSSIBLE;the face is turned away
 facing-away;GROUP;Face;IMPOSSIBLE;the face is turned away
+facing-away;GROUP;Named expressions;IMPOSSIBLE;the face is turned away
 facing-away;GROUP;Gaze;IMPOSSIBLE;
 facing-away;TAG;looking-back;TYPICAL;…unless she looks back
 neck-focus;PATH;Expression;IMPOSSIBLE;the face is not the subject
