@@ -67,23 +67,29 @@ function readCsv(path: string): Record<string, string>[] {
 type VocabRow = {
   path: string; section: string; group: string; exclusive: string; tag: string; danbooru: string
   parents: string; definition: string; confusable: string; origin: string
+  // ADR-0043
+  region_catalog: string; choice: string; framing_fill: string; framing_top: string; tile_aspect: string
 }
 const vocab = readCsv('docs/Tag-Composer/composer-vocabulary.csv') as unknown as VocabRow[]
 const matrix = readCsv('docs/Tag-Composer/composer-state-matrix.csv')
+const relevanceRows = readCsv('docs/Tag-Composer/composer-relevance.csv') as unknown as {
+  context: string; target_kind: 'PATH' | 'GROUP' | 'TAG'; target: string; level: 'TYPICAL' | 'POSSIBLE' | 'IMPOSSIBLE'
+}[]
 const list = (s: string) => s.split(';').map((x) => x.trim()).filter(Boolean)
 
 // Existing groups taken over (slug → new name); everything else is matched by slug
 const TAKE_OVER: Record<string, string> = { Posture: 'pose', Facing: 'view', Framing: 'framing', Footwear: 'footwear', Legwear: 'legwear' }
 
-const PATH_STYLE: Record<string, { color: string; tileAspect: string; pinned: boolean }> = {
-  Figure: { color: '#a855f7', tileAspect: '3:4', pinned: false },
-  Clothing: { color: '#ec4899', tileAspect: '1:1', pinned: true },
-  Camera: { color: '#6366f1', tileAspect: '1:1', pinned: true },
-  Expression: { color: '#f59e0b', tileAspect: '1:1', pinned: false },
+const PATH_STYLE: Record<string, { color: string; tileAspect: string; pinned: boolean; personal: boolean }> = {
+  Figure: { color: '#a855f7', tileAspect: '3:4', pinned: false, personal: true },
+  Clothing: { color: '#ec4899', tileAspect: '1:1', pinned: true, personal: true },
+  Camera: { color: '#6366f1', tileAspect: '1:1', pinned: true, personal: false },
+  Expression: { color: '#f59e0b', tileAspect: '1:1', pinned: false, personal: true },
+  Detail: { color: '#14b8a6', tileAspect: '1:1', pinned: false, personal: true },
 }
-const PATH_ORDER = ['Figure', 'Clothing', 'Camera', 'Expression']
+const PATH_ORDER = ['Figure', 'Clothing', 'Camera', 'Expression', 'Detail']
 const SECTION_COLOR: Record<string, string> = { 'State matrix': '#f43f5e', Undress: '#e11d48', Impression: '#14b8a6' }
-const PASSABLE = new Set(['Base posture', 'Framing', 'Camera angle', 'Facing', 'Gaze'])
+const PASSABLE = new Set(['Base posture', 'Shot', 'Seat', 'Torso', 'Camera angle', 'Facing', 'Gaze', 'Region'])
 const sectionKind = (s: string) => (s === 'Refinement' ? 'REFINEMENT' : s === 'State matrix' ? 'MATRIX' : 'TILES') as 'TILES' | 'REFINEMENT' | 'MATRIX'
 
 async function main() {
@@ -112,6 +118,13 @@ async function main() {
         if (existing.isExclusive !== d.exclusive) data.isExclusive = d.exclusive
         if (existing.typicalLevel !== 'MEDIA_ITEM') data.typicalLevel = 'MEDIA_ITEM'
         if (existing.domain !== 'CONTENT') data.domain = 'CONTENT'
+        const meta = vocab.find((r) => r.group === name)!
+        const choice = (meta.choice || (d.exclusive ? 'ONE' : 'MANY')) as 'ONE' | 'MANY'
+        if (existing.composerChoice !== choice) data.composerChoice = choice
+        const num = (v: string) => (v ? Number(v) : null)
+        if ((existing.framingFill ?? null) !== num(meta.framing_fill)) data.framingFill = num(meta.framing_fill)
+        if ((existing.framingTop ?? null) !== num(meta.framing_top)) data.framingTop = num(meta.framing_top)
+        if ((existing.tileAspect ?? null) !== (meta.tile_aspect || null)) data.tileAspect = meta.tile_aspect || null
         if (Object.keys(data).length) {
           note('group changes', `${existing.name} → ${JSON.stringify(data)}`)
           if (apply) await prisma.tagGroup.update({ where: { id: existing.id }, data })
@@ -120,8 +133,15 @@ async function main() {
       } else {
         note('new groups', `${name}${d.exclusive ? ' (exclusive)' : ''}`)
         if (apply) {
+          const meta = vocab.find((r) => r.group === name)!
           const g = await prisma.tagGroup.create({
-            data: { name, slug, color, domain: 'CONTENT', typicalLevel: 'MEDIA_ITEM', isExclusive: d.exclusive, sortOrder: order++ },
+            data: {
+              name, slug, color, domain: 'CONTENT', typicalLevel: 'MEDIA_ITEM', isExclusive: d.exclusive, sortOrder: order++,
+              composerChoice: (meta.choice || (d.exclusive ? 'ONE' : 'MANY')) as 'ONE' | 'MANY',
+              framingFill: meta.framing_fill ? Number(meta.framing_fill) : null,
+              framingTop: meta.framing_top ? Number(meta.framing_top) : null,
+              tileAspect: meta.tile_aspect || null,
+            },
           })
           groupId.set(name, g.id)
         }
@@ -153,13 +173,13 @@ async function main() {
           note('definitions', r.tag)
           if (apply) await prisma.tagDefinition.update({ where: { id: found.id }, data: { description: r.definition } })
         }
-        if (apply) await prisma.tagDefinition.update({ where: { id: found.id }, data: { sortOrder: pos } })
+        if (apply) await prisma.tagDefinition.update({ where: { id: found.id }, data: { sortOrder: pos, regionCatalogId: r.region_catalog || null } })
         tagId.set(r.tag, found.id)
       } else {
         note('new tags', `${r.group}: ${r.tag}`)
         if (apply && gid) {
           const t = await prisma.tagDefinition.create({
-            data: { groupId: gid, name: r.tag, slug: r.tag, nameNorm: r.tag, description: r.definition || null, sortOrder: pos },
+            data: { groupId: gid, name: r.tag, slug: r.tag, nameNorm: r.tag, description: r.definition || null, sortOrder: pos, regionCatalogId: r.region_catalog || null },
           })
           tagId.set(r.tag, t.id)
         }
@@ -273,10 +293,16 @@ async function main() {
       if (!apply) continue
       const p = await prisma.composerPath.upsert({
         where: { name: path },
-        create: { name: path, sortOrder: pi, tileAspect: style.tileAspect, pinned: style.pinned },
-        update: { sortOrder: pi, tileAspect: style.tileAspect },
+        create: { name: path, sortOrder: pi, tileAspect: style.tileAspect, pinned: style.pinned, personal: style.personal },
+        update: { sortOrder: pi, tileAspect: style.tileAspect, personal: style.personal },
       })
       const sections = [...new Set(vocab.filter((r) => r.path === path).map((r) => r.section))]
+      // The table is the starting structure: a section it no longer names goes (ADR-0043 retires Refinement)
+      const stale = await prisma.composerSection.findMany({ where: { pathId: p.id, name: { notIn: sections } }, select: { id: true, name: true } })
+      for (const st of stale) {
+        note('composer', `section removed: ${path} › ${st.name}`)
+        await prisma.composerSection.delete({ where: { id: st.id } })
+      }
       for (const [si, section] of sections.entries()) {
         const s = await prisma.composerSection.upsert({
           where: { pathId_name: { pathId: p.id, name: section } },
@@ -284,6 +310,7 @@ async function main() {
           update: { sortOrder: si, kind: sectionKind(section), passable: PASSABLE.has(section) },
         })
         const groups = [...new Set(vocab.filter((r) => r.path === path && r.section === section).map((r) => r.group))]
+        await prisma.composerSectionGroup.deleteMany({ where: { sectionId: s.id, groupId: { notIn: groups.map((g) => groupId.get(g)!) } } })
         for (const [gi, g] of groups.entries()) {
           const gid = groupId.get(g)!
           await prisma.composerSectionGroup.upsert({
@@ -294,6 +321,28 @@ async function main() {
         }
       }
     }
+
+    // ── 8. Relevance (ADR-0043) ────────────────────────────────────────────
+    if (apply) {
+      const paths = new Map((await prisma.composerPath.findMany({ select: { id: true, name: true } })).map((p) => [p.name, p.id]))
+      const tagBySlug = async (slug: string) => (await prisma.tagDefinition.findFirst({ where: { slug }, select: { id: true } }))?.id
+      const groupBySlugOrName = async (name: string) =>
+        (await prisma.tagGroup.findFirst({ where: { OR: [{ name }, { slug: TAKE_OVER[name] ?? toTagName(name) }] }, select: { id: true } }))?.id
+      let n = 0
+      for (const r of relevanceRows) {
+        const ctx = tagId.get(r.context) ?? (await tagBySlug(r.context))
+        const target =
+          r.target_kind === 'PATH' ? paths.get(r.target) : r.target_kind === 'GROUP' ? groupId.get(r.target) ?? (await groupBySlugOrName(r.target)) : tagId.get(r.target) ?? (await tagBySlug(r.target))
+        if (!ctx || !target) { note('relevance skipped', `${r.context} → ${r.target_kind} ${r.target}`); continue }
+        await prisma.tagRelevance.upsert({
+          where: { contextTagId_targetKind_targetId: { contextTagId: ctx, targetKind: r.target_kind, targetId: target } },
+          create: { contextTagId: ctx, targetKind: r.target_kind, targetId: target, level: r.level },
+          update: { level: r.level },
+        })
+        n++
+      }
+      note('relevance', `${n} rows`)
+    } else note('relevance', `${relevanceRows.length} rows to write`)
 
     // ── Report ─────────────────────────────────────────────────────────────
     for (const [kind, items] of Object.entries(log)) {
