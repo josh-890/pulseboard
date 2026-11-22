@@ -1,6 +1,7 @@
 import type { ToneValue } from "@/lib/tone";
 import type { ToneCounts } from "@/lib/tone";
 import { getToneCountsForSets } from "./tone-service";
+import { getComposerCoverageForSets, type ComposerCoverage } from "./composer-summary-service";
 import { randomUUID } from "crypto";
 import { TAG_CHIP_JOIN_SELECT, toTagChips } from "@/lib/tag-chip";
 import { prisma } from "@/lib/db";
@@ -1386,6 +1387,8 @@ export type CoverPhotoData = {
   isPhoto?: boolean;
   /** Sets only: B&W and measured photo counts — the card's tone badge (ADR-0041) */
   tone?: ToneCounts;
+  /** Photos with any Composer tag, of all (ADR-0042) — only where some are tagged */
+  composer?: ComposerCoverage;
 };
 
 const coverIdentity = (m: { id: string; role: MediaRoleValue; artInPhotos: boolean }) => ({
@@ -1457,10 +1460,12 @@ export async function getCoverPhotosForSets(
     }
   }
 
-  const tones = await getToneCountsForSets(setIds);
+  const [tones, coverage] = await Promise.all([getToneCountsForSets(setIds), getComposerCoverageForSets(setIds)]);
   for (const [setId, cover] of result) {
     const t = tones.get(setId);
     if (t) cover.tone = t;
+    const c = coverage.get(setId);
+    if (c && c.tagged > 0) cover.composer = c;
   }
 
   return result;

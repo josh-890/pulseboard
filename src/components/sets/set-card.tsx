@@ -2,6 +2,7 @@
 
 import type { ToneCounts } from "@/lib/tone";
 import { ToneBadge } from "@/components/shared/tone-badge";
+import { ComposerCoverageBar } from "@/components/composer/composer-coverage-bar";
 import { Fragment, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -24,6 +25,8 @@ type CoverPhotoData = {
   focalY: number | null;
   /** B&W and measured photo counts (ADR-0041) */
   tone?: ToneCounts;
+  /** Photos with any Composer tag, of all (ADR-0042) */
+  composer?: { tagged: number; total: number };
 };
 
 type HeadshotData = {
@@ -302,6 +305,7 @@ export function SetCard({
             )}
 
             <CoverBadges {...coverBadgeProps} />
+            {coverPhoto?.composer && <ComposerCoverageBar tagged={coverPhoto.composer.tagged} total={coverPhoto.composer.total} />}
             {(intensity || coverPhoto?.tone) && (
               <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
                 <ToneBadge counts={coverPhoto?.tone} />
@@ -400,6 +404,7 @@ export function SetCard({
           )}
 
           <CoverBadges {...coverBadgeProps} />
+          {coverPhoto?.composer && <ComposerCoverageBar tagged={coverPhoto.composer.tagged} total={coverPhoto.composer.total} />}
             {(intensity || coverPhoto?.tone) && (
               <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
                 <ToneBadge counts={coverPhoto?.tone} />

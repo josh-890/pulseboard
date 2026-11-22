@@ -1398,6 +1398,14 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   show their definition in the same shape). The Camera tab draws its own pictograms —
   how much of the person the frame holds, where the camera is, which way the body
   faces.
+- **The set as its photos are tagged:** the set page's sidebar has a **Composer** card
+  — per tab how many photos are tagged there, and the tags they carry with counts
+  (`high-heels 8`, `lingerie 4`); a tag filters the gallery to those photos. It is
+  computed from the photos, never stored on the set. A set card shows a hairline
+  along the bottom of its cover — how much of the set is tagged (green when all).
+  To find sets by what their photos carry, use **`@photos:`** in the query box on
+  `/sets` or `/sessions` — `@photos:high-heels`, `@photos:kneeling -@photos:nude`; a
+  plain `high-heels` still asks the set's own tags.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
   so `looking_at_viewer` in the query box finds `looking-at-viewer`.
 

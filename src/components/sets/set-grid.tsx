@@ -40,6 +40,8 @@ type CoverPhotoData = {
   focalX: number | null;
   focalY: number | null;
   tone?: ToneCounts;
+  /** Photos with any Composer tag, of all (ADR-0042) */
+  composer?: { tagged: number; total: number };
 };
 
 type HeadshotData = {

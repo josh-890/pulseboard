@@ -98,6 +98,21 @@ const TRUE = Prisma.sql`TRUE`;
 const or = (parts: Prisma.Sql[]) => (parts.length === 0 ? FALSE : Prisma.sql`(${Prisma.join(parts, " OR ")})`);
 const and = (parts: Prisma.Sql[]) => (parts.length === 0 ? TRUE : Prisma.sql`(${Prisma.join(parts, " AND ")})`);
 
+/**
+ * A set or session one of whose photos carries a tag of `ids` (ADR-0042, the
+ * `@photos:` source): photo-level tags rolled up. Cover art does not count.
+ */
+function photosHave(entity: TaggableEntity, x: Prisma.Sql, ids: Prisma.Sql): Prisma.Sql {
+  if (entity === "SET")
+    return Prisma.sql`EXISTS (SELECT 1 FROM "SetMediaItem" smi JOIN media_item_tag d ON d."mediaItemId" = smi."mediaItemId"
+      JOIN "MediaItem" mi ON mi.id = smi."mediaItemId"
+      WHERE smi."setId" = ${x} AND d."tagDefinitionId" IN (${ids}) AND mi."mediaType" = 'PHOTO' AND ${photoSql("mi")})`;
+  if (entity === "SESSION")
+    return Prisma.sql`EXISTS (SELECT 1 FROM "MediaItem" mi JOIN media_item_tag d ON d."mediaItemId" = mi.id
+      WHERE mi."sessionId" = ${x} AND d."tagDefinitionId" IN (${ids}) AND mi."mediaType" = 'PHOTO' AND ${photoSql("mi")})`;
+  return FALSE;
+}
+
 /** Any tag of `ids` on the given level of the row `x` */
 function levelHas(entity: TaggableEntity, level: "self" | "set" | "session", x: Prisma.Sql, ids: Prisma.Sql): Prisma.Sql {
   switch (entity) {
@@ -169,6 +184,7 @@ function partCondition(entity: TaggableEntity, part: ResolvedGroupPart, source: 
     if (source === SELF_SOURCE[entity]) return self;
     if (source === "set") return levelHas(entity, "set", x, ids);
     if (source === "session") return levelHas(entity, "session", x, ids);
+    if (source === "photos") return photosHave(entity, x, ids);
     return FALSE; // e.g. @image on a set
   }
 
@@ -244,11 +260,19 @@ function clauseCandidates(entity: TaggableEntity, clause: ResolvedTagQuery["all"
         UNION SELECT smi."mediaItemId" FROM set_tag st JOIN "SetMediaItem" smi ON smi."setId" = st."setId" WHERE st."tagDefinitionId" IN (${ids})
         UNION SELECT mi.id FROM session_tag se JOIN "MediaItem" mi ON mi."sessionId" = se."sessionId" WHERE se."tagDefinitionId" IN (${ids})`;
     case "SET":
-      return Prisma.sql`
-        SELECT "setId" AS id FROM set_tag WHERE "tagDefinitionId" IN (${ids})
-        UNION SELECT ss."setId" FROM session_tag se JOIN "SetSession" ss ON ss."sessionId" = se."sessionId" WHERE se."tagDefinitionId" IN (${ids})`;
+      return clause.any.some((t) => t.source === "photos")
+        ? Prisma.sql`
+          SELECT "setId" AS id FROM set_tag WHERE "tagDefinitionId" IN (${ids})
+          UNION SELECT ss."setId" FROM session_tag se JOIN "SetSession" ss ON ss."sessionId" = se."sessionId" WHERE se."tagDefinitionId" IN (${ids})
+          UNION SELECT smi."setId" FROM media_item_tag mt JOIN "SetMediaItem" smi ON smi."mediaItemId" = mt."mediaItemId" WHERE mt."tagDefinitionId" IN (${ids})`
+        : Prisma.sql`
+          SELECT "setId" AS id FROM set_tag WHERE "tagDefinitionId" IN (${ids})
+          UNION SELECT ss."setId" FROM session_tag se JOIN "SetSession" ss ON ss."sessionId" = se."sessionId" WHERE se."tagDefinitionId" IN (${ids})`;
     case "SESSION":
-      return Prisma.sql`SELECT "sessionId" AS id FROM session_tag WHERE "tagDefinitionId" IN (${ids})`;
+      return clause.any.some((t) => t.source === "photos")
+        ? Prisma.sql`SELECT "sessionId" AS id FROM session_tag WHERE "tagDefinitionId" IN (${ids})
+          UNION SELECT mi."sessionId" FROM media_item_tag mt JOIN "MediaItem" mi ON mi.id = mt."mediaItemId" WHERE mt."tagDefinitionId" IN (${ids})`
+        : Prisma.sql`SELECT "sessionId" AS id FROM session_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "PERSON":
       return Prisma.sql`SELECT "personId" AS id FROM person_tag WHERE "tagDefinitionId" IN (${ids})`;
     case "PROJECT":

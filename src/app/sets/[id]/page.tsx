@@ -14,6 +14,8 @@ import { getHeroBackdropEnabled } from "@/lib/services/setting-service";
 import { getAllContributionRoleGroups } from "@/lib/services/contribution-role-service";
 import { SetDetailGallery } from "@/components/sets/set-detail-gallery";
 import { hasComposer } from "@/lib/services/composer-service";
+import { getComposerSummary } from "@/lib/services/composer-summary-service";
+import { ComposerSummaryCard } from "@/components/composer/composer-summary-card";
 import { CoverArtButton } from "@/components/gallery/cover-art-button";
 import { getEffectiveTags } from "@/lib/services/tag-effective-service";
 import { findTagMatchIds, getTagFacets, resolveTagFilterParam } from "@/lib/services/tag-filter-service";
@@ -75,6 +77,8 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
 
     const { participants: _participants, ...setData } = set;
     const participants = set.participants;
+    // ADR-0042, S5: the set as its photos are tagged in the Composer
+    const composerSummary = composer && setData.type === "photo" ? await getComposerSummary(id) : null;
 
     const participantIds = participants.map((p) => p.personId);
     const [galleryItems, coverArt, coverPhotoMap, headshotMap, participantEraMap, referenceTargets, castDirectory] = await Promise.all([
@@ -294,6 +298,9 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
           />
           }
           sidebar={<>
+            {composerSummary && (
+              <ComposerSummaryCard summary={composerSummary} setHref={`/sets/${id}`} composeHref={`/sets/${id}/compose`} />
+            )}
             {intensityCatalog && (
               <div className="rounded-2xl border border-white/20 bg-card/70 p-4 shadow-md backdrop-blur-sm">
                 <div className="mb-3 flex items-center gap-2">

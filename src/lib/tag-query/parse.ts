@@ -23,7 +23,7 @@ import type { QueryPredicate, TagClause, TagQuery, TagSourceFilter, TagTerm } fr
 
 export const PREDICATE_KEYS = new Set(["is", "has", "rating", "person", "cast", "persontag", "label", "type", "act", "intensity", "rated", "tone", "archive"]);
 
-const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", session: "session" };
+const SOURCES: Record<string, TagSourceFilter> = { image: "image", set: "set", session: "session", photos: "photos" };
 
 export type ParseResult = { query: TagQuery; errors: string[] };
 
@@ -95,7 +95,7 @@ export function parseTagQuery(input: string): ParseResult {
     if (src) {
       const s = SOURCES[src[1]];
       if (!s) {
-        errors.push(`Unknown level "@${src[1]}" in ${raw} — use @image, @set or @session`);
+        errors.push(`Unknown level "@${src[1]}" in ${raw} — use @image, @set, @session or @photos`);
         continue;
       }
       source = s;

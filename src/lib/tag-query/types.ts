@@ -9,7 +9,8 @@
  *   image / set / session — strictly that level: the image's own tags, the
  *             tags of a set it is in, the tags of its session
  */
-export type TagSourceFilter = "any" | "image" | "set" | "session";
+/** `photos` (ADR-0042): a set or session whose photos carry the tag — the upward roll-up for photo-level tags */
+export type TagSourceFilter = "any" | "image" | "set" | "session" | "photos";
 
 export type TagTerm = {
   /** Group slug; null for a bare name resolved by tag name / alias / slug */

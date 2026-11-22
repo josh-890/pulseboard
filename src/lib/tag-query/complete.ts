@@ -22,8 +22,8 @@ export type Completion = {
 
 const LEVELS: Record<TaggableEntity, string[]> = {
   MEDIA_ITEM: ["image", "set", "session"],
-  SET: ["set", "session"],
-  SESSION: [],
+  SET: ["set", "session", "photos"],
+  SESSION: ["photos"],
   PERSON: [],
   PROJECT: [],
   ARCHIVE_FOLDER: [],
@@ -73,7 +73,7 @@ export function completionsFor(
   // A lone "@" (or "@se") → levels
   if (q.startsWith("@") && !prefix.includes("@")) {
     for (const l of LEVELS[entity]) {
-      if (`@${l}:`.startsWith(q)) out.push({ insert: `@${l}:`, label: `@${l}:`, hint: `strictly on the ${l === "image" ? "image" : `${l}`}` });
+      if (`@${l}:`.startsWith(q)) out.push({ insert: `@${l}:`, label: `@${l}:`, hint: l === "photos" ? "on any of its photos" : `strictly on the ${l}` });
     }
     return out.slice(0, limit);
   }

@@ -263,3 +263,31 @@ test.describe("examples and the tag card (S4)", () => {
     await expect(tile(page, "full-body")).toHaveAttribute("data-visual", "true");
   });
 });
+
+test.describe("the set as its photos are tagged (S5)", () => {
+  test.beforeAll(async () => {
+    await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+    for (const [k, slugs] of [[1, ["standing", "high-heels"]], [2, ["standing"]]] as const)
+      for (const slug of slugs)
+        await db.query(`INSERT INTO media_item_tag ("mediaItemId", "tagDefinitionId") SELECT $1, id FROM tag_definition WHERE slug = $2`, [m(k), slug]);
+  });
+
+  test("the set page sums up the Composer tags; a tag filters the gallery", async ({ page, context }) => {
+    await context.clearCookies({ name: "pulseboard-intensity-panel" });
+    await page.goto(`/sets/${SET}`);
+    const card = page.getByTestId("composer-summary");
+    await expect(card).toContainText("2 / 3 photos");
+    await expect(card.locator('[data-path="Figure"]')).toContainText("2/3");
+    await expect(card.locator('[data-path="Clothing"]')).toContainText("high-heels");
+    await card.getByRole("link", { name: /high-heels/ }).click();
+    await expect(page).toHaveURL(/tags=%40image%3Ahigh-heels/);
+    await expect(page.getByText("1 of 3 images")).toBeVisible();
+  });
+
+  test("/sets finds it with @photos: and shows the coverage on its card", async ({ page }) => {
+    await page.goto(`/sets?type=all&tags=${encodeURIComponent("@photos:high-heels")}&q=${encodeURIComponent(`Compose ${RUN}`)}`);
+    const card = page.locator(`a[href="/sets/${SET}"]`).first();
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId("composer-coverage")).toHaveAttribute("aria-label", "Composer: 2 of 3 photos tagged");
+  });
+});
