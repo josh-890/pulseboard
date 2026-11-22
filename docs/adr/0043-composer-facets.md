@@ -71,7 +71,7 @@ The research behind the decisions:
     are asked only once a context asks for them (sitting, lying, a close shot). This is the "facet default row"
     of the matrix; a rule derived from the rows alone ("a facet some context forbids waits") hid too much,
     because the framing forbids body facets without ever asking for them.
-13. **The shot leads:** the section named `Shot` is drawn as a row above the tabs.
+13. **The shot leads:** the section named `Framing` (named `Shot` until 2026-11-22; the old name is still honoured) is drawn as a row above the tabs.
 
 ## Consequences
 

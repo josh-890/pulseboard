@@ -14,7 +14,7 @@ import { ComposerToggle } from "./composer-toggle";
 export type ComposerSectionPanelProps = {
   section: ComposerSection;
   pathId: string;
-  /** The section drawn as the shot row above the tabs */
+  /** The section drawn as the framing row above the tabs */
   isLead: boolean;
   call: (action: () => Promise<SimpleActionResult>) => Promise<void>;
   pending: boolean;
@@ -41,7 +41,7 @@ export function ComposerSectionPanel({ section, pathId, isLead, call, pending, o
       <ComposerTextField label="Name" value={section.name} required onSave={(name) => save({ name })} />
       {isLead && (
         <p className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
-          Named “Shot”: drawn as the row above the tabs, answered first. Renaming it makes it an ordinary section.
+          Named “Framing”: drawn as the row above the tabs, answered first. Renaming it makes it an ordinary section.
         </p>
       )}
       <p className="text-xs text-muted-foreground">{KIND_TEXT[section.kind]}</p>

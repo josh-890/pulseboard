@@ -112,15 +112,15 @@ Figure;Named forms;Named forms;;backbend;backbend;verified;"crab; arched-back";T
 Figure;Named forms;Named forms;;top-down-bottom-up;top-down_bottom-up;verified;"all-fours; head-down";Face down close to the surface, hips up in the air.;cat-stretch;new;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;cat-stretch;cat_stretch;verified;"top-down-bottom-up; outstretched-arms";Hips up, arms stretched far forward on the ground.;top-down-bottom-up;new;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;chest-stand;chest_stand;verified;"lying; on-stomach; arched-back; legs-over-head";Chest on the ground, the back curved up and over until the legs are in front of the head.;backbend;new;;MANY;;;;IMPOSSIBLE
-Camera;Shot;Framing;yes;close-up;close-up;verified;;Face, or a small part of the body, fills the frame.;"portrait; detail";existing;;ONE;;;;
-Camera;Shot;Framing;yes;portrait;portrait;verified;;Head and shoulders.;"close-up; upper-body";existing;;ONE;;;;
-Camera;Shot;Framing;yes;upper-body;upper_body;verified;;From the head to about the waist.;"portrait; cowboy-shot";rename:half-body;;ONE;;;;
-Camera;Shot;Framing;yes;cowboy-shot;cowboy_shot;verified;;From the head to about mid-thigh.;"upper-body; full-body";new;;ONE;;;;
-Camera;Shot;Framing;yes;full-body;full_body;verified;;Head to feet visible, and the person fills most of the frame.;wide-shot;existing;;ONE;;;;
-Camera;Shot;Framing;yes;wide-shot;wide_shot;verified;;Head to feet visible, but the person takes up only a small part of the frame.;full-body;excel;;ONE;;;;
-Camera;Shot;Framing;yes;lower-body;lower_body;verified;;Waist down only.;detail;new;;ONE;;;;
-Camera;Shot;Framing;yes;detail;;;;A body part or garment detail, not the person as a whole.;"close-up; macro";existing;;ONE;;;;
-Camera;Shot;Framing;yes;macro;;;;Extreme detail: skin texture, a mole, a tattoo line, an eyelash.;detail;new;;ONE;;;;
+Camera;Framing;Framing;yes;close-up;close-up;verified;;Face, or a small part of the body, fills the frame.;"portrait; detail";existing;;ONE;;;;
+Camera;Framing;Framing;yes;portrait;portrait;verified;;Head and shoulders.;"close-up; upper-body";existing;;ONE;;;;
+Camera;Framing;Framing;yes;upper-body;upper_body;verified;;From the head to about the waist.;"portrait; cowboy-shot";rename:half-body;;ONE;;;;
+Camera;Framing;Framing;yes;cowboy-shot;cowboy_shot;verified;;From the head to about mid-thigh.;"upper-body; full-body";new;;ONE;;;;
+Camera;Framing;Framing;yes;full-body;full_body;verified;;Head to feet visible, and the person fills most of the frame.;wide-shot;existing;;ONE;;;;
+Camera;Framing;Framing;yes;wide-shot;wide_shot;verified;;Head to feet visible, but the person takes up only a small part of the frame.;full-body;excel;;ONE;;;;
+Camera;Framing;Framing;yes;lower-body;lower_body;verified;;Waist down only.;detail;new;;ONE;;;;
+Camera;Framing;Framing;yes;detail;;;;A body part or garment detail, not the person as a whole.;"close-up; macro";existing;;ONE;;;;
+Camera;Framing;Framing;yes;macro;;;;Extreme detail: skin texture, a mole, a tattoo line, an eyelash.;detail;new;;ONE;;;;
 Camera;Camera angle;Camera angle;yes;eye-level;eye_level;not in list — check;;Camera at the person's eye height, neutral.;;excel;;ONE;;;;
 Camera;Camera angle;Camera angle;yes;from-above;from_above;verified;;Camera above the person, looking down.;;excel;;ONE;;;;
 Camera;Camera angle;Camera angle;yes;from-below;from_below;verified;;Camera below the person, looking up.;;excel;;ONE;;;;

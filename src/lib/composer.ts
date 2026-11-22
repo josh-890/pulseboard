@@ -562,12 +562,14 @@ export function applyCombination(catalog: ComposerCatalog, draft: string[], comb
 
 // ─── The workbench's view (ADR-0043, R3) ────────────────────────────────────
 
-/** The section that leads every photo — the shot decides what else is asked */
-export const LEAD_SECTION_NAME = "Shot";
+/** The section that leads every photo — how much of the person is framed decides what else is asked */
+export const LEAD_SECTION_NAME = "Framing";
+/** Its name until 2026-11-22, still honoured so data and code can change in either order */
+const LEAD_SECTION_FORMER = "Shot";
 
 export function leadSection(catalog: ComposerCatalog): { path: ComposerPath; section: ComposerSection } | null {
   for (const path of catalog.paths) {
-    const section = path.sections.find((s) => s.name === LEAD_SECTION_NAME);
+    const section = path.sections.find((s) => s.name === LEAD_SECTION_NAME) ?? path.sections.find((s) => s.name === LEAD_SECTION_FORMER);
     if (section) return { path, section };
   }
   return null;

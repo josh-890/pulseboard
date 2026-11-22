@@ -92,7 +92,7 @@ const PATH_STYLE: Record<string, { color: string; tileAspect: string; pinned: bo
 }
 const PATH_ORDER = ['Figure', 'Clothing', 'Camera', 'Expression', 'Detail']
 const SECTION_COLOR: Record<string, string> = { 'State matrix': '#f43f5e', Undress: '#e11d48', Impression: '#14b8a6' }
-const PASSABLE = new Set(['Base posture', 'Shot', 'Seat', 'Torso', 'Camera angle', 'Facing', 'Gaze', 'Region'])
+const PASSABLE = new Set(['Base posture', 'Framing', 'Seat', 'Torso', 'Camera angle', 'Facing', 'Gaze', 'Region'])
 const sectionKind = (s: string) => (s === 'Refinement' ? 'REFINEMENT' : s === 'State matrix' ? 'MATRIX' : 'TILES') as 'TILES' | 'REFINEMENT' | 'MATRIX'
 
 async function main() {

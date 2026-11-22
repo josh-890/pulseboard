@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ComposerCatalog, ComposerTag } from "@/lib/composer";
+import { leadSection, type ComposerCatalog, type ComposerTag } from "@/lib/composer";
 import { laneWrites, personalTagIds, photoDraftOf, presetInLane, toggleInLane, unattributed, personsDirty } from "@/lib/composer-lanes";
 
 // ADR-0043 person lanes: Figure is personal, Camera is the photo's.
@@ -8,7 +8,7 @@ const tags = [tag("standing", "base"), tag("kneeling", "base"), tag("hand-on-hip
 const catalog: ComposerCatalog = {
   paths: [
     { id: "figure", name: "Figure", tileAspect: "3:4", pinned: false, personal: true, sections: [{ id: "s1", name: "Base", kind: "TILES", passable: true, groupIds: ["base", "hands"] }] },
-    { id: "camera", name: "Camera", tileAspect: "1:1", pinned: true, sections: [{ id: "s2", name: "Shot", kind: "TILES", passable: true, groupIds: ["framing"] }] },
+    { id: "camera", name: "Camera", tileAspect: "1:1", pinned: true, sections: [{ id: "s2", name: "Framing", kind: "TILES", passable: true, groupIds: ["framing"] }] },
   ],
   groups: {
     base: { id: "base", name: "Posture", isExclusive: false, choice: "ONE", tagIds: ["standing", "kneeling"] },
@@ -21,6 +21,12 @@ const catalog: ComposerCatalog = {
 const personal = personalTagIds(catalog);
 
 describe("person lanes", () => {
+  it("the framing row leads — also under its former name Shot", () => {
+    expect(leadSection(catalog)?.section.id).toBe("s2");
+    const former = { ...catalog, paths: catalog.paths.map((p) => ({ ...p, sections: p.sections.map((x) => (x.id === "s2" ? { ...x, name: "Shot" } : x)) })) };
+    expect(leadSection(former)?.section.id).toBe("s2");
+  });
+
   it("a preset in a duo: the pose goes to the person described, the view to the photo", () => {
     const r = presetInLane(catalog, personal, ["standing"], ["standing"], { adds: ["kneeling", "hand-on-hip", "full-body"], removes: [] });
     expect(r.personDraft).toEqual(["kneeling", "hand-on-hip"]);

@@ -1468,7 +1468,7 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   - a **path**: its name, its tile shape, whether it is carried over to the next photo,
     and whether it **describes a person** (picked per person on a photo with two people);
   - a **path** also takes **Add a section**;
-  - a **section**: its name and whether pass mode offers it (the section named **Shot**
+  - a **section**: its name and whether pass mode offers it (the section named **Framing**
     is the row above the tabs); **Add a facet** (one or many answers — a new tag group
     set up like the path's other facets, or a tag group of that name not yet in the
     Composer); an empty section can be removed;
