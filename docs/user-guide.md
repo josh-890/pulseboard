@@ -1357,6 +1357,15 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   legs-hanging), **Lying orientation** (only for lying), rest point, torso lean and
   shape, leg position, **knees** (knee-up, knees-up …), feet, arms, hands, head,
   motion.
+- **Two or more people:** when the photo shows more than one person (its *people
+  shown*), a **person bar** appears above the shot: `Anna (ICG-…) · Bea (ICG-…)`.
+  Figure, Expression, Clothing and Detail then describe the person chosen — a “one”
+  facet holds per person, so Anna can stand while Bea kneels; the shot and the
+  Camera tab stay the photo's. **`[`** and **`]`** switch person. The bar above the
+  buttons names whose change it is (`Bea: + kneeling`). Tags written before people
+  were told apart show grey (*N to give to someone*) — a click gives one to the
+  person chosen. A photo showing one person needs no bar: what you pick is hers.
+  Search still finds the tag on the photo; the attribution says whom it describes.
 - **Named forms:** when what you picked adds up to a named form, a chip offers it —
   `sitting + folded + legs-together` → **= seiza?**. Taking it replaces the parts
   (they stay findable: `seiza` counts as `sitting`); nothing is merged on its own.

@@ -34,7 +34,18 @@ import {
   type ComposerStateRule,
 } from "@/lib/composer";
 import { applyCompositionAction, ensureStateCombinationAction } from "@/lib/actions/composer-actions";
-import type { ComposerPhoto } from "@/lib/services/composer-service";
+import type { ComposerCastMember, ComposerPhoto } from "@/lib/services/composer-service";
+import {
+  laneView,
+  laneWrites,
+  personalTagIds,
+  personsDirty,
+  photoDraftOf,
+  toggleInLane,
+  unattributed,
+  type PersonTags,
+} from "@/lib/composer-lanes";
+import { ComposerPersonBar } from "./composer-person-bar";
 import { ComposerInspector } from "./composer-inspector";
 import { ComposerFilmstrip } from "./composer-filmstrip";
 import { ComposerPass } from "./composer-pass";
@@ -49,6 +60,8 @@ export type ComposerWorkbenchProps = {
   title: string;
   backHref: string;
   photos: ComposerPhoto[];
+  /** Everyone the photos show (ADR-0043 person lanes) */
+  cast?: ComposerCastMember[];
   initialPhotoId: string | null;
   /** Saved compositions (S6) */
   presets: ComposerPresetItem[];
@@ -86,7 +99,7 @@ function readPins(catalog: ComposerCatalog): Set<string> {
  * Enter; Paint turns the same composition into a brush for the filmstrip (Alt
  * erases); Pass walks one section photo by photo with keys 1–9.
  */
-export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, photos, initialPhotoId, presets: initialPresets }: ComposerWorkbenchProps) {
+export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, photos, cast = [], initialPhotoId, presets: initialPresets }: ComposerWorkbenchProps) {
   const router = useRouter();
   const [catalog, setCatalog] = useState(initialCatalog);
   const [own, setOwn] = useState<Record<string, string[]>>(() => Object.fromEntries(photos.map((p) => [p.id, p.tagIds])));
@@ -106,6 +119,16 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const [comp, setComp] = useState<Composition>(EMPTY_COMPOSITION);
   const [applying, setApplying] = useState(false);
   const [presets, setPresets] = useState(initialPresets);
+  /** ADR-0043: what each photo holds per person, the current photo's drafts per person, the lane described */
+  const [ownPersons, setOwnPersons] = useState<Record<string, PersonTags>>(() => Object.fromEntries(photos.map((p) => [p.id, p.persons])));
+  const [personDrafts, setPersonDrafts] = useState<PersonTags>(() => {
+    const p = photos[Math.max(0, photos.findIndex((x) => x.id === initialPhotoId))];
+    return p && p.shownPersonIds.length >= 2 ? Object.fromEntries(p.shownPersonIds.map((id) => [id, p.persons[id] ?? []])) : {};
+  });
+  const [lane, setLane] = useState<string | null>(() => {
+    const p = photos[Math.max(0, photos.findIndex((x) => x.id === initialPhotoId))];
+    return p && p.shownPersonIds.length >= 2 ? p.shownPersonIds[0] : null;
+  });
 
   const photo = photos[index];
   const [draftState, setDraftState] = useState(() =>
@@ -119,6 +142,8 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   }, [initialCatalog]);
 
   const byPath = useMemo(() => pathByTag(catalog), [catalog]);
+  const personal = useMemo(() => personalTagIds(catalog), [catalog]);
+  const castById = useMemo(() => new Map(cast.map((c) => [c.id, c])), [cast]);
 
   const bulk = selected.size >= 2 && !painting && !passSectionId;
   const compMode = bulk || painting;
@@ -128,37 +153,71 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   );
   const total = bulk ? selected.size : 0;
   // ADR-0043: the paths the photo's contexts leave open (a macro shot has no Expression)
-  const viewDraft = useMemo(() => (compMode ? compositionView(comp, counts) : draft), [compMode, comp, counts, draft]);
+  // ADR-0043 person lanes: a duo is described one person at a time (selection, brush and pass stay on the photo)
+  const shownIds = useMemo(() => photo?.shownPersonIds ?? [], [photo]);
+  const duo = shownIds.length >= 2 && !compMode && !passSectionId && !!lane;
+  const ownHere = useMemo(() => (photo ? (own[photo.id] ?? []) : []), [own, photo]);
+  const ownPersonsHere = useMemo(() => (photo ? (ownPersons[photo.id] ?? {}) : {}), [ownPersons, photo]);
+  /** Tags written before lanes (no attribution) that nobody in the drafts has taken yet */
+  const waiting = useMemo(() => {
+    if (shownIds.length < 2) return [];
+    const given = new Set(Object.values(personDrafts).flat());
+    return unattributed(personal, ownHere, ownPersonsHere).filter((id) => !given.has(id));
+  }, [shownIds, personDrafts, personal, ownHere, ownPersonsHere]);
+  const laneDraft = useMemo(() => (duo && lane ? (personDrafts[lane] ?? []) : []), [duo, lane, personDrafts]);
+  const viewDraft = useMemo(
+    () => (compMode ? compositionView(comp, counts) : duo ? [...laneView(personal, draft, laneDraft), ...waiting] : draft),
+    [compMode, comp, counts, duo, personal, draft, laneDraft, waiting],
+  );
   const visiblePaths = useMemo(() => {
     const ctx = contextsOf(catalog, viewDraft);
     return catalog.paths.filter((p) => pathVisible(catalog, ctx, p.id));
   }, [catalog, viewDraft]);
 
   const open = useCallback(
-    (i: number, ownMap: Record<string, string[]>, written: string[]) => {
+    (i: number, ownMap: Record<string, string[]>, written: string[], personsMap: Record<string, PersonTags> = ownPersons) => {
       const target = photos[i];
       if (!target) return;
       setIndex(i);
       setLeaveAsk(null);
+      const duo = target.shownPersonIds.length >= 2;
+      const mine = personsMap[target.id] ?? {};
+      setPersonDrafts(duo ? Object.fromEntries(target.shownPersonIds.map((id) => [id, mine[id] ?? []])) : {});
+      setLane((cur) => (duo ? (cur && target.shownPersonIds.includes(cur) ? cur : target.shownPersonIds[0]) : null));
       setDraftState(openDraft(catalog, ownMap[target.id] ?? [], written, pinned));
       const url = new URL(window.location.href);
       url.searchParams.set("photo", target.id);
       window.history.replaceState(null, "", url);
     },
-    [catalog, photos, pinned],
+    [catalog, photos, pinned, ownPersons],
   );
 
   const toggle = useCallback(
     (tagId: string, additive: boolean) => {
       if (compMode) return setComp((c) => toggleInComposition(catalog, c, tagId, counts, total, additive));
+      if (duo && lane && personal.has(tagId)) {
+        // The person's own draft; the photo's draft is everyone's together
+        const next = { ...personDrafts, [lane]: toggleInLane(catalog, personal, draft, personDrafts[lane] ?? [], tagId, additive).personDraft };
+        setPersonDrafts(next);
+        const stillWaiting = unattributed(personal, ownHere, ownPersonsHere).filter((id) => !Object.values(next).flat().includes(id));
+        return setDraftState((s) => ({ draft: photoDraftOf(personal, s.draft, stillWaiting, next), proposed: s.proposed.filter((id) => id !== tagId) }));
+      }
       setDraftState((s) => ({ draft: toggleTag(catalog, s.draft, tagId, additive), proposed: s.proposed.filter((id) => id !== tagId) }));
     },
-    [catalog, compMode, counts, total],
+    [catalog, compMode, counts, total, duo, lane, personal, personDrafts, draft, ownHere, ownPersonsHere],
   );
 
   const takeCombination = useCallback(
-    (comboId: string) => setDraftState((s) => ({ draft: applyCombination(catalog, s.draft, comboId), proposed: s.proposed.filter((id) => id !== comboId) })),
-    [catalog],
+    (comboId: string) => {
+      if (duo && lane) {
+        const next = { ...personDrafts, [lane]: applyCombination(catalog, personDrafts[lane] ?? [], comboId) };
+        setPersonDrafts(next);
+        const stillWaiting = unattributed(personal, ownHere, ownPersonsHere).filter((id) => !Object.values(next).flat().includes(id));
+        return setDraftState((s) => ({ draft: photoDraftOf(personal, s.draft, stillWaiting, next), proposed: s.proposed }));
+      }
+      setDraftState((s) => ({ draft: applyCombination(catalog, s.draft, comboId), proposed: s.proposed.filter((id) => id !== comboId) }));
+    },
+    [catalog, duo, lane, personDrafts, personal, ownHere, ownPersonsHere],
   );
 
   const onCombination = useCallback(
@@ -211,10 +270,45 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
           if (!r.success) {
             toast.error(r.error);
             setOwn((o) => ({ ...o, ...Object.fromEntries(ids.map((id) => [id, ownNow[id] ?? []])) }));
-          } else setOwn((o) => ({ ...o, ...r.tags }));
+          } else {
+            setOwn((o) => ({ ...o, ...r.tags }));
+            setOwnPersons((o) => ({ ...o, ...r.persons }));
+          }
         });
       }
       return nextOwn;
+    },
+    [],
+  );
+
+  /**
+   * Run a photo's writes in order (photo level first, then each person's) —
+   * optimistic; the last answer of the server wins, a failure puts the photo back.
+   */
+  const runWrites = useCallback(
+    (id: string, filename: string, writes: { personId: string | null; adds: string[]; removes: string[] }[], before: { tags: string[]; persons: PersonTags }) => {
+      if (writes.length === 0) return;
+      setSaving((n) => n + 1);
+      void (async () => {
+        let last: { tags: Record<string, string[]>; persons: Record<string, PersonTags> } | null = null;
+        for (const w of writes) {
+          const r = await applyCompositionAction([id], w.adds, w.removes, w.personId);
+          if (!r.success) {
+            toast.error(`${filename}: ${r.error}`);
+            setOwn((o) => ({ ...o, [id]: before.tags }));
+            setOwnPersons((o) => ({ ...o, [id]: before.persons }));
+            setSaving((n) => n - 1);
+            return;
+          }
+          last = r;
+        }
+        setSaving((n) => n - 1);
+        if (last) {
+          const done = last;
+          setOwn((o) => ({ ...o, [id]: done.tags[id] ?? o[id] }));
+          setOwnPersons((o) => ({ ...o, [id]: done.persons[id] ?? o[id] }));
+        }
+      })();
     },
     [],
   );
@@ -223,35 +317,39 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const applyAndNext = useCallback(() => {
     if (!photo) return;
     const target = leaveAsk;
-    const before = own[photo.id] ?? [];
-    const { adds, removes } = compositionOf(before, draft);
+    const before = { tags: own[photo.id] ?? [], persons: ownPersons[photo.id] ?? {} };
+    const shown = photo.shownPersonIds;
+    const writes = laneWrites(catalog, { own: before.tags, ownPersons: before.persons, draft, personDrafts, shown });
     const written = draft;
     const nextOwn = { ...own, [photo.id]: draft };
+    const nextPersons = {
+      ...ownPersons,
+      [photo.id]:
+        shown.length >= 2
+          ? { ...before.persons, ...personDrafts }
+          : shown.length === 1
+            ? { ...before.persons, [shown[0]]: draft.filter((id) => personal.has(id)) }
+            : before.persons,
+    };
     setLastWritten(written);
-    if (adds.length || removes.length) {
+    if (writes.length) {
       setOwn(nextOwn);
-      setSaving((n) => n + 1);
-      const id = photo.id;
-      void applyCompositionAction([id], adds, removes).then((r) => {
-        setSaving((n) => n - 1);
-        if (!r.success) {
-          toast.error(`${photo.filename}: ${r.error}`);
-          setOwn((o) => ({ ...o, [id]: before }));
-        } else setOwn((o) => ({ ...o, [id]: r.tags[id] ?? o[id] }));
-      });
+      setOwnPersons(nextPersons);
+      runWrites(photo.id, photo.filename, writes, before);
     }
     if (target?.kind === "back") return void router.push(backHref);
-    if (target?.kind === "photo") return void open(target.index, nextOwn, written);
-    if (index < photos.length - 1) open(index + 1, nextOwn, written);
+    if (target?.kind === "photo") return void open(target.index, nextOwn, written, nextPersons);
+    if (index < photos.length - 1) open(index + 1, nextOwn, written, nextPersons);
     else {
       setDraftState({ draft, proposed: [] });
       toast.success("Last photo — all written");
     }
-  }, [photo, own, draft, index, photos.length, open, leaveAsk, router, backHref]);
+  }, [photo, own, ownPersons, draft, personDrafts, catalog, personal, index, photos.length, open, leaveAsk, router, backHref, runWrites]);
 
   // Unwritten work on this photo: leaving asks once — the same move again discards
   const unsaved = photo ? unsavedChanges(own[photo.id] ?? [], draft, proposed) : { adds: [], removes: [] };
-  const dirty = unsaved.adds.length + unsaved.removes.length > 0;
+  const lanesDirty = shownIds.length >= 2 && personsDirty(ownPersonsHere, personDrafts);
+  const dirty = unsaved.adds.length + unsaved.removes.length > 0 || lanesDirty;
   const leaveTo = useCallback(
     (target: LeaveTarget) => {
       if (dirty && !sameAsk(leaveAsk, target)) return setLeaveAsk(target);
@@ -329,6 +427,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         return;
       }
       setOwn((o) => ({ ...o, ...r.tags }));
+      setOwnPersons((o) => ({ ...o, ...r.persons }));
       setComp(EMPTY_COMPOSITION);
       toast.success(`Written on ${ids.length} photos`);
     });
@@ -440,6 +539,12 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         }
         return;
       }
+      if ((e.key === "[" || e.key === "]") && duo && lane) {
+        const i = shownIds.indexOf(lane);
+        const n = shownIds.length;
+        setLane(shownIds[(i + (e.key === "]" ? 1 : n - 1)) % n]);
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         applyAndNext();
@@ -458,9 +563,11 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [applyAndNext, next, prev, leaveTo, visiblePaths, passSectionId, passTagIds, passChoose, passClear, index, photos.length, open, own, lastWritten, painting, bulk, applyToSelection, clearSelection]);
+  }, [applyAndNext, next, prev, leaveTo, visiblePaths, passSectionId, passTagIds, passChoose, passClear, index, photos.length, open, own, lastWritten, painting, bulk, applyToSelection, clearSelection, duo, lane, shownIds]);
 
-  const implied = useMemo(() => new Set(impliedTags(catalog, draft)), [catalog, draft]);
+  const implied = useMemo(() => new Set(impliedTags(catalog, duo ? laneView(personal, draft, laneDraft) : draft)), [catalog, duo, personal, draft, laneDraft]);
+  const laneSet = useMemo(() => new Set(laneDraft), [laneDraft]);
+  const waitingSet = useMemo(() => new Set(waiting), [waiting]);
   const proposedSet = useMemo(() => new Set(proposed), [proposed]);
   const draftSet = useMemo(() => new Set(draft), [draft]);
   const addSet = useMemo(() => new Set(comp.adds), [comp.adds]);
@@ -473,9 +580,12 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         const n = counts.get(id) ?? 0;
         return total > 0 && n === total ? "on" : n > 0 ? "partial" : "off";
       }
+      if (duo && personal.has(id))
+        // A person's lane: hers on, implied faint, a tag written before lanes grey until given to someone
+        return laneSet.has(id) ? "on" : waitingSet.has(id) ? "partial" : implied.has(id) ? "implied" : "off";
       return proposedSet.has(id) ? "proposed" : draftSet.has(id) ? "on" : implied.has(id) ? "implied" : "off";
     },
-    [compMode, addSet, removeSet, counts, total, proposedSet, draftSet, implied],
+    [compMode, addSet, removeSet, counts, total, proposedSet, draftSet, implied, duo, personal, laneSet, waitingSet],
   );
   // The tag cards (S4): the photo on screen, each tag's tile shape, and tile images that change
   const cardContext = useMemo<ComposerCardContextValue>(
@@ -504,14 +614,43 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
 
   const countByPath = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const t of draft) {
+    for (const t of duo ? laneView(personal, draft, laneDraft) : draft) {
       const p = byPath.get(t);
       if (p) out[p] = (out[p] ?? 0) + 1;
     }
     return out;
-  }, [draft, byPath]);
+  }, [duo, personal, draft, laneDraft, byPath]);
 
-  const { adds, removes } = photo ? compositionOf(own[photo.id] ?? [], draft) : { adds: [], removes: [] };
+  /** What Enter would change — per person in a duo ("Anna: + kneeling") */
+  const pending = useMemo(() => {
+    if (!photo) return [] as { key: string; text: string; kind: "add" | "remove"; offered: boolean }[];
+    const label = (pid: string | null, id: string, sign: string) => {
+      const who = pid ? castById.get(pid)?.name : null;
+      return `${who ? `${who}: ` : ""}${sign} ${catalog.tags[id]?.name ?? "?"}`;
+    };
+    if (shownIds.length < 2) {
+      const c = compositionOf(ownHere, draft);
+      return [
+        ...c.adds.map((id) => ({ key: `+${id}`, text: label(null, id, "+"), kind: "add" as const, offered: proposed.includes(id) })),
+        ...c.removes.map((id) => ({ key: `-${id}`, text: label(null, id, "−"), kind: "remove" as const, offered: false })),
+      ];
+    }
+    const out: { key: string; text: string; kind: "add" | "remove"; offered: boolean }[] = [];
+    const photoLevel = compositionOf(ownHere.filter((id) => !personal.has(id)), draft.filter((id) => !personal.has(id)));
+    for (const id of photoLevel.adds) out.push({ key: `+${id}`, text: label(null, id, "+"), kind: "add", offered: proposed.includes(id) });
+    for (const id of photoLevel.removes) out.push({ key: `-${id}`, text: label(null, id, "−"), kind: "remove", offered: false });
+    for (const pid of shownIds) {
+      const c = compositionOf(ownPersonsHere[pid] ?? [], personDrafts[pid] ?? []);
+      for (const id of c.adds) out.push({ key: `${pid}+${id}`, text: label(pid, id, "+"), kind: "add", offered: false });
+      for (const id of c.removes) out.push({ key: `${pid}-${id}`, text: label(pid, id, "−"), kind: "remove", offered: false });
+    }
+    return out;
+  }, [photo, shownIds, ownHere, draft, proposed, personal, ownPersonsHere, personDrafts, catalog, castById]);
+  const laneCounts = useMemo(
+    () => Object.fromEntries(Object.entries(personDrafts).map(([pid, t]) => [pid, t.length])),
+    [personDrafts],
+  );
+
   const name = (id: string) => catalog.tags[id]?.name ?? "?";
 
   if (!photo)
@@ -647,8 +786,18 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               tileAspect={catalog.paths.find((p) => p.sections.some((x) => x.id === passSectionId))?.tileAspect}
             />
           ) : (
+            <>
+            {duo && lane && (
+              <ComposerPersonBar
+                persons={shownIds.map((id) => castById.get(id)).filter((c): c is ComposerCastMember => !!c)}
+                laneId={lane}
+                onLane={setLane}
+                counts={laneCounts}
+                waiting={waiting.length}
+              />
+            )}
             <ComposerInspector
-              key={photo.id}
+              key={`${photo.id}:${lane ?? ""}`}
               catalog={catalog}
               paths={visiblePaths}
               activePathId={activePathId}
@@ -665,6 +814,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               countOf={countOf}
               composing={compMode}
             />
+            </>
           )}
 
           {compMode ? (
@@ -687,7 +837,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               >
                 <AlertTriangle size={14} aria-hidden className="shrink-0" />
                 <span className="min-w-0 flex-1">
-                  Not written: {[...unsaved.adds.map((id) => `+ ${name(id)}`), ...unsaved.removes.map((id) => `− ${name(id)}`)].join(" · ")}.{" "}
+                  Not written: {pending.filter((x) => !x.offered).map((x) => x.text).join(" · ")}.{" "}
                   <span className="text-amber-700/80 dark:text-amber-300/80">
                     <kbd className="font-medium">Enter</kbd> writes · {leaveAsk.kind === "back" ? "Back / Esc" : "the same move"} again discards
                   </span>
@@ -701,30 +851,25 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               </div>
             )}
             <div className="flex min-h-[1.5rem] flex-wrap items-center gap-1 text-[11px]" data-testid="composer-diff" aria-live="polite">
-              {adds.length === 0 && removes.length === 0 ? (
+              {pending.length === 0 ? (
                 <span className="text-muted-foreground">No changes on this photo</span>
               ) : (
-                <>
-                  {adds.map((id) => (
-                    <span
-                      key={id}
-                      className={cn(
-                        "rounded-full border px-1.5 py-0.5",
-                        proposedSet.has(id)
+                pending.map((x) => (
+                  <span
+                    key={x.key}
+                    className={cn(
+                      "rounded-full border px-1.5 py-0.5",
+                      x.kind === "remove"
+                        ? "border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                        : x.offered
                           ? "border-dashed border-emerald-500/60 text-emerald-700 dark:text-emerald-300"
                           : "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-                      )}
-                      title={proposedSet.has(id) ? "Carried over from the last photo" : undefined}
-                    >
-                      + {name(id)}
-                    </span>
-                  ))}
-                  {removes.map((id) => (
-                    <span key={id} className="rounded-full border border-rose-500/50 bg-rose-500/10 px-1.5 py-0.5 text-rose-700 dark:text-rose-300">
-                      − {name(id)}
-                    </span>
-                  ))}
-                </>
+                    )}
+                    title={x.offered ? "Carried over from the last photo" : undefined}
+                  >
+                    {x.text}
+                  </span>
+                ))
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -736,7 +881,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               </Button>
               <Button size="sm" onClick={applyAndNext} className="ml-auto gap-1.5" data-testid="composer-apply">
                 <CornerDownLeft size={14} />
-                {adds.length || removes.length ? "Apply & next" : "Next"}
+                {pending.length ? "Apply & next" : "Next"}
               </Button>
             </div>
           </footer>

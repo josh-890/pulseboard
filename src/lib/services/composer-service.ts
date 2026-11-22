@@ -5,6 +5,9 @@ import { parsePhotoVariants } from "@/lib/types";
 import { toTagName } from "@/lib/tag-names";
 import { setExtraParents } from "@/lib/services/tag-service";
 import { getTitleExamples } from "@/lib/services/tag-example-service";
+import { getHiddenPersonsForMedia, getLeadCastForSessions, getShownSupportForMedia, getSupportCastForSessions } from "@/lib/services/appearance-service";
+import { getHeadshotsForPersons } from "@/lib/services/media-service";
+import { imageShownIds } from "@/lib/image-shown";
 import {
   combinationName,
   composerTagIds,
@@ -138,7 +141,14 @@ export type ComposerPhoto = {
   viewUrl: string | null;
   /** The photo's own tags in Composer groups (direct rows only) */
   tagIds: string[];
+  /** Who the photo shows (ADR-0023) — one: her tags are hers; two or more: a person bar (ADR-0043) */
+  shownPersonIds: string[];
+  /** person id → the Composer tags attributed to that person */
+  persons: Record<string, string[]>;
 };
+
+/** Someone a photo of the workspace shows — named `Name (ICG-ID)` on screen */
+export type ComposerCastMember = { id: string; name: string; icgId: string; avatarUrl: string | null };
 
 type PhotoRow = {
   id: string;
@@ -147,7 +157,9 @@ type PhotoRow = {
   originalHeight: number;
   variants: unknown;
   fileRef: string | null;
+  sessionId: string;
   mediaItemTags: { tagDefinitionId: string }[];
+  tagPersons: { tagDefinitionId: string; personId: string }[];
 };
 
 const PHOTO_SELECT = {
@@ -157,11 +169,15 @@ const PHOTO_SELECT = {
   originalHeight: true,
   variants: true,
   fileRef: true,
+  sessionId: true,
   mediaItemTags: { select: { tagDefinitionId: true } },
+  tagPersons: { select: { tagDefinitionId: true, personId: true } },
 } as const;
 
-function toPhoto(row: PhotoRow, composerIds: Set<string>): ComposerPhoto {
+function toPhoto(row: PhotoRow, composerIds: Set<string>, shownPersonIds: string[]): ComposerPhoto {
   const urls = buildPhotoUrls(parsePhotoVariants(row.variants) ?? {}, row.fileRef);
+  const persons: Record<string, string[]> = {};
+  for (const r of row.tagPersons) if (composerIds.has(r.tagDefinitionId)) (persons[r.personId] ??= []).push(r.tagDefinitionId);
   return {
     id: row.id,
     filename: row.filename,
@@ -170,12 +186,50 @@ function toPhoto(row: PhotoRow, composerIds: Set<string>): ComposerPhoto {
     thumbUrl: urls.gallery_512 ?? urls.view_1200 ?? (urls.original || null),
     viewUrl: urls.view_1200 ?? urls.full_2400 ?? (urls.original || null),
     tagIds: row.mediaItemTags.map((t) => t.tagDefinitionId).filter((id) => composerIds.has(id)),
+    shownPersonIds,
+    persons,
   };
+}
+
+/** Who each photo shows (ADR-0023's rule) and the cast they add up to */
+async function shownAndCast(rows: PhotoRow[]): Promise<{ shown: Map<string, string[]>; cast: ComposerCastMember[] }> {
+  const ids = rows.map((r) => r.id);
+  const sessionIds = [...new Set(rows.map((r) => r.sessionId))];
+  const [leads, support, hidden, shownSupport] = await Promise.all([
+    getLeadCastForSessions(sessionIds),
+    getSupportCastForSessions(sessionIds),
+    getHiddenPersonsForMedia(ids),
+    getShownSupportForMedia(ids),
+  ]);
+  const shown = new Map(
+    rows.map((r) => [
+      r.id,
+      imageShownIds({
+        sessionCastIds: leads.get(r.sessionId),
+        hiddenPersonIds: hidden.get(r.id),
+        supportCastIds: support.get(r.sessionId),
+        shownSupportIds: shownSupport.get(r.id),
+      }),
+    ]),
+  );
+  const personIds = [...new Set([...shown.values()].flat())];
+  if (personIds.length === 0) return { shown, cast: [] };
+  const [persons, headshots] = await Promise.all([
+    prisma.person.findMany({
+      where: { id: { in: personIds } },
+      select: { id: true, icgId: true, aliases: { where: { isCommon: true }, take: 1, select: { name: true } } },
+    }),
+    getHeadshotsForPersons(personIds),
+  ]);
+  const cast = persons
+    .map((p) => ({ id: p.id, name: p.aliases[0]?.name ?? p.icgId, icgId: p.icgId, avatarUrl: headshots.get(p.id)?.thumbUrl ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { shown, cast };
 }
 
 export type ComposerScope = { kind: "set"; id: string } | { kind: "session"; id: string };
 
-export type ComposerWorkspace = { title: string; backHref: string; photos: ComposerPhoto[] };
+export type ComposerWorkspace = { title: string; backHref: string; photos: ComposerPhoto[]; cast: ComposerCastMember[] };
 
 /** A set's photos in gallery order, or a session's in upload order */
 export async function getComposerWorkspace(scope: ComposerScope, catalog: ComposerCatalog): Promise<ComposerWorkspace | null> {
@@ -188,7 +242,9 @@ export async function getComposerWorkspace(scope: ComposerScope, catalog: Compos
       orderBy: { sortOrder: "asc" },
       select: { mediaItem: { select: PHOTO_SELECT } },
     });
-    return { title: set.title, backHref: `/sets/${set.id}`, photos: links.map((l) => toPhoto(l.mediaItem, composerIds)) };
+    const rows = links.map((l) => l.mediaItem);
+    const { shown, cast } = await shownAndCast(rows);
+    return { title: set.title, backHref: `/sets/${set.id}`, photos: rows.map((r) => toPhoto(r, composerIds, shown.get(r.id) ?? [])), cast };
   }
   const session = await prisma.session.findUnique({ where: { id: scope.id }, select: { id: true, name: true } });
   if (!session) return null;
@@ -197,7 +253,8 @@ export async function getComposerWorkspace(scope: ComposerScope, catalog: Compos
     orderBy: { createdAt: "asc" },
     select: PHOTO_SELECT,
   });
-  return { title: session.name, backHref: `/sessions/${session.id}`, photos: items.map((i) => toPhoto(i, composerIds)) };
+  const { shown, cast } = await shownAndCast(items);
+  return { title: session.name, backHref: `/sessions/${session.id}`, photos: items.map((i) => toPhoto(i, composerIds, shown.get(i.id) ?? [])), cast };
 }
 
 // ─── Writes ─────────────────────────────────────────────────────────────────

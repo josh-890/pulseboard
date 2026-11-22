@@ -17,6 +17,6 @@ export default async function SetComposePage({ params, searchParams }: { params:
     if (catalog.paths.length === 0) notFound();
     const ws = await getComposerWorkspace({ kind: "set", id }, catalog);
     if (!ws) notFound();
-    return <ComposerWorkbench catalog={catalog} title={ws.title} backHref={ws.backHref} photos={ws.photos} initialPhotoId={photo} presets={presets} />;
+    return <ComposerWorkbench catalog={catalog} title={ws.title} backHref={ws.backHref} photos={ws.photos} cast={ws.cast} initialPhotoId={photo} presets={presets} />;
   });
 }

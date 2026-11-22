@@ -348,3 +348,62 @@ test.describe("presets (S6)", () => {
     await expect.poll(() => tagsOf(m(1))).toEqual(["full-body", "kneeling"]);
   });
 });
+
+test.describe("person lanes (ADR-0043)", () => {
+  const persons = [`e2e-person-lane-a-${RUN}`, `e2e-person-lane-b-${RUN}`];
+  const attributions = async (id: string) =>
+    (
+      await db.query<{ tag: string; icg: string }>(
+        `SELECT t.name AS tag, p."icgId" AS icg FROM media_item_tag_person a
+           JOIN tag_definition t ON t.id = a."tagDefinitionId" JOIN "Person" p ON p.id = a."personId"
+          WHERE a."mediaItemId" = $1 ORDER BY 1, 2`,
+        [id],
+      )
+    ).rows.map((r) => `${r.icg}:${r.tag}`);
+
+  test.beforeAll(async () => {
+    await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+    const role = (
+      await db.query(
+        `SELECT r.id FROM "ContributionRoleDefinition" r JOIN "ContributionRoleGroup" g ON g.id = r."groupId" WHERE g.kind = 'ON_CAMERA' AND r.presence = 'LEAD' LIMIT 1`,
+      )
+    ).rows[0].id;
+    for (const [i, id] of persons.entries()) {
+      await db.query(`INSERT INTO "Person" (id, "icgId") VALUES ($1, $2)`, [id, `E2E-LANE-${RUN}-${i}`]);
+      await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [`${id}-a`, id, `Lane ${i ? "Bea" : "Anna"}`]);
+      await db.query(`INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId") VALUES ($1, $2, $3, $4)`, [`${id}-c`, SESSION, id, role]);
+    }
+  });
+
+  test.afterAll(async () => {
+    await db.query(`DELETE FROM media_item_tag_person WHERE "personId" = ANY($1)`, [persons]);
+    await db.query(`DELETE FROM "SessionContribution" WHERE "personId" = ANY($1)`, [persons]);
+    await db.query(`DELETE FROM "PersonAlias" WHERE "personId" = ANY($1)`, [persons]);
+    await db.query(`DELETE FROM "Person" WHERE id = ANY($1)`, [persons]);
+  });
+
+  test("a duo is described one person at a time; the last one to drop a tag takes it off the photo", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
+    await expect(page.getByTestId("composer-person")).toHaveCount(2);
+    await tile(page, "standing").click(); // Anna
+    await page.keyboard.press("]");
+    await expect(page.locator('[data-testid="composer-person"][aria-checked="true"]')).toContainText("Lane Bea");
+    await expect(tile(page, "standing"), "Bea's lane does not show Anna's posture").toHaveAttribute("data-state", "off");
+    await tile(page, "standing").click(); // Bea stands too
+    await shot(page, "full-body").click(); // the photo's
+    await expect(page.getByTestId("composer-diff")).toContainText("Lane Bea: + standing");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => attributions(m(1))).toEqual([`E2E-LANE-${RUN}-0:standing`, `E2E-LANE-${RUN}-1:standing`]);
+    expect(await tagsOf(m(1))).toEqual(["full-body", "standing"]);
+
+    // Back on photo 1: Anna sits down — the photo still holds standing for Bea
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("[");
+    await expect(page.locator('[data-testid="composer-person"][aria-checked="true"]')).toContainText("Lane Anna");
+    await facet(page, "Posture").click();
+    await tile(page, "sitting").click();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => attributions(m(1))).toEqual([`E2E-LANE-${RUN}-0:sitting`, `E2E-LANE-${RUN}-1:standing`]);
+    expect(await tagsOf(m(1))).toEqual(["full-body", "sitting", "standing"]);
+  });
+});
