@@ -1447,7 +1447,9 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   picked now (on a photo: its tags; on a selection or the brush: the change), then
   use it on the photo on screen, as a selection's change or as the brush. It plays
   like clicks — a base posture in a preset replaces the photo's. The same name saved
-  again replaces the preset.
+  again replaces the preset. A preset can mix a pose and a view ("Gynäkologen-Sicht":
+  lying, on-back, m-legs, facing-viewer, crotch-focus). On a duo the person described
+  takes its Figure, Expression, Clothing and Detail tags, the photo its Camera tags.
 - **Keys inside a card or menu** stay there — Esc closes the card, it does not leave
   the workbench.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,

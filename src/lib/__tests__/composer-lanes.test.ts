@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ComposerCatalog, ComposerTag } from "@/lib/composer";
-import { laneWrites, personalTagIds, photoDraftOf, toggleInLane, unattributed, personsDirty } from "@/lib/composer-lanes";
+import { laneWrites, personalTagIds, photoDraftOf, presetInLane, toggleInLane, unattributed, personsDirty } from "@/lib/composer-lanes";
 
 // ADR-0043 person lanes: Figure is personal, Camera is the photo's.
 const tag = (id: string, groupId: string): ComposerTag => ({ id, name: id, description: null, groupId, parentIds: [] });
@@ -21,6 +21,12 @@ const catalog: ComposerCatalog = {
 const personal = personalTagIds(catalog);
 
 describe("person lanes", () => {
+  it("a preset in a duo: the pose goes to the person described, the view to the photo", () => {
+    const r = presetInLane(catalog, personal, ["standing"], ["standing"], { adds: ["kneeling", "hand-on-hip", "full-body"], removes: [] });
+    expect(r.personDraft).toEqual(["kneeling", "hand-on-hip"]);
+    expect(r.draft).toEqual(["standing", "full-body"]);
+  });
+
   it("personal paths only", () => {
     expect([...personal].sort()).toEqual(["hand-on-hip", "kneeling", "standing"]);
   });

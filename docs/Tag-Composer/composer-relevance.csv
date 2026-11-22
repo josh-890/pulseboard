@@ -1,7 +1,7 @@
 ﻿context;target_kind;target;level;note
 sitting;GROUP;Seat;TYPICAL;sitting asks where
 sitting;GROUP;Knees;TYPICAL;
-sitting;GROUP;Lying orientation;IMPOSSIBLE;
+sitting;GROUP;Orientation;IMPOSSIBLE;
 sitting;GROUP;Named forms;POSSIBLE;
 sitting;TAG;seiza;TYPICAL;the named ways of sitting
 sitting;TAG;wariza;TYPICAL;the named ways of sitting
@@ -27,17 +27,22 @@ lying;GROUP;Seat;IMPOSSIBLE;only sitting has a seat
 squatting;GROUP;Seat;IMPOSSIBLE;only sitting has a seat
 crouching;GROUP;Seat;IMPOSSIBLE;only sitting has a seat
 all-fours;GROUP;Seat;IMPOSSIBLE;only sitting has a seat
-standing;GROUP;Lying orientation;IMPOSSIBLE;
-kneeling;GROUP;Lying orientation;IMPOSSIBLE;
-squatting;GROUP;Lying orientation;IMPOSSIBLE;
-crouching;GROUP;Lying orientation;IMPOSSIBLE;
-all-fours;GROUP;Lying orientation;IMPOSSIBLE;
+upside-down;GROUP;Seat;IMPOSSIBLE;only sitting has a seat
+standing;GROUP;Orientation;IMPOSSIBLE;
+kneeling;GROUP;Orientation;IMPOSSIBLE;
+squatting;GROUP;Orientation;IMPOSSIBLE;
+crouching;GROUP;Orientation;IMPOSSIBLE;
+upside-down;GROUP;Orientation;IMPOSSIBLE;
+all-fours;GROUP;Orientation;POSSIBLE;on all fours only belly up is asked (crab)
+all-fours;TAG;on-stomach;IMPOSSIBLE;
+all-fours;TAG;on-side;IMPOSSIBLE;
 standing;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 kneeling;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 lying;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 squatting;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 crouching;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 all-fours;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
+upside-down;GROUP;Named forms;IMPOSSIBLE;named forms come back one by one below
 standing;GROUP;Leg position;TYPICAL;
 standing;GROUP;Feet;TYPICAL;
 standing;TAG;contrapposto;TYPICAL;
@@ -56,7 +61,7 @@ kneeling;TAG;legs-out;IMPOSSIBLE;
 kneeling;TAG;standing-on-one-leg;IMPOSSIBLE;
 kneeling;TAG;standing-split;IMPOSSIBLE;
 kneeling;TAG;tiptoes;IMPOSSIBLE;
-lying;GROUP;Lying orientation;TYPICAL;lying asks how
+lying;GROUP;Orientation;TYPICAL;lying asks how
 lying;GROUP;Leg position;TYPICAL;
 lying;TAG;fetal-position;TYPICAL;
 lying;TAG;the-pose;TYPICAL;
@@ -80,45 +85,130 @@ all-fours;TAG;legs-out;IMPOSSIBLE;
 all-fours;TAG;standing-split;IMPOSSIBLE;
 all-fours;TAG;reclining;IMPOSSIBLE;
 all-fours;TAG;upright;IMPOSSIBLE;
+sitting;TAG;m-legs;TYPICAL;
+lying;TAG;m-legs;TYPICAL;
+lying;TAG;chest-stand;POSSIBLE;
+all-fours;TAG;crab;TYPICAL;
+all-fours;TAG;top-down-bottom-up;TYPICAL;
+all-fours;TAG;backbend;POSSIBLE;
+all-fours;TAG;cat-stretch;POSSIBLE;
+upside-down;TAG;handstand;TYPICAL;
+upside-down;TAG;headstand;TYPICAL;
+upside-down;TAG;shoulderstand;TYPICAL;
+upside-down;GROUP;Leg position;TYPICAL;
+upside-down;GROUP;Rest point;TYPICAL;
+upside-down;GROUP;Torso lean;IMPOSSIBLE;
+upside-down;GROUP;Motion;IMPOSSIBLE;
+upside-down;TAG;tiptoes;IMPOSSIBLE;
+upside-down;TAG;standing-on-one-leg;IMPOSSIBLE;
+upside-down;TAG;legs-out;IMPOSSIBLE;
+standing;TAG;v-legs;IMPOSSIBLE;
+standing;TAG;legs-over-head;IMPOSSIBLE;
+standing;TAG;head-on-ground;IMPOSSIBLE;
+sitting;TAG;walking;IMPOSSIBLE;no stepping off this base
+sitting;TAG;running;IMPOSSIBLE;no stepping off this base
+sitting;TAG;jumping;IMPOSSIBLE;no stepping off this base
+sitting;TAG;crawling;IMPOSSIBLE;no stepping off this base
+kneeling;TAG;walking;IMPOSSIBLE;no stepping off this base
+kneeling;TAG;running;IMPOSSIBLE;no stepping off this base
+kneeling;TAG;jumping;IMPOSSIBLE;no stepping off this base
+kneeling;TAG;crawling;IMPOSSIBLE;no stepping off this base
+lying;TAG;walking;IMPOSSIBLE;no stepping off this base
+lying;TAG;running;IMPOSSIBLE;no stepping off this base
+lying;TAG;jumping;IMPOSSIBLE;no stepping off this base
+lying;TAG;crawling;IMPOSSIBLE;no stepping off this base
+squatting;TAG;walking;IMPOSSIBLE;no stepping off this base
+squatting;TAG;running;IMPOSSIBLE;no stepping off this base
+squatting;TAG;jumping;IMPOSSIBLE;no stepping off this base
+squatting;TAG;crawling;IMPOSSIBLE;no stepping off this base
+crouching;TAG;walking;IMPOSSIBLE;no stepping off this base
+crouching;TAG;running;IMPOSSIBLE;no stepping off this base
+crouching;TAG;jumping;IMPOSSIBLE;no stepping off this base
+crouching;TAG;crawling;IMPOSSIBLE;no stepping off this base
+lying;TAG;dancing;IMPOSSIBLE;
+standing;TAG;crawling;IMPOSSIBLE;
+all-fours;GROUP;Motion;IMPOSSIBLE;
+all-fours;TAG;crawling;POSSIBLE;
+all-fours;TAG;stretching;POSSIBLE;
+jumping;GROUP;Seat;IMPOSSIBLE;nobody stands, sits or lies in the air
+jumping;GROUP;Rest point;IMPOSSIBLE;nobody stands, sits or lies in the air
+jumping;GROUP;Orientation;IMPOSSIBLE;nobody stands, sits or lies in the air
+gymnastics;TAG;split;TYPICAL;
+gymnastics;TAG;standing-split;TYPICAL;
+gymnastics;TAG;v-legs;TYPICAL;
+gymnastics;TAG;legs-over-head;TYPICAL;
+gymnastics;TAG;handstand;TYPICAL;
+gymnastics;TAG;backbend;TYPICAL;
+gymnastics;TAG;chest-stand;TYPICAL;
+contortion;TAG;split;TYPICAL;
+contortion;TAG;standing-split;TYPICAL;
+contortion;TAG;v-legs;TYPICAL;
+contortion;TAG;legs-over-head;TYPICAL;
+contortion;TAG;handstand;TYPICAL;
+contortion;TAG;backbend;TYPICAL;
+contortion;TAG;chest-stand;TYPICAL;
+flexible;TAG;split;TYPICAL;
+flexible;TAG;standing-split;TYPICAL;
+flexible;TAG;v-legs;TYPICAL;
+flexible;TAG;legs-over-head;TYPICAL;
+flexible;TAG;handstand;TYPICAL;
+flexible;TAG;backbend;TYPICAL;
+flexible;TAG;chest-stand;TYPICAL;
+yoga;TAG;split;TYPICAL;
+yoga;TAG;standing-split;TYPICAL;
+yoga;TAG;v-legs;TYPICAL;
+yoga;TAG;legs-over-head;TYPICAL;
+yoga;TAG;lotus-position;TYPICAL;
+yoga;TAG;headstand;TYPICAL;
+yoga;TAG;shoulderstand;TYPICAL;
+yoga;TAG;cat-stretch;TYPICAL;
+ballet;TAG;split;TYPICAL;
+ballet;TAG;standing-split;TYPICAL;
+ballet;TAG;tiptoes;TYPICAL;
+ballet;TAG;pointed-toes;TYPICAL;
 close-up;GROUP;Posture;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Seat;IMPOSSIBLE;no pose in a close shot
-close-up;GROUP;Lying orientation;IMPOSSIBLE;no pose in a close shot
+close-up;GROUP;Orientation;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Rest point;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Torso lean;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Torso shape;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Leg position;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Knees;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Motion;IMPOSSIBLE;no pose in a close shot
+close-up;GROUP;Discipline;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Named forms;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Posture;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Seat;IMPOSSIBLE;no pose in a close shot
-detail;GROUP;Lying orientation;IMPOSSIBLE;no pose in a close shot
+detail;GROUP;Orientation;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Rest point;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Torso lean;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Torso shape;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Leg position;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Knees;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Motion;IMPOSSIBLE;no pose in a close shot
+detail;GROUP;Discipline;IMPOSSIBLE;no pose in a close shot
 detail;GROUP;Named forms;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Posture;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Seat;IMPOSSIBLE;no pose in a close shot
-macro;GROUP;Lying orientation;IMPOSSIBLE;no pose in a close shot
+macro;GROUP;Orientation;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Rest point;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Torso lean;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Torso shape;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Leg position;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Knees;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Motion;IMPOSSIBLE;no pose in a close shot
+macro;GROUP;Discipline;IMPOSSIBLE;no pose in a close shot
 macro;GROUP;Named forms;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Posture;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Seat;IMPOSSIBLE;no pose in a close shot
-portrait;GROUP;Lying orientation;IMPOSSIBLE;no pose in a close shot
+portrait;GROUP;Orientation;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Rest point;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Torso lean;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Torso shape;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Leg position;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Knees;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Motion;IMPOSSIBLE;no pose in a close shot
+portrait;GROUP;Discipline;IMPOSSIBLE;no pose in a close shot
 portrait;GROUP;Named forms;IMPOSSIBLE;no pose in a close shot
 close-up;GROUP;Region;TYPICAL;a close shot asks what it shows
 detail;GROUP;Region;TYPICAL;a close shot asks what it shows

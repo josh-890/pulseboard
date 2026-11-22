@@ -1,4 +1,4 @@
-import { compositionOf, impliedTags, toggleTag, type ComposerCatalog } from "@/lib/composer";
+import { compositionOf, impliedTags, presetOnto, toggleTag, type ComposerCatalog, type Composition } from "@/lib/composer";
 
 // Person lanes (ADR-0043): the photo's tags stay on the photo; an attribution
 // says whom a tag of a personal path (Figure, Expression, Clothing, Detail)
@@ -55,6 +55,21 @@ export function toggleInLane(
 ): { draft: string[]; personDraft: string[] } {
   if (!personal.has(tagId)) return { draft: toggleTag(catalog, draft, tagId, additive), personDraft };
   return { draft, personDraft: toggleTag(catalog, personDraft, tagId, additive) };
+}
+
+/** A preset in a person's lane: its personal tags go to that person, the rest (Camera) to the photo — played as clicks */
+export function presetInLane(
+  catalog: ComposerCatalog,
+  personal: Set<string>,
+  draft: string[],
+  personDraft: string[],
+  preset: Composition,
+): { draft: string[]; personDraft: string[] } {
+  const part = (mine: boolean): Composition => ({
+    adds: preset.adds.filter((id) => personal.has(id) === mine),
+    removes: preset.removes.filter((id) => personal.has(id) === mine),
+  });
+  return { draft: presetOnto(catalog, draft, part(false)), personDraft: presetOnto(catalog, personDraft, part(true)) };
 }
 
 /** Tags implied in a person's lane (seiza → sitting), for the faint ticks */

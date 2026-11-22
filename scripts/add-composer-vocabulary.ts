@@ -17,6 +17,8 @@
  *   - the Danbooru name becomes an alias when it is spelled differently
  *   - parents: the first is `parentId`, the rest further parents
  *   - "do not confuse with" pairs, the state matrix, the Composer paths/sections
+ *   - presets (composer-presets.csv): only a name not there yet is created — a
+ *     preset already there is never changed
  * Nothing is deleted. A group left empty by the moves is reported, not removed.
  */
 
@@ -75,10 +77,11 @@ const matrix = readCsv('docs/Tag-Composer/composer-state-matrix.csv')
 const relevanceRows = readCsv('docs/Tag-Composer/composer-relevance.csv') as unknown as {
   context: string; target_kind: 'PATH' | 'GROUP' | 'TAG'; target: string; level: 'TYPICAL' | 'POSSIBLE' | 'IMPOSSIBLE'
 }[]
+const presetRows = readCsv('docs/Tag-Composer/composer-presets.csv') as unknown as { name: string; adds: string }[]
 const list = (s: string) => s.split(';').map((x) => x.trim()).filter(Boolean)
 
 // Existing groups taken over (slug → new name); everything else is matched by slug
-const TAKE_OVER: Record<string, string> = { Posture: 'pose', Facing: 'view', Framing: 'framing', Footwear: 'footwear', Legwear: 'legwear' }
+const TAKE_OVER: Record<string, string> = { Posture: 'pose', Facing: 'view', Framing: 'framing', Footwear: 'footwear', Legwear: 'legwear', Orientation: 'lying-orientation' }
 
 const PATH_STYLE: Record<string, { color: string; tileAspect: string; pinned: boolean; personal: boolean }> = {
   Figure: { color: '#a855f7', tileAspect: '3:4', pinned: false, personal: true },
@@ -346,6 +349,22 @@ async function main() {
       }
       note('relevance', `${n} rows`)
     } else note('relevance', `${relevanceRows.length} rows to write`)
+
+    // ── 9. Presets (ADR-0042 S6): added, never overwritten ─────────────────
+    for (const pr of presetRows) {
+      if (await prisma.composerPreset.findUnique({ where: { name: pr.name } })) continue
+      const names = pr.adds.split(',').map((x) => x.trim()).filter(Boolean)
+      const ids: string[] = []
+      for (const n of names) {
+        const id = tagId.get(n) ?? (await prisma.tagDefinition.findFirst({ where: { slug: toTagName(n) }, select: { id: true } }))?.id
+        if (!id && apply) throw new Error(`Preset ${pr.name}: unknown tag ${n}`)
+        if (id) ids.push(id)
+      }
+      note('presets', `${pr.name}: ${names.join(', ')}`)
+      if (!apply) continue
+      const last = (await prisma.composerPreset.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? -1
+      await prisma.composerPreset.create({ data: { name: pr.name, adds: ids, removes: [], sortOrder: last + 1 } })
+    }
 
     // ── Report ─────────────────────────────────────────────────────────────
     for (const [kind, items] of Object.entries(log)) {

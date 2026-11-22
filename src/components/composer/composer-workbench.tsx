@@ -43,6 +43,7 @@ import {
   personalTagIds,
   personsDirty,
   photoDraftOf,
+  presetInLane,
   toggleInLane,
   unattributed,
   type PersonTags,
@@ -524,9 +525,17 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     (p: ComposerPresetItem) => {
       // Played as clicks, so a base posture or an exclusive tag replaces as it would
       if (compMode) return setComp(painting ? { adds: p.adds.filter((id) => catalog.tags[id]), removes: p.removes.filter((id) => catalog.tags[id]) } : presetAsComposition(catalog, p, counts, total));
+      if (duo && lane) {
+        // A duo: the pose goes to the person described, the view to the photo
+        const r = presetInLane(catalog, personal, draft, personDrafts[lane] ?? [], p);
+        const next = { ...personDrafts, [lane]: r.personDraft };
+        setPersonDrafts(next);
+        const stillWaiting = unattributed(personal, ownHere, ownPersonsHere).filter((id) => !Object.values(next).flat().includes(id));
+        return setDraftState((s) => ({ draft: photoDraftOf(personal, r.draft, stillWaiting, next), proposed: s.proposed.filter((id) => !p.adds.includes(id)) }));
+      }
       setDraftState((s) => ({ draft: presetOnto(catalog, s.draft, p), proposed: s.proposed.filter((id) => !p.adds.includes(id)) }));
     },
-    [catalog, compMode, painting, counts, total],
+    [catalog, compMode, painting, counts, total, duo, lane, personal, draft, personDrafts, ownHere, ownPersonsHere],
   );
 
   // Keyboard: the workbench is a keyboard tool

@@ -6,15 +6,17 @@ Figure;Base posture;Posture;;lying;lying;verified;;Body flat on a surface, carri
 Figure;Base posture;Posture;;squatting;squatting;verified;;Knees fully bent, buttocks near the heels but off the ground.;"kneeling; crouching; sitting";existing;;ONE;;;;
 Figure;Base posture;Posture;;crouching;crouching;unverified;;"Knees bent and body lowered, leaning forward, ready to move; less deep than squatting.";squatting;excel;;ONE;;;;
 Figure;Base posture;Posture;;all-fours;all_fours;verified;;Hands and knees both on the ground.;kneeling;excel;;ONE;;;;
+Figure;Base posture;Posture;;upside-down;upside-down;verified;;Inverted: head below the hips, the weight on the hands, head or shoulders.;;new;;ONE;;;;
 Figure;Seat;Seat;;on-floor;on_floor;verified;;Sitting directly on the floor or ground.;raised-seat;new;;ONE;;;;IMPOSSIBLE
 Figure;Seat;Seat;;raised-seat;sitting_on_object;verified;;On a chair, bed, couch or ledge — the feet reach the ground.;"legs-hanging; on-floor";new;;ONE;;;;IMPOSSIBLE
 Figure;Seat;Seat;;legs-hanging;;;;On something high — the legs hang, the feet off the ground.;raised-seat;new;;ONE;;;;IMPOSSIBLE
-Figure;Lying;Lying orientation;;on-back;on_back;verified;;Lying on the back, face up.;reclining;excel;;ONE;;;;IMPOSSIBLE
-Figure;Lying;Lying orientation;;on-stomach;on_stomach;verified;;"Lying on the stomach; upper body may be propped up.";all-fours;excel;;ONE;;;;IMPOSSIBLE
-Figure;Lying;Lying orientation;;on-side;on_side;verified;;Lying on one side, hips stacked.;;excel;;ONE;;;;IMPOSSIBLE
+Figure;Orientation;Orientation;;on-back;on_back;verified;;Belly up: lying on the back, or on all fours facing up (crab).;reclining;excel;;ONE;;;;IMPOSSIBLE
+Figure;Orientation;Orientation;;on-stomach;on_stomach;verified;;"Lying on the stomach; upper body may be propped up.";all-fours;excel;;ONE;;;;IMPOSSIBLE
+Figure;Orientation;Orientation;;on-side;on_side;verified;;Lying on one side, hips stacked.;;excel;;ONE;;;;IMPOSSIBLE
 Figure;Rest point;Rest point;;arm-support;arm_support;verified;;Body propped on one or both arms.;;excel;;MANY;;;;
 Figure;Rest point;Rest point;;head-rest;head_rest;verified;;Head resting on a hand, arm or object.;hand-on-own-chin;new;;MANY;;;;
 Figure;Rest point;Rest point;;leaning-against-wall;against_wall;verified;;Back or shoulder supported by a wall.;;excel;;MANY;;;;
+Figure;Rest point;Rest point;;head-on-ground;head_on_ground;verified;;The head on the ground carries weight (headstand, top-down).;head-rest;new;;MANY;;;;
 Figure;Torso;Torso lean;;upright;;;;Torso vertical, neither leaning forward nor back.;"leaning-forward; leaning-back";new;;ONE;;;;
 Figure;Torso;Torso lean;;leaning-forward;leaning_forward;verified;;Upper body tilted forward, mild to moderate.;bent-over;excel;;ONE;;;;
 Figure;Torso;Torso lean;;bent-over;bent_over;verified;;Upper body bent far forward, often near horizontal.;leaning-forward;excel;;ONE;;;;
@@ -33,11 +35,13 @@ Figure;Legs;Leg position;;crossed-ankles;crossed_ankles;verified;;Ankles crossed
 Figure;Legs;Leg position;;legs-out;outstretched_leg;verified;;Legs stretched out forward, knees straight (sitting or lying).;knees-up;new;;MANY;;;;
 Figure;Legs;Leg position;;leg-up;leg_up;verified;;One leg raised.;standing-on-one-leg;excel;;MANY;;;;
 Figure;Legs;Leg position;;legs-up;legs_up;verified;;Both legs raised.;the-pose;excel;;MANY;;;;
-Figure;Legs;Leg position;;folded;folded;verified;;Legs folded under or beside the body, knees bent flat.;knees-up;new;;MANY;;;;
+Figure;Legs;Leg position;;folded;;;;Legs folded under or beside the body, knees bent flat. Not Danbooru folded (legs pulled back, body folded in half — see legs-over-head).;"knees-up; legs-over-head";new;;MANY;;;;
 Figure;Legs;Leg position;;legs-to-one-side;;;;Both legs folded or laid to the same side.;folded;new;;MANY;;;;
 Figure;Legs;Leg position;;standing-on-one-leg;standing_on_one_leg;verified;;Only one foot carries the weight, the other leg lifted.;leg-up;excel;;MANY;;;;
 Figure;Legs;Leg position;;split;split;verified;;Legs extended in opposite directions on the ground.;standing-split;excel;;MANY;;;;
 Figure;Legs;Leg position;;standing-split;standing_split;verified;;Standing on one leg, the other raised high (vertical split).;split;new;;MANY;;;;
+Figure;Legs;Leg position;;v-legs;v_legs;verified;;Legs straight and spread in a V, knees unbent (on the back or in the air).;"spread-legs; split";new;;MANY;;;;
+Figure;Legs;Leg position;;legs-over-head;legs_over_head;verified;;Legs over or behind the head.;folded;new;;MANY;;;;
 Figure;Legs;Knees;;knee-up;knee_up;verified;;One knee drawn up, the other leg down or out.;knees-up;new;;ONE;;;;
 Figure;Legs;Knees;;knees-up;knees_up;verified;;Both knees drawn up, feet on the surface.;"knee-up; hugging-own-legs";excel;;ONE;;;;
 Figure;Legs;Knees;;knees-to-chest;knees_to_chest;verified;;Knees pulled to the chest.;hugging-own-legs;excel;;ONE;;;;
@@ -70,14 +74,23 @@ Figure;Hands;Hands;;hand-between-legs;hand_between_legs;verified;;A hand between
 Figure;Hands;Hands;;own-hands-together;own_hands_together;verified;;Hands joined or clasped in front.;;new;;MANY;0.8;;1:1;
 Figure;Hands;Hands;;covering-breasts;covering_breasts;verified;;Arm or hands covering the breasts.;"crossed-arms; hand-on-own-chest";new;;MANY;0.8;;1:1;
 Figure;Hands;Hands;;covering-crotch;covering_crotch;verified;;Hand(s) covering the crotch.;hand-between-legs;new;;MANY;0.8;;1:1;
+Figure;Hands;Hands;;hands-on-ground;hands_on_ground;verified;;Both hands on the ground or floor, carrying weight.;arm-support;new;;MANY;0.8;;1:1;
+Figure;Hands;Hands;;holding-own-leg;holding_own_leg;verified;;Holding one's own leg (standing split, leg up).;;new;;MANY;0.8;;1:1;
+Figure;Hands;Hands;;holding-own-legs-back;holding_own_legs_back;verified;;Pulling both legs back toward the body.;knees-to-chest;new;;MANY;0.8;;1:1;
 Figure;Head;Head;;head-tilt;head_tilt;verified;;Head tilted to one side.;;excel;;MANY;0.7;;1:1;
 Figure;Head;Head;;head-down;head_down;verified;;Head lowered.;looking-down;excel;;MANY;0.7;;1:1;
 Figure;Head;Head;;head-back;head_back;verified;;Head thrown back.;looking-up;excel;;MANY;0.7;;1:1;
-Figure;Motion;Motion;;walking;walking;verified;;Caught mid-step.;running;new;;MANY;;;;
-Figure;Motion;Motion;;running;running;verified;;Running.;walking;new;;MANY;;;;
+Figure;Motion;Motion;;walking;walking;verified;standing;Caught mid-step. Counts as standing.;running;new;;MANY;;;;
+Figure;Motion;Motion;;running;running;verified;standing;Running. Counts as standing.;walking;new;;MANY;;;;
+Figure;Motion;Motion;;crawling;crawling;verified;all-fours;Moving forward on all fours. Counts as all-fours.;;new;;MANY;;;;
 Figure;Motion;Motion;;jumping;jumping;verified;;Both feet off the ground.;;new;;MANY;;;;
 Figure;Motion;Motion;;dancing;dancing;verified;;Dancing movement.;;new;;MANY;;;;
 Figure;Motion;Motion;;stretching;stretching;verified;;Stretching the body or limbs.;arms-up;new;;MANY;;;;
+Figure;Discipline;Discipline;;gymnastics;gymnastics;verified;;Gymnastics: balance, strength, flexibility.;;new;;MANY;;;;
+Figure;Discipline;Discipline;;yoga;yoga;verified;;A yoga position.;;new;;MANY;;;;
+Figure;Discipline;Discipline;;contortion;contortion;verified;;Contortion: bending into extreme positions.;flexible;new;;MANY;;;;
+Figure;Discipline;Discipline;;ballet;ballet;verified;;Ballet: the formal steps and poses of the dance.;dancing;new;;MANY;;;;
+Figure;Discipline;Discipline;;flexible;flexible;verified;;A pose that needs unusual flexibility, no particular discipline.;contortion;new;;MANY;;;;
 Figure;Named forms;Named forms;;seiza;seiza;verified;"sitting; folded; legs-together";Knees on the floor, buttocks on the heels, insteps flat. Counts as sitting.;"kneeling; wariza";excel;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;wariza;wariza;verified;"sitting; folded; knees-together-feet-apart";Buttocks on the floor between the feet, lower legs splayed out to both sides (W-sitting).;"yokozuwari; seiza";excel;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;yokozuwari;yokozuwari;verified;"sitting; folded; legs-to-one-side";Both legs folded to the same side, buttocks on the floor.;wariza;excel;;MANY;;;;IMPOSSIBLE
@@ -90,6 +103,15 @@ Figure;Named forms;Named forms;;straddling;straddling;verified;"sitting; spread-
 Figure;Named forms;Named forms;;on-one-knee;on_one_knee;verified;"kneeling; knee-up";Only one knee on the ground, the other leg bent with the foot down.;kneeling;excel;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;fetal-position;fetal_position;verified;"lying; on-side; knees-to-chest";On the side, curled up, knees and arms drawn to the chest.;hugging-own-legs;excel;;MANY;;;;IMPOSSIBLE
 Figure;Named forms;Named forms;;the-pose;the_pose;verified;"lying; on-stomach; legs-up";On the stomach with the lower legs raised, feet in the air.;legs-up;excel;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;m-legs;m_legs;verified;"spread-legs; knees-up";Legs spread in an M: knees up and bent outward, feet near the buttocks.;butterfly-sitting;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;handstand;handstand;verified;"upside-down; hands-on-ground";Upside-down on the hands, arms straight.;shoulderstand;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;headstand;headstand;verified;"upside-down; head-on-ground";Upside-down on the head (and forearms).;handstand;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;shoulderstand;shoulderstand;verified;"upside-down; legs-up";On the shoulders, the body and legs raised straight up.;legs-over-head;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;crab;;;"all-fours; on-back";On hands and feet, belly up.;backbend;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;backbend;backbend;verified;"crab; arched-back";The bridge: belly up on hands and feet, the back arched high.;"crab; bent-back";new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;top-down-bottom-up;top-down_bottom-up;verified;"all-fours; head-down";Face down close to the surface, hips up in the air.;cat-stretch;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;cat-stretch;cat_stretch;verified;"top-down-bottom-up; outstretched-arms";Hips up, arms stretched far forward on the ground.;top-down-bottom-up;new;;MANY;;;;IMPOSSIBLE
+Figure;Named forms;Named forms;;chest-stand;chest_stand;verified;"lying; on-stomach; arched-back; legs-over-head";Chest on the ground, the back curved up and over until the legs are in front of the head.;backbend;new;;MANY;;;;IMPOSSIBLE
 Camera;Shot;Framing;yes;close-up;close-up;verified;;Face, or a small part of the body, fills the frame.;"portrait; detail";existing;;ONE;;;;
 Camera;Shot;Framing;yes;portrait;portrait;verified;;Head and shoulders.;"close-up; upper-body";existing;;ONE;;;;
 Camera;Shot;Framing;yes;upper-body;upper_body;verified;;From the head to about the waist.;"portrait; cowboy-shot";rename:half-body;;ONE;;;;
@@ -113,6 +135,7 @@ Camera;Lens & perspective;Lens & perspective;;foreshortening;foreshortening;veri
 Camera;Lens & perspective;Lens & perspective;;pov;pov;verified;;Seen from a participant's eyes (first person).;;excel;;MANY;;;;
 Camera;Lens & perspective;Lens & perspective;;depth-of-field;depth_of_field;verified;;Shallow focus: the subject sharp, the rest soft.;blurry-background;new;;MANY;;;;
 Camera;Lens & perspective;Lens & perspective;;blurry-background;blurry_background;verified;;The background is out of focus.;depth-of-field;new;;MANY;;;;
+Camera;Lens & perspective;Lens & perspective;;motion-blur;motion_blur;verified;;Blur showing fast movement — of the body, hair or clothes.;;new;;MANY;;;;
 Expression;Gaze;Gaze;;looking-at-viewer;looking_at_viewer;verified;;Looking straight into the camera.;facing-viewer;excel;;MANY;;;;
 Expression;Gaze;Gaze;;looking-away;looking_away;verified;;Looking somewhere other than the camera.;looking-to-the-side;excel;;MANY;;;;
 Expression;Gaze;Gaze;;looking-to-the-side;looking_to_the_side;verified;;Looking sideways.;looking-away;excel;;MANY;;;;
