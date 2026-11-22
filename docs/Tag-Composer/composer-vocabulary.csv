@@ -116,8 +116,8 @@ Camera;Shot;Framing;yes;close-up;close-up;verified;;Face, or a small part of the
 Camera;Shot;Framing;yes;portrait;portrait;verified;;Head and shoulders.;"close-up; upper-body";existing;;ONE;;;;
 Camera;Shot;Framing;yes;upper-body;upper_body;verified;;From the head to about the waist.;"portrait; cowboy-shot";rename:half-body;;ONE;;;;
 Camera;Shot;Framing;yes;cowboy-shot;cowboy_shot;verified;;From the head to about mid-thigh.;"upper-body; full-body";new;;ONE;;;;
-Camera;Shot;Framing;yes;full-body;full_body;verified;;Head to feet visible.;wide-shot;existing;;ONE;;;;
-Camera;Shot;Framing;yes;wide-shot;wide_shot;verified;;The person small within a lot of surroundings.;full-body;excel;;ONE;;;;
+Camera;Shot;Framing;yes;full-body;full_body;verified;;Head to feet visible, and the person fills most of the frame.;wide-shot;existing;;ONE;;;;
+Camera;Shot;Framing;yes;wide-shot;wide_shot;verified;;Head to feet visible, but the person takes up only a small part of the frame.;full-body;excel;;ONE;;;;
 Camera;Shot;Framing;yes;lower-body;lower_body;verified;;Waist down only.;detail;new;;ONE;;;;
 Camera;Shot;Framing;yes;detail;;;;A body part or garment detail, not the person as a whole.;"close-up; macro";existing;;ONE;;;;
 Camera;Shot;Framing;yes;macro;;;;Extreme detail: skin texture, a mole, a tattoo line, an eyelash.;detail;new;;ONE;;;;
