@@ -153,15 +153,27 @@ export async function getTagCard(tagId: string): Promise<TagCard | null> {
 const validBox = (b: Box) =>
   [b.x, b.y, b.w, b.h].every((v) => Number.isFinite(v)) && b.w >= 0.01 && b.h >= 0.01 && b.x >= 0 && b.y >= 0 && b.x + b.w <= 1.0001 && b.y + b.h <= 1.0001;
 
-/** The tile shape and framing rule of the Composer path that shows a tag (square, default rule otherwise) */
+/**
+ * The tile shape and framing rule a tag's examples are cut to: its facet's own
+ * (ADR-0043 — Feet frames the feet), else the Composer path's that shows it;
+ * square and the default rule otherwise.
+ */
 async function framingOfTag(tagId: string): Promise<{ tileAspect: number; framing: Framing }> {
-  const tag = await prisma.tagDefinition.findUniqueOrThrow({ where: { id: tagId }, select: { groupId: true } });
+  const tag = await prisma.tagDefinition.findUniqueOrThrow({
+    where: { id: tagId },
+    select: { group: { select: { id: true, framingFill: true, framingTop: true, tileAspect: true } } },
+  });
   const link = await prisma.composerSectionGroup.findFirst({
-    where: { groupId: tag.groupId },
+    where: { groupId: tag.group.id },
     select: { section: { select: { path: { select: { name: true, tileAspect: true } } } } },
   });
   const path = link?.section.path;
-  return { tileAspect: aspectOf(path?.tileAspect ?? "1:1"), framing: (path && FRAMING[path.name]) || DEFAULT_FRAMING };
+  const base = (path && FRAMING[path.name]) || DEFAULT_FRAMING;
+  const g = tag.group;
+  return {
+    tileAspect: aspectOf(g.tileAspect ?? path?.tileAspect ?? "1:1"),
+    framing: { fill: g.framingFill ?? base.fill, topMargin: g.framingTop ?? base.topMargin },
+  };
 }
 
 /**
@@ -186,11 +198,12 @@ export async function addTagExample(tagId: string, mediaItemId: string, box: Box
 
 /**
  * Re-frame every example that has a subject box under today's rules — after a
- * framing rule or a path's tile shape changed. Returns how many were updated.
+ * framing rule or a tile shape changed (all, or the examples of `tagIds`).
+ * Returns how many were updated.
  */
-export async function reframeTagExamples(): Promise<number> {
+export async function reframeTagExamples(tagIds?: string[]): Promise<number> {
   const rows = await prisma.tagExample.findMany({
-    where: { boxX: { not: null }, boxY: { not: null }, boxW: { not: null }, boxH: { not: null } },
+    where: { ...(tagIds ? { tagId: { in: tagIds } } : {}), boxX: { not: null }, boxY: { not: null }, boxW: { not: null }, boxH: { not: null } },
     select: { id: true, tagId: true, boxX: true, boxY: true, boxW: true, boxH: true, mediaItem: { select: { originalWidth: true, originalHeight: true } } },
   });
   const rules = new Map<string, { tileAspect: number; framing: Framing }>();
