@@ -31,9 +31,11 @@ import {
   pathVisible,
   tileAspectOfGroup,
   type ComposerCatalog,
+  type ComposerTag,
   type ComposerStateRule,
 } from "@/lib/composer";
 import { applyCompositionAction, ensureStateCombinationAction } from "@/lib/actions/composer-actions";
+import { createComposerValueAction } from "@/lib/actions/composer-manage-actions";
 import type { ComposerCastMember, ComposerPhoto } from "@/lib/services/composer-service";
 import {
   laneView,
@@ -75,6 +77,17 @@ type LeaveTarget = { kind: "photo"; index: number } | { kind: "back" };
 
 const sameAsk = (a: LeaveTarget | null, b: LeaveTarget) =>
   !!a && a.kind === b.kind && (a.kind === "back" || (b.kind === "photo" && a.index === b.index));
+
+/** The catalogue with a tag created on the way (a combination, a new value) */
+function withTag(c: ComposerCatalog, t: ComposerTag): ComposerCatalog {
+  return {
+    ...c,
+    tags: { ...c.tags, [t.id]: t },
+    groups: c.groups[t.groupId]?.tagIds.includes(t.id)
+      ? c.groups
+      : { ...c.groups, [t.groupId]: { ...c.groups[t.groupId], tagIds: [...c.groups[t.groupId].tagIds, t.id] } },
+  };
+}
 
 function readPins(catalog: ComposerCatalog): Set<string> {
   try {
@@ -208,6 +221,28 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     [catalog, compMode, counts, total, duo, lane, personal, personDrafts, draft, ownHere, ownPersonsHere],
   );
 
+  // "+ value" in a facet (ADR-0043, R4): the new value joins the catalogue and is
+  // picked once it is there — through the same click rules (lane, ONE facet)
+  const [pickNew, setPickNew] = useState<string | null>(null);
+  if (pickNew && catalog.tags[pickNew]) {
+    setPickNew(null);
+    toggle(pickNew, false);
+  }
+  const addValue = useCallback(
+    async (groupId: string, name: string): Promise<boolean> => {
+      const r = await createComposerValueAction(groupId, name);
+      if (!r.success) {
+        toast.error(r.error);
+        return false;
+      }
+      setCatalog((c) => withTag(c, r.tag));
+      setPickNew(r.tag.id);
+      toast.success(`${r.tag.name} added to ${catalog.groups[groupId]?.name ?? "the facet"}`);
+      return true;
+    },
+    [catalog.groups],
+  );
+
   const takeCombination = useCallback(
     (comboId: string) => {
       if (duo && lane) {
@@ -232,13 +267,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
         setCreating(null);
         if (!r.success) return void toast.error(r.error);
         const t = r.tag;
-        setCatalog((c) => ({
-          ...c,
-          tags: { ...c.tags, [t.id]: t },
-          groups: c.groups[t.groupId]?.tagIds.includes(t.id)
-            ? c.groups
-            : { ...c.groups, [t.groupId]: { ...c.groups[t.groupId], tagIds: [...c.groups[t.groupId].tagIds, t.id] } },
-        }));
+        setCatalog((c) => withTag(c, t));
         if (compMode) setComp((c) => (c.adds.includes(t.id) ? c : { adds: [...c.adds, t.id], removes: c.removes.filter((x) => x !== t.id) }));
         else setDraftState((s) => ({ draft: s.draft.includes(t.id) ? s.draft : [...s.draft, t.id], proposed: s.proposed }));
       });
@@ -822,6 +851,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               countByPath={countByPath}
               countOf={countOf}
               composing={compMode}
+              onAddValue={addValue}
             />
             </>
           )}

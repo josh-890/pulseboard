@@ -1,7 +1,7 @@
 "use client";
 
-import { forwardRef } from "react";
-import { ChevronDown, Pencil } from "lucide-react";
+import { forwardRef, useState } from "react";
+import { ChevronDown, Loader2, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ComposerCatalog, FacetView } from "@/lib/composer";
 import type { PathStyle } from "./composer-path-style";
@@ -27,6 +27,8 @@ export type ComposerFacetProps = {
   /** "more …" is open */
   showMore: boolean;
   onShowMore: () => void;
+  /** "+ value": add a value to this facet (it is picked once created); false = refused, keep the text */
+  onAdd?: (name: string) => Promise<boolean>;
 };
 
 /**
@@ -36,9 +38,11 @@ export type ComposerFacetProps = {
  * outlined.
  */
 export const ComposerFacet = forwardRef<HTMLDivElement, ComposerFacetProps>(function ComposerFacet(
-  { catalog, view, chosen, tileState, style, onToggle, countOf, tileAspect, showName, collapsed, onReopen, focused, showMore, onShowMore },
+  { catalog, view, chosen, tileState, style, onToggle, countOf, tileAspect, showName, collapsed, onReopen, focused, showMore, onShowMore, onAdd },
   ref,
 ) {
+  const [adding, setAdding] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const group = catalog.groups[view.groupId];
   const shown = showMore ? [...view.shown, ...view.more] : view.shown;
   const visual = wantsVisualTiles([...view.shown, ...view.more].map((id) => catalog.tags[id]));
@@ -89,6 +93,52 @@ export const ComposerFacet = forwardRef<HTMLDivElement, ComposerFacetProps>(func
           />
         ))}
       </div>
+      {onAdd && (
+        <div className="mt-1">
+          {adding === null ? (
+            <button
+              type="button"
+              onClick={() => setAdding("")}
+              data-testid="composer-facet-add"
+              aria-label={`Add a value to ${group?.name}`}
+              className="inline-flex items-center gap-0.5 rounded px-1 text-[11px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Plus size={12} aria-hidden /> value
+            </button>
+          ) : (
+            <form
+              className="flex items-center gap-1"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const name = adding.trim();
+                if (!name) return setAdding(null);
+                setSaving(true);
+                const ok = await onAdd(name);
+                setSaving(false);
+                if (ok) setAdding(null);
+              }}
+            >
+              <input
+                autoFocus
+                value={adding}
+                disabled={saving}
+                onChange={(e) => setAdding(e.target.value)}
+                onKeyDown={(e) => {
+                  // The workbench's keys (1–9, arrows) stay out of the field
+                  e.stopPropagation();
+                  if (e.key === "Escape") setAdding(null);
+                }}
+                onBlur={() => !saving && !adding.trim() && setAdding(null)}
+                placeholder={`New value in ${group?.name}`}
+                aria-label={`New value in ${group?.name}`}
+                data-testid="composer-facet-add-input"
+                className="min-w-0 flex-1 rounded-md border border-border/60 bg-background/60 px-2 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              />
+              {saving && <Loader2 size={12} className="animate-spin text-muted-foreground" aria-label="Adding" />}
+            </form>
+          )}
+        </div>
+      )}
       {view.more.length > 0 && !showMore && (
         <button
           type="button"

@@ -448,6 +448,43 @@ export function relevanceOf(
   return result ?? (groupId ? catalog.groups[groupId]?.defaultLevel : undefined) ?? "POSSIBLE";
 }
 
+/**
+ * One cell of the relevance matrix (Settings → Composer): the level a context
+ * sets on the target itself (`own`), and what it would answer otherwise — the
+ * facet's row for a value, the path's for a value or a facet (`inherited`).
+ * Both null: the context has no say there.
+ */
+export function relevanceCell(
+  catalog: ComposerCatalog,
+  contextId: string,
+  target: { kind: "PATH" | "GROUP" | "TAG"; id: string },
+): { own: RelevanceLevel | null; inherited: RelevanceLevel | null } {
+  const rows = catalog.relevance?.[contextId] ?? {};
+  const groupId = target.kind === "TAG" ? catalog.tags[target.id]?.groupId : target.kind === "GROUP" ? target.id : undefined;
+  const pathId = target.kind === "PATH" ? undefined : groupId ? pathOfGroup(catalog, groupId) : undefined;
+  const above = [...(target.kind === "TAG" && groupId ? [`GROUP:${groupId}`] : []), ...(pathId ? [`PATH:${pathId}`] : [])];
+  return {
+    own: rows[`${target.kind}:${target.id}`] ?? null,
+    inherited: above.map((k) => rows[k]).find((l) => l !== undefined) ?? null,
+  };
+}
+
+/** The matrix click: no own row → typical → possible → impossible → no own row again */
+export function nextCellLevel(own: RelevanceLevel | null): RelevanceLevel | null {
+  return own === null ? "TYPICAL" : own === "TYPICAL" ? "POSSIBLE" : own === "POSSIBLE" ? "IMPOSSIBLE" : null;
+}
+
+/** Context tags whose rows touch a path — its own row, its facets', its values' */
+export function contextsTouching(catalog: ComposerCatalog, pathId: string): string[] {
+  const path = catalog.paths.find((p) => p.id === pathId);
+  if (!path) return [];
+  const groups = path.sections.flatMap((s) => s.groupIds);
+  const keys = new Set([`PATH:${pathId}`, ...groups.map((g) => `GROUP:${g}`), ...groups.flatMap((g) => (catalog.groups[g]?.tagIds ?? []).map((t) => `TAG:${t}`))]);
+  return Object.entries(catalog.relevance ?? {})
+    .filter(([, rows]) => Object.keys(rows).some((k) => keys.has(k)))
+    .map(([ctx]) => ctx);
+}
+
 export type FacetView = {
   groupId: string;
   level: RelevanceLevel;

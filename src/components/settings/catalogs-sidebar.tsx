@@ -13,6 +13,7 @@ const CATALOG_ITEMS = [
   { href: "/settings/catalogs/colors", label: "Colors" },
   { href: "/settings/catalogs/intensity", label: "Intensity" },
   { href: "/settings/catalogs/tags", label: "Tags" },
+  { href: "/settings/catalogs/composer", label: "Composer" },
 ];
 
 export function CatalogsSidebar() {

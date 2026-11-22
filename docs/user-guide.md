@@ -1452,6 +1452,38 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   the workbench.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
   so `looking_at_viewer` in the query box finds `looking-at-viewer`.
+- **+ value** under a facet adds a value right there: type its name, Enter. It joins
+  the end of the facet, takes the facet's relevance, and is picked on the photo at once.
+
+#### Settings → Composer
+
+**Settings → Catalogs → Composer** keeps what the workbench asks. Two tabs:
+
+- **Tree** — the paths, their sections, the facets in them and their values, in the
+  workbench's order; ↑ ↓ on a row move it among its neighbours. Select a row to edit it:
+  - a **path**: its name, its tile shape, whether it is carried over to the next photo,
+    and whether it **describes a person** (picked per person on a photo with two people);
+  - a **section**: its name and whether pass mode offers it (the section named **Shot**
+    is the row above the tabs);
+  - a **facet**: **One** answer (a pick replaces) or **Many**; what it does **where no
+    context has a say** — Typical, Possible, or **Waits** (asked only once a context
+    asks for it: the seat waits for *sitting*); how its examples are **framed** (how
+    much of the tile the subject fills, how far from the top, the tile shape — empty
+    inherits the path; a change cuts the facet's examples again); and **Add a value**;
+  - a **value**: its name and definition, the **body region** it stands for (a Region
+    value — the archive bridge looks there), a **line drawing** (SVG, PNG or WebP —
+    shown on the tile before the photo example), and its **relations**: what it implies
+    (its parent, or its parts for a named form), what implies it, what it is **not to be
+    confused with** (shown in its card), and **New named form**: pick the other parts,
+    name it — the workbench offers it once all parts are picked (`= seiza?`).
+    *Aliases, merge, delete* open the value in /tags.
+- **Relevance** — one path at a time. Rows are the whole path, its facets and (unfold a
+  facet) its values; columns are the **contexts** you switch on above — whole groups
+  (Posture, Framing, Region …) or a single tag (**Another context**). A click on a cell
+  cycles **●** typical → **○** possible → **✕** hidden → back to inherited. Bold marks
+  are set in that cell, faint ones come from the facet or path above; a dot means the
+  context has no say and the **Default** column answers. On a photo with several
+  contexts the strictest wins.
 
 ### The tag browser (/tags, ADR-0033)
 

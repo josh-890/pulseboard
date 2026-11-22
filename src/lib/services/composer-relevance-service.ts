@@ -7,6 +7,23 @@ import type { RelevanceLevel } from "@/lib/composer";
 
 export type RelevanceTargetKind = "PATH" | "GROUP" | "TAG";
 
+const LEVELS: RelevanceLevel[] = ["TYPICAL", "POSSIBLE", "IMPOSSIBLE"];
+
+/** The context is a tag; the target is a path, a facet or a value that exists */
+async function assertTargets(contextTagId: string, targetKind: RelevanceTargetKind, targetId: string): Promise<void> {
+  const context = await prisma.tagDefinition.count({ where: { id: contextTagId } });
+  if (!context) throw new Error("Unknown context tag");
+  const n =
+    targetKind === "PATH"
+      ? await prisma.composerPath.count({ where: { id: targetId } })
+      : targetKind === "GROUP"
+        ? await prisma.tagGroup.count({ where: { id: targetId } })
+        : targetKind === "TAG"
+          ? await prisma.tagDefinition.count({ where: { id: targetId } })
+          : 0;
+  if (!n) throw new Error("Unknown relevance target");
+}
+
 export async function setRelevance(
   contextTagId: string,
   targetKind: RelevanceTargetKind,
@@ -14,6 +31,8 @@ export async function setRelevance(
   level: RelevanceLevel | null,
 ): Promise<void> {
   const where = { contextTagId_targetKind_targetId: { contextTagId, targetKind, targetId } };
+  if (level !== null && !LEVELS.includes(level)) throw new Error(`Unknown level "${level}"`);
+  if (level !== null) await assertTargets(contextTagId, targetKind, targetId);
   if (level === null) {
     await prisma.tagRelevance.deleteMany({ where: { contextTagId, targetKind, targetId } });
     return;

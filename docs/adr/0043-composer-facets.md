@@ -1,6 +1,6 @@
 # ADR-0043: Composer facets — body-part facets, context relevance, person lanes, shot tiers
 
-- **Status:** Accepted (R1 core, R2 starting table, R3 workbench built 2026-11-22; R4 management follows)
+- **Status:** Accepted (R1 core, R2 starting table, R3 workbench, R4 management built 2026-11-22)
 - **Date:** 2026-11-22
 - **Refines:** ADR-0042
 
@@ -62,7 +62,9 @@ The research behind the decisions:
 10. **The Detail tier bridges to the person archive.** It offers the person's body marks in the region and uses
     the existing detail-assign route.
 11. **Everything is maintained by the user** in Settings → Composer (R4): a tree, the relevance matrix, a
-    relationship graph, "+ value" in the workbench.
+    relationship view, "+ value" in the workbench. As built: order by ↑ ↓ buttons rather than dragging
+    (keyboard-reachable); relations are linked through a search picker, not by dragging edges; a line drawing is
+    rendered to WebP on upload, so no SVG (and no script in one) is ever served.
 
 12. **Facet defaults** (added while building R3): `tag_group.composerDefault` is a facet's level where no
     context present has a say. Seat, Lying orientation, Named forms and Region default to impossible, so they

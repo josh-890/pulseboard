@@ -169,3 +169,25 @@ describe("facet defaults", () => {
     expect(nextFocusFacet(catalog, catalog.paths[0], [], [])).toBe("base");
   });
 });
+
+describe("the relevance matrix (R4)", () => {
+  it("a cell knows its own row and what it inherits from the facet or path", async () => {
+    const { relevanceCell } = await import("@/lib/composer");
+    expect(relevanceCell(catalog, "sitting", { kind: "TAG", id: "legs-hanging" })).toEqual({ own: "TYPICAL", inherited: "POSSIBLE" });
+    expect(relevanceCell(catalog, "sitting", { kind: "TAG", id: "knee-up" })).toEqual({ own: null, inherited: "TYPICAL" });
+    expect(relevanceCell(catalog, "full-body", { kind: "GROUP", id: "framing" })).toEqual({ own: null, inherited: "POSSIBLE" });
+    expect(relevanceCell(catalog, "full-body", { kind: "PATH", id: "camera" })).toEqual({ own: "POSSIBLE", inherited: null });
+    expect(relevanceCell(catalog, "hands-region", { kind: "TAG", id: "sitting" })).toEqual({ own: null, inherited: null });
+  });
+
+  it("a click cycles typical → possible → hidden → inherit", async () => {
+    const { nextCellLevel } = await import("@/lib/composer");
+    expect([null, "TYPICAL", "POSSIBLE", "IMPOSSIBLE"].map((l) => nextCellLevel(l as never))).toEqual(["TYPICAL", "POSSIBLE", "IMPOSSIBLE", null]);
+  });
+
+  it("the contexts whose rows touch a path", async () => {
+    const { contextsTouching } = await import("@/lib/composer");
+    expect(contextsTouching(catalog, "figure").sort()).toEqual(["close-up", "hands-region", "sitting", "standing"]);
+    expect(contextsTouching(catalog, "camera")).toEqual(["full-body"]);
+  });
+});

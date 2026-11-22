@@ -43,6 +43,8 @@ export type ComposerInspectorProps = {
   countOf?: (tagId: string) => { n: number; of: number } | undefined;
   /** Many photos at once: no folding, no focus — every facet stays open */
   composing: boolean;
+  /** "+ value" (ADR-0043, R4): a new value in a facet, picked once created; false = refused */
+  onAddValue?: (groupId: string, name: string) => Promise<boolean>;
 };
 
 /**
@@ -69,6 +71,7 @@ export function ComposerInspector({
   countByPath,
   countOf,
   composing,
+  onAddValue,
 }: ComposerInspectorProps) {
   const path = paths.find((p) => p.id === activePathId) ?? paths[0];
   const style = pathStyle(path?.name ?? "");
@@ -222,6 +225,7 @@ export function ComposerInspector({
                     focused={focus === view.groupId}
                     showMore={composing || moreOpen.has(view.groupId)}
                     onShowMore={() => setMoreOpen((m) => add(m, view.groupId))}
+                    onAdd={onAddValue ? (name) => onAddValue(view.groupId, name) : undefined}
                   />
                 ))}
               </div>
