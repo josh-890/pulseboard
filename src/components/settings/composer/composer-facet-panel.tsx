@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Grid3x3, Loader2, Plus } from "lucide-react";
+import { Grid3x3, Loader2, LogOut, Plus } from "lucide-react";
 import { toast } from "sonner";
 import type { ComposerCatalog, ComposerPath, FacetChoice, RelevanceLevel } from "@/lib/composer";
 import { DEFAULT_FRAMING, FRAMING } from "@/lib/tag-example";
 import type { SimpleActionResult } from "@/lib/types";
-import { createComposerValueAction, updateComposerFacetAction } from "@/lib/actions/composer-manage-actions";
+import { createComposerValueAction, detachComposerFacetAction, updateComposerFacetAction } from "@/lib/actions/composer-manage-actions";
 import { ComposerSegmented } from "./composer-segmented";
 import { ComposerTextField } from "./composer-text-field";
 import { TILE_SHAPES } from "./composer-tile-shapes";
@@ -14,6 +14,8 @@ import { TILE_SHAPES } from "./composer-tile-shapes";
 export type ComposerFacetPanelProps = {
   catalog: ComposerCatalog;
   groupId: string;
+  /** The section it sits in (a facet can be taken out of it) */
+  sectionId: string;
   path: ComposerPath | undefined;
   call: (action: () => Promise<SimpleActionResult>) => Promise<void>;
   pending: boolean;
@@ -21,6 +23,8 @@ export type ComposerFacetPanelProps = {
   onRelevance: () => void;
   /** A value was added — select it */
   onAdded: (tagId: string) => void;
+  /** Taken out of its section — select the section */
+  onDetached: () => void;
 };
 
 const pct = (v: number | undefined) => (v === undefined ? "" : String(Math.round(v * 100)));
@@ -29,10 +33,11 @@ const pct = (v: number | undefined) => (v === undefined ? "" : String(Math.round
  * A facet (a tag group in a section): one or many answers, its level where no
  * context has a say, how its examples are framed, and "+ value".
  */
-export function ComposerFacetPanel({ catalog, groupId, path, call, pending, onRelevance, onAdded }: ComposerFacetPanelProps) {
+export function ComposerFacetPanel({ catalog, groupId, sectionId, path, call, pending, onRelevance, onAdded, onDetached }: ComposerFacetPanelProps) {
   const group = catalog.groups[groupId];
   const [adding, setAdding] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sure, setSure] = useState(false);
   if (!group) return null;
   const save = (data: Parameters<typeof updateComposerFacetAction>[1]) => call(() => updateComposerFacetAction(groupId, data));
   const base = FRAMING[path?.name ?? ""] ?? DEFAULT_FRAMING;
@@ -158,6 +163,24 @@ export function ComposerFacetPanel({ catalog, groupId, path, call, pending, onRe
         </div>
         <p className="text-[11px] text-muted-foreground">It joins the end of the facet and inherits its relevance.</p>
       </form>
+
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+        <button
+          type="button"
+          disabled={pending}
+          data-testid="composer-detach-facet"
+          onClick={() => {
+            if (!sure) return setSure(true);
+            void call(() => detachComposerFacetAction(sectionId, groupId))
+              .then(onDetached)
+              .catch(() => setSure(false));
+          }}
+          className="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors duration-150 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <LogOut size={13} aria-hidden /> {sure ? "Sure? Take it out" : "Take out of this section"}
+        </button>
+        <span className="text-[11px] text-muted-foreground">The tag group and its tags stay — in /tags and on every photo.</span>
+      </div>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MapPin, PenLine } from "lucide-react";
 import type { ComposerCatalog } from "@/lib/composer";
 import { pathStyle } from "@/components/composer/composer-path-style";
-import { moved, nodeKey, type ManageNode } from "./composer-manage-node";
+import { ancestorKeys, moved, nodeKey, type ManageNode } from "./composer-manage-node";
 import { ComposerTreeRow } from "./composer-tree-row";
 
 export type ComposerTreeProps = {
@@ -34,6 +34,13 @@ export function ComposerTree({ catalog, usage, selected, onSelect, onReorder, bu
       return n;
     });
   const selKey = selected ? nodeKey(selected) : null;
+  // A node selected from outside (added, opened from a relation) has its ancestors unfolded
+  const [seenSel, setSeenSel] = useState<string | null>(null);
+  if (selKey !== seenSel) {
+    setSeenSel(selKey);
+    const up = selected ? ancestorKeys(catalog, selected) : [];
+    if (up.some((k) => !open.has(k))) setOpen((o) => new Set([...o, ...up]));
+  }
 
   /** The props every row shares: selection, folding, moving among `siblings` */
   const rowOf = (node: ManageNode, siblings: string[], parentId: string | null, expandable: boolean) => {

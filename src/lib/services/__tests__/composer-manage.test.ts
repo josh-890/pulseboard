@@ -6,6 +6,10 @@ import { minioClient, getMinioBucket } from "@/lib/minio";
 import {
   clearComposerDrawing,
   createComposerCombination,
+  createComposerFacet,
+  createComposerSection,
+  deleteComposerSection,
+  detachComposerFacet,
   createComposerValue,
   getComposerManageData,
   reorderComposer,
@@ -29,6 +33,7 @@ let otherGroupId = "";
 let sessionId = "";
 let photo = "";
 const tags: Record<string, string> = {};
+const createdGroups: string[] = [];
 
 beforeAll(async () => {
   const facet = await prisma.tagGroup.create({ data: { name: `${RUN} facet`, slug: `${RUN}-facet` } });
@@ -53,7 +58,7 @@ afterAll(async () => {
   await prisma.tagExample.deleteMany({ where: { mediaItemId: photo } });
   await prisma.mediaItem.deleteMany({ where: { id: photo } });
   await prisma.session.deleteMany({ where: { id: sessionId } });
-  const ids = (await prisma.tagDefinition.findMany({ where: { groupId: { in: [facetId, otherGroupId] } }, select: { id: true } })).map((t) => t.id);
+  const ids = (await prisma.tagDefinition.findMany({ where: { groupId: { in: [facetId, otherGroupId, ...createdGroups] } }, select: { id: true } })).map((t) => t.id);
   await prisma.tagRelevance.deleteMany({ where: { OR: [{ contextTagId: { in: ids } }, { targetId: { in: [...ids, facetId, pathId] } }] } });
   await prisma.tagConfusable.deleteMany({ where: { OR: [{ tagAId: { in: ids } }, { tagBId: { in: ids } }] } });
   await prisma.tagExtraParent.deleteMany({ where: { OR: [{ tagId: { in: ids } }, { parentId: { in: ids } }] } });
@@ -61,7 +66,7 @@ afterAll(async () => {
   await prisma.tagDefinition.updateMany({ where: { id: { in: ids } }, data: { parentId: null } });
   await prisma.tagDefinition.deleteMany({ where: { id: { in: ids } } });
   await prisma.composerPath.delete({ where: { id: pathId } });
-  await prisma.tagGroup.deleteMany({ where: { id: { in: [facetId, otherGroupId] } } });
+  await prisma.tagGroup.deleteMany({ where: { id: { in: [facetId, otherGroupId, ...createdGroups] } } });
   const bucket = getMinioBucket();
   for (const id of Object.values(tags)) {
     const listed = await minioClient.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: `composer/drawings/${id}-` }));
@@ -113,6 +118,28 @@ describe("the tree", () => {
     expect((await prisma.tagDefinition.findUniqueOrThrow({ where: { id: tags.a } })).regionCatalogId).toBe("thigh_l");
     await expect(updateComposerValue(tags.a, { regionCatalogId: "nowhere" })).rejects.toThrow(/Unknown body region/);
     await updateComposerValue(tags.a, { regionCatalogId: null });
+  });
+});
+
+describe("sections and facets", () => {
+  it("adds a section at the path's end, and a facet set up like its neighbours", async () => {
+    const section = await createComposerSection(pathId, `${RUN} named`);
+    await expect(createComposerSection(pathId, `${RUN} named`)).rejects.toThrow(/already has a section/);
+    const { id } = await createComposerFacet(section.id, `${RUN} Named expressions`, "MANY");
+    createdGroups.push(id);
+    const g = await prisma.tagGroup.findUniqueOrThrow({ where: { id } });
+    const sibling = await prisma.tagGroup.findUniqueOrThrow({ where: { id: facetId } });
+    expect([g.domain, g.typicalLevel, g.composerChoice]).toEqual([sibling.domain, sibling.typicalLevel, "MANY"]);
+    await expect(createComposerFacet(section.id, `${RUN} Named expressions`), "already a facet").rejects.toThrow(/already a facet/);
+    // A loose tag group of that name is taken in, not duplicated
+    const other = await prisma.tagGroup.findUniqueOrThrow({ where: { id: otherGroupId } });
+    expect((await createComposerFacet(section.id, other.name)).id).toBe(otherGroupId);
+    await expect(deleteComposerSection(section.id), "only an empty section goes").rejects.toThrow(/facets first/);
+    await detachComposerFacet(section.id, otherGroupId);
+    await detachComposerFacet(section.id, id);
+    expect(await prisma.tagGroup.count({ where: { id } }), "the group stays").toBe(1);
+    await deleteComposerSection(section.id);
+    expect(await prisma.composerSection.count({ where: { id: section.id } })).toBe(0);
   });
 });
 

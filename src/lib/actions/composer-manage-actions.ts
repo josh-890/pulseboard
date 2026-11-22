@@ -5,6 +5,10 @@ import { withTenantFromHeaders } from "@/lib/tenant-context";
 import {
   clearComposerDrawing,
   createComposerCombination,
+  createComposerFacet,
+  createComposerSection,
+  deleteComposerSection,
+  detachComposerFacet,
   createComposerValue,
   reorderComposer,
   setComposerConfusables,
@@ -71,6 +75,34 @@ export async function updateComposerSectionAction(id: string, data: { name?: str
 
 export async function updateComposerFacetAction(groupId: string, data: FacetPatch): Promise<SimpleActionResult> {
   return run("save the facet", () => updateComposerFacet(groupId, data));
+}
+
+export async function createComposerSectionAction(pathId: string, name: string): Promise<SimpleActionResult & { id?: string }> {
+  let id: string | undefined;
+  const r = await run("add the section", async () => {
+    id = (await createComposerSection(pathId, name)).id;
+  });
+  return { ...r, id };
+}
+
+export async function deleteComposerSectionAction(id: string): Promise<SimpleActionResult> {
+  return run("remove the section", () => deleteComposerSection(id));
+}
+
+export async function createComposerFacetAction(
+  sectionId: string,
+  name: string,
+  choice: "ONE" | "MANY",
+): Promise<SimpleActionResult & { id?: string }> {
+  let id: string | undefined;
+  const r = await run("add the facet", async () => {
+    id = (await createComposerFacet(sectionId, name, choice)).id;
+  });
+  return { ...r, id };
+}
+
+export async function detachComposerFacetAction(sectionId: string, groupId: string): Promise<SimpleActionResult> {
+  return run("take the facet out", () => detachComposerFacet(sectionId, groupId));
 }
 
 export async function reorderComposerAction(kind: ReorderKind, parentId: string | null, orderedIds: string[]): Promise<SimpleActionResult> {

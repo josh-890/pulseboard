@@ -1463,13 +1463,17 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   workbench's order; ↑ ↓ on a row move it among its neighbours. Select a row to edit it:
   - a **path**: its name, its tile shape, whether it is carried over to the next photo,
     and whether it **describes a person** (picked per person on a photo with two people);
+  - a **path** also takes **Add a section**;
   - a **section**: its name and whether pass mode offers it (the section named **Shot**
-    is the row above the tabs);
+    is the row above the tabs); **Add a facet** (one or many answers — a new tag group
+    set up like the path's other facets, or a tag group of that name not yet in the
+    Composer); an empty section can be removed;
   - a **facet**: **One** answer (a pick replaces) or **Many**; what it does **where no
     context has a say** — Typical, Possible, or **Waits** (asked only once a context
     asks for it: the seat waits for *sitting*); how its examples are **framed** (how
     much of the tile the subject fills, how far from the top, the tile shape — empty
-    inherits the path; a change cuts the facet's examples again); and **Add a value**;
+    inherits the path; a change cuts the facet's examples again); **Add a value**; and
+    **Take out of this section** (the tag group and its tags stay, in /tags and on photos);
   - a **value**: its name and definition, the **body region** it stands for (a Region
     value — the archive bridge looks there), a **line drawing** (SVG, PNG or WebP —
     shown on the tile before the photo example), and its **relations**: what it implies

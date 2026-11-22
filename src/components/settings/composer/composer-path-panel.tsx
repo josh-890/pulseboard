@@ -2,7 +2,9 @@
 
 import type { ComposerPath } from "@/lib/composer";
 import type { SimpleActionResult } from "@/lib/types";
-import { updateComposerPathAction } from "@/lib/actions/composer-manage-actions";
+import { toast } from "sonner";
+import { createComposerSectionAction, updateComposerPathAction } from "@/lib/actions/composer-manage-actions";
+import { ComposerAddForm } from "./composer-add-form";
 import { ComposerTextField } from "./composer-text-field";
 import { ComposerSegmented } from "./composer-segmented";
 import { TILE_SHAPES } from "./composer-tile-shapes";
@@ -12,10 +14,12 @@ export type ComposerPathPanelProps = {
   path: ComposerPath;
   call: (action: () => Promise<SimpleActionResult>) => Promise<void>;
   pending: boolean;
+  /** A section was added — select it once the tree holds it */
+  onSectionAdded: (sectionId: string) => void;
 };
 
 /** A path: its name, its tiles' shape, whether it is carried over, whether it describes a person */
-export function ComposerPathPanel({ path, call, pending }: ComposerPathPanelProps) {
+export function ComposerPathPanel({ path, call, pending, onSectionAdded }: ComposerPathPanelProps) {
   const save = (data: Parameters<typeof updateComposerPathAction>[1]) => call(() => updateComposerPathAction(path.id, data));
   return (
     <div className="space-y-4" data-testid="composer-panel-path">
@@ -41,6 +45,21 @@ export function ComposerPathPanel({ path, call, pending }: ComposerPathPanelProp
         disabled={pending}
         onChange={(personal) => void save({ personal }).catch(() => {})}
         testId="composer-path-personal"
+      />
+      <ComposerAddForm
+        label="Add a section"
+        placeholder="e.g. Named expressions"
+        hint="It joins the end of the path; add its facets there."
+        testId="composer-add-section"
+        onAdd={async (name) => {
+          const r = await createComposerSectionAction(path.id, name);
+          if (!r.success || !r.id) {
+            toast.error(r.error ?? "Could not add the section");
+            return false;
+          }
+          onSectionAdded(r.id);
+          return true;
+        }}
       />
     </div>
   );

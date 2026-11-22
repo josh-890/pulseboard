@@ -36,3 +36,16 @@ export function moved(ids: string[], id: string, step: -1 | 1): string[] | null 
   [next[i], next[j]] = [next[j], next[i]];
   return next;
 }
+
+/** The tree keys of a node's ancestors — what must be unfolded to show it */
+export function ancestorKeys(catalog: ComposerCatalog, n: ManageNode): string[] {
+  const path = pathOfNode(catalog, n);
+  if (!path || n.kind === "path") return [];
+  const keys = [`path:${path.id}`];
+  if (n.kind === "facet") keys.push(`section:${n.sectionId}`);
+  if (n.kind === "value") {
+    const section = path.sections.find((s) => s.groupIds.includes(n.groupId));
+    if (section) keys.push(`section:${section.id}`, `facet:${section.id}:${n.groupId}`);
+  }
+  return keys;
+}

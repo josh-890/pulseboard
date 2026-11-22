@@ -42,6 +42,16 @@ export function ComposerManager({ data }: ComposerManagerProps) {
     setSelected({ kind: "value", id: tag.id, groupId: tag.groupId });
     setPendingSelect(null);
   }
+  // A section or facet added: selected once the refreshed tree holds it
+  const [pendingNode, setPendingNode] = useState<ManageNode | null>(null);
+  if (pendingNode && pathOfNode(catalog, pendingNode) && (pendingNode.kind !== "facet" || catalog.groups[pendingNode.id])) {
+    setSelected(pendingNode);
+    setPendingNode(null);
+  }
+  const selectSoon = (node: ManageNode) => {
+    setPendingNode(node);
+    router.refresh();
+  };
 
   const openValue = (tagId: string) => {
     const tag = catalog.tags[tagId];
@@ -123,16 +133,29 @@ export function ComposerManager({ data }: ComposerManagerProps) {
               </h2>
             )}
             {!selected && <p className="text-sm text-muted-foreground">Select a path, section, facet or value in the tree.</p>}
-            {selected?.kind === "path" && path && <ComposerPathPanel path={path} call={call} pending={pending} />}
+            {selected?.kind === "path" && path && (
+              <ComposerPathPanel path={path} call={call} pending={pending} onSectionAdded={(id) => selectSoon({ kind: "section", id, pathId: path.id })} />
+            )}
             {selected?.kind === "section" &&
               (() => {
                 const section = path?.sections.find((s) => s.id === selected.id);
-                return section ? <ComposerSectionPanel section={section} isLead={lead?.section.id === section.id} call={call} pending={pending} /> : null;
+                return section && path ? (
+                  <ComposerSectionPanel
+                    section={section}
+                    pathId={path.id}
+                    isLead={lead?.section.id === section.id}
+                    call={call}
+                    pending={pending}
+                    onFacetAdded={(id, sectionId) => selectSoon({ kind: "facet", id, sectionId })}
+                    onDeleted={(pathId) => setSelected({ kind: "path", id: pathId })}
+                  />
+                ) : null;
               })()}
             {selected?.kind === "facet" && (
               <ComposerFacetPanel
                 catalog={catalog}
                 groupId={selected.id}
+                sectionId={selected.sectionId}
                 path={path}
                 call={call}
                 pending={pending}
@@ -142,6 +165,7 @@ export function ComposerManager({ data }: ComposerManagerProps) {
                   setView("relevance");
                 }}
                 onAdded={openValue}
+                onDetached={() => path && setSelected({ kind: "section", id: selected.sectionId, pathId: path.id })}
               />
             )}
             {selected?.kind === "value" && (

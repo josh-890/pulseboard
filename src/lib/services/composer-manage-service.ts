@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { buildUrl } from "@/lib/media-url";
 import { minioClient, getMinioBucket } from "@/lib/minio";
 import { BODY_REGIONS } from "@/lib/constants/body-regions";
+import { toTagName } from "@/lib/tag-names";
 import { createTagDefinition, reorderTagDefinitions, setExtraParents, updateTagDefinition } from "@/lib/services/tag-service";
 import { getComposerCatalog } from "@/lib/services/composer-service";
 import { reframeTagExamples } from "@/lib/services/tag-example-service";
@@ -139,6 +140,72 @@ export async function updateComposerFacet(groupId: string, data: FacetPatch): Pr
     const tags = await prisma.tagDefinition.findMany({ where: { groupId }, select: { id: true } });
     await reframeTagExamples(tags.map((t) => t.id));
   }
+}
+
+/** A new section at the end of a path */
+export async function createComposerSection(pathId: string, name: string): Promise<{ id: string }> {
+  const n = name.trim();
+  if (!n) throw new Error("A section needs a name");
+  if (await prisma.composerSection.count({ where: { pathId, name: n } })) throw new Error(`This path already has a section “${n}”`);
+  const last = await prisma.composerSection.aggregate({ where: { pathId }, _max: { sortOrder: true } });
+  return prisma.composerSection.create({ data: { pathId, name: n, sortOrder: (last._max.sortOrder ?? -1) + 1 }, select: { id: true } });
+}
+
+/** Remove a section — only an empty one, so no facet is dropped by accident */
+export async function deleteComposerSection(id: string): Promise<void> {
+  if (await prisma.composerSectionGroup.count({ where: { sectionId: id } })) throw new Error("Move or remove its facets first");
+  await prisma.composerSection.delete({ where: { id } });
+}
+
+/**
+ * A new facet at the end of a section: a new tag group, set up like the path's
+ * other facets (domain, typical level, colour). A tag group of that name that no
+ * section shows yet is taken in instead; one already shown is refused.
+ */
+export async function createComposerFacet(sectionId: string, name: string, choice: FacetChoice = "MANY"): Promise<{ id: string }> {
+  const n = name.trim();
+  if (!n) throw new Error("A facet needs a name");
+  const section = await prisma.composerSection.findUniqueOrThrow({ where: { id: sectionId }, select: { pathId: true } });
+  const existing = await prisma.tagGroup.findFirst({ where: { name: { equals: n, mode: "insensitive" } }, select: { id: true } });
+  let groupId = existing?.id;
+  if (groupId) {
+    if (await prisma.composerSectionGroup.count({ where: { groupId } })) throw new Error(`“${n}” is already a facet`);
+  } else {
+    const sibling = await prisma.tagGroup.findFirst({
+      where: { composerSections: { some: { section: { pathId: section.pathId } } } },
+      select: { domain: true, typicalLevel: true, color: true },
+    });
+    const slug = toTagName(n);
+    if (!slug) throw new Error("A facet needs a name with letters or digits");
+    if (await prisma.tagGroup.count({ where: { slug } })) throw new Error(`A tag group with the slug “${slug}” exists already`);
+    const last = await prisma.tagGroup.aggregate({ _max: { sortOrder: true } });
+    groupId = (
+      await prisma.tagGroup.create({
+        data: {
+          name: n,
+          slug,
+          // Like its neighbours; the first facet of a path is a photo facet
+          domain: sibling ? sibling.domain : "CONTENT",
+          typicalLevel: sibling ? sibling.typicalLevel : "MEDIA_ITEM",
+          color: sibling ? sibling.color : "#6b7280",
+          composerChoice: choice,
+          sortOrder: (last._max.sortOrder ?? 0) + 1,
+        },
+        select: { id: true },
+      })
+    ).id;
+  }
+  const lastInSection = await prisma.composerSectionGroup.aggregate({ where: { sectionId }, _max: { sortOrder: true } });
+  await prisma.composerSectionGroup.create({ data: { sectionId, groupId, sortOrder: (lastInSection._max.sortOrder ?? -1) + 1 } });
+  return { id: groupId };
+}
+
+/**
+ * Take a facet out of its section. The tag group and its tags stay (they remain
+ * in /tags and on every photo); only the Composer stops asking for it.
+ */
+export async function detachComposerFacet(sectionId: string, groupId: string): Promise<void> {
+  await prisma.composerSectionGroup.delete({ where: { sectionId_groupId: { sectionId, groupId } } });
 }
 
 export type ReorderKind = "path" | "section" | "facet" | "value";

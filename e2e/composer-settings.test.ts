@@ -21,6 +21,7 @@ const SET = `e2e-set-cset-${RUN}`;
 const PHOTO = `${SESSION}-1`;
 const v = (k: string) => `e2e-${RUN}-${k}`;
 const VALUES = ["a", "b", "c"];
+const ADDED_FACET = `E2E Added ${RUN}`;
 
 test.describe.configure({ mode: "serial", timeout: 60_000 });
 
@@ -52,7 +53,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  const ids = (await db.query<{ id: string }>(`SELECT id FROM tag_definition WHERE "groupId" = ANY($1)`, [[FACET_ID, NAMED_ID]])).rows.map((r) => r.id);
+  const added = (await db.query<{ id: string }>(`SELECT id FROM tag_group WHERE name = $1`, [ADDED_FACET])).rows.map((r) => r.id);
+  const ids = (await db.query<{ id: string }>(`SELECT id FROM tag_definition WHERE "groupId" = ANY($1)`, [[FACET_ID, NAMED_ID, ...added]])).rows.map((r) => r.id);
   await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" = $1`, [PHOTO]);
   await db.query(`DELETE FROM tag_relevance WHERE "contextTagId" = ANY($1) OR "targetId" = ANY($2)`, [ids, [...ids, FACET_ID, NAMED_ID, PATH_ID]]);
   await db.query(`DELETE FROM tag_confusable WHERE "tagAId" = ANY($1) OR "tagBId" = ANY($1)`, [ids]);
@@ -61,7 +63,7 @@ test.afterAll(async () => {
   await db.query(`UPDATE tag_definition SET "parentId" = NULL WHERE id = ANY($1)`, [ids]);
   await db.query(`DELETE FROM tag_definition WHERE id = ANY($1)`, [ids]);
   await db.query(`DELETE FROM composer_path WHERE id = $1`, [PATH_ID]);
-  await db.query(`DELETE FROM tag_group WHERE id = ANY($1)`, [[FACET_ID, NAMED_ID]]);
+  await db.query(`DELETE FROM tag_group WHERE id = ANY($1)`, [[FACET_ID, NAMED_ID, ...added]]);
   await db.query(`DELETE FROM "SetMediaItem" WHERE "setId" = $1`, [SET]);
   await db.query(`DELETE FROM "MediaItem" WHERE "sessionId" = $1`, [SESSION]);
   await db.query(`DELETE FROM "SetSession" WHERE "setId" = $1`, [SET]);
@@ -101,6 +103,33 @@ test("a facet's settings, a new value and the order of values", async ({ page })
   await expect
     .poll(async () => (await db.query(`SELECT name FROM tag_definition WHERE "groupId" = $1 ORDER BY "sortOrder"`, [FACET_ID])).rows.map((r) => r.name))
     .toEqual([v("a"), v("b"), v("d"), v("c")]);
+});
+
+test("+ section and + facet in the tree; an empty section can go", async ({ page }) => {
+  await page.goto("/settings/catalogs/composer");
+  await select(page, "path", PATH);
+  const sectionForm = page.getByTestId("composer-add-section");
+  await sectionForm.getByRole("textbox").fill("Extra");
+  await sectionForm.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByTestId("composer-panel-section")).toBeVisible();
+  await expect(row(page, "section", "Extra")).toBeVisible();
+
+  await page.getByRole("radio", { name: "One" }).click();
+  const facetForm = page.getByTestId("composer-add-facet");
+  await facetForm.getByRole("textbox").fill(ADDED_FACET);
+  await facetForm.getByRole("button", { name: "Add" }).click();
+  await expect(page.getByTestId("composer-panel-facet")).toBeVisible();
+  await expect(row(page, "facet", ADDED_FACET)).toContainText("one");
+  const g = await db.query(`SELECT domain, "composerChoice" FROM tag_group WHERE name = $1`, [ADDED_FACET]);
+  expect(g.rows[0]).toEqual({ domain: "ANY", composerChoice: "ONE" }); // like the path's other facets (the fixture's are ANY)
+
+  // Out of the section (the group stays), then the empty section goes
+  await page.getByTestId("composer-detach-facet").click();
+  await page.getByTestId("composer-detach-facet").click();
+  await expect(page.getByTestId("composer-panel-section")).toBeVisible();
+  await page.getByTestId("composer-delete-section").click();
+  await expect(row(page, "section", "Extra")).toHaveCount(0);
+  expect((await db.query(`SELECT count(*)::int AS n FROM tag_group WHERE name = $1`, [ADDED_FACET])).rows[0].n).toBe(1);
 });
 
 test("a value's relations: parents, look-alikes and a named form from parts", async ({ page }) => {
