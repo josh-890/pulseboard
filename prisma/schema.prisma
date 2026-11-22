@@ -2374,6 +2374,20 @@ model TagStateRule {
   @@map("tag_state_rule")
 }
 
+// A named composition (ADR-0042, S6): tags to add and tags to remove, kept to be
+// loaded onto a photo, used as a brush, or applied to a selection. Tag ids are
+// plain arrays: a tag deleted since simply drops out when the preset is read.
+model ComposerPreset {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  adds      String[]
+  removes   String[]
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("composer_preset")
+}
+
 // One garment group, or one garment tag, a state applies to
 model TagStateRuleTarget {
   id       String         @id @default(cuid())

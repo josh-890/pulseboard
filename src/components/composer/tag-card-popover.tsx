@@ -143,6 +143,7 @@ export function TagCardPopover({ tagId, tagName, children }: TagCardPopoverProps
         side="left"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
         data-testid="tag-card"
       >
         <div>

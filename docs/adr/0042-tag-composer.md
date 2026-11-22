@@ -1,6 +1,6 @@
 # ADR-0042: Tag Composer — pose, clothing, camera and expression on photos
 
-- **Status:** Accepted (S1–S3 built 2026-11-21, S4–S5 2026-11-22; S6 follows)
+- **Status:** Accepted (S1–S3 built 2026-11-21, S4–S6 2026-11-22 — the base framework is complete; refinement of usability and management follows)
 - **Date:** 2026-11-21
 - **Amends:** ADR-0033 (one optional parent → several parents; a set-level source over its photos)
 

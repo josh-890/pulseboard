@@ -353,3 +353,23 @@ export function passChoice(catalog: ComposerCatalog, own: string[], sectionTagId
   if (own.includes(tagId)) return own;
   return toggleTag(catalog, own.filter((id) => !sectionTagIds.has(id)), tagId, false);
 }
+
+/**
+ * A preset (S6) played as clicks, so it follows the same rules: onto one
+ * photo's tags (a base posture replaces, an exclusive tag replaces) …
+ */
+export function presetOnto(catalog: ComposerCatalog, tags: string[], preset: Composition): string[] {
+  let next = withoutTags(catalog, tags, preset.removes);
+  for (const a of preset.adds) if (!next.includes(a) && catalog.tags[a]) next = toggleTag(catalog, next, a, false);
+  return next;
+}
+
+/** … or as a selection's composition (a tag every photo has already is left alone) */
+export function presetAsComposition(catalog: ComposerCatalog, preset: Composition, counts: Map<string, number>, total: number): Composition {
+  let comp: Composition = { adds: [], removes: preset.removes.filter((id) => catalog.tags[id] && (counts.get(id) ?? 0) > 0) };
+  for (const a of preset.adds) {
+    if (!catalog.tags[a] || (total > 0 && (counts.get(a) ?? 0) === total)) continue;
+    comp = toggleInComposition(catalog, comp, a, counts, total);
+  }
+  return comp;
+}

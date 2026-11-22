@@ -35,6 +35,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await db.query(`DELETE FROM tag_example WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+  await db.query(`DELETE FROM composer_preset WHERE name LIKE $1`, [`Preset ${RUN}%`]);
   await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
   await db.query(`DELETE FROM "SetMediaItem" WHERE "setId" = $1`, [SET]);
   await db.query(`DELETE FROM "MediaItem" WHERE "sessionId" = $1`, [SESSION]);
@@ -289,5 +290,42 @@ test.describe("the set as its photos are tagged (S5)", () => {
     const card = page.locator(`a[href="/sets/${SET}"]`).first();
     await expect(card).toBeVisible();
     await expect(card.getByTestId("composer-coverage")).toHaveAttribute("aria-label", "Composer: 2 of 3 photos tagged");
+  });
+});
+
+test.describe("presets (S6)", () => {
+  test.beforeAll(async () => {
+    await db.query(`DELETE FROM media_item_tag WHERE "mediaItemId" LIKE $1`, [`${SESSION}-%`]);
+  });
+
+  test("save what is picked as a preset, use it on another photo and on a selection", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
+    await tile(page, "kneeling").click();
+    await page.getByTestId("composer-path-Camera").click();
+    await tile(page, "full-body").click();
+    await page.getByTestId("composer-presets").click();
+    await page.getByTestId("composer-preset-name").fill(`Preset ${RUN}`);
+    await page.getByTestId("composer-preset-save").click();
+    await expect(page.locator(`[data-testid="composer-preset"][data-name="Preset ${RUN}"]`)).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Discard photo 1's draft, use the preset on photo 2
+    await page.getByTestId("composer-skip").click();
+    await page.getByTestId("composer-skip").click();
+    await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
+    await page.getByTestId("composer-presets").click();
+    await page.locator(`[data-testid="composer-preset"][data-name="Preset ${RUN}"]`).click();
+    await expect(page.getByTestId("composer-diff")).toContainText("+ full-body");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => tagsOf(m(2))).toEqual(["full-body", "kneeling"]);
+
+    // On a selection the preset becomes the change for all
+    await page.getByTestId("composer-strip-photo").nth(0).click({ modifiers: ["Shift"] });
+    await expect(page.getByTestId("composer-selection-banner")).toBeVisible();
+    await page.getByTestId("composer-presets").click();
+    await page.locator(`[data-testid="composer-preset"][data-name="Preset ${RUN}"]`).click();
+    await expect(page.getByTestId("composer-composition")).toContainText("+ kneeling");
+    await page.keyboard.press("Enter");
+    await expect.poll(() => tagsOf(m(1))).toEqual(["full-body", "kneeling"]);
   });
 });

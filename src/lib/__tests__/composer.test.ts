@@ -15,6 +15,8 @@ import {
   compositionView,
   passChoice,
   withoutTags,
+  presetOnto,
+  presetAsComposition,
   refinementOptions,
   statesForGarment,
   toggleTag,
@@ -201,5 +203,22 @@ describe("selection (S3)", () => {
     expect(passChoice(catalog, ["standing", "contrapposto", "portrait"], section, "kneeling")).toEqual(["portrait", "kneeling"]);
     expect(passChoice(catalog, ["kneeling"], section, "kneeling")).toEqual(["kneeling"]);
     expect(withoutTags(catalog, ["lying", "on-side", "bra"], ["lying"])).toEqual(["bra"]);
+  });
+});
+
+describe("presets as clicks (S6)", () => {
+  it("onto one photo: a base posture in the preset replaces the photo's", () => {
+    expect(presetOnto(catalog, ["sitting-x", "standing", "contrapposto"].filter((t) => catalog.tags[t]), { adds: ["kneeling", "full-body"], removes: [] })).toEqual([
+      "kneeling",
+      "full-body",
+    ]);
+  });
+
+  it("as a selection's change: replaces other base postures present, leaves what all have", () => {
+    const counts = tagCounts([["standing", "full-body"], ["full-body"]]);
+    expect(presetAsComposition(catalog, { adds: ["kneeling", "full-body"], removes: [] }, counts, 2)).toEqual({
+      adds: ["kneeling"],
+      removes: ["standing"],
+    });
   });
 });

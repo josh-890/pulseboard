@@ -248,6 +248,8 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   mediaItemId, boxX/Y/W/H — the subject box drawn — and cropX/Y/W/H — the
   crop the path's framing rule makes from it — as fractions, isTitle, sortOrder; unique per
   tag + photo; ≤ 5 per tag, enforced in the service) — the tag's tile picture.
+  `ComposerPreset` (`composer_preset`: name unique, adds/removes text[] of tag
+  ids, sortOrder) — a named composition; ids of deleted tags drop out on read.
 - `TagSlotSet` (name, `isActive` — at most one) ──< `TagSlot` (position 1–9 → TagDefinition):
   quick-tag key bindings. Deleting a tag or set cascades to its slots; merging repoints them.
 - `SavedFilter` (scope, name, params, pinned): saved browser views; scope `media` rows are

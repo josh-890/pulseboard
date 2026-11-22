@@ -1406,6 +1406,13 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   To find sets by what their photos carry, use **`@photos:`** in the query box on
   `/sets` or `/sessions` — `@photos:high-heels`, `@photos:kneeling -@photos:nude`; a
   plain `high-heels` still asks the set's own tags.
+- **Presets** (top right): a named set of tags to add and to remove. Save what is
+  picked now (on a photo: its tags; on a selection or the brush: the change), then
+  use it on the photo on screen, as a selection's change or as the brush. It plays
+  like clicks — a base posture in a preset replaces the photo's. The same name saved
+  again replaces the preset.
+- **Keys inside a card or menu** stay there — Esc closes the card, it does not leave
+  the workbench.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,
   so `looking_at_viewer` in the query box finds `looking-at-viewer`.
 

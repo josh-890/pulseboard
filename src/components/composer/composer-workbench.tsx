@@ -17,6 +17,8 @@ import {
   tagCounts,
   toggleInComposition,
   withoutTags,
+  presetOnto,
+  presetAsComposition,
   type Composition,
   impliedTags,
   openDraft,
@@ -33,6 +35,7 @@ import { ComposerInspector } from "./composer-inspector";
 import { ComposerFilmstrip } from "./composer-filmstrip";
 import { ComposerPass } from "./composer-pass";
 import { ComposerCompositionBar } from "./composer-composition-bar";
+import { ComposerPresetsMenu, type ComposerPresetItem } from "./composer-presets-menu";
 import { ComposerCardContext, type ComposerCardContextValue } from "./composer-card-context";
 import { DEFAULT_FRAMING, FRAMING, type TagExampleThumb } from "@/lib/tag-example";
 import type { TileState } from "./composer-tile";
@@ -43,6 +46,8 @@ export type ComposerWorkbenchProps = {
   backHref: string;
   photos: ComposerPhoto[];
   initialPhotoId: string | null;
+  /** Saved compositions (S6) */
+  presets: ComposerPresetItem[];
 };
 
 const PIN_KEY = "composer.pinned";
@@ -77,7 +82,7 @@ function readPins(catalog: ComposerCatalog): Set<string> {
  * Enter; Paint turns the same composition into a brush for the filmstrip (Alt
  * erases); Pass walks one section photo by photo with keys 1–9.
  */
-export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, photos, initialPhotoId }: ComposerWorkbenchProps) {
+export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, photos, initialPhotoId, presets: initialPresets }: ComposerWorkbenchProps) {
   const router = useRouter();
   const [catalog, setCatalog] = useState(initialCatalog);
   const [own, setOwn] = useState<Record<string, string[]>>(() => Object.fromEntries(photos.map((p) => [p.id, p.tagIds])));
@@ -96,6 +101,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const [passSectionId, setPassSectionId] = useState<string | null>(null);
   const [comp, setComp] = useState<Composition>(EMPTY_COMPOSITION);
   const [applying, setApplying] = useState(false);
+  const [presets, setPresets] = useState(initialPresets);
 
   const photo = photos[index];
   const [draftState, setDraftState] = useState(() =>
@@ -369,12 +375,26 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     setPainting((p) => !p);
   }, []);
 
+  /** A preset (S6): onto the photo's draft, or as the selection's change / the brush */
+  const applyPreset = useCallback(
+    (p: ComposerPresetItem) => {
+      // Played as clicks, so a base posture or an exclusive tag replaces as it would
+      if (compMode) return setComp(painting ? { adds: p.adds.filter((id) => catalog.tags[id]), removes: p.removes.filter((id) => catalog.tags[id]) } : presetAsComposition(catalog, p, counts, total));
+      setDraftState((s) => ({ draft: presetOnto(catalog, s.draft, p), proposed: s.proposed.filter((id) => !p.adds.includes(id)) }));
+    },
+    [catalog, compMode, painting, counts, total],
+  );
+
   // Keyboard: the workbench is a keyboard tool
   const shellRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      // A popover or dialog of its own (presets, a tag's card, the example frame) keeps its keys:
+      // Esc there closes it, it does not leave the workbench
+      if (el?.closest('[role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      if (e.defaultPrevented) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (passSectionId) {
         if (/^[1-9]$/.test(e.key)) {
@@ -511,6 +531,16 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
           )}
         </span>
         <div className="flex items-center gap-1">
+          {!passSectionId && (
+            <ComposerPresetsMenu
+              presets={presets}
+              onPresetsChange={setPresets}
+              current={compMode ? comp : { adds: draft, removes: [] }}
+              target={painting ? "paint" : bulk ? "selection" : "photo"}
+              name={name}
+              onUse={applyPreset}
+            />
+          )}
           <Button
             variant={passSectionId ? "default" : "outline"}
             size="sm"
