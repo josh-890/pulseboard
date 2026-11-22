@@ -1,6 +1,6 @@
 # ADR-0043: Composer facets — body-part facets, context relevance, person lanes, shot tiers
 
-- **Status:** Accepted (R1 core built 2026-11-22; R2 starting table, R3 workbench, R4 management follow)
+- **Status:** Accepted (R1 core, R2 starting table, R3 workbench built 2026-11-22; R4 management follows)
 - **Date:** 2026-11-22
 - **Refines:** ADR-0042
 
@@ -63,6 +63,13 @@ The research behind the decisions:
     the existing detail-assign route.
 11. **Everything is maintained by the user** in Settings → Composer (R4): a tree, the relevance matrix, a
     relationship graph, "+ value" in the workbench.
+
+12. **Facet defaults** (added while building R3): `tag_group.composerDefault` is a facet's level where no
+    context present has a say. Seat, Lying orientation, Named forms and Region default to impossible, so they
+    are asked only once a context asks for them (sitting, lying, a close shot). This is the "facet default row"
+    of the matrix; a rule derived from the rows alone ("a facet some context forbids waits") hid too much,
+    because the framing forbids body facets without ever asking for them.
+13. **The shot leads:** the section named `Shot` is drawn as a row above the tabs.
 
 ## Consequences
 
