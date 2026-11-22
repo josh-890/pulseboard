@@ -217,7 +217,12 @@ export async function deleteTagGroup(id: string) {
   if (tagCount > 0) {
     throw new Error("Cannot delete group that contains tags. Remove or move all tags first.");
   }
-  return prisma.tagGroup.delete({ where: { id } });
+  // Relevance rows for the group as a facet (ADR-0043) have no FK on targetId
+  const [, group] = await prisma.$transaction([
+    prisma.tagRelevance.deleteMany({ where: { targetKind: "GROUP", targetId: id } }),
+    prisma.tagGroup.delete({ where: { id } }),
+  ]);
+  return group;
 }
 
 export async function reorderTagGroups(orderedIds: string[]) {
@@ -347,6 +352,8 @@ export async function deleteTagDefinition(id: string) {
     // Children move up to the deleted tag's parent, keeping their implication chain
     const doomed = await tx.tagDefinition.findUniqueOrThrow({ where: { id }, select: { parentId: true } });
     await tx.tagDefinition.updateMany({ where: { parentId: id }, data: { parentId: doomed.parentId } });
+    // Relevance rows naming it as target (no FK on targetId; as context they cascade)
+    await tx.tagRelevance.deleteMany({ where: { targetKind: "TAG", targetId: id } });
     // Delete aliases first
     await tx.tagAlias.deleteMany({ where: { tagDefinitionId: id } });
     // Delete all join table rows
@@ -429,6 +436,14 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
         skipDuplicates: true,
       }),
     ]);
+
+    // Person attributions (ADR-0043) follow the photo rows they belong to — before the
+    // source photo rows go (their cascade would take the attributions with them)
+    await tx.$executeRaw`
+      INSERT INTO media_item_tag_person ("mediaItemId", "tagDefinitionId", "personId")
+      SELECT "mediaItemId", ${targetId}, "personId" FROM media_item_tag_person
+      WHERE "tagDefinitionId" = ANY(${sourceIds}::text[])
+      ON CONFLICT DO NOTHING`;
 
     await Promise.all([
       tx.personTag.deleteMany({ where: { tagDefinitionId: { in: sourceIds } } }),
@@ -533,6 +548,19 @@ export async function mergeTagDefinitions(sourceIds: string[], targetId: string)
       UPDATE tag_example SET "isTitle" = true
       WHERE id = (SELECT id FROM tag_example WHERE "tagId" = ${targetId} ORDER BY "sortOrder", "createdAt" LIMIT 1)
         AND NOT EXISTS (SELECT 1 FROM tag_example WHERE "tagId" = ${targetId} AND "isTitle")`;
+    // Relevance (ADR-0043): rows naming a source as context or as target move to the
+    // target, the target's own rows win a clash
+    await tx.$executeRaw`
+      INSERT INTO tag_relevance (id, "contextTagId", "targetKind", "targetId", level)
+      SELECT gen_random_uuid()::text,
+             CASE WHEN "contextTagId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "contextTagId" END,
+             "targetKind",
+             CASE WHEN "targetKind" = 'TAG' AND "targetId" = ANY(${sourceIds}::text[]) THEN ${targetId} ELSE "targetId" END,
+             level
+      FROM tag_relevance
+      WHERE "contextTagId" = ANY(${sourceIds}::text[]) OR ("targetKind" = 'TAG' AND "targetId" = ANY(${sourceIds}::text[]))
+      ON CONFLICT DO NOTHING`;
+    await tx.$executeRaw`DELETE FROM tag_relevance WHERE "targetKind" = 'TAG' AND "targetId" = ANY(${sourceIds}::text[])`;
     await tx.$executeRaw`
       INSERT INTO tag_confusable ("tagAId", "tagBId")
       SELECT LEAST(a, b), GREATEST(a, b) FROM (

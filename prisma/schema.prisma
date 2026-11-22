@@ -378,6 +378,8 @@ model Person {
   @@index([status])
   @@index([watching])
   @@index([isFavorite])
+  /// Photo tags that describe this person (ADR-0043)
+  mediaTagAttributions MediaItemTagPerson[]
 }
 
 model PersonAlias {
@@ -1417,6 +1419,8 @@ model MediaItem {
   @@index([tone])
   /// Used as a tag's example (ADR-0042)
   tagExamples TagExample[]
+  /// Whom its tags describe (ADR-0043)
+  tagPersons MediaItemTagPerson[]
 }
 
 // A "standardized motif" definition for a profile slot: the output geometry +
@@ -2187,6 +2191,13 @@ model TagGroup {
   color        String          @default("#6b7280")
   description  String?
   isExclusive  Boolean         @default(false)
+  /// Composer facet choice (ADR-0043): ONE value per person (a pick replaces), or MANY.
+  /// Separate from isExclusive, which is per photo — a duo may hold two values of a ONE facet.
+  composerChoice FacetChoice   @default(MANY)
+  /// Example framing per facet (ADR-0043), overriding the path's rule; null = inherit
+  framingFill  Float?
+  framingTop   Float?
+  tileAspect   String?
   domain       TagDomain       @default(ANY)
   typicalLevel TagLevel?
   kind         TagGroupKind    @default(DESCRIPTIVE)
@@ -2240,6 +2251,12 @@ model TagDefinition {
   stateRuleTargets  TagStateRuleTarget[]
   stateRuleGeneric  TagStateRule[]     @relation("TagStateRuleGeneric")
   examples          TagExample[]
+  /// A user-uploaded line drawing shown on the Composer tile (ADR-0043), a MinIO key
+  drawingKey        String?
+  /// A Region tag's link to the body-region catalogue (src/lib/constants/body-regions.ts)
+  regionCatalogId   String?
+  relevanceAsContext TagRelevance[]  @relation("TagRelevanceContext")
+  personAttributions MediaItemTagPerson[]
 
   @@unique([groupId, name])
   @@unique([groupId, slug])
@@ -2326,6 +2343,8 @@ model ComposerPath {
   tileAspect String            @default("1:1")
   /// Carried over to the next photo by default (the pin)
   pinned     Boolean           @default(false)
+  /// Its tags describe a person (Figure, Expression, Clothing) — attributed per person on a duo (ADR-0043)
+  personal   Boolean           @default(false)
   sections   ComposerSection[]
 
   @@map("composer_path")
@@ -2372,6 +2391,58 @@ model TagStateRule {
   targets        TagStateRuleTarget[]
 
   @@map("tag_state_rule")
+}
+
+enum FacetChoice {
+  ONE
+  MANY
+}
+
+enum RelevanceLevel {
+  TYPICAL
+  POSSIBLE
+  IMPOSSIBLE
+}
+
+enum RelevanceTarget {
+  PATH
+  GROUP
+  TAG
+}
+
+// How relevant a path, a facet (tag group) or a value (tag) is when a context tag
+// is on the photo (ADR-0043): sitting makes legs-hanging typical, close-up makes
+// the Figure path impossible. Resolution for a value: its own row → its group's →
+// its path's → POSSIBLE; with several context tags present the strictest level wins.
+model TagRelevance {
+  id           String          @id @default(cuid())
+  contextTagId String
+  contextTag   TagDefinition   @relation("TagRelevanceContext", fields: [contextTagId], references: [id], onDelete: Cascade)
+  targetKind   RelevanceTarget
+  /// A composer_path id, a tag_group id or a tag_definition id, by targetKind
+  targetId     String
+  level        RelevanceLevel
+
+  @@unique([contextTagId, targetKind, targetId])
+  @@index([targetKind, targetId])
+  @@map("tag_relevance")
+}
+
+// Whom a photo's tag describes (ADR-0043, person lanes): the tag stays on the
+// photo (media_item_tag — "someone kneels"), this row adds "Anna kneels". A row
+// requires its media_item_tag row; the last attribution removed takes the tag with it.
+model MediaItemTagPerson {
+  mediaItemId     String
+  tagDefinitionId String
+  personId        String
+  mediaItem       MediaItem     @relation(fields: [mediaItemId], references: [id], onDelete: Cascade)
+  tagDefinition   TagDefinition @relation(fields: [tagDefinitionId], references: [id], onDelete: Cascade)
+  person          Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([mediaItemId, tagDefinitionId, personId])
+  @@index([tagDefinitionId])
+  @@index([personId])
+  @@map("media_item_tag_person")
 }
 
 // A named composition (ADR-0042, S6): tags to add and tags to remove, kept to be

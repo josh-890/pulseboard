@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { PHOTO_WHERE } from "@/lib/media-role";
-import { buildPhotoUrls } from "@/lib/media-url";
+import { buildPhotoUrls, buildUrl } from "@/lib/media-url";
 import { parsePhotoVariants } from "@/lib/types";
 import { toTagName } from "@/lib/tag-names";
 import { setExtraParents } from "@/lib/services/tag-service";
@@ -9,6 +9,7 @@ import {
   combinationName,
   composerTagIds,
   type ComposerCatalog,
+  type RelevanceIndex,
   type ComposerStateRule,
   type ComposerTag,
 } from "@/lib/composer";
@@ -42,6 +43,10 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
         id: true,
         name: true,
         isExclusive: true,
+        composerChoice: true,
+        framingFill: true,
+        framingTop: true,
+        tileAspect: true,
         tags: {
           orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
           select: {
@@ -50,6 +55,7 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
             description: true,
             groupId: true,
             parentId: true,
+            drawingKey: true,
             extraParents: { orderBy: { sortOrder: "asc" }, select: { parentId: true } },
           },
         },
@@ -57,6 +63,9 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
     }),
     prisma.tagStateRule.findMany({ include: { targets: true } }),
   ]);
+  const relevanceRows = await prisma.tagRelevance.findMany({ select: { contextTagId: true, targetKind: true, targetId: true, level: true } });
+  const relevance: RelevanceIndex = {};
+  for (const r of relevanceRows) (relevance[r.contextTagId] ??= {})[`${r.targetKind}:${r.targetId}`] = r.level;
 
   const tags: Record<string, ComposerTag> = {};
   for (const g of groups)
@@ -67,6 +76,7 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
         description: t.description,
         groupId: t.groupId,
         parentIds: [...(t.parentId ? [t.parentId] : []), ...t.extraParents.map((p) => p.parentId)],
+        drawingUrl: t.drawingKey ? buildUrl(t.drawingKey) : null,
       };
 
   const titles = await getTitleExamples(Object.keys(tags));
@@ -87,6 +97,7 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
       name: p.name,
       tileAspect: p.tileAspect,
       pinned: p.pinned,
+      personal: p.personal,
       sections: p.sections.map((s) => ({
         id: s.id,
         name: s.name,
@@ -96,10 +107,21 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
       })),
     })),
     groups: Object.fromEntries(
-      groups.map((g) => [g.id, { id: g.id, name: g.name, isExclusive: g.isExclusive, tagIds: g.tags.map((t) => t.id) }]),
+      groups.map((g) => [
+        g.id,
+        {
+          id: g.id,
+          name: g.name,
+          isExclusive: g.isExclusive,
+          choice: g.composerChoice,
+          framing: { fill: g.framingFill, top: g.framingTop, tileAspect: g.tileAspect },
+          tagIds: g.tags.map((t) => t.id),
+        },
+      ]),
     ),
     tags,
     stateRules,
+    relevance,
   };
 }
 
@@ -178,20 +200,33 @@ export async function getComposerWorkspace(scope: ComposerScope, catalog: Compos
 
 // ─── Writes ─────────────────────────────────────────────────────────────────
 
+export type ApplyResult = {
+  /** photo id → its Composer tags */
+  tags: Record<string, string[]>;
+  /** photo id → person id → the Composer tags attributed to that person (ADR-0043) */
+  persons: Record<string, Record<string, string[]>>;
+};
+
 /**
  * Write a composition onto photos: remove `removes`, add `adds`. Only tags the
  * Composer shows are accepted. In an exclusive group an added tag replaces the
  * photo's other tag of that group — the same rule the draft follows, kept here
  * too because a composition may meet photos the draft never saw (S3).
- * Returns the photos' Composer tags afterwards.
+ *
+ * With `personId` (a person lane, ADR-0043) the change is that person's: adds
+ * become photo tags plus an attribution to the person; a remove takes the
+ * person's attribution away, and the photo tag goes once nobody is attributed
+ * any more. Without it the change is the photo's: a removed tag takes all its
+ * attributions with it.
  */
 export async function applyComposition(
   mediaIds: string[],
   adds: string[],
   removes: string[],
-): Promise<Record<string, string[]>> {
+  personId: string | null = null,
+): Promise<ApplyResult> {
   const ids = [...new Set(mediaIds)];
-  if (ids.length === 0) return {};
+  if (ids.length === 0) return { tags: {}, persons: {} };
   const catalog = await getComposerCatalog();
   const allowed = composerTagIds(catalog);
   const bad = [...adds, ...removes].find((t) => !allowed.has(t));
@@ -201,22 +236,61 @@ export async function applyComposition(
   const replaced = exclusiveGroupsOfAdds.flatMap((g) => catalog.groups[g].tagIds.filter((t) => !adds.includes(t)));
 
   await prisma.$transaction(async (tx) => {
-    const drop = [...new Set([...removes, ...replaced])];
-    if (drop.length) await tx.mediaItemTag.deleteMany({ where: { mediaItemId: { in: ids }, tagDefinitionId: { in: drop } } });
-    if (adds.length)
+    if (personId) {
+      // The person's own change; exclusive (photo-wide) groups still replace for the photo
+      if (removes.length)
+        await tx.mediaItemTagPerson.deleteMany({ where: { mediaItemId: { in: ids }, personId, tagDefinitionId: { in: removes } } });
+      // A tag nobody is attributed to any more leaves the photo
+      if (removes.length)
+        await tx.$executeRaw`
+          DELETE FROM media_item_tag mt
+          WHERE mt."mediaItemId" = ANY(${ids}::text[]) AND mt."tagDefinitionId" = ANY(${removes}::text[])
+            AND NOT EXISTS (SELECT 1 FROM media_item_tag_person p
+                            WHERE p."mediaItemId" = mt."mediaItemId" AND p."tagDefinitionId" = mt."tagDefinitionId")`;
+      if (replaced.length) {
+        await tx.mediaItemTagPerson.deleteMany({ where: { mediaItemId: { in: ids }, tagDefinitionId: { in: replaced } } });
+        await tx.mediaItemTag.deleteMany({ where: { mediaItemId: { in: ids }, tagDefinitionId: { in: replaced } } });
+      }
+    } else {
+      const drop = [...new Set([...removes, ...replaced])];
+      if (drop.length) {
+        await tx.mediaItemTagPerson.deleteMany({ where: { mediaItemId: { in: ids }, tagDefinitionId: { in: drop } } });
+        await tx.mediaItemTag.deleteMany({ where: { mediaItemId: { in: ids }, tagDefinitionId: { in: drop } } });
+      }
+    }
+    if (adds.length) {
       await tx.mediaItemTag.createMany({
         data: ids.flatMap((mediaItemId) => adds.map((tagDefinitionId) => ({ mediaItemId, tagDefinitionId, source: "MANUAL" as const }))),
         skipDuplicates: true,
       });
+      if (personId)
+        await tx.mediaItemTagPerson.createMany({
+          data: ids.flatMap((mediaItemId) => adds.map((tagDefinitionId) => ({ mediaItemId, tagDefinitionId, personId }))),
+          skipDuplicates: true,
+        });
+    }
   });
 
-  const rows = await prisma.mediaItemTag.findMany({
-    where: { mediaItemId: { in: ids }, tagDefinitionId: { in: [...allowed] } },
-    select: { mediaItemId: true, tagDefinitionId: true },
-  });
-  const result: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
-  for (const r of rows) result[r.mediaItemId].push(r.tagDefinitionId);
-  return result;
+  return readComposerTags(ids, allowed);
+}
+
+/** The photos' Composer tags and their person attributions */
+async function readComposerTags(ids: string[], allowed: Set<string>): Promise<ApplyResult> {
+  const [rows, persons] = await Promise.all([
+    prisma.mediaItemTag.findMany({
+      where: { mediaItemId: { in: ids }, tagDefinitionId: { in: [...allowed] } },
+      select: { mediaItemId: true, tagDefinitionId: true },
+    }),
+    prisma.mediaItemTagPerson.findMany({
+      where: { mediaItemId: { in: ids }, tagDefinitionId: { in: [...allowed] } },
+      select: { mediaItemId: true, tagDefinitionId: true, personId: true },
+    }),
+  ]);
+  const tags: Record<string, string[]> = Object.fromEntries(ids.map((id) => [id, []]));
+  for (const r of rows) tags[r.mediaItemId].push(r.tagDefinitionId);
+  const byPerson: ApplyResult["persons"] = Object.fromEntries(ids.map((id) => [id, {}]));
+  for (const r of persons) (byPerson[r.mediaItemId][r.personId] ??= []).push(r.tagDefinitionId);
+  return { tags, persons: byPerson };
 }
 
 /**

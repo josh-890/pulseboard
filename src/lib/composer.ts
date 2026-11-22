@@ -14,9 +14,22 @@ export type ComposerTag = {
   parentIds: string[];
   /** The title example (S4): a photo of the user's, cropped to the tile */
   example?: { url: string; crop: { x: number; y: number; w: number; h: number } } | null;
+  /** A user-uploaded line drawing (ADR-0043), preferred on the tile */
+  drawingUrl?: string | null;
 };
 
-export type ComposerGroup = { id: string; name: string; isExclusive: boolean; tagIds: string[] };
+export type FacetChoice = "ONE" | "MANY";
+
+export type ComposerGroup = {
+  id: string;
+  name: string;
+  isExclusive: boolean;
+  tagIds: string[];
+  /** ADR-0043: ONE value per person (a pick replaces) or MANY; defaults to MANY */
+  choice?: FacetChoice;
+  /** Example framing for this facet, overriding the path's rule */
+  framing?: { fill?: number | null; top?: number | null; tileAspect?: string | null };
+};
 
 export type ComposerSection = {
   id: string;
@@ -32,6 +45,8 @@ export type ComposerPath = {
   tileAspect: string;
   /** Carried over to the next photo by default */
   pinned: boolean;
+  /** Its tags describe a person — attributed per person on a duo (ADR-0043) */
+  personal?: boolean;
   sections: ComposerSection[];
 };
 
@@ -46,11 +61,18 @@ export type ComposerStateRule = {
   overrides: Record<string, string>;
 };
 
+export type RelevanceLevel = "TYPICAL" | "POSSIBLE" | "IMPOSSIBLE";
+
+/** context tag id → `PATH:id` / `GROUP:id` / `TAG:id` → level (ADR-0043) */
+export type RelevanceIndex = Record<string, Record<string, RelevanceLevel>>;
+
 export type ComposerCatalog = {
   paths: ComposerPath[];
   groups: Record<string, ComposerGroup>;
   tags: Record<string, ComposerTag>;
   stateRules: ComposerStateRule[];
+  /** Absent = no relevance rows: everything possible */
+  relevance?: RelevanceIndex;
 };
 
 // ─── Lookups ────────────────────────────────────────────────────────────────
@@ -160,6 +182,7 @@ function dropOrphans(catalog: ComposerCatalog, draft: string[]): string[] {
  *   - a held tag is removed (and refinements it alone led to with it)
  *   - a base posture replaces the other base postures, unless `additive`
  *   - in an exclusive group a tag replaces the group's other tag
+ *   - in a ONE facet (ADR-0043) a tag replaces the facet's other, unless `additive`
  *   - anything else is added
  * A refinement brings no base posture of its own: it is only offered under one.
  */
@@ -168,9 +191,11 @@ export function toggleTag(catalog: ComposerCatalog, draft: string[], tagId: stri
   const tag = catalog.tags[tagId];
   if (!tag) return draft;
   const { base } = postureSets(catalog);
+  const group = catalog.groups[tag.groupId];
   let next = draft;
   if (base.has(tagId) && !additive) next = next.filter((id) => !base.has(id));
-  else if (catalog.groups[tag.groupId]?.isExclusive) next = next.filter((id) => catalog.tags[id]?.groupId !== tag.groupId);
+  else if (group?.isExclusive || (group?.choice === "ONE" && !additive))
+    next = next.filter((id) => catalog.tags[id]?.groupId !== tag.groupId);
   return dropOrphans(catalog, [...next, tagId]);
 }
 
@@ -372,4 +397,120 @@ export function presetAsComposition(catalog: ComposerCatalog, preset: Compositio
     comp = toggleInComposition(catalog, comp, a, counts, total);
   }
   return comp;
+}
+
+
+// ─── Relevance (ADR-0043) ───────────────────────────────────────────────────
+//
+// A context tag on the photo (a base posture, a framing, a region) says how
+// relevant a path, a facet or a value is: typical, possible or impossible.
+// Within one context the most specific row answers (value → facet → path);
+// across the contexts present the strictest level wins — so a framing that
+// hides a facet cannot be overruled by a base posture that likes one of its
+// values. A context with no row has no say; no say at all means possible.
+
+const STRICTNESS: Record<RelevanceLevel, number> = { TYPICAL: 0, POSSIBLE: 1, IMPOSSIBLE: 2 };
+
+function pathOfGroup(catalog: ComposerCatalog, groupId: string): string | undefined {
+  for (const p of catalog.paths) if (p.sections.some((s) => s.groupIds.includes(groupId))) return p.id;
+  return undefined;
+}
+
+/** The level of a path, a facet or a value under the contexts present */
+export function relevanceOf(
+  catalog: ComposerCatalog,
+  contexts: Iterable<string>,
+  target: { kind: "PATH" | "GROUP" | "TAG"; id: string },
+): RelevanceLevel {
+  const index = catalog.relevance;
+  if (!index) return "POSSIBLE";
+  const groupId = target.kind === "TAG" ? catalog.tags[target.id]?.groupId : target.kind === "GROUP" ? target.id : undefined;
+  const pathId = target.kind === "PATH" ? target.id : groupId ? pathOfGroup(catalog, groupId) : undefined;
+  const chain = [
+    ...(target.kind === "TAG" ? [`TAG:${target.id}`] : []),
+    ...(groupId ? [`GROUP:${groupId}`] : []),
+    ...(pathId ? [`PATH:${pathId}`] : []),
+  ];
+  let result: RelevanceLevel | null = null;
+  for (const c of contexts) {
+    const rows = index[c];
+    if (!rows) continue;
+    const said = chain.map((k) => rows[k]).find((l) => l !== undefined);
+    if (said && (result === null || STRICTNESS[said] > STRICTNESS[result])) result = said;
+  }
+  return result ?? "POSSIBLE";
+}
+
+export type FacetView = {
+  groupId: string;
+  level: RelevanceLevel;
+  /** Shown at once */
+  shown: string[];
+  /** Behind "more …" */
+  more: string[];
+  /** The shown values are typical in this context (not merely possible) */
+  typical: boolean;
+};
+
+/**
+ * A facet under the contexts present: its typical values shown, the possible
+ * ones behind "more …" — or shown at once when nothing is typical — and the
+ * impossible ones left out. Values already held always show.
+ */
+export function facetView(catalog: ComposerCatalog, contexts: Iterable<string>, groupId: string, held: Iterable<string> = []): FacetView {
+  const ctx = [...contexts];
+  const have = new Set(held);
+  const level = relevanceOf(catalog, ctx, { kind: "GROUP", id: groupId });
+  const typical: string[] = [];
+  const possible: string[] = [];
+  for (const id of catalog.groups[groupId]?.tagIds ?? []) {
+    const l = have.has(id) ? "TYPICAL" : relevanceOf(catalog, ctx, { kind: "TAG", id });
+    if (l === "TYPICAL") typical.push(id);
+    else if (l === "POSSIBLE") possible.push(id);
+  }
+  return typical.length === 0
+    ? { groupId, level, shown: possible, more: [], typical: false }
+    : { groupId, level, shown: typical, more: possible, typical: true };
+}
+
+/** A path is offered unless every context hides it */
+export function pathVisible(catalog: ComposerCatalog, contexts: Iterable<string>, pathId: string): boolean {
+  return relevanceOf(catalog, contexts, { kind: "PATH", id: pathId }) !== "IMPOSSIBLE";
+}
+
+/**
+ * Where the eye goes next (focus flow): the first facet of the path, in tree
+ * order, that has something typical to offer and nothing chosen yet.
+ */
+export function nextFocusFacet(catalog: ComposerCatalog, path: ComposerPath, contexts: Iterable<string>, draft: string[]): string | null {
+  const ctx = [...contexts];
+  const held = new Set(draft);
+  for (const section of path.sections)
+    for (const g of section.groupIds) {
+      const tags = catalog.groups[g]?.tagIds ?? [];
+      if (tags.some((t) => held.has(t))) continue;
+      const view = facetView(catalog, ctx, g);
+      if (view.typical || view.level === "TYPICAL") return g;
+    }
+  return null;
+}
+
+// ─── Combinations (ADR-0043) ────────────────────────────────────────────────
+
+/**
+ * Named forms the chosen values add up to: a tag with two or more parents, all
+ * of them in the draft, itself not yet held — offered as "= seiza?", never
+ * applied on its own.
+ */
+export function suggestCombinations(catalog: ComposerCatalog, draft: string[]): string[] {
+  const held = new Set(draft);
+  return Object.values(catalog.tags)
+    .filter((t) => t.parentIds.length >= 2 && !held.has(t.id) && t.parentIds.every((p) => held.has(p)))
+    .map((t) => t.id);
+}
+
+/** Take a suggestion: the combination replaces the values it is made of */
+export function applyCombination(catalog: ComposerCatalog, draft: string[], comboId: string): string[] {
+  const parts = new Set(catalog.tags[comboId]?.parentIds ?? []);
+  return [...draft.filter((id) => !parts.has(id)), comboId];
 }

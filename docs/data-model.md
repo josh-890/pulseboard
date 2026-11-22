@@ -250,6 +250,15 @@ TagGroup (domain · typicalLevel? · kind · isExclusive · color)
   tag + photo; ≤ 5 per tag, enforced in the service) — the tag's tile picture.
   `ComposerPreset` (`composer_preset`: name unique, adds/removes text[] of tag
   ids, sortOrder) — a named composition; ids of deleted tags drop out on read.
+- **Composer facets (ADR-0043):** `TagGroup.composerChoice` (ONE | MANY, per
+  person — not `isExclusive`, which is per photo), `framingFill/framingTop/tileAspect`
+  (example framing per facet). `TagDefinition.drawingKey` (uploaded line drawing),
+  `regionCatalogId` (Region tag → body-region catalogue). `ComposerPath.personal`.
+  `TagRelevance` (`tag_relevance`: contextTagId → targetKind PATH | GROUP | TAG +
+  targetId, level TYPICAL | POSSIBLE | IMPOSSIBLE; unique per context + target;
+  no FK on targetId — deletes clean up). `MediaItemTagPerson`
+  (`media_item_tag_person`: mediaItemId + tagDefinitionId + personId) — whom a
+  photo tag describes; requires the photo tag, the last one removed takes it.
 - `TagSlotSet` (name, `isActive` — at most one) ──< `TagSlot` (position 1–9 → TagDefinition):
   quick-tag key bindings. Deleting a tag or set cascades to its slots; merging repoints them.
 - `SavedFilter` (scope, name, params, pinned): saved browser views; scope `media` rows are

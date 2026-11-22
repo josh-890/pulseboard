@@ -12,13 +12,18 @@ export async function applyCompositionAction(
   mediaIds: string[],
   adds: string[],
   removes: string[],
-): Promise<{ success: true; tags: Record<string, string[]> } | { success: false; error: string }> {
+  /** A person lane (ADR-0043): the change is attributed to this person */
+  personId: string | null = null,
+): Promise<
+  | { success: true; tags: Record<string, string[]>; persons: Record<string, Record<string, string[]>> }
+  | { success: false; error: string }
+> {
   return withTenantFromHeaders(async () => {
     try {
-      const tags = await applyComposition(mediaIds, adds, removes);
+      const { tags, persons } = await applyComposition(mediaIds, adds, removes, personId);
       revalidatePath("/sets", "layout");
       revalidatePath("/sessions", "layout");
-      return { success: true, tags };
+      return { success: true, tags, persons };
     } catch (err) {
       console.error("[composer] apply failed", err);
       return { success: false, error: err instanceof Error ? err.message : "Could not write the tags" };
