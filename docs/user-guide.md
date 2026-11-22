@@ -1338,12 +1338,12 @@ A workbench for tagging the people in photos, one photo after the other. Open it
 **Compose** above a set's or session's photos, from a selection (it opens on the first
 selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
 
-- **The shot first:** a slim row at the top — `close-up · portrait · upper-body ·
+- **Framing first:** a slim row at the top — how much of the person the photo shows — `close-up · portrait · upper-body ·
   cowboy-shot · full-body · wide-shot · lower-body · detail · macro`. It decides what
   else is asked: a close-up or macro drops the pose, a partial view and a detail ask
   for the **region**, a macro has no Expression tab (ADR-0043).
 - **Tabs** — **Figure**, **Clothing**, **Camera**, **Expression**, **Detail** (keys
-  **1–5**, only the tabs the shot leaves open). Each tab is a list of **facets**, each
+  **1–5**, only the tabs the framing leaves open). Each tab is a list of **facets**, each
   facet a set of tiles: the tag and its one-line definition. Everything goes on the
   **photo**, never the set: clothing changes during a set.
 - **Facets follow the photo (ADR-0043):** what you picked decides what is asked. A
@@ -1358,9 +1358,9 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   shape, leg position, **knees** (knee-up, knees-up …), feet, arms, hands, head,
   motion.
 - **Two or more people:** when the photo shows more than one person (its *people
-  shown*), a **person bar** appears above the shot: `Anna (ICG-…) · Bea (ICG-…)`.
+  shown*), a **person bar** appears above the framing row: `Anna (ICG-…) · Bea (ICG-…)`.
   Figure, Expression, Clothing and Detail then describe the person chosen — a “one”
-  facet holds per person, so Anna can stand while Bea kneels; the shot and the
+  facet holds per person, so Anna can stand while Bea kneels; the framing and the
   Camera tab stay the photo's. **`[`** and **`]`** switch person. The bar above the
   buttons names whose change it is (`Bea: + kneeling`). Tags written before people
   were told apart show grey (*N to give to someone*) — a click gives one to the
