@@ -16,6 +16,8 @@ export type ComposerTag = {
   example?: { url: string; crop: { x: number; y: number; w: number; h: number } } | null;
   /** A user-uploaded line drawing (ADR-0043), preferred on the tile */
   drawingUrl?: string | null;
+  /** A region linked to the body-region catalogue — the Detail bridge offers marks there */
+  region?: boolean;
 };
 
 export type FacetChoice = "ONE" | "MANY";

@@ -373,9 +373,19 @@ test.describe("person lanes (ADR-0043)", () => {
       await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [`${id}-a`, id, `Lane ${i ? "Bea" : "Anna"}`]);
       await db.query(`INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId") VALUES ($1, $2, $3, $4)`, [`${id}-c`, SESSION, id, role]);
     }
+    // The bridge: Anna has a tattoo on the left thigh; the fixture session is her reference
+    // session, so the photo is linked in place (no file copy)
+    await db.query(
+      `INSERT INTO "BodyMark" (id, "personId", type, "bodyRegion", "bodyRegions", motif, colors) VALUES ($1, $2, 'tattoo', 'thigh_l', '{thigh_l}', 'Rose', '{}')`,
+      [`${persons[0]}-mark`, persons[0]],
+    );
+    await db.query(`UPDATE "Session" SET "personId" = $1 WHERE id = $2`, [persons[0], SESSION]);
   });
 
   test.afterAll(async () => {
+    await db.query(`DELETE FROM "PersonMediaLink" WHERE "personId" = ANY($1)`, [persons]);
+    await db.query(`DELETE FROM "BodyMark" WHERE "personId" = ANY($1)`, [persons]);
+    await db.query(`UPDATE "Session" SET "personId" = NULL WHERE id = $1`, [SESSION]);
     await db.query(`DELETE FROM media_item_tag_person WHERE "personId" = ANY($1)`, [persons]);
     await db.query(`DELETE FROM "SessionContribution" WHERE "personId" = ANY($1)`, [persons]);
     await db.query(`DELETE FROM "PersonAlias" WHERE "personId" = ANY($1)`, [persons]);
@@ -405,5 +415,22 @@ test.describe("person lanes (ADR-0043)", () => {
     await page.keyboard.press("Enter");
     await expect.poll(() => attributions(m(1))).toEqual([`E2E-LANE-${RUN}-0:sitting`, `E2E-LANE-${RUN}-1:standing`]);
     expect(await tagsOf(m(1))).toEqual(["full-body", "sitting", "standing"]);
+  });
+
+  test("a detail of a region offers the person's marks there and hangs the photo into her archive", async ({ page }) => {
+    await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
+    await expect(page.locator('[data-testid="composer-person"][aria-checked="true"]')).toContainText("Lane Anna");
+    await shot(page, "close-up").click();
+    await page.getByTestId("composer-path-Detail").click();
+    await tile(page, "thigh-focus").click();
+    const chip = page.getByTestId("composer-bridge-feature");
+    await expect(chip).toContainText("Rose");
+    await expect(chip).toContainText("Tattoos");
+    await chip.click();
+    await expect
+      .poll(async () => (await db.query(`SELECT count(*)::int n FROM "PersonMediaLink" WHERE "personId" = $1 AND "mediaItemId" = $2 AND "bodyMarkId" = $3`, [persons[0], m(2), `${persons[0]}-mark`])).rows[0].n)
+      .toBe(1);
+    await page.keyboard.press("]"); // Bea has no marks: no bridge
+    await expect(page.getByTestId("composer-detail-bridge")).toHaveCount(0);
   });
 });

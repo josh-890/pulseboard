@@ -60,6 +60,7 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
             groupId: true,
             parentId: true,
             drawingKey: true,
+            regionCatalogId: true,
             extraParents: { orderBy: { sortOrder: "asc" }, select: { parentId: true } },
           },
         },
@@ -81,6 +82,7 @@ export async function getComposerCatalog(): Promise<ComposerCatalog> {
         groupId: t.groupId,
         parentIds: [...(t.parentId ? [t.parentId] : []), ...t.extraParents.map((p) => p.parentId)],
         drawingUrl: t.drawingKey ? buildUrl(t.drawingKey) : null,
+        region: !!t.regionCatalogId,
       };
 
   const titles = await getTitleExamples(Object.keys(tags));

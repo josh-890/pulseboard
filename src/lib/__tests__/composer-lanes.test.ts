@@ -65,3 +65,14 @@ describe("person lanes", () => {
     expect(unattributed(personal, ["standing", "full-body", "kneeling"], { anna: ["kneeling"] })).toEqual(["standing"]);
   });
 });
+
+describe("the Detail bridge's regions", () => {
+  it("a region covers its sub-regions and is covered by its parent", async () => {
+    const { regionsOverlap } = await import("@/lib/services/composer-bridge-service");
+    expect(regionsOverlap("face.lips", "face")).toBe(true);
+    expect(regionsOverlap("face", "face.lips")).toBe(true);
+    expect(regionsOverlap("hand_l", "hand_l.fingers")).toBe(true);
+    expect(regionsOverlap("thigh_l", "thigh_r")).toBe(false);
+    expect(regionsOverlap("foot_l", "foot_l_x")).toBe(false);
+  });
+});

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { withTenantFromHeaders } from "@/lib/tenant-context";
+import { getBodyFeaturesInRegions, regionIdsOfTags, type ComposerBodyFeature } from "@/lib/services/composer-bridge-service";
 import { applyComposition, ensureStateCombination } from "@/lib/services/composer-service";
 import { deleteComposerPreset, getComposerPresets, saveComposerPreset } from "@/lib/services/composer-preset-service";
 
@@ -76,6 +77,22 @@ export async function deleteComposerPresetAction(id: string): Promise<{ success:
     } catch (err) {
       console.error("[composer] preset delete failed", err);
       return { success: false, error: "Could not delete the preset" };
+    }
+  });
+}
+
+/** The Detail tier's bridge (ADR-0043): the person's marks and modifications in the regions tagged */
+export async function getComposerBodyFeaturesAction(
+  personId: string,
+  regionTagIds: string[],
+): Promise<{ success: true; features: ComposerBodyFeature[] } | { success: false; error: string }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const regions = await regionIdsOfTags(regionTagIds);
+      return { success: true, features: await getBodyFeaturesInRegions(personId, regions) };
+    } catch (err) {
+      console.error("getComposerBodyFeaturesAction", err);
+      return { success: false, error: err instanceof Error ? err.message : "Failed" };
     }
   });
 }

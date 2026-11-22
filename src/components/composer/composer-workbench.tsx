@@ -46,6 +46,7 @@ import {
   type PersonTags,
 } from "@/lib/composer-lanes";
 import { ComposerPersonBar } from "./composer-person-bar";
+import { ComposerDetailBridge } from "./composer-detail-bridge";
 import { ComposerInspector } from "./composer-inspector";
 import { ComposerFilmstrip } from "./composer-filmstrip";
 import { ComposerPass } from "./composer-pass";
@@ -621,6 +622,14 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     return out;
   }, [duo, personal, draft, laneDraft, byPath]);
 
+  /** The Detail bridge (ADR-0043): who is described, and the regions held for her */
+  const bridgePersonId = compMode || passSectionId ? null : duo ? lane : shownIds.length === 1 ? shownIds[0] : null;
+  const bridgeRegions = useMemo(
+    () => (duo ? laneDraft : draft).filter((id) => catalog.tags[id]?.region),
+    [duo, laneDraft, draft, catalog.tags],
+  );
+  const bridgePerson = bridgePersonId ? castById.get(bridgePersonId) : undefined;
+
   /** What Enter would change — per person in a duo ("Anna: + kneeling") */
   const pending = useMemo(() => {
     if (!photo) return [] as { key: string; text: string; kind: "add" | "remove"; offered: boolean }[];
@@ -817,6 +826,9 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
             </>
           )}
 
+          {bridgePerson && bridgeRegions.length > 0 && (
+            <ComposerDetailBridge photoId={photo.id} person={bridgePerson} regionTagIds={bridgeRegions} />
+          )}
           {compMode ? (
             <ComposerCompositionBar
               mode={painting ? "paint" : "selection"}

@@ -1366,6 +1366,12 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   were told apart show grey (*N to give to someone*) — a click gives one to the
   person chosen. A photo showing one person needs no bar: what you pick is hers.
   Search still finds the tag on the photo; the attribution says whom it describes.
+- **From a detail to the person archive:** when a region is picked for a known
+  person (the one person shown, or the person chosen in the bar), her body marks and
+  modifications there are offered under the tabs — `Anna (ICG-…) here: Rose · thigh_l
+  → Tattoos`. A click hangs the photo into her archive under that mark, as the
+  viewer's detail sheet does (a copy in her reference session); the tags stay as
+  they are.
 - **Named forms:** when what you picked adds up to a named form, a chip offers it —
   `sitting + folded + legs-together` → **= seiza?**. Taking it replaces the parts
   (they stay findable: `seiza` counts as `sitting`); nothing is merged on its own.
