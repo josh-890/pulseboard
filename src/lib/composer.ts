@@ -27,6 +27,8 @@ export type ComposerGroup = {
   tagIds: string[];
   /** ADR-0043: ONE value per person (a pick replaces) or MANY; defaults to MANY */
   choice?: FacetChoice;
+  /** The level where no context present has a say; absent = POSSIBLE (ADR-0043) */
+  defaultLevel?: RelevanceLevel;
   /** Example framing for this facet, overriding the path's rule */
   framing?: { fill?: number | null; top?: number | null; tileAspect?: string | null };
 };
@@ -299,9 +301,9 @@ export function withoutTags(catalog: ComposerCatalog, own: string[], ids: Iterab
  *     back the removals it caused)
  *   - a tag every photo has is marked for removal (a base posture takes its
  *     refinements with it)
- *   - otherwise it is added; a base posture (unless `additive`) or a tag of an
- *     exclusive group marks the others of its kind present on the photos for
- *     removal, and refinements of other base postures with them
+ *   - otherwise it is added; a base posture or a ONE facet's value (unless
+ *     `additive`) or a tag of an exclusive group marks the others of its kind
+ *     present on the photos for removal
  */
 export function toggleInComposition(
   catalog: ComposerCatalog,
@@ -314,7 +316,9 @@ export function toggleInComposition(
   const { base, refinement } = postureSets(catalog);
   const present = (id: string) => (counts.get(id) ?? 0) > 0;
   const groupOf = (id: string) => catalog.tags[id]?.groupId;
-  const exclusive = catalog.groups[groupOf(tagId) ?? ""]?.isExclusive ?? false;
+  const group = catalog.groups[groupOf(tagId) ?? ""];
+  // An exclusive group always replaces; a ONE facet (ADR-0043) replaces unless Shift adds a second
+  const exclusive = (group?.isExclusive ?? false) || (group?.choice === "ONE" && !additive);
   const isBase = base.has(tagId);
   const sameKind = (id: string) => (isBase ? base.has(id) || refinement.has(id) : exclusive && groupOf(id) === groupOf(tagId));
 
@@ -438,7 +442,8 @@ export function relevanceOf(
     const said = chain.map((k) => rows[k]).find((l) => l !== undefined);
     if (said && (result === null || STRICTNESS[said] > STRICTNESS[result])) result = said;
   }
-  return result ?? "POSSIBLE";
+  // No context has a say: the facet's own default (the seat waits for a base posture that asks)
+  return result ?? (groupId ? catalog.groups[groupId]?.defaultLevel : undefined) ?? "POSSIBLE";
 }
 
 export type FacetView = {
@@ -461,16 +466,14 @@ export function facetView(catalog: ComposerCatalog, contexts: Iterable<string>, 
   const ctx = [...contexts];
   const have = new Set(held);
   const level = relevanceOf(catalog, ctx, { kind: "GROUP", id: groupId });
-  const typical: string[] = [];
-  const possible: string[] = [];
-  for (const id of catalog.groups[groupId]?.tagIds ?? []) {
-    const l = have.has(id) ? "TYPICAL" : relevanceOf(catalog, ctx, { kind: "TAG", id });
-    if (l === "TYPICAL") typical.push(id);
-    else if (l === "POSSIBLE") possible.push(id);
-  }
-  return typical.length === 0
-    ? { groupId, level, shown: possible, more: [], typical: false }
-    : { groupId, level, shown: typical, more: possible, typical: true };
+  // A held value always shows, but it does not make the facet typical: what is
+  // typical is decided by the contexts alone, and the held value joins whichever list shows
+  const ids = catalog.groups[groupId]?.tagIds ?? [];
+  const levels = new Map(ids.map((id) => [id, relevanceOf(catalog, ctx, { kind: "TAG", id })]));
+  const anyTypical = ids.some((id) => levels.get(id) === "TYPICAL");
+  const shown = ids.filter((id) => have.has(id) || (anyTypical ? levels.get(id) === "TYPICAL" : levels.get(id) === "POSSIBLE"));
+  const more = anyTypical ? ids.filter((id) => !have.has(id) && levels.get(id) === "POSSIBLE") : [];
+  return { groupId, level, shown, more, typical: anyTypical };
 }
 
 /** A path is offered unless every context hides it */
@@ -485,13 +488,16 @@ export function pathVisible(catalog: ComposerCatalog, contexts: Iterable<string>
 export function nextFocusFacet(catalog: ComposerCatalog, path: ComposerPath, contexts: Iterable<string>, draft: string[]): string | null {
   const ctx = [...contexts];
   const held = new Set(draft);
-  for (const section of path.sections)
-    for (const g of section.groupIds) {
-      const tags = catalog.groups[g]?.tagIds ?? [];
-      if (tags.some((t) => held.has(t))) continue;
-      const view = facetView(catalog, ctx, g);
-      if (view.typical || view.level === "TYPICAL") return g;
-    }
+  const groups = path.sections.flatMap((s) => s.groupIds);
+  // Nothing on this path yet: start at its first facet (the base posture)
+  if (!groups.some((g) => (catalog.groups[g]?.tagIds ?? []).some((t) => held.has(t))))
+    return groups.find((g) => facetView(catalog, ctx, g).shown.length > 0) ?? null;
+  for (const g of groups) {
+    const tags = catalog.groups[g]?.tagIds ?? [];
+    if (tags.some((t) => held.has(t))) continue;
+    const view = facetView(catalog, ctx, g);
+    if (view.typical || view.level === "TYPICAL") return g;
+  }
   return null;
 }
 
@@ -513,4 +519,36 @@ export function suggestCombinations(catalog: ComposerCatalog, draft: string[]): 
 export function applyCombination(catalog: ComposerCatalog, draft: string[], comboId: string): string[] {
   const parts = new Set(catalog.tags[comboId]?.parentIds ?? []);
   return [...draft.filter((id) => !parts.has(id)), comboId];
+}
+
+// ─── The workbench's view (ADR-0043, R3) ────────────────────────────────────
+
+/** The section that leads every photo — the shot decides what else is asked */
+export const LEAD_SECTION_NAME = "Shot";
+
+export function leadSection(catalog: ComposerCatalog): { path: ComposerPath; section: ComposerSection } | null {
+  for (const path of catalog.paths) {
+    const section = path.sections.find((s) => s.name === LEAD_SECTION_NAME);
+    if (section) return { path, section };
+  }
+  return null;
+}
+
+/** The contexts a draft sets: its tags and everything they imply (seiza → sitting) */
+export function contextsOf(catalog: ComposerCatalog, draft: string[]): string[] {
+  return [...new Set([...draft, ...impliedTags(catalog, draft)])];
+}
+
+/** A facet's tile shape: its own, else its path's */
+export function tileAspectOfGroup(catalog: ComposerCatalog, groupId: string): string {
+  const own = catalog.groups[groupId]?.framing?.tileAspect;
+  if (own) return own;
+  return catalog.paths.find((p) => p.sections.some((s) => s.groupIds.includes(groupId)))?.tileAspect ?? "1:1";
+}
+
+/** A ONE facet with a value chosen folds to one line, unless reopened */
+export function facetCollapsed(catalog: ComposerCatalog, groupId: string, draft: string[], reopened: ReadonlySet<string>): boolean {
+  const g = catalog.groups[groupId];
+  if (!g || g.choice !== "ONE" || reopened.has(groupId)) return false;
+  return g.tagIds.some((t) => draft.includes(t));
 }

@@ -116,6 +116,7 @@ describe("facetView", () => {
     expect(facetView(catalog, ["sitting"], "knees").shown).toEqual(["knee-up", "knees-up"]);
     expect(facetView(catalog, ["standing"], "seat").shown).toEqual([]);
     expect(facetView(catalog, ["standing"], "seat", ["on-floor"]).shown, "a held value never vanishes").toEqual(["on-floor"]);
+    expect(facetView(catalog, [], "hands", ["hand-on-hip"]).typical, "a held value does not make a facet typical").toBe(false);
   });
 
   it("nothing typical: the possible values show at once (no empty facet without a base)", () => {
@@ -141,5 +142,30 @@ describe("ONE facets, focus, combinations", () => {
     expect(suggestCombinations(catalog, ["sitting", "folded", "hand-on-hip"])).toEqual(["seiza"]);
     expect(suggestCombinations(catalog, ["sitting"])).toEqual([]);
     expect(applyCombination(catalog, ["sitting", "folded", "hand-on-hip"], "seiza")).toEqual(["hand-on-hip", "seiza"]);
+  });
+});
+
+describe("workbench view helpers", () => {
+  it("contexts include what the draft implies; ONE facets fold once chosen", async () => {
+    const { contextsOf, facetCollapsed } = await import("@/lib/composer");
+    expect(contextsOf(catalog, ["seiza"]).sort()).toEqual(["folded", "seiza", "sitting"]);
+    expect(facetCollapsed(catalog, "knees", ["knee-up"], new Set())).toBe(true);
+    expect(facetCollapsed(catalog, "knees", ["knee-up"], new Set(["knees"]))).toBe(false);
+    expect(facetCollapsed(catalog, "hands", ["hand-on-hip"], new Set())).toBe(false);
+  });
+});
+
+describe("facet defaults", () => {
+  it("where no context has a say the facet's default answers; a context asking overrides it", () => {
+    const c: ComposerCatalog = { ...catalog, groups: { ...catalog.groups, seat: { ...catalog.groups.seat, defaultLevel: "IMPOSSIBLE" } } };
+    expect(facetView(c, [], "seat").shown).toEqual([]);
+    expect(facetView(c, [], "seat", ["on-floor"]).shown, "a held value still shows").toEqual(["on-floor"]);
+    expect(facetView(c, ["sitting"], "seat").shown).toEqual(["legs-hanging", "on-floor"]);
+    expect(facetView(c, ["hands-region"], "seat").shown, "a context without a say leaves the default").toEqual([]);
+    expect(facetView(c, ["sitting", "close-up"], "seat").shown, "the strictest still wins").toEqual([]);
+  });
+
+  it("with nothing on the path, focus starts at its first facet", () => {
+    expect(nextFocusFacet(catalog, catalog.paths[0], [], [])).toBe("base");
   });
 });

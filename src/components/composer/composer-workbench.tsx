@@ -26,6 +26,10 @@ import {
   unsavedChanges,
   toggleTag,
   findCombination,
+  applyCombination,
+  contextsOf,
+  pathVisible,
+  tileAspectOfGroup,
   type ComposerCatalog,
   type ComposerStateRule,
 } from "@/lib/composer";
@@ -123,6 +127,12 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
     [bulk, selected, own],
   );
   const total = bulk ? selected.size : 0;
+  // ADR-0043: the paths the photo's contexts leave open (a macro shot has no Expression)
+  const viewDraft = useMemo(() => (compMode ? compositionView(comp, counts) : draft), [compMode, comp, counts, draft]);
+  const visiblePaths = useMemo(() => {
+    const ctx = contextsOf(catalog, viewDraft);
+    return catalog.paths.filter((p) => pathVisible(catalog, ctx, p.id));
+  }, [catalog, viewDraft]);
 
   const open = useCallback(
     (i: number, ownMap: Record<string, string[]>, written: string[]) => {
@@ -144,6 +154,11 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
       setDraftState((s) => ({ draft: toggleTag(catalog, s.draft, tagId, additive), proposed: s.proposed.filter((id) => id !== tagId) }));
     },
     [catalog, compMode, counts, total],
+  );
+
+  const takeCombination = useCallback(
+    (comboId: string) => setDraftState((s) => ({ draft: applyCombination(catalog, s.draft, comboId), proposed: s.proposed.filter((id) => id !== comboId) })),
+    [catalog],
   );
 
   const onCombination = useCallback(
@@ -420,7 +435,7 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
           applyToSelection();
         } else if (e.key === "Escape") clearSelection();
         else if (/^[1-9]$/.test(e.key)) {
-          const p = catalog.paths[Number(e.key) - 1];
+          const p = visiblePaths[Number(e.key) - 1];
           if (p) setActivePathId(p.id);
         }
         return;
@@ -437,13 +452,13 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
       } else if (e.key === "Escape") {
         leaveTo({ kind: "back" });
       } else if (/^[1-9]$/.test(e.key)) {
-        const p = catalog.paths[Number(e.key) - 1];
+        const p = visiblePaths[Number(e.key) - 1];
         if (p) setActivePathId(p.id);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [applyAndNext, next, prev, leaveTo, catalog.paths, passSectionId, passTagIds, passChoose, passClear, index, photos.length, open, own, lastWritten, painting, bulk, applyToSelection, clearSelection]);
+  }, [applyAndNext, next, prev, leaveTo, visiblePaths, passSectionId, passTagIds, passChoose, passClear, index, photos.length, open, own, lastWritten, painting, bulk, applyToSelection, clearSelection]);
 
   const implied = useMemo(() => new Set(impliedTags(catalog, draft)), [catalog, draft]);
   const proposedSet = useMemo(() => new Set(proposed), [proposed]);
@@ -466,12 +481,17 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
   const cardContext = useMemo<ComposerCardContextValue>(
     () => ({
       photo: photo ? { id: photo.id, viewUrl: photo.viewUrl, width: photo.width, height: photo.height, filename: photo.filename } : null,
-      tileAspectOf: (tagId: string) => catalog.paths.find((p) => p.id === byPath.get(tagId))?.tileAspect ?? "1:1",
-      framingOf: (tagId: string) => FRAMING[catalog.paths.find((p) => p.id === byPath.get(tagId))?.name ?? ""] ?? DEFAULT_FRAMING,
+      tileAspectOf: (tagId: string) => tileAspectOfGroup(catalog, catalog.tags[tagId]?.groupId ?? ""),
+      // A facet's own framing (ADR-0043) over its path's rule: Feet frames the feet
+      framingOf: (tagId: string) => {
+        const base = FRAMING[catalog.paths.find((p) => p.id === byPath.get(tagId))?.name ?? ""] ?? DEFAULT_FRAMING;
+        const own = catalog.groups[catalog.tags[tagId]?.groupId ?? ""]?.framing;
+        return { fill: own?.fill ?? base.fill, topMargin: own?.top ?? base.topMargin };
+      },
       onTitleChanged: (tagId: string, example: TagExampleThumb | null) =>
         setCatalog((c) => (c.tags[tagId] ? { ...c, tags: { ...c.tags, [tagId]: { ...c.tags[tagId], example } } } : c)),
     }),
-    [photo, catalog.paths, byPath],
+    [photo, catalog, byPath],
   );
 
   const countOf = useCallback((id: string) => (bulk ? { n: counts.get(id) ?? 0, of: total } : undefined), [bulk, counts, total]);
@@ -628,18 +648,22 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
             />
           ) : (
             <ComposerInspector
+              key={photo.id}
               catalog={catalog}
+              paths={visiblePaths}
               activePathId={activePathId}
               onPath={setActivePathId}
               pinned={pinned}
               onPin={togglePin}
-              draft={compMode ? compositionView(comp, counts) : draft}
+              draft={viewDraft}
               tileState={tileState}
               onToggle={toggle}
               onCombination={onCombination}
+              onTakeCombination={compMode ? null : takeCombination}
               creating={creating}
               countByPath={countByPath}
               countOf={countOf}
+              composing={compMode}
             />
           )}
 

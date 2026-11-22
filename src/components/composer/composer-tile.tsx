@@ -32,9 +32,9 @@ export type ComposerTileProps = {
   tileAspect?: string;
 };
 
-/** A group shows picture tiles once any of its tags has an example or a pictogram */
+/** A group shows picture tiles once any of its tags has a drawing, an example or a pictogram */
 export function wantsVisualTiles(tags: ComposerTag[]): boolean {
-  return tags.some((t) => !!t.example || hasCameraPictogram(t.name));
+  return tags.some((t) => !!t?.drawingUrl || !!t?.example || hasCameraPictogram(t?.name ?? ""));
 }
 
 /**
@@ -101,7 +101,10 @@ export function ComposerTile({ tag, state, style, onToggle, disabled, count, sho
               (state === "implied" || state === "remove") && "opacity-50",
             )}
           >
-            {tag.example ? (
+            {tag.drawingUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- MinIO URL; a drawing the user uploaded (ADR-0043)
+              <img src={tag.drawingUrl} alt="" className="h-full w-full bg-white object-contain p-1.5 dark:bg-muted/60 dark:invert" />
+            ) : tag.example ? (
               <TagExampleImage url={tag.example.url} crop={tag.example.crop} className="h-full w-full" />
             ) : hasCameraPictogram(tag.name) ? (
               <span className={cn("flex h-full w-full items-center justify-center bg-muted/40 p-2", nameClass)}>

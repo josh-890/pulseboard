@@ -2194,6 +2194,8 @@ model TagGroup {
   /// Composer facet choice (ADR-0043): ONE value per person (a pick replaces), or MANY.
   /// Separate from isExclusive, which is per photo — a duo may hold two values of a ONE facet.
   composerChoice FacetChoice   @default(MANY)
+  /// ADR-0043: the level where no context has a say (IMPOSSIBLE = asked only when a context asks)
+  composerDefault RelevanceLevel @default(POSSIBLE)
   /// Example framing per facet (ADR-0043), overriding the path's rule; null = inherit
   framingFill  Float?
   framingTop   Float?

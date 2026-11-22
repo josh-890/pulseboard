@@ -68,7 +68,7 @@ type VocabRow = {
   path: string; section: string; group: string; exclusive: string; tag: string; danbooru: string
   parents: string; definition: string; confusable: string; origin: string
   // ADR-0043
-  region_catalog: string; choice: string; framing_fill: string; framing_top: string; tile_aspect: string
+  region_catalog: string; choice: string; relevance_default: string; framing_fill: string; framing_top: string; tile_aspect: string
 }
 const vocab = readCsv('docs/Tag-Composer/composer-vocabulary.csv') as unknown as VocabRow[]
 const matrix = readCsv('docs/Tag-Composer/composer-state-matrix.csv')
@@ -125,6 +125,8 @@ async function main() {
         if ((existing.framingFill ?? null) !== num(meta.framing_fill)) data.framingFill = num(meta.framing_fill)
         if ((existing.framingTop ?? null) !== num(meta.framing_top)) data.framingTop = num(meta.framing_top)
         if ((existing.tileAspect ?? null) !== (meta.tile_aspect || null)) data.tileAspect = meta.tile_aspect || null
+        const def = (meta.relevance_default || 'POSSIBLE') as 'TYPICAL' | 'POSSIBLE' | 'IMPOSSIBLE'
+        if (existing.composerDefault !== def) data.composerDefault = def
         if (Object.keys(data).length) {
           note('group changes', `${existing.name} → ${JSON.stringify(data)}`)
           if (apply) await prisma.tagGroup.update({ where: { id: existing.id }, data })
@@ -141,6 +143,7 @@ async function main() {
               framingFill: meta.framing_fill ? Number(meta.framing_fill) : null,
               framingTop: meta.framing_top ? Number(meta.framing_top) : null,
               tileAspect: meta.tile_aspect || null,
+              composerDefault: (meta.relevance_default || 'POSSIBLE') as 'TYPICAL' | 'POSSIBLE' | 'IMPOSSIBLE',
             },
           })
           groupId.set(name, g.id)

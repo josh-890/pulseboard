@@ -16,6 +16,7 @@ sitting;TAG;legs-out;TYPICAL;
 sitting;TAG;crossed-legs;TYPICAL;
 sitting;TAG;folded;TYPICAL;
 sitting;TAG;legs-to-one-side;TYPICAL;
+sitting;TAG;legs-together;TYPICAL;
 sitting;TAG;reclining;TYPICAL;
 sitting;TAG;standing-on-one-leg;IMPOSSIBLE;
 sitting;TAG;standing-split;IMPOSSIBLE;
@@ -153,6 +154,9 @@ cowboy-shot;GROUP;Feet;IMPOSSIBLE;cut at mid-thigh
 wide-shot;GROUP;Region;IMPOSSIBLE;the whole person is the subject
 full-body;GROUP;Region;IMPOSSIBLE;the whole person is the subject
 cowboy-shot;GROUP;Region;IMPOSSIBLE;the whole person is the subject
+upper-body;GROUP;Region;TYPICAL;a partial view is led by its region
+lower-body;GROUP;Region;TYPICAL;a partial view is led by its region
+portrait;GROUP;Region;POSSIBLE;
 from-behind;GROUP;Eyes;IMPOSSIBLE;the face is turned away
 from-behind;GROUP;Mouth;IMPOSSIBLE;the face is turned away
 from-behind;GROUP;Face;IMPOSSIBLE;the face is turned away

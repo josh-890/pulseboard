@@ -47,6 +47,9 @@ test.afterAll(async () => {
 });
 
 const tile = (page: Page, name: string) => page.locator(`[data-testid="composer-tile"][data-tag="${name}"]`);
+/** The shot row above the paths (ADR-0043) */
+const shot = (page: Page, name: string) => page.locator(`[data-testid="composer-shot"][data-tag="${name}"]`);
+const facet = (page: Page, name: string) => page.locator(`[data-testid="composer-facet"][data-facet="${name}"]`);
 const tagsOf = async (id: string) =>
   (
     await db.query<{ name: string }>(
@@ -67,17 +70,35 @@ test("the set gallery links into the workbench", async ({ page }) => {
   await expect(page.getByTestId("composer-position")).toHaveText("1 / 3");
 });
 
-test("a base posture replaces; Shift adds; both refinements unfold; changing the base drops orphans", async ({ page }) => {
+test("facets (ADR-0043): a base posture asks for its own facets, folds, and the named form is offered", async ({ page }) => {
   await page.goto(`/sets/${SET}/compose`);
+  await expect(facet(page, "Posture")).toHaveAttribute("data-focused", "true");
+  await expect(facet(page, "Seat"), "only sitting asks for a seat").toHaveCount(0);
   await tile(page, "standing").click();
-  await tile(page, "kneeling").click();
-  await expect(tile(page, "standing")).toHaveAttribute("data-state", "off");
-  await tile(page, "standing").click({ modifiers: ["Shift"] });
-  await expect(page.locator('[data-testid="composer-refinement"] [data-base]')).toHaveCount(2);
-  await tile(page, "contrapposto").click();
-  await tile(page, "standing").click(); // standing off: contrapposto goes with it
-  await expect(page.getByTestId("composer-diff")).not.toContainText("contrapposto");
+  await expect(facet(page, "Posture"), "a ONE facet folds once answered").toHaveAttribute("data-collapsed", "true");
+  await facet(page, "Posture").click(); // ✎ reopens
+  await tile(page, "kneeling").click(); // ONE: replaces
+  await expect(page.getByTestId("composer-diff")).not.toContainText("standing");
+  await facet(page, "Posture").click();
+  await tile(page, "standing").click({ modifiers: ["Shift"] }); // Shift adds a second (a duo)
+  await expect(page.getByTestId("composer-diff")).toContainText("+ standing");
   await expect(page.getByTestId("composer-diff")).toContainText("+ kneeling");
+  await tile(page, "sitting").click(); // a plain pick replaces both
+  await expect(facet(page, "Seat")).toHaveAttribute("data-focused", "true");
+  await tile(page, "on-floor").click();
+  await tile(page, "folded").click();
+  await tile(page, "legs-together").click();
+  await page.locator('[data-testid="composer-suggestion"][data-tag="seiza"]').click();
+  await expect(page.getByTestId("composer-diff")).toContainText("+ seiza");
+  await expect(page.getByTestId("composer-diff")).not.toContainText("folded");
+  await expect(tile(page, "sitting")).toHaveAttribute("data-state", "implied");
+
+  // A close shot drops the pose facets; the Detail path asks for the region
+  await shot(page, "macro").click();
+  await expect(facet(page, "Torso lean")).toHaveCount(0);
+  await expect(page.getByTestId("composer-path-Expression")).toHaveCount(0);
+  await page.getByTestId("composer-path-Detail").click();
+  await expect(facet(page, "Region")).toBeVisible();
 });
 
 test("the matrix creates a combination that implies its garment and the generic state", async ({ page }) => {
@@ -97,14 +118,13 @@ test("the matrix creates a combination that implies its garment and the generic 
 test("Enter writes and carries the pinned paths over; → moves on without writing", async ({ page }) => {
   await page.goto(`/sets/${SET}/compose`);
   await tile(page, "sitting").click();
-  await page.getByTestId("composer-path-Camera").click();
-  await tile(page, "full-body").click();
+  await shot(page, "full-body").click();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("composer-position")).toHaveText("2 / 3");
   await expect.poll(() => tagsOf(m(1))).toEqual(["full-body", "sitting"]);
 
   // Photo 2: Camera is pinned — full-body is offered; Figure is not carried
-  await expect(tile(page, "full-body")).toHaveAttribute("data-state", "proposed");
+  await expect(shot(page, "full-body")).toHaveAttribute("data-state", "proposed");
   await page.getByTestId("composer-path-Figure").click();
   await expect(tile(page, "sitting")).toHaveAttribute("data-state", "off");
 
@@ -180,8 +200,7 @@ test.describe("many photos at once (S3)", () => {
   test("the brush paints over the filmstrip; Alt erases", async ({ page }) => {
     await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
     await page.getByTestId("composer-paint-toggle").click();
-    await page.getByTestId("composer-path-Camera").click();
-    await tile(page, "portrait").click();
+    await shot(page, "portrait").click();
     const strip = page.getByTestId("composer-strip-photo");
     const a = (await strip.nth(0).boundingBox())!;
     const c = (await strip.nth(2).boundingBox())!;
@@ -226,7 +245,8 @@ test.describe("examples and the tag card (S4)", () => {
     const had = await db.query(`SELECT count(*)::int n FROM tag_example e JOIN tag_definition t ON t.id = e."tagId" WHERE t.slug = 'seiza'`);
     test.skip(had.rows[0].n >= 5, "seiza already has five examples on this database");
     await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
-    // seiza is a refinement of sitting — make sure sitting is held (earlier tests may have set it)
+    // seiza is offered under sitting — make sure sitting is held (earlier tests may have set it)
+    if ((await facet(page, "Posture").getAttribute("data-collapsed")) === "true") await facet(page, "Posture").click();
     if ((await tile(page, "sitting").getAttribute("data-state")) !== "on") await tile(page, "sitting").click();
     const wrap = tile(page, "seiza").locator("..");
     await wrap.hover();
@@ -261,7 +281,7 @@ test.describe("examples and the tag card (S4)", () => {
     await page.goto(`/sets/${SET}/compose`);
     await page.getByTestId("composer-path-Camera").click();
     await expect(tile(page, "from-behind").getByTestId("camera-pictogram")).toBeVisible();
-    await expect(tile(page, "full-body")).toHaveAttribute("data-visual", "true");
+    await expect(tile(page, "from-above")).toHaveAttribute("data-visual", "true");
   });
 });
 
@@ -301,8 +321,7 @@ test.describe("presets (S6)", () => {
   test("save what is picked as a preset, use it on another photo and on a selection", async ({ page }) => {
     await page.goto(`/sets/${SET}/compose?photo=${m(1)}`);
     await tile(page, "kneeling").click();
-    await page.getByTestId("composer-path-Camera").click();
-    await tile(page, "full-body").click();
+    await shot(page, "full-body").click();
     await page.getByTestId("composer-presets").click();
     await page.getByTestId("composer-preset-name").fill(`Preset ${RUN}`);
     await page.getByTestId("composer-preset-save").click();

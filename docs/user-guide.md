@@ -1338,20 +1338,42 @@ A workbench for tagging the people in photos, one photo after the other. Open it
 **Compose** above a set's or session's photos, from a selection (it opens on the first
 selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
 
-- **Four tabs** — **Figure**, **Clothing**, **Camera**, **Expression** (keys **1–4**).
-  Each is a surface of tiles: the tag and its one-line definition. Everything goes on
-  the **photo**, never the set: clothing changes during a set.
-- **Figure:** pick a **base posture**. A click replaces it, **Shift-click adds a
-  second** (two people: standing + kneeling). Its **refinements** unfold underneath
-  (`seiza`, `on-one-knee`, `contrapposto` …), one block per base posture; drop a base
-  and its refinements go with it. Then torso, arms, legs, head, motion.
+- **The shot first:** a slim row at the top — `close-up · portrait · upper-body ·
+  cowboy-shot · full-body · wide-shot · lower-body · detail · macro`. It decides what
+  else is asked: a close-up or macro drops the pose, a partial view and a detail ask
+  for the **region**, a macro has no Expression tab (ADR-0043).
+- **Tabs** — **Figure**, **Clothing**, **Camera**, **Expression**, **Detail** (keys
+  **1–5**, only the tabs the shot leaves open). Each tab is a list of **facets**, each
+  facet a set of tiles: the tag and its one-line definition. Everything goes on the
+  **photo**, never the set: clothing changes during a set.
+- **Facets follow the photo (ADR-0043):** what you picked decides what is asked. A
+  facet shows what is **typical** first; the merely possible ones wait behind **N
+  more**; what cannot be (a seat while standing, legs in a portrait) is left out. A
+  value already picked always shows. Facets marked **· one** take one value: a pick
+  folds the facet to one line (✎ or a click reopens it), and the **next facet to
+  answer** is outlined and scrolled into view.
+- **Figure:** pick a **base posture** first (one — **Shift-click adds a second** for
+  two people). Then its facets: **Seat** (only for sitting — on-floor, raised-seat,
+  legs-hanging), **Lying orientation** (only for lying), rest point, torso lean and
+  shape, leg position, **knees** (knee-up, knees-up …), feet, arms, hands, head,
+  motion.
+- **Named forms:** when what you picked adds up to a named form, a chip offers it —
+  `sitting + folded + legs-together` → **= seiza?**. Taking it replaces the parts
+  (they stay findable: `seiza` counts as `sitting`); nothing is merged on its own.
+- **Detail:** **Region** (face, eyes, lips, neck, shoulders, arms, hands, bust,
+  **midriff**, navel, back, hips, buttocks, crotch, legs, thighs, feet …), **Feature**
+  (tattoo, piercing, scar, mole, freckles, nail polish …) and **Skin** (oiled, wet,
+  sweat, sand, tan lines). A region brings its own facets back: legs ask for the
+  knees and legwear, the face for the expression.
 - **Clothing:** pick the garments; the **state matrix** then offers each garment its
   states — `bra ▸ torn-bra · wet-bra · bra-pull · open-bra …`. A dashed chip is a
   combination that does not exist yet: the first tap creates it, implying the garment
   and the general state (`torn-bra` counts as `bra` and as `torn-clothes`, shown as a
   faint tick). Then **Undress**, **Position**, **Fit** and **Impression** — Formality
   (one), Coverage (one), Style, Context.
-- **Camera:** framing (one), camera angle (one), facing (one), lens.
+- **Camera:** camera angle (one), facing (one), lens & perspective (incl.
+  depth-of-field, blurry-background). From behind, the face facets go — unless
+  `looking-back`.
 - **Expression:** gaze, eyes, mouth, blush, tears.
 - **Enter** writes the photo and moves on; **→** (Skip) moves on **without writing**;
   **←** goes back; **Esc** leaves. The bar above the buttons shows what Enter would
@@ -1371,15 +1393,15 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   - **Select** in the filmstrip — **Ctrl/⌘-click** adds or drops a photo, **Shift-click**
     selects the run from the current photo. The tiles then show how many of the
     selected photos have each tag (`12/30`, a grey tile = some have it, filled = all).
-    A click adds the tag to all (a base posture or an exclusive tag also removes the
-    others of its kind), a click on a tag all of them have removes it, a second click
+    A click adds the tag to all (a value of a “one” facet or an exclusive tag also
+    removes the others of its kind; Shift adds a second), a click on a tag all of them have removes it, a second click
     takes either back. **Enter** (or *Apply to N photos*) writes it; **Esc** clears the
     selection.
   - **Paint** (top right): pick tags for the brush, then press and drag over the
     filmstrip — each photo touched gets them. Hold **Alt** to erase what the brush
     holds. **Esc** ends painting.
-  - **Pass** (top right): pick one section — Base posture, Framing, Camera angle,
-    Facing or Gaze — and go photo by photo: a key **1–9** writes that tag (replacing
+  - **Pass** (top right): pick one section — Base posture, Shot, Seat, Torso, Camera
+    angle, Facing, Gaze or Region — and go photo by photo: a key **1–9** writes that tag (replacing
     the photo's other tag in the section) and moves on; **0** clears the section;
     **→** / Space skips; **Esc** ends the pass. Writes happen at once in this mode.
 - **Pictures on the tiles:** hover a tile for a moment (long-press on a phone, or the
