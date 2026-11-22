@@ -417,6 +417,28 @@ test.describe("person lanes (ADR-0043)", () => {
     expect(await tagsOf(m(1))).toEqual(["full-body", "sitting", "standing"]);
   });
 
+  test("a preset on a duo says whom it describes, gives her the pose and the photo the camera", async ({ page }) => {
+    const ids = (await db.query(`SELECT slug, id FROM tag_definition WHERE slug IN ('kneeling', 'full-body')`)).rows as { slug: string; id: string }[];
+    const id = (slug: string) => ids.find((r) => r.slug === slug)!.id;
+    await db.query(`INSERT INTO composer_preset (id, name, adds, removes, "sortOrder") VALUES ($1, $2, $3, '{}', 999)`, [
+      `e2e-preset-${RUN}`,
+      `Preset ${RUN} duo`,
+      [id("kneeling"), id("full-body")],
+    ]);
+    await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
+    await expect(page.getByTestId("composer-person")).toHaveCount(2);
+    await page.locator('[data-testid="composer-person"]', { hasText: "Lane Bea" }).click();
+    await expect(page.locator('[data-testid="composer-person"][aria-checked="true"]')).toContainText("Lane Bea");
+    await page.getByTestId("composer-presets").click();
+    await expect(page.getByTestId("composer-preset-lane")).toContainText(`Lane Bea (E2E-LANE-${RUN}-1)`);
+    const p = page.locator(`[data-testid="composer-preset"][data-name="Preset ${RUN} duo"]`);
+    await expect(p.getByTestId("composer-preset-to")).toContainText("Lane Bea");
+    await p.click();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => attributions(m(2))).toEqual([`E2E-LANE-${RUN}-1:kneeling`]);
+    expect(await tagsOf(m(2))).toEqual(["full-body", "kneeling"]);
+  });
+
   test("a detail of a region offers the person's marks there and hangs the photo into her archive", async ({ page }) => {
     await page.goto(`/sets/${SET}/compose?photo=${m(2)}`);
     await expect(page.locator('[data-testid="composer-person"][aria-checked="true"]')).toContainText("Lane Anna");

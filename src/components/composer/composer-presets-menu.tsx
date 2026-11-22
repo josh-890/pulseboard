@@ -20,6 +20,8 @@ export type ComposerPresetsMenuProps = {
   target: "photo" | "selection" | "paint";
   name: (tagId: string) => string;
   onUse: (preset: ComposerPresetItem) => void;
+  /** A duo photo: the person described takes a preset's personal tags (Figure, Expression, Clothing, Detail) */
+  lane?: { person: string; isPersonal: (tagId: string) => boolean } | null;
 };
 
 const TARGET_TEXT = { photo: "onto this photo", selection: "on the selection", paint: "as the brush" } as const;
@@ -29,7 +31,7 @@ const TARGET_TEXT = { photo: "onto this photo", selection: "on the selection", p
  * as the change for a selection, or as the brush; save what is built now under
  * a name (the same name replaces it).
  */
-export function ComposerPresetsMenu({ presets, onPresetsChange, current, target, name, onUse }: ComposerPresetsMenuProps) {
+export function ComposerPresetsMenu({ presets, onPresetsChange, current, target, name, onUse, lane }: ComposerPresetsMenuProps) {
   const [open, setOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -67,6 +69,11 @@ export function ComposerPresetsMenu({ presets, onPresetsChange, current, target,
         <div>
           <p className="text-sm font-semibold">Presets</p>
           <p className="text-xs text-muted-foreground">Use one {TARGET_TEXT[target]}.</p>
+          {lane && target === "photo" && (
+            <p className="mt-1 rounded-md bg-primary/5 px-2 py-1 text-xs" data-testid="composer-preset-lane">
+              Pose, expression, clothing → <span className="font-medium">{lane.person}</span>; camera → the photo
+            </p>
+          )}
         </div>
         {presets.length === 0 ? (
           <p className="text-xs text-muted-foreground">None yet — build a composition and save it below.</p>
@@ -86,7 +93,14 @@ export function ComposerPresetsMenu({ presets, onPresetsChange, current, target,
                   data-testid="composer-preset"
                   data-name={p.name}
                 >
-                  <span className="block text-xs font-medium">{p.name}</span>
+                  <span className="block text-xs font-medium">
+                    {p.name}
+                    {lane && target === "photo" && p.adds.some(lane.isPersonal) && (
+                      <span className="ml-1 font-normal text-muted-foreground" data-testid="composer-preset-to">
+                        → {lane.person}
+                      </span>
+                    )}
+                  </span>
                   <span className="mt-0.5 flex flex-wrap gap-0.5 text-[10px]">
                     {p.adds.map((id) => (
                       <span key={id} className="rounded-full bg-emerald-500/10 px-1 text-emerald-700 dark:text-emerald-300">

@@ -1449,7 +1449,9 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   like clicks — a base posture in a preset replaces the photo's. The same name saved
   again replaces the preset. A preset can mix a pose and a view ("Gynäkologen-Sicht":
   lying, on-back, m-legs, facing-viewer, crotch-focus). On a duo the person described
-  takes its Figure, Expression, Clothing and Detail tags, the photo its Camera tags.
+  takes its Figure, Expression, Clothing and Detail tags, the photo its Camera tags —
+  the menu says whom ("Pose, expression, clothing → Anna (ICG-ID)", and "→ Anna" on
+  each preset that holds a pose). Nothing is blocked: switch the person first if needed.
 - **Keys inside a card or menu** stay there — Esc closes the card, it does not leave
   the workbench.
 - Tag names follow Danbooru, in the catalogue's spelling; the Danbooru name is an alias,

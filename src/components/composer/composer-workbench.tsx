@@ -745,6 +745,11 @@ export function ComposerWorkbench({ catalog: initialCatalog, title, backHref, ph
               target={painting ? "paint" : bulk ? "selection" : "photo"}
               name={name}
               onUse={applyPreset}
+              lane={
+                duo && lane && castById.get(lane)
+                  ? { person: `${castById.get(lane)!.name} (${castById.get(lane)!.icgId})`, isPersonal: (id) => personal.has(id) }
+                  : null
+              }
             />
           )}
           <Button
