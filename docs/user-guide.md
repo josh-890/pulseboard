@@ -1342,8 +1342,12 @@ selected photo), or from the viewer's toolbar (the shapes icon) — on xpulse.
   cowboy-shot · full-body · wide-shot · lower-body · detail · macro`. It decides what
   else is asked: a close-up or macro drops the pose, a partial view and a detail ask
   for the **region**, a macro has no Expression tab (ADR-0043).
-- **Tabs** — **Figure**, **Clothing**, **Camera**, **Expression**, **Detail** (keys
-  **1–5**, only the tabs the framing leaves open). Each tab is a list of **facets**, each
+- **Tabs** — **Figure**, **Clothing**, **Camera**, **Expression**, **Detail**, and on
+  xpulse **Acts** (keys **1–6**, only the tabs the framing leaves open). **Acts** holds
+  the detail behind the intensity acts — what she does or has done (stimulation,
+  penetration, group sex, toys and gear, cum and fluids, bondage and discipline,
+  exposure, circumstances such as a glory hole or a condom); the intensity act says
+  which hurdle was taken, the tag what exactly happened. Each tab is a list of **facets**, each
   facet a set of tiles: the tag and its one-line definition. Everything goes on the
   **photo**, never the set: clothing changes during a set.
 - **Facets follow the photo (ADR-0043):** what you picked decides what is asked. A

@@ -89,8 +89,10 @@ const PATH_STYLE: Record<string, { color: string; tileAspect: string; pinned: bo
   Camera: { color: '#6366f1', tileAspect: '1:1', pinned: true, personal: false },
   Expression: { color: '#f59e0b', tileAspect: '1:1', pinned: false, personal: true },
   Detail: { color: '#14b8a6', tileAspect: '1:1', pinned: false, personal: true },
+  // The detail behind the intensity acts (2026-11-27) — per person, like the pose
+  Acts: { color: '#ef4444', tileAspect: '1:1', pinned: false, personal: true },
 }
-const PATH_ORDER = ['Figure', 'Clothing', 'Camera', 'Expression', 'Detail']
+const PATH_ORDER = ['Figure', 'Clothing', 'Camera', 'Expression', 'Detail', 'Acts']
 const SECTION_COLOR: Record<string, string> = { 'State matrix': '#f43f5e', Undress: '#e11d48', Impression: '#14b8a6' }
 const PASSABLE = new Set(['Base posture', 'Framing', 'Seat', 'Torso', 'Camera angle', 'Facing', 'Gaze', 'Region'])
 const sectionKind = (s: string) => (s === 'Refinement' ? 'REFINEMENT' : s === 'State matrix' ? 'MATRIX' : 'TILES') as 'TILES' | 'REFINEMENT' | 'MATRIX'
