@@ -183,3 +183,29 @@ fix the deltas, confirm, go on** — and whatever was filled in for you stays vi
    any). The dialog previews the reach and what it leaves alone; Apply re-plans and refuses when the reach changed,
    then applies in pieces of 50 models (`applyIntensityPreset`), each landing to review; Undo in the same pieces.
    The presets-and-queue plan is complete.
+
+## Amendment 2026-11-28 — how an act's level is derived (rating rules)
+
+The levels are data, not code, but the xpulse catalog (2026-11-27/28) follows rules that keep the columns convergent.
+They are written down here so later acts are placed the same way; nothing in the app enforces them.
+
+1. **An act is a class of equal hurdle.** Two things on the same level with the same hurdle are one act; the detail
+   (finger or toy, which object, how many partners) goes in Composer tags (path *Acts*). A very common term may stay an
+   act of its own beside its class (Fisting beside Extreme Insertion, Bukkake beside Gangbang, Rough Sex).
+2. **Solo is the baseline.** A partner column derives from the Solo value of the same act:
+   value = max(floor of the boundary the act crosses, Solo value + surcharge). Surcharges: G-G +0.5 for touch and
+   interaction (shown without touch = the Solo value), G-B +1, Group +1.5. Below sexuality Group = G-B.
+3. **Boundaries are floors** for acts that have that feature (a partner touching the genitals is at least 5), not
+   "everything above is crossed". Above a boundary a real extra hurdle still adds 0.5.
+4. **Anal = vaginal + 1.5** along each ladder (Showing, Flaunting, Insertion, Masturbation, Opening, Stretching Open,
+   Extreme Insertion), capped by the boundary it meets (Gaping 7 → Anal Gaping 7.5).
+5. **From Solo level 6 the surcharge falls away.** An act that is possible alone and sits at 6 or above in Solo
+   (Extreme Insertion, Fisting, the anal ones, Anal Stretching Open, Gaping) has the Solo value in every partner
+   column: the stretch is the hurdle, not who brings it about. Acts that need a partner (sex acts) have no Solo value
+   and are not affected.
+6. **Naming in partner columns:** a plain name means the other person does it (the column says a partner is there);
+   *Self …* marks the exception where she does it herself while someone is present (G-G below 5). Same act, same
+   name in every column — no scenario prefix, no "Assisted".
+7. **The ladders kept apart:** seeing → showing → opening is one axis (Visible, Showing, Flaunting, Unfolding 3,
+   Opening 4, Stretching Open 5, Gaping 7 as the result); something inside without visible lust (Insertion 3) is
+   below showing lust (Masturbation 3.5).
