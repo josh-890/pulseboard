@@ -195,8 +195,10 @@ They are written down here so later acts are placed the same way; nothing in the
 2. **Solo is the baseline.** A partner column derives from the Solo value of the same act:
    value = max(floor of the boundary the act crosses, Solo value + surcharge). Surcharges: G-G +0.5 for touch and
    interaction (shown without touch = the Solo value), G-B +1, Group +1.5. Below sexuality Group = G-B.
-3. **Boundaries are floors** for acts that have that feature (a partner touching the genitals is at least 5), not
-   "everything above is crossed". Above a boundary a real extra hurdle still adds 0.5.
+3. **Boundaries are floors** for acts that have that feature, not "everything above is crossed". Above a boundary a
+   real extra hurdle still adds 0.5. Boundary 5 is the first *sexual* interaction (stimulating, inserting, oral) — a
+   partner touching the genitals only to show them is below it and counts +1 on the Solo value (G-G: Unfolding by
+   the partner 4, Opening by the partner 5).
 4. **Anal = vaginal + 1.5** along each ladder (Showing, Flaunting, Insertion, Masturbation, Opening, Stretching Open,
    Extreme Insertion), capped by the boundary it meets (Gaping 7 → Anal Gaping 7.5).
 5. **From Solo level 6 the surcharge falls away.** An act that is possible alone and sits at 6 or above in Solo
