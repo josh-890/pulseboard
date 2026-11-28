@@ -85,6 +85,7 @@ import {
 } from "@/components/ui/select";
 import { useStoredValue } from "@/lib/hooks/use-stored-value";
 import { usePhotoIntensity } from "@/components/intensity/use-photo-intensity";
+import { BulkActEvidence } from "@/components/intensity/bulk-act-evidence";
 import type { PhotoIntensityData } from "@/components/intensity/photo-intensity";
 
 type ClipGroup = {
@@ -857,6 +858,7 @@ export function SetDetailGallery({
               onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
               hotkeysEnabled={openIndex === null && !deleteDialogOpen && !splitDialogOpen && !pickerOpen && !isReordering}
             />
+            {photoIntensity && <BulkActEvidence intensity={photoIntensity} items={localItems.filter((it) => selectedIds.has(it.id))} />}
             {cast && cast.length > 0 && (
               <BulkPeopleShownControl
                 cast={cast}

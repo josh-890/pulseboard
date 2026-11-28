@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Minus, Search, Users } from "lucide-react";
+import { Camera, Check, ChevronDown, ChevronRight, Minus, Search, Users } from "lucide-react";
 import { formatIntensity } from "@/lib/intensity";
 import type { GalleryItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import type { ActState, PhotoIntensity } from "./use-photo-intensity";
 import type { PhotoLead } from "./photo-intensity";
+import { IntensityExtrasPicker } from "./intensity-extras-picker";
 
 export type PhotoActPickerProps = {
   intensity: PhotoIntensity;
@@ -45,6 +46,8 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext, onArm }
   const [tabPick, setTabPick] = useState<{ suggested: string | null; tab: string } | null>(null);
   const tab = (tabPick && tabPick.suggested === suggested ? tabPick.tab : null) ?? suggested ?? scenarios[0]?.id ?? null;
   const [active, setActive] = useState(0);
+  // The act whose own extras are unfolded (one person chosen, the act ticked)
+  const [expanded, setExpanded] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -77,6 +80,9 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext, onArm }
     else intensity.apply(items, chosen, row.id);
   }
 
+  // Refining extras is for one person at a time
+  const single = chosen.length === 1 ? leads.find((l) => l.personId === chosen[0]) : undefined;
+
   function togglePerson(personId: string) {
     const next = chosen.includes(personId) ? chosen.filter((id) => id !== personId) : [...chosen, personId];
     intensity.setPicked(next.length ? next : [personId]);
@@ -92,7 +98,14 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext, onArm }
     } else if (e.key === "Enter") {
       e.preventDefault();
       const row = rows[at];
-      if (row) pick(row);
+      if (!row) return;
+      // ⇧⏎: rate it (if not yet) and unfold its extras to refine
+      if (e.shiftKey && !onArm && single) {
+        if (intensity.stateAt(items, chosen, row.id).linked !== "all") intensity.apply(items, chosen, row.id);
+        setExpanded(row.id);
+        return;
+      }
+      pick(row);
     } else if (!query && e.key === "ArrowLeft" && onPrev) {
       e.preventDefault();
       onPrev();
@@ -231,12 +244,40 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext, onArm }
                 <Mark state={st.ticked} label="ticked" icon="check" dark={dark} />
                 <Mark state={st.linked} label="photo linked" icon="camera" dark={dark} />
               </button>
+              {single && !onArm && st.ticked === "all" && (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+                  aria-expanded={expanded === row.id}
+                  aria-label={`Refine the extras of ${row.name}`}
+                  className={cn("ml-9 inline-flex items-center gap-0.5 rounded px-1 text-[10px]", muted, dark ? "hover:bg-white/10" : "hover:bg-muted")}
+                >
+                  {expanded === row.id ? <ChevronDown size={11} aria-hidden /> : <ChevronRight size={11} aria-hidden />} Extras
+                </button>
+              )}
+              {single && expanded === row.id && st.ticked === "all" && (() => {
+                const ex = intensity.extrasOf(single, row.id);
+                return (
+                  <div className="ml-9 mt-1 mb-1.5">
+                    <IntensityExtrasPicker
+                      extras={intensity.catalog.extras.filter((x) => !x.offIn?.includes(row.scenarioId))}
+                      groups={intensity.catalog.groups}
+                      selected={ex.selected}
+                      inherited={ex.inherited}
+                      onChange={(ids) => intensity.setActExtras(single, row.id, ids)}
+                      context={`${row.name} — ${single.label}`}
+                      max={intensity.catalog.max}
+                    />
+                  </div>
+                );
+              })()}
             </li>
           );
         })}
       </ul>
       <p className={cn("px-1 text-[10px]", muted)}>
-        {onArm ? "⏎ arms the act — then P links it on each photo, ⇧P takes it off" : "⏎ tick and link · again: unlink · ↑↓ · ← → photo · Esc"}
+        {onArm ? "⏎ arms the act — then P links it on each photo, ⇧P takes it off" : "⏎ tick and link · again: unlink · ⇧⏎ extras · ↑↓ · ← → photo · Esc"}
       </p>
     </div>
   );

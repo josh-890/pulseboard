@@ -15,7 +15,6 @@ const C = `${SESSION}-c`;
 const CA = `${SESSION}-ca`;
 const ACT = { id: `e2e-act-ae-${RUN}`, name: `Test evidence act ${RUN}` };
 const PHOTOS = [1, 2, 3].map((n) => ({ id: `${SESSION}-m${n}`, caption: `Test photo ${n} ${RUN}` }));
-const label = `${P.name} (${P.icg})`;
 
 test.beforeAll(async () => {
   await db.connect();
@@ -72,9 +71,11 @@ test("a selection becomes evidence; the viewer shows and changes it; act: filter
   await page.goto(`/sessions/${SESSION}`);
   await page.getByRole("button", { name: "Select all", exact: true }).click();
   await page.getByRole("button", { name: "Act…" }).click();
-  await page.getByRole("checkbox", { name: `${ACT.name} — ${label}` }).click();
+  const bulk = page.getByTestId("photo-act-picker");
+  await bulk.getByLabel("Find an act").fill(ACT.name);
+  await page.keyboard.press("Enter");
   await expect.poll(linked).toEqual(PHOTOS.map((m) => m.id).sort());
-  await expect(page.getByRole("checkbox", { name: `${ACT.name} — ${label}` })).toHaveAttribute("aria-checked", "true");
+  await expect(bulk.getByRole("button", { name: `${ACT.name}, ticked, this photo linked` })).toBeVisible();
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
 

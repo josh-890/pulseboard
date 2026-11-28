@@ -15,6 +15,7 @@ import {
   setContributionsAct,
   setContributionsExtras,
   setContributionActExtras,
+  setContributionActExtrasByAct,
   setContributionActNote,
   setActEvidence,
   setActsEvidence,
@@ -118,6 +119,14 @@ export async function setContributionActExtrasAction(contributionActId: string, 
   return run(
     () => getContributionActSessionId(contributionActId),
     () => setContributionActExtras(contributionActId, extraIds),
+  );
+}
+
+/** An act's own extras from the viewer (2026-11-28) — by contribution and act */
+export async function setContributionActExtrasByActAction(contributionId: string, actId: string, extraIds: string[]) {
+  return run(
+    () => getContributionsSessionId([contributionId]),
+    () => setContributionActExtrasByAct(contributionId, actId, extraIds),
   );
 }
 

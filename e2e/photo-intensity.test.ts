@@ -16,6 +16,7 @@ const A = { id: `e2e-person-pina-${RUN}`, icg: `E2E-PINA-${RUN}`.toUpperCase(), 
 const B = { id: `e2e-person-pinb-${RUN}`, icg: `E2E-PINB-${RUN}`.toUpperCase(), name: `Test Bel ${RUN}`, c: `${SESSION}-cb` };
 const SOLO_ACT = { id: `e2e-act-pins-${RUN}`, name: `Test solo act ${RUN}` };
 const GG_ACT = { id: `e2e-act-ping-${RUN}`, name: `Test gg act ${RUN}` };
+const EXTRA = { id: `e2e-extra-pin-${RUN}`, name: `Test extra pin ${RUN}` };
 const PHOTOS = [1, 2, 3].map((n) => ({ id: `${SESSION}-m${n}`, caption: `Test pin photo ${n} ${RUN}` }));
 
 test.describe.configure({ timeout: 90_000 });
@@ -38,6 +39,7 @@ test.beforeAll(async () => {
     GG_ACT.id,
     GG_ACT.name,
   ]);
+  await db.query(`INSERT INTO "IntensityExtra" (id, name, points, "sortOrder") VALUES ($1, $2, 1, 999)`, [EXTRA.id, EXTRA.name]);
   for (const [i, m] of PHOTOS.entries()) {
     await db.query(
       `INSERT INTO "MediaItem" (id, "sessionId", "mediaType", filename, "mimeType", size, "originalWidth", "originalHeight", caption, "fileRef", "createdAt", "updatedAt")
@@ -60,6 +62,7 @@ test.afterAll(async () => {
   await db.query(`DELETE FROM "MediaItem" WHERE "sessionId" = $1`, [SESSION]);
   await db.query(`DELETE FROM "SessionContribution" WHERE "sessionId" = $1`, [SESSION]);
   await db.query(`DELETE FROM "IntensityAct" WHERE id IN ($1, $2)`, [SOLO_ACT.id, GG_ACT.id]);
+  await db.query(`DELETE FROM "IntensityExtra" WHERE id = $1`, [EXTRA.id]);
   await db.query(`DELETE FROM "Session" WHERE id = $1`, [SESSION]);
   for (const p of [A, B]) {
     await db.query(`DELETE FROM "PersonAlias" WHERE "personId" = $1`, [p.id]);
@@ -160,4 +163,40 @@ test("⇧A arms an act, P links it on each photo while paging, ⇧P takes it off
   await expect(section.getByRole("list", { name: `Acts of ${A.name} (${A.icg})` })).toContainText(SOLO_ACT.name);
   await section.getByRole("button", { name: `Take this photo back from ${SOLO_ACT.name} — ${A.name} (${A.icg})` }).click();
   await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([]);
+});
+
+test("a grid selection: Act… rates the act on every selected photo of the people chosen", async ({ page }) => {
+  await page.goto(`/sets/${SET}`);
+  // The first click can land before the page is interactive — click until the selection bar shows
+  const act = page.getByRole("button", { name: "Act…" });
+  await expect(async () => {
+    if (!(await act.isVisible())) await page.getByRole("button", { name: "Select all", exact: true }).click();
+    await expect(act).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
+  await act.click();
+  const picker = page.getByTestId("photo-act-picker");
+  await picker.getByRole("button", { name: `${B.name} (${B.icg})` }).click();
+  await picker.getByLabel("Find an act").fill(GG_ACT.name);
+  await page.keyboard.press("Enter");
+  const all = PHOTOS.map((m) => m.id).sort();
+  await expect.poll(() => state(A.c, GG_ACT.id)).toEqual(all);
+  await expect.poll(() => state(B.c, GG_ACT.id)).toEqual(all);
+});
+
+test("⇧⏎ rates the act and unfolds its extras to refine for the one person chosen", async ({ page }) => {
+  const picker = await openViewer(page, 0);
+  await picker.getByLabel("Find an act").fill(SOLO_ACT.name);
+  await page.keyboard.press("Shift+Enter");
+  await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([PHOTOS[0]!.id]);
+  await picker.getByRole("button", { name: `${EXTRA.name} for ${SOLO_ACT.name} — ${A.name} (${A.icg})` }).click();
+  await expect
+    .poll(async () =>
+      (
+        await db.query(
+          `SELECT cae.mode FROM "ContributionActExtra" cae JOIN "ContributionAct" ca ON ca.id = cae."contributionActId" WHERE ca."contributionId" = $1 AND cae."extraId" = $2`,
+          [A.c, EXTRA.id],
+        )
+      ).rows,
+    )
+    .toEqual([{ mode: "ADD" }]);
 });

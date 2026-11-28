@@ -54,7 +54,6 @@ import { cookies } from "next/headers";
 import { getIntensityHints, getSessionIntensity } from "@/lib/services/intensity-service";
 import { getRatingQueue } from "@/lib/services/rating-queue-service";
 import { rateHref } from "@/lib/rating-queue";
-import type { GalleryIntensity } from "@/components/intensity";
 import { buildPhotoIntensity } from "@/components/intensity/photo-intensity";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
@@ -271,33 +270,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
   // The rating queue (2026-10-25): a list walked session by session, the panel open
   const rate = resolvedSearchParams.rate;
   const ratingQueue = intensityCatalog && rate ? await getRatingQueue(rate, id) : null;
-  // ADR-0036, 3b: the gallery's acts to link photos to, and which photos already are evidence
-  const galleryIntensity: GalleryIntensity | undefined = intensityCatalog
-    ? (() => {
-        const actInfo = new Map(
-          intensityCatalog.scenarios.flatMap((s) => s.acts.map((a) => [a.id, { ...a, scenarioName: s.name }] as const)),
-        );
-        const evidence: Record<string, string[]> = {};
-        const acts = intensityRows.flatMap((c) =>
-          c.acts
-            .filter((a) => actInfo.has(a.actId))
-            .map((a) => {
-              for (const m of a.mediaIds) (evidence[m] ??= []).push(a.id);
-              const info = actInfo.get(a.actId)!;
-              return {
-                id: a.id,
-                contributionId: c.id,
-                personLabel: `${c.person.name} (${c.person.icgId})`,
-                actName: info.name,
-                scenarioName: info.scenarioName,
-                level: info.level,
-              };
-            })
-            .sort((x, y) => x.level - y.level || x.actName.localeCompare(y.actName)),
-        );
-        return { acts, evidence };
-      })()
-    : undefined;
   const photoIntensity = intensityCatalog ? buildPhotoIntensity(intensityCatalog, [{ id, contributions: intensityRows }]) : undefined;
   const behindCameraContributors = mergeSessionContributors([], behindCameraCredits).filter(
     (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
@@ -487,7 +459,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 productionContext={productionContext}
                 cast={castDirectory}
                 tagFilter={galleryTagFilter}
-                intensity={galleryIntensity}
                 photoIntensity={photoIntensity}
                 initialPhotoId={resolvedSearchParams.photo ?? null}
               />

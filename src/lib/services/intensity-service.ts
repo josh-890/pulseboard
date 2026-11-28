@@ -633,6 +633,12 @@ export async function setContributionActExtras(contributionActId: string, extraI
   });
 }
 
+/** An act's own extras, found by the person's contribution and the act (the viewer knows no act row ids) */
+export async function setContributionActExtrasByAct(contributionId: string, actId: string, extraIds: string[]) {
+  const row = await prisma.contributionAct.findUniqueOrThrow({ where: { contributionId_actId: { contributionId, actId } }, select: { id: true } });
+  await setContributionActExtras(row.id, extraIds);
+}
+
 /**
  * Session merge: carries one contribution's intensity onto another for the same
  * person and role. Acts the target lacks move over with their departures,

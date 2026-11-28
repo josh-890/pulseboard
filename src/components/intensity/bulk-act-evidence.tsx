@@ -4,20 +4,22 @@ import { useState } from "react";
 import { Gauge } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ActEvidenceList, type EvidenceAct, type EvidenceState } from "./act-evidence-list";
+import type { GalleryItem } from "@/lib/types";
+import { PhotoActPicker } from "./photo-act-picker";
+import type { PhotoIntensity } from "./use-photo-intensity";
 
 export type BulkActEvidenceProps = {
-  acts: EvidenceAct[];
-  selectedIds: string[];
-  stateOf: (contributionActId: string, mediaIds: string[]) => EvidenceState;
-  onToggle: (contributionActId: string, mediaIds: string[], linked: boolean) => void;
+  intensity: PhotoIntensity;
+  /** The selected photos */
+  items: GalleryItem[];
 };
 
-// "Act…" in a session gallery's selection bar (ADR-0036, 3b): the selected
-// photos become evidence for a ticked act of one person — or stop being it.
-export function BulkActEvidence({ acts, selectedIds, stateOf, onToggle }: BulkActEvidenceProps) {
+// "Act…" in a gallery's selection bar (ADR-0036; 2026-11-28): the picker for
+// the selected photos — an act picked is ticked for the chosen people where
+// missing, and every selected photo they are on is linked; again unlinks.
+export function BulkActEvidence({ intensity, items }: BulkActEvidenceProps) {
   const [open, setOpen] = useState(false);
-  const n = selectedIds.length;
+  const n = items.length;
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -26,15 +28,11 @@ export function BulkActEvidence({ acts, selectedIds, stateOf, onToggle }: BulkAc
           Act…
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-80 p-2">
+      <PopoverContent align="start" className="w-96 p-2" onOpenAutoFocus={(e) => e.preventDefault()}>
         <p className="mb-1.5 px-1 text-[11px] text-muted-foreground">
-          {n} selected photo{n === 1 ? "" : "s"} as evidence for…
+          Rate an act on {n} selected photo{n === 1 ? "" : "s"}
         </p>
-        <ActEvidenceList
-          acts={acts}
-          stateOf={(id) => stateOf(id, selectedIds)}
-          onToggle={(id, linked) => onToggle(id, selectedIds, linked)}
-        />
+        {open && <PhotoActPicker intensity={intensity} items={items} />}
       </PopoverContent>
     </Popover>
   );

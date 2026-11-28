@@ -2,9 +2,9 @@
 
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { applyActToPhotosAction, undoApplyActToPhotosAction, unlinkActFromPhotosAction } from "@/lib/actions/intensity-actions";
+import { applyActToPhotosAction, setContributionActExtrasByActAction, undoApplyActToPhotosAction, unlinkActFromPhotosAction } from "@/lib/actions/intensity-actions";
 import { imageShownIds } from "@/lib/image-shown";
-import { suggestScenarioIds } from "@/lib/intensity";
+import { overridesFor, suggestScenarioIds, type ActExtraOverride } from "@/lib/intensity";
 import type { GalleryItem } from "@/lib/types";
 import type { GalleryCastMember } from "@/lib/types/gallery";
 import { actKey, type PhotoIntensityData, type PhotoLead } from "./photo-intensity";
@@ -32,6 +32,8 @@ export function usePhotoIntensity(
   const [seen, setSeen] = useState(data);
   const [ticks, setTicks] = useState<Set<string>>(() => ticksOf(data));
   const [evidence, setEvidence] = useState<Record<string, string[]>>(data?.evidence ?? {});
+  // An act's own departures from the session extras, by `contributionId:actId`
+  const [overrides, setOverrides] = useState<Record<string, ActExtraOverride[]>>(() => overridesOf(data));
   // The people last picked — kept while paging, where they are on the photo
   const [picked, setPicked] = useState<string[]>([]);
   const [, startTransition] = useTransition();
@@ -39,6 +41,7 @@ export function usePhotoIntensity(
     setSeen(data);
     setTicks(ticksOf(data));
     setEvidence(data?.evidence ?? {});
+    setOverrides(overridesOf(data));
   }
 
   const castById = useMemo(() => new Map(cast.map((c) => [c.id, c])), [cast]);
@@ -217,9 +220,38 @@ export function usePhotoIntensity(
     [ticks, actById],
   );
 
+  /** The extras an act of a lead carries: the session's with its own departures */
+  const extrasOf = useCallback(
+    (lead: PhotoLead, actId: string) => {
+      const own = overrides[actKey(lead.contributionId, actId)] ?? [];
+      const selected = lead.extraIds.filter((id) => !own.some((o) => o.mode === "DROP" && o.extraId === id));
+      for (const o of own) if (o.mode === "ADD" && !selected.includes(o.extraId)) selected.push(o.extraId);
+      return { inherited: lead.extraIds, selected };
+    },
+    [overrides],
+  );
+
+  /** Refines an act's extras for one lead — saved behind */
+  const setActExtras = useCallback(
+    (lead: PhotoLead, actId: string, extraIds: string[]) => {
+      const own = overridesFor(lead.extraIds, extraIds);
+      setOverrides((prev) => ({ ...prev, [actKey(lead.contributionId, actId)]: own }));
+      startTransition(async () => {
+        const result = await setContributionActExtrasByActAction(lead.contributionId, actId, extraIds);
+        if (!result.success) {
+          toast.error(result.error ?? "Could not save");
+          setOverrides(overridesOf(data));
+        }
+      });
+    },
+    [data],
+  );
+
   if (!data) return null;
   return {
     actsOf,
+    extrasOf,
+    setActExtras,
     catalog: data.catalog,
     actById,
     castById,
@@ -235,6 +267,14 @@ export function usePhotoIntensity(
 }
 
 export type PhotoIntensity = NonNullable<ReturnType<typeof usePhotoIntensity>>;
+
+function overridesOf(data: PhotoIntensityData | undefined): Record<string, ActExtraOverride[]> {
+  const out: Record<string, ActExtraOverride[]> = {};
+  for (const leads of Object.values(data?.sessions ?? {})) {
+    for (const l of leads) for (const a of l.acts) out[actKey(l.contributionId, a.actId)] = a.overrides;
+  }
+  return out;
+}
 
 function ticksOf(data: PhotoIntensityData | undefined): Set<string> {
   const out = new Set<string>();

@@ -38,7 +38,7 @@ import { ToneMarkButtons } from "@/components/gallery/tone-mark-buttons";
 import { ComposeEntryLink } from "@/components/composer/compose-entry-link";
 import { tallyTones, useToneFilter } from "@/lib/hooks/use-tone-filter";
 import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
-import { BulkActEvidence, useActEvidence, type GalleryIntensity } from "@/components/intensity";
+import { BulkActEvidence } from "@/components/intensity";
 import { usePhotoIntensity } from "@/components/intensity/use-photo-intensity";
 import type { PhotoIntensityData } from "@/components/intensity/photo-intensity";
 import { usePeopleFilter } from "@/lib/hooks/use-people-filter";
@@ -61,8 +61,6 @@ type SessionProductionGalleryProps = {
   cast?: GalleryCastMember[];
   /** ADR-0033 tag filter: facets for the panel, and the matching image ids (null = no filter) */
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
-  /** ADR-0036, 3b: the ticked acts and which photos are evidence for them — absent without acts in the catalog */
-  intensity?: GalleryIntensity;
   /** ADR-0036 (2026-11-28): rate an act on a photo in the viewer — ticked and linked in one step */
   photoIntensity?: PhotoIntensityData;
   /** ?photo= — open this image in the viewer (the dashboard's damaged images) */
@@ -73,8 +71,7 @@ type SessionProductionGalleryProps = {
 
 const noSubscribe = () => () => {};
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, photoIntensity: photoIntensityData, initialPhotoId, composeHref }: SessionProductionGalleryProps) {
-  const actEvidence = useActEvidence(intensity);
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, photoIntensity: photoIntensityData, initialPhotoId, composeHref }: SessionProductionGalleryProps) {
   const photoIntensity = usePhotoIntensity(photoIntensityData, { cast: cast ?? [], sessionId });
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
@@ -417,14 +414,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
                 onApplied={(change) => setLocalItems((prev) => applyTagChangeToItems(prev, change))}
                 hotkeysEnabled={openIndex === null && !deleteDialogOpen}
               />
-              {intensity && (
-                <BulkActEvidence
-                  acts={actEvidence.acts}
-                  selectedIds={[...selectedIds]}
-                  stateOf={actEvidence.stateOf}
-                  onToggle={actEvidence.toggle}
-                />
-              )}
+              {photoIntensity && <BulkActEvidence intensity={photoIntensity} items={displayItems.filter((it) => selectedIds.has(it.id))} />}
               {cast && cast.length > 0 && (
                 <BulkPeopleShownControl
                   cast={cast}
