@@ -734,6 +734,7 @@ export async function getGalleryCastDirectory(personIds: string[]): Promise<Gall
       select: {
         id: true,
         icgId: true,
+        sexAtBirth: true,
         aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
       },
     }),
@@ -745,6 +746,8 @@ export async function getGalleryCastDirectory(personIds: string[]): Promise<Gall
       return {
         id: p.id,
         name: p.aliases[0]?.name ?? p.icgId,
+        icgId: p.icgId,
+        sexAtBirth: p.sexAtBirth,
         avatarUrl: h?.thumbUrl ?? null,
         focalX: h?.focalX ?? null,
         focalY: h?.focalY ?? null,

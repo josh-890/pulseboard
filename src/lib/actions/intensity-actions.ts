@@ -3,12 +3,14 @@
 import { withTenantFromHeaders } from "@/lib/tenant-context";
 import { revalidatePath } from "next/cache";
 import {
+  applyActToPhotos,
   applyIntensityPreset,
   copyContributionIntensity,
   copyIntensityLikeLastTime,
   getContributionActSessionId,
   getContributionActsSessionId,
   getContributionsSessionId,
+  getMediaSessionIds,
   restoreContributionActs,
   setContributionsAct,
   setContributionsExtras,
@@ -17,7 +19,10 @@ import {
   setActEvidence,
   setActsEvidence,
   setSetActExcluded,
+  undoApplyActToPhotos,
   undoIntensityPreset,
+  unlinkActFromPhotos,
+  type PhotoActUndo,
   type PresetUndo,
 } from "@/lib/services/intensity-service";
 import {
@@ -43,6 +48,64 @@ async function run(sessionOf: () => Promise<string>, fn: () => Promise<unknown>)
       for (const { setId } of await prisma.setSession.findMany({ where: { sessionId }, select: { setId: true } })) {
         revalidatePath(`/sets/${setId}`);
       }
+      return { success: true };
+    } catch (err) {
+      console.error("intensity", err);
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+/** Revalidates several sessions and their sets, each once — for photos from more than one session */
+async function revalidateSessions(sessionIds: string[]) {
+  const sessions = [...new Set(sessionIds)];
+  for (const id of sessions) revalidatePath(`/sessions/${id}`);
+  const sets = await prisma.setSession.findMany({ where: { sessionId: { in: sessions } }, distinct: ["setId"], select: { setId: true } });
+  for (const { setId } of sets) revalidatePath(`/sets/${setId}`);
+}
+
+/**
+ * An act seen on photos (2026-11-28): ticks it for the chosen people where it
+ * is missing and links the photos — one step; returns what to take back
+ */
+export async function applyActToPhotosAction(
+  personIds: string[],
+  actId: string,
+  mediaItemIds: string[],
+): Promise<SimpleActionResult & { undo?: PhotoActUndo; skipped?: number }> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const r = await applyActToPhotos(personIds, actId, mediaItemIds);
+      await revalidateSessions(r.sessionIds);
+      return { success: true, undo: r.undo, skipped: r.skipped };
+    } catch (err) {
+      console.error("intensity", err);
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+/** Takes photos back as evidence for an act — the tick stays */
+export async function unlinkActFromPhotosAction(personIds: string[], actId: string, mediaItemIds: string[]): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const sessions = await getMediaSessionIds(mediaItemIds);
+      await unlinkActFromPhotos(personIds, actId, mediaItemIds);
+      await revalidateSessions(sessions);
+      return { success: true };
+    } catch (err) {
+      console.error("intensity", err);
+      return { success: false, error: err instanceof Error ? err.message : "Unexpected error" };
+    }
+  });
+}
+
+export async function undoApplyActToPhotosAction(undo: PhotoActUndo): Promise<SimpleActionResult> {
+  return withTenantFromHeaders(async () => {
+    try {
+      const sessions = await getMediaSessionIds(undo.links.map((l) => l.mediaItemId));
+      await undoApplyActToPhotos(undo);
+      await revalidateSessions(sessions);
       return { success: true };
     } catch (err) {
       console.error("intensity", err);

@@ -20,6 +20,10 @@ export type PersonMediaLinkSummary = {
 export type GalleryCastMember = {
   id: string;
   name: string;
+  /** For `Name (ICG-ID)` labels (intensity in the viewer, 2026-11-28) */
+  icgId?: string | null;
+  /** For the scenario the photo suggests — who is on it (2026-11-28) */
+  sexAtBirth?: string | null;
   avatarUrl: string | null;
   focalX: number | null;
   focalY: number | null;

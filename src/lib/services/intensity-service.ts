@@ -55,6 +55,7 @@ export async function getSessionIntensity(sessionId: string) {
         id: c.person.id,
         icgId: c.person.icgId,
         name: c.person.aliases[0]?.name ?? c.person.icgId ?? c.person.id,
+        sexAtBirth: c.person.sexAtBirth,
       },
       suggestedScenarioIds: suggestScenarioIds(c.person.sexAtBirth, [...others.values()]),
       extraIds: c.intensityExtras.map((e) => e.extraId),
@@ -242,6 +243,91 @@ export async function setActEvidence(contributionActId: string, mediaItemIds: st
     });
     if (mediaItemIds.length) await linkEvidence(tx, [contributionActId], mediaItemIds);
   });
+}
+
+// ─── An act on photos (2026-11-28): ticking is linking ──────────────────────
+
+/** What applying an act to photos created — enough to take it back */
+export type PhotoActUndo = {
+  /** Acts ticked by this step (not there before) */
+  createdActIds: string[];
+  /** Photos linked by this step */
+  links: { contributionActId: string; mediaItemId: string }[];
+};
+
+/**
+ * An act seen on photos (the viewer, a gallery selection): for each photo's
+ * session and each chosen person, their lead contribution there gets the act
+ * — ticked if it was not — and the photo as evidence. A person who is no lead
+ * in a photo's session is skipped (`skipped` counts the pairs). Nothing is
+ * taken away; the undo names only what this step added.
+ */
+export async function applyActToPhotos(personIds: string[], actId: string, mediaItemIds: string[]) {
+  return prisma.$transaction(async (tx) => {
+    await tx.intensityAct.findUniqueOrThrow({ where: { id: actId }, select: { id: true } });
+    const media = await tx.mediaItem.findMany({ where: { id: { in: mediaItemIds } }, select: { id: true, sessionId: true } });
+    const sessionIds = [...new Set(media.map((m) => m.sessionId))];
+    const people = [...new Set(personIds)];
+    const leads = await tx.sessionContribution.findMany({
+      where: { sessionId: { in: sessionIds }, personId: { in: people }, roleDefinition: LEAD_ROLE },
+      orderBy: [{ roleDefinition: { sortOrder: "asc" } }, { createdAt: "asc" }],
+      select: { id: true, sessionId: true, personId: true, intensityActs: { where: { actId }, select: { id: true } } },
+    });
+    // One lead contribution per session and person — the first role
+    const chosen = new Map<string, (typeof leads)[number]>();
+    for (const c of leads) if (!chosen.has(`${c.sessionId}:${c.personId}`)) chosen.set(`${c.sessionId}:${c.personId}`, c);
+    const undo: PhotoActUndo = { createdActIds: [], links: [] };
+    const acts: { contributionId: string; contributionActId: string }[] = [];
+    for (const c of chosen.values()) {
+      let contributionActId = c.intensityActs[0]?.id;
+      if (!contributionActId) {
+        contributionActId = (await tx.contributionAct.create({ data: { contributionId: c.id, actId }, select: { id: true } })).id;
+        undo.createdActIds.push(contributionActId);
+      }
+      acts.push({ contributionId: c.id, contributionActId });
+      const mine = media.filter((m) => m.sessionId === c.sessionId).map((m) => m.id);
+      const had = new Set(
+        (await tx.contributionActMedia.findMany({ where: { contributionActId, mediaItemId: { in: mine } }, select: { mediaItemId: true } })).map(
+          (r) => r.mediaItemId,
+        ),
+      );
+      const add = mine.filter((m) => !had.has(m));
+      if (add.length) {
+        const id = contributionActId;
+        await tx.contributionActMedia.createMany({ data: add.map((mediaItemId) => ({ contributionActId: id, mediaItemId })), skipDuplicates: true });
+        undo.links.push(...add.map((mediaItemId) => ({ contributionActId: id, mediaItemId })));
+      }
+    }
+    return { undo, acts, sessionIds, skipped: sessionIds.length * people.length - chosen.size };
+  });
+}
+
+/** Takes photos back as evidence for an act of these people — the tick stays */
+export async function unlinkActFromPhotos(personIds: string[], actId: string, mediaItemIds: string[]) {
+  await prisma.contributionActMedia.deleteMany({
+    where: {
+      mediaItemId: { in: mediaItemIds },
+      contributionAct: { actId, contribution: { personId: { in: personIds }, roleDefinition: LEAD_ROLE } },
+    },
+  });
+}
+
+/** Takes an `applyActToPhotos` back: its links go, then the acts it ticked — unless they have photos again */
+export async function undoApplyActToPhotos(undo: PhotoActUndo) {
+  await prisma.$transaction(async (tx) => {
+    for (const l of undo.links) {
+      await tx.contributionActMedia.deleteMany({ where: { contributionActId: l.contributionActId, mediaItemId: l.mediaItemId } });
+    }
+    if (undo.createdActIds.length) {
+      await tx.contributionAct.deleteMany({ where: { id: { in: undo.createdActIds }, media: { none: {} } } });
+    }
+  });
+}
+
+/** The sessions of these photos */
+export async function getMediaSessionIds(mediaItemIds: string[]): Promise<string[]> {
+  const rows = await prisma.mediaItem.findMany({ where: { id: { in: mediaItemIds } }, distinct: ["sessionId"], select: { sessionId: true } });
+  return rows.map((r) => r.sessionId);
 }
 
 /** The one session these ticked acts share — refuses a mix */
