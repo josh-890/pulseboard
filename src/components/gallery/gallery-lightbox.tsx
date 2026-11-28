@@ -40,7 +40,7 @@ import { ZoomableImage } from "@/components/media/zoomable-image";
 import { GalleryFilmstrip } from "./gallery-filmstrip";
 import { LightboxToolbar } from "./lightbox-toolbar";
 import { LightboxShortcutsSheet } from "./lightbox-shortcuts-sheet";
-import type { EvidenceAct } from "@/components/intensity/act-evidence-list";
+import type { PhotoIntensity } from "@/components/intensity/use-photo-intensity";
 import { GalleryInfoPanel } from "./gallery-info-panel";
 import { useMediaOrigin } from "./use-media-origin";
 import { mediaOriginTarget } from "@/lib/media-origin-href";
@@ -120,12 +120,8 @@ type GalleryLightboxProps = {
     target: ReferenceCopyTarget,
     sourceMediaItemId: string,
   ) => Promise<{ ok: boolean; message: string; refSessionPersonId?: string }>;
-  /** ADR-0036, 3b: a session gallery with intensity — the photo as evidence for ticked acts (A) */
-  actEvidence?: {
-    acts: EvidenceAct[];
-    linkedOf: (mediaItemId: string) => string[];
-    onToggle: (contributionActId: string, mediaItemId: string, linked: boolean) => void;
-  };
+  /** ADR-0036 (2026-11-28): a gallery with intensity — rate an act on the photo, ticked and linked in one step (A) */
+  photoIntensity?: PhotoIntensity | null;
   /** Drawn over the image area for the current item (the Atlas's avatar of whose image it is) */
   imageOverlay?: (item: GalleryItem) => ReactNode;
 };
@@ -164,7 +160,7 @@ function SimpleLightbox({
   productionContext,
   collectionContext,
   cast,
-  actEvidence,
+  photoIntensity,
   imageOverlay,
   onHiddenPersonsChange,
   onShownSupportChange,
@@ -783,8 +779,8 @@ function SimpleLightbox({
           break;
         case "a":
         case "A":
-          // ADR-0036, 3b: which ticked acts this photo is evidence for
-          if (actEvidence && item && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          // ADR-0036 (2026-11-28): rate an act on this photo
+          if (photoIntensity && item && !e.metaKey && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
             setToolbarMenu("acts");
           }
@@ -838,7 +834,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, actEvidence, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router, cast, toggleFocusHotkey]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, photoIntensity, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router, cast, toggleFocusHotkey]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -948,15 +944,7 @@ function SimpleLightbox({
         onArm={() => setArmPaletteOpen(true)}
         onCategory={() => setAssignOpen(true)}
         onCompose={composeHref && item ? () => router.push(`${composeHref}?photo=${item.id}`) : undefined}
-        acts={
-          actEvidence && item
-            ? {
-                acts: actEvidence.acts,
-                linked: actEvidence.linkedOf(item.id),
-                onToggle: (contributionActId, linked) => actEvidence.onToggle(contributionActId, item.id, linked),
-              }
-            : undefined
-        }
+        acts={photoIntensity && item ? { intensity: photoIntensity, item, onPrev: goPrev, onNext: goNext } : undefined}
         armedTag={armedTag}
         onApplySlot={(tag) => applyTagToCurrent(tag)}
         slotStateOf={(tagId) => (tagController?.directTagIds.includes(tagId) ? "all" : "none")}

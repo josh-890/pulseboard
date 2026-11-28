@@ -39,6 +39,8 @@ import { ComposeEntryLink } from "@/components/composer/compose-entry-link";
 import { tallyTones, useToneFilter } from "@/lib/hooks/use-tone-filter";
 import { useGallerySelection } from "@/lib/hooks/use-gallery-selection";
 import { BulkActEvidence, useActEvidence, type GalleryIntensity } from "@/components/intensity";
+import { usePhotoIntensity } from "@/components/intensity/use-photo-intensity";
+import type { PhotoIntensityData } from "@/components/intensity/photo-intensity";
 import { usePeopleFilter } from "@/lib/hooks/use-people-filter";
 import type { PeopleFilter } from "@/lib/gallery-people-filter";
 import type { GallerySortMode } from "@/lib/gallery-sort";
@@ -61,6 +63,8 @@ type SessionProductionGalleryProps = {
   tagFilter?: { facets: TagFacetGroup[]; matchIds: string[] | null; problems: string[] };
   /** ADR-0036, 3b: the ticked acts and which photos are evidence for them — absent without acts in the catalog */
   intensity?: GalleryIntensity;
+  /** ADR-0036 (2026-11-28): rate an act on a photo in the viewer — ticked and linked in one step */
+  photoIntensity?: PhotoIntensityData;
   /** ?photo= — open this image in the viewer (the dashboard's damaged images) */
   initialPhotoId?: string | null;
   /** ADR-0042: the tag workbench — absent where the tenant has no Composer */
@@ -69,8 +73,9 @@ type SessionProductionGalleryProps = {
 
 const noSubscribe = () => () => {};
 
-export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, initialPhotoId, composeHref }: SessionProductionGalleryProps) {
+export function SessionProductionGallery({ items: initialItems, sessionId, coverMediaItemId: initialCoverId, productionContext, cast, tagFilter, intensity, photoIntensity: photoIntensityData, initialPhotoId, composeHref }: SessionProductionGalleryProps) {
   const actEvidence = useActEvidence(intensity);
+  const photoIntensity = usePhotoIntensity(photoIntensityData, { cast: cast ?? [], sessionId });
   const [localItems, setLocalItems] = useState(initialItems);
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -658,15 +663,7 @@ export function SessionProductionGallery({ items: initialItems, sessionId, cover
           productionContext={productionContext}
           collectionContext={collectionContext}
           cast={cast}
-          actEvidence={
-            intensity
-              ? {
-                  acts: actEvidence.acts,
-                  linkedOf: (mediaId) => actEvidence.evidence[mediaId] ?? [],
-                  onToggle: (contributionActId, mediaId, linked) => actEvidence.toggle(contributionActId, [mediaId], linked),
-                }
-              : undefined
-          }
+          photoIntensity={photoIntensity}
           onHiddenPersonsChange={(id, hidden) =>
             setLocalItems((prev) =>
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),

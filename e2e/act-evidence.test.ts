@@ -3,7 +3,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { Client } from "pg";
 
 // Photos as evidence for an act (ADR-0036, slice 3b): a gallery selection
-// becomes evidence through "Act…", the viewer shows and changes it (A), the
+// becomes evidence through "Act…", the viewer rates and links it (A), the
 // act: filter narrows the gallery to it, the panel counts it and opens the
 // picker, and the person's Intensity tab shows the act in pictures.
 
@@ -78,15 +78,16 @@ test("a selection becomes evidence; the viewer shows and changes it; act: filter
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Clear", exact: true }).click();
 
-  // In the viewer: A opens the list; this photo is linked — untick it
+  // In the viewer (2026-11-28): A opens the picker; this photo is linked — picking the act again takes it back
   await page.getByRole("button", { name: PHOTOS[0]!.caption }).hover();
   await page.getByRole("button", { name: "Open image" }).first().click();
-  await expect(page.getByRole("button", { name: "Evidence for 1 act — change" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Evidence for 1 act — rate an act" })).toBeVisible();
   await page.keyboard.press("a");
-  const box = page.getByRole("checkbox", { name: `${ACT.name} — ${label}` });
-  await expect(box).toHaveAttribute("aria-checked", "true");
-  await box.click();
-  await expect(box).toHaveAttribute("aria-checked", "false");
+  const picker = page.getByTestId("photo-act-picker");
+  await picker.getByLabel("Find an act").fill(ACT.name);
+  await expect(picker.getByRole("button", { name: `${ACT.name}, ticked, this photo linked` })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(picker.getByRole("button", { name: `${ACT.name}, ticked` })).toBeVisible();
   await expect.poll(async () => (await linked()).length).toBe(2);
 
   // The act: filter keeps the two still linked

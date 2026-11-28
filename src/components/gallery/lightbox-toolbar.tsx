@@ -6,14 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import type { SlotState } from "@/components/tags/tag-slot-bar";
 import type { MarkKey } from "@/lib/media-mark-tiers";
 import type { PaletteTag } from "@/lib/services/tag-service";
-import type { MediaItemOrigin } from "@/lib/types";
+import type { GalleryItem, MediaItemOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { LightboxMarkLadder } from "./lightbox-mark-ladder";
 import { LightboxMoreMenu, type ToolbarToggle } from "./lightbox-more-menu";
 import { LightboxOriginLink } from "./lightbox-origin-link";
 import { LightboxTagPill } from "./lightbox-tag-pill";
 import { LightboxActPill } from "./lightbox-act-pill";
-import type { EvidenceAct } from "@/components/intensity/act-evidence-list";
+import type { PhotoIntensity } from "@/components/intensity/use-photo-intensity";
 import { LightboxToolbarButton } from "./lightbox-toolbar-button";
 
 // The viewer's top bar (2026-10-17), in three zones so nothing covers the photo
@@ -40,8 +40,8 @@ export type LightboxToolbarProps = {
   onCategory: () => void;
   /** ADR-0042: open this photo in the tag workbench — only where a Composer exists */
   onCompose?: () => void;
-  /** ADR-0036, 3b: acts this photo can be evidence for — only in a session gallery with intensity */
-  acts?: { acts: EvidenceAct[]; linked: string[]; onToggle: (contributionActId: string, linked: boolean) => void };
+  /** ADR-0036 (2026-11-28): rate an act on this photo — only in a gallery with intensity */
+  acts?: { intensity: PhotoIntensity; item: GalleryItem; onPrev: () => void; onNext: () => void };
   armedTag: PaletteTag | null;
   onApplySlot: (tag: PaletteTag) => void;
   slotStateOf: (tagId: string) => SlotState;
@@ -120,9 +120,10 @@ export function LightboxToolbar(props: LightboxToolbarProps) {
             )}
             {props.acts && (
               <LightboxActPill
-                acts={props.acts.acts}
-                linked={props.acts.linked}
-                onToggle={props.acts.onToggle}
+                intensity={props.acts.intensity}
+                item={props.acts.item}
+                onPrev={props.acts.onPrev}
+                onNext={props.acts.onNext}
                 open={openMenu === "acts"}
                 onOpenChange={(open) => onOpenMenuChange(open ? "acts" : null)}
               />

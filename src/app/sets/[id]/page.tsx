@@ -34,6 +34,7 @@ import { getArchiveSuggestionsForSet, parseVideoFiles } from "@/lib/services/arc
 import { prisma } from "@/lib/db";
 import { getSetIntensity } from "@/lib/services/intensity-service";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
+import { buildPhotoIntensity } from "@/components/intensity/photo-intensity";
 import {
   INTENSITY_PANEL_COOKIE,
   IntensityPanelProvider,
@@ -70,6 +71,10 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
       ]);
     // Intensity on the set (2026-10-24): its sessions', minus what it leaves out — once the catalog has acts
     const intensityCatalog = sessionIntensityCatalog(intensityCatalogFull);
+    // Rating an act on a photo in the viewer (2026-11-28)
+    const photoIntensity = intensityCatalog
+      ? buildPhotoIntensity(intensityCatalog, setIntensity.sessions.map((s) => ({ id: s.id, contributions: s.contributions })))
+      : undefined;
     const intensityPanelOpen = cookieStore.get(INTENSITY_PANEL_COOKIE)?.value === "1";
 
     if (!set) notFound();
@@ -295,6 +300,7 @@ export default async function SetDetailPage({ params, searchParams }: SetDetailP
             copyToReferenceTargets={copyToReferenceTargets}
             cast={castDirectory}
             composeHref={composer && setData.type === "photo" ? `/sets/${id}/compose` : undefined}
+            photoIntensity={photoIntensity}
           />
           }
           sidebar={<>

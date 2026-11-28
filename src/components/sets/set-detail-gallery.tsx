@@ -84,6 +84,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useStoredValue } from "@/lib/hooks/use-stored-value";
+import { usePhotoIntensity } from "@/components/intensity/use-photo-intensity";
+import type { PhotoIntensityData } from "@/components/intensity/photo-intensity";
 
 type ClipGroup = {
   ref: string | null;
@@ -143,6 +145,8 @@ type SetDetailGalleryProps = {
   initialPhotoId?: string | null;
   /** ADR-0042: the tag workbench — absent where the tenant has no Composer */
   composeHref?: string;
+  /** ADR-0036 (2026-11-28): rate an act on a photo in the viewer — ticked and linked in one step */
+  photoIntensity?: PhotoIntensityData;
 };
 
 const noSubscribe = () => () => {};
@@ -161,8 +165,10 @@ export function SetDetailGallery({
   tagFilter,
   initialPhotoId,
   composeHref,
+  photoIntensity: photoIntensityData,
 }: SetDetailGalleryProps) {
   const router = useRouter();
+  const photoIntensity = usePhotoIntensity(photoIntensityData, { cast: cast ?? [], sessionId: primarySessionId });
   const [coverId, setCoverId] = useState(initialCoverId ?? null);
   const [localItems, setLocalItems] = useState(initialItems);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -1194,6 +1200,7 @@ export function SetDetailGallery({
           productionContext={productionContext}
           collectionContext={collectionContext}
           cast={cast}
+          photoIntensity={photoIntensity}
           onHiddenPersonsChange={(id, hidden) =>
             setLocalItems((prev) =>
               prev.map((it) => (it.id === id ? { ...it, hiddenPersonIds: hidden } : it)),

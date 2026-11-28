@@ -62,7 +62,7 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "unpaint", label: "Take the armed tag off", keys: ["⇧P"] },
       { id: "slots", label: "Toggle a quick-tag slot", keys: ["1", "…", "9"] },
       { id: "category", label: "Assign to a detail category", keys: ["D"] },
-      { id: "acts", label: "Evidence for an act (sessions with intensity)", keys: ["A"] },
+      { id: "acts", label: "Rate an act — tick it and link the photo (with intensity)", keys: ["A"] },
       { id: "compare", label: "Compare tray — add / remove", keys: ["X"] },
       { id: "background", label: "In the shot, not the focus (bg) ↔ the focus — the filtered person or the only lead", keys: ["N"] },
       { id: "cover", label: "Set as cover", keys: ["#"] },

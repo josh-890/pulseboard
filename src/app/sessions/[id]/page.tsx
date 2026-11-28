@@ -55,6 +55,7 @@ import { getIntensityHints, getSessionIntensity } from "@/lib/services/intensity
 import { getRatingQueue } from "@/lib/services/rating-queue-service";
 import { rateHref } from "@/lib/rating-queue";
 import type { GalleryIntensity } from "@/components/intensity";
+import { buildPhotoIntensity } from "@/components/intensity/photo-intensity";
 import { getIntensityCatalog } from "@/lib/services/intensity-catalog-service";
 import { ReferenceSessionPage } from "@/components/sessions/reference-session-page";
 import { AddContributorSheet } from "@/components/sessions/add-contributor-sheet";
@@ -297,6 +298,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
         return { acts, evidence };
       })()
     : undefined;
+  const photoIntensity = intensityCatalog ? buildPhotoIntensity(intensityCatalog, [{ id, contributions: intensityRows }]) : undefined;
   const behindCameraContributors = mergeSessionContributors([], behindCameraCredits).filter(
     (c): c is Extract<SessionContributor, { kind: "artist" }> => c.kind === "artist",
   );
@@ -486,6 +488,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
                 cast={castDirectory}
                 tagFilter={galleryTagFilter}
                 intensity={galleryIntensity}
+                photoIntensity={photoIntensity}
                 initialPhotoId={resolvedSearchParams.photo ?? null}
               />
             </SectionCard>
