@@ -226,3 +226,22 @@ is the rating, later passes extend, refine or narrow it, and mistakes are correc
   any more: bulk reaches rated models too, "like last time" copies from the latest earlier session with acts, the
   channel's usual preset counts every model. Ticks from a preset keep their ◇ (provenance).
 - The column stays unread until it is dropped by a migration once this is live on both tenants.
+
+## Amendment 2026-11-28 — rating where the act is seen
+
+Rating used to start in the Intensity panel: tick an act, then find photos to link (`A` in a session's viewer only
+linked photos to acts already ticked). Now a photo in hand rates directly — the viewer of a **set** or a **session**,
+and a grid selection:
+
+- **Picking an act ticks it and links the photo(s)** in one step (`applyActToPhotos`): for each photo's session and
+  each chosen person, their lead contribution (first role) gets the act if missing and the photo as evidence; no
+  lead there → skipped. Undo takes back only what the step added. Unlinking leaves the tick.
+- **Who:** the leads on the photo (`imageShownIds`); one alone is chosen, several can be; someone appearing is shown
+  without intensity. An act is recorded for the person it is about.
+- **Which column:** the one the photo suggests from who is on it (not the session's cast) — `suggestScenarioIds`
+  over their sexes; the others as tabs; the search spans all.
+- **Modes:** `A` picker (stays open, ← → page), `⇧A` arms an act and `P` / `⇧P` paint it over a series (one thing
+  armed — tag or act), an Intensity section in the info panel, "Act…" for a grid selection. An act's own extras are
+  hidden until refined (⇧⏎ / Extras ▸) for one person.
+- The session panel stays tick-only. `SessionContribution.intensityReviewedAt` is dropped
+  (`20261128120000_drop_intensity_reviewed`).

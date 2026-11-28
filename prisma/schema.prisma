@@ -1485,8 +1485,6 @@ model SessionContribution {
 
   intensityExtras     ContributionExtra[]
   intensityActs       ContributionAct[]
-  /// The person's intensity here was checked and confirmed (2026-10-24); a preset or a copy clears it
-  intensityReviewedAt DateTime?
 
   @@unique([sessionId, personId, roleDefinitionId])
   @@index([resolvedAliasId])
