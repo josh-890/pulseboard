@@ -410,6 +410,8 @@ Detail;Region;Region;;toe-focus;toes;verified;foot-focus;The toes are the subjec
 Detail;Region;Region;;sole-focus;soles;verified;foot-focus;The soles are the subject.;;new;foot_l.sole,foot_r.sole;MANY;0.85;;1:1;IMPOSSIBLE
 Detail;Feature;Feature;;tattoo;tattoo;verified;;A tattoo.;;new;;MANY;0.6;;1:1;
 Detail;Feature;Feature;;piercing;piercing;verified;;A piercing.;;new;;MANY;0.6;;1:1;
+Detail;Feature;Feature;;pussy-piercing;pussy_piercing;verified;piercing;A piercing in the vulva (clitoral hood, labia) – a feature of the body, not an accessory.;pussy-jewelry;new;;MANY;0.6;;1:1;
+Detail;Feature;Feature;;labia-piercing;labia_piercing;verified;pussy-piercing;A piercing through the labia.;;new;;MANY;0.6;;1:1;
 Detail;Feature;Feature;;scar;scar;verified;;A scar.;;new;;MANY;0.6;;1:1;
 Detail;Feature;Feature;;mole;mole;verified;;A mole or beauty mark.;"birthmark; freckles";new;;MANY;0.6;;1:1;
 Detail;Feature;Feature;;birthmark;birthmark;verified;;A birthmark.;mole;new;;MANY;0.6;;1:1;
