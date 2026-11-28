@@ -8,10 +8,10 @@ import { ratedSql } from "@/lib/services/tag-predicates";
 
 // The rating queue (2026-10-25): a /sessions or /sets list walked session by
 // session on the session page, `?rate=sessions?<the list's query>`. It holds
-// the list's sessions with models still to rate — not rated yet or to review —
-// in channel order (the primary set's channel: a channel keeps a style), then
-// by date. The session on screen stays in it once confirmed, so Prev/Next
-// keep their place; the others drop out as they are done.
+// the list's sessions not rated yet — no model has an act (2026-11-28: there is
+// no confirm any more, a tick is the rating) — in channel order (the primary
+// set's channel: a channel keeps a style), then by date. The session on screen
+// stays in it once rated, so Prev/Next keep their place; the others drop out.
 
 export type RatingQueue = {
   /** Where the queue came from, to go back to */
@@ -62,7 +62,7 @@ export async function getRatingQueue(rate: string | undefined, sessionId: string
             LIMIT 1
           ) ch ON TRUE
           WHERE s.id IN (${Prisma.join(ids)})
-            AND (s.id = ${sessionId} OR ${ratedSql("SESSION", "unrated", x)} OR ${ratedSql("SESSION", "review", x)})
+            AND (s.id = ${sessionId} OR ${ratedSql("SESSION", "unrated", x)})
           ORDER BY lower(ch.name) ASC NULLS LAST, s.date ASC NULLS LAST, s.name, s.id`;
   const at = rows.findIndex((r) => r.id === sessionId);
   return {

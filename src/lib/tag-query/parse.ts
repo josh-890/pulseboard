@@ -16,7 +16,7 @@ import type { QueryPredicate, TagClause, TagQuery, TagSourceFilter, TagTerm } fr
 //                          cast:ICG-ID (also someone only appearing) · persontag:tag ·
 //                          label:name · type:photo|video · act:name|scenario/name ·
 //                          intensity>=N (> < <= =) · intensity:scenario>=N ·
-//                          rated:unrated|review|done
+//                          rated:unrated|rated
 //
 // Prefix order: [-|~] [@level:] [=] reference. Unparseable tokens are reported,
 // never silently dropped into a different meaning.

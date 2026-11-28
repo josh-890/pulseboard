@@ -98,7 +98,7 @@ export function IntensityPresetBar({ scenarios, scenarioId, onScenario, target, 
             type="button"
             onClick={() => onApply(usual.preset.id)}
             aria-label={`Apply ${usual.preset.name}, usual for ${usual.channel}, to ${target}`}
-            title={`${usual.models} confirmed model${usual.models === 1 ? "" : "s"} of ${usual.channel} carry it\n${hint(usual.preset)}`}
+            title={`${usual.models} model${usual.models === 1 ? "" : "s"} of ${usual.channel} carry it\n${hint(usual.preset)}`}
             className={cn(
               "inline-flex items-center gap-1 rounded-md border border-dashed border-primary/60 bg-primary/5 px-1.5 py-0.5 text-xs transition-colors",
               "hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { Check, ChevronRight, Copy, History, Search, X } from "lucide-react";
+import { ChevronRight, Copy, History, Search, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { IntensityExtrasPicker } from "@/components/intensity/intensity-extras-picker";
@@ -19,7 +19,6 @@ import {
   copyContributionIntensityAction,
   copyIntensityLikeLastTimeAction,
   restoreContributionActsAction,
-  setIntensityReviewedAction,
   undoIntensityPresetAction,
   setContributionActExtrasAction,
   setActEvidenceAction,
@@ -28,7 +27,7 @@ import {
   setContributionsExtrasAction,
   setSetActExcludedAction,
 } from "@/lib/actions/intensity-actions";
-import { applySharedExtras, countsIn, formatIntensity, intensityReview, overridesFor, presetAdditions, presetValue, type IntensityReview } from "@/lib/intensity";
+import { applySharedExtras, countsIn, formatIntensity, overridesFor, presetAdditions, presetValue } from "@/lib/intensity";
 import { IntensityValue } from "@/components/intensity/intensity-value";
 import type { IntensityHints, SessionIntensity } from "@/lib/services/intensity-service";
 import type { SimpleActionResult } from "@/lib/types";
@@ -36,7 +35,6 @@ import { cn, formatPartialDate } from "@/lib/utils";
 import { ActEvidencePicker } from "./act-evidence-picker";
 import { IntensityActCheck } from "./intensity-act-check";
 import { ALL_PRESETS, IntensityPresetBar } from "./intensity-preset-bar";
-import { IntensityReviewBar } from "./intensity-review-bar";
 import { initialPanelState, personView, reducePanel, type PanelChange, type RestoreItem } from "./panel-state";
 import { useIntensityPanel } from "./intensity-panel-provider";
 import type { SessionIntensityCatalog } from "./types";
@@ -45,14 +43,14 @@ export type SessionIntensityPanelProps = {
   sessionId: string;
   contributions: SessionIntensity;
   catalog: SessionIntensityCatalog;
-  /** Each model's last confirmed session and the channel's usual preset (2026-10-27) */
+  /** Each model's last session with acts and the channel's usual preset (2026-10-27) */
   hints?: IntensityHints;
   /**
    * Opened on a set (2026-10-24): values count only the acts the set shows; with
    * a session split into several sets, each ticked act can be left out of this one
    */
   release?: SetRelease;
-  /** In the rating queue (2026-10-25): where "Confirm all & next" goes — the next session, or back to the list */
+  /** In the rating queue (2026-10-25): where "Next" (⏎) goes — the next session, or back to the list */
   queue?: { nextHref: string };
 };
 
@@ -202,11 +200,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
     send({ kind: "copy", fromId, toId: single.id }, () => copyContributionIntensityAction(fromId, single.id));
   }
 
-  // ── Presets and review (2026-10-24) ──
-  const reviewOf = (id: string) => {
-    const p = state[id]!;
-    return intensityReview({ reviewed: p.reviewed, acts: p.acts.length, extras: p.extraIds.length });
-  };
+  // ── Presets (2026-10-24) ──
   const presetName = new Map(catalog.presets.map((p) => [p.id, p.name]));
   const target = single ? single.label : `${chosen.length} people`;
   // A preset is for one scenario (2026-10-25): the bar shows one scenario's
@@ -267,7 +261,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
       }
       const undo = result.undo;
       const added = undo.people.reduce((n, p) => n + p.actIds.length, 0);
-      toast(`${preset.name}: ${added} act${added === 1 ? "" : "s"} for ${chosen.map((c) => c.label).join(", ")} — to review`, {
+      toast(`${preset.name}: ${added} act${added === 1 ? "" : "s"} for ${chosen.map((c) => c.label).join(", ")} `, {
         action: {
           label: "Undo",
           onClick: () =>
@@ -275,7 +269,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
               {
                 kind: "unpreset",
                 presetId,
-                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds, reviewed: p.reviewedAt !== null })),
+                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds })),
               },
               () => undoIntensityPresetAction(undo),
             ),
@@ -284,12 +278,12 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
     });
   }
 
-  // "Like last time" (2026-10-27): each model's own earlier confirmed session — same channel first
+  // "Like last time" (2026-10-27): each model's own earlier session with acts — same channel first
   const lastTimeOf = (id: string) => hints?.lastTime[id] ?? null;
   const lastValue = (id: string) => {
     const lt = lastTimeOf(id);
     if (!lt) return null;
-    const p = { reviewed: true, extraIds: lt.extraIds, acts: lt.acts.map((a) => ({ id: null, presetId: null, notes: null, mediaIds: [], ...a })) };
+    const p = { extraIds: lt.extraIds, acts: lt.acts.map((a) => ({ id: null, presetId: null, notes: null, mediaIds: [], ...a })) };
     return personView(p, catalog, acts).total;
   };
   const withLastTime = chosen.filter((c) => lastTimeOf(c.id));
@@ -317,7 +311,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
       }
       const undo = result.undo;
       const added = undo.people.reduce((n, p) => n + p.actIds.length, 0);
-      toast(`Like last time: ${added} act${added === 1 ? "" : "s"} for ${who.map((c) => c.label).join(", ")} — to review`, {
+      toast(`Like last time: ${added} act${added === 1 ? "" : "s"} for ${who.map((c) => c.label).join(", ")} `, {
         action: {
           label: "Undo",
           onClick: () =>
@@ -325,7 +319,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
               {
                 kind: "unpreset",
                 presetId: null,
-                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds, reviewed: p.reviewedAt !== null })),
+                entries: undo.people.map((p) => ({ contributionId: p.contributionId, actIds: p.actIds, extraIds: p.extraIds })),
               },
               () => undoIntensityPresetAction(undo),
             ),
@@ -334,19 +328,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
     });
   }
 
-  function review(reviewed: boolean) {
-    const ids = chosen.map((c) => c.id);
-    send({ kind: "review", contributionIds: ids, reviewed }, () => setIntensityReviewedAction(ids, reviewed));
-  }
-
-  // The rating queue: everyone in the session confirmed, then the next one
-  function confirmNext() {
-    if (!queue) return;
-    const ids = people.map((c) => c.id);
-    send({ kind: "review", contributionIds: ids, reviewed: true }, () => setIntensityReviewedAction(ids, true), () => router.push(queue.nextHref));
-  }
-
-  // Digits apply a preset, ⏎ confirms (in the queue: everyone, and goes on) — while the panel has focus, not while typing or on a button
+  // Digits apply a preset, ⏎ goes to the next session in the rating queue — while the panel has focus, not while typing or on a button
   function onPanelKey(e: React.KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement;
@@ -357,10 +339,9 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
       if (!preset) return;
       e.preventDefault();
       applyPreset(preset.id);
-    } else if (e.key === "Enter") {
+    } else if (e.key === "Enter" && queue) {
       e.preventDefault();
-      if (queue) confirmNext();
-      else review(true);
+      router.push(queue.nextHref);
     }
   }
 
@@ -396,12 +377,12 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
     const st = holding.length === 0 ? "none" : holding.length === chosen.length ? "all" : "some";
     const vals = holding.map((c) => views.get(c.id)!.ticked.get(a.id)!);
     const mine = single ? views.get(single.id)!.ticked.get(a.id) : undefined;
-    // Ticked by a preset for someone not yet confirmed: marked
+    // Ticked by a preset: marked, so it gets a look
     const fromPreset =
       holding
         .map((c) => {
           const t = state[c.id]!.acts.find((x) => x.actId === a.id);
-          return t?.presetId && !state[c.id]!.reviewed ? presetName.get(t.presetId) : undefined;
+          return t?.presetId ? presetName.get(t.presetId) : undefined;
         })
         .find(Boolean) ?? null;
     return (
@@ -468,7 +449,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
   // "Above the preset?" (2026-10-24): the value is the highest act, so the check that
   // matters after a preset is whether anything above its acts happened — those acts first
   const presetTicks = chosen.flatMap((c) =>
-    state[c.id]!.reviewed ? [] : state[c.id]!.acts.filter((t) => t.presetId).map((t) => acts.get(t.actId)).filter((x) => x !== undefined),
+    state[c.id]!.acts.filter((t) => t.presetId).map((t) => acts.get(t.actId)).filter((x) => x !== undefined),
   );
   const presetTop = presetTicks.length ? Math.max(...presetTicks.map((t) => t.level)) : null;
   const presetScenarios = new Set(presetTicks.map((t) => t.scenarioId));
@@ -507,7 +488,6 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
                       <IntensityValue value={v.total} max={catalog.max} />
                     </span>
                   </IntensityHoverText>
-                  <ReviewMark review={reviewOf(c.id)} />
                 </button>
                 {people.length > 1 && (
                   <button
@@ -544,7 +524,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
                 <button
                   type="button"
                   disabled={withLastTime.length === 0}
-                  title={withLastTime.length === 0 ? `No earlier confirmed session for ${target}` : undefined}
+                  title={withLastTime.length === 0 ? `No earlier session with acts for ${target}` : undefined}
                   className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:hover:bg-transparent"
                 >
                   <History size={11} aria-hidden="true" /> Like last time…
@@ -552,7 +532,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-w-sm">
                 <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-                  Take the acts and extras of each one&apos;s last confirmed session — same channel first; no notes or photos
+                  Take the acts and extras of each one&apos;s last session with acts — same channel first; no notes or photos
                 </DropdownMenuLabel>
                 {withLastTime.length > 1 && (
                   <>
@@ -565,7 +545,7 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
                   if (!lt) {
                     return (
                       <DropdownMenuItem key={c.id} disabled className="text-xs">
-                        {c.label}: no earlier confirmed session
+                        {c.label}: no earlier session with acts
                       </DropdownMenuItem>
                     );
                   }
@@ -619,12 +599,19 @@ export function SessionIntensityPanel({ sessionId, contributions, catalog, hints
           usual={usual}
           onApply={applyPreset}
         />
-        <IntensityReviewBar
-          people={chosen.map((c) => ({ label: c.label, review: reviewOf(c.id) }))}
-          onConfirm={() => review(true)}
-          onReopen={() => review(false)}
-          onConfirmNext={queue ? confirmNext : undefined}
-        />
+        {queue && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => router.push(queue.nextHref)}
+              title="The next session in the rating queue (⏎ while the panel has focus)"
+              className="focus-visible:ring-ring inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium hover:bg-muted focus-visible:ring-1 focus-visible:outline-none"
+            >
+              Next session
+              <kbd className="text-muted-foreground ml-0.5 font-mono text-[10px]" aria-hidden="true">⏎</kbd>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-1">
@@ -756,12 +743,3 @@ function PanelFrame({
   );
 }
 
-/** Where a person stands, beside their value: confirmed ✓, to review (amber), nothing while unrated */
-function ReviewMark({ review }: { review: IntensityReview }) {
-  if (review === "unrated") return null;
-  return review === "done" ? (
-    <Check size={11} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-label="confirmed" />
-  ) : (
-    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" role="img" aria-label="to review" />
-  );
-}

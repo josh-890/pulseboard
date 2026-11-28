@@ -206,13 +206,11 @@ describe("presets and review (2026-10-24)", () => {
     expect(add.extraIds.sort()).toEqual(["first", "pub"]);
   });
 
-  it("a person is unrated, to review or done; a session done only when all are", () => {
-    expect(intensityReview({ reviewed: false, acts: 0, extras: 0 })).toBe("unrated");
-    expect(intensityReview({ reviewed: false, acts: 2, extras: 0 })).toBe("review");
-    expect(intensityReview({ reviewed: false, acts: 0, extras: 1 })).toBe("review");
-    expect(intensityReview({ reviewed: true, acts: 0, extras: 0 })).toBe("done"); // nothing to rate
-    expect(sessionReview(["done", "done"])).toBe("done");
-    expect(sessionReview(["done", "unrated"])).toBe("review");
+  it("a person is rated by an act or the Max extra, not by extras alone; a session once one of them is", () => {
+    expect(intensityReview({ acts: 0, max: false })).toBe("unrated");
+    expect(intensityReview({ acts: 2, max: false })).toBe("rated");
+    expect(intensityReview({ acts: 0, max: true })).toBe("rated");
+    expect(sessionReview(["rated", "unrated"])).toBe("rated");
     expect(sessionReview(["unrated", "unrated"])).toBe("unrated");
     expect(sessionReview([])).toBe("unrated");
   });

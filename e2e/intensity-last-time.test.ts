@@ -3,9 +3,9 @@ import { test, expect, type Page } from "@playwright/test";
 import { Client } from "pg";
 
 // "Like last time" and the channel's usual preset (2026-10-27): the menu names
-// the model's last confirmed session (same channel first) before copying; the
-// copy lands to review with Undo. The preset most confirmed models of the
-// channel carry is the first pill and is never applied by itself.
+// the model's last session with acts (same channel first) before copying; the
+// copy only adds, with Undo. The preset most models of the channel carry is
+// the first pill and is never applied by itself.
 
 const db = new Client({ connectionString: process.env.DATABASE_URL });
 const RUN = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -27,26 +27,25 @@ test.beforeAll(async () => {
     await db.query(`INSERT INTO "PersonAlias" (id, "personId", name, "isCommon") VALUES ($1, $2, $3, true)`, [`${p.id}-a`, p.id, p.name]);
   }
   await db.query(`INSERT INTO "Channel" (id, name) VALUES ($1, $2)`, [CHANNEL.id, CHANNEL.name]);
-  for (const [s, who, reviewed] of [[OLD, A, true], [BEA, B, true], [NOW, A, false]] as const) {
+  for (const [s, who] of [[OLD, A], [BEA, B], [NOW, A]] as const) {
     await db.query(`INSERT INTO "Session" (id, name, date, "datePrecision", "updatedAt") VALUES ($1, $2, $3, 'DAY', now())`, [s.id, `Test session ilt ${s.date} ${RUN}`, s.date]);
     await db.query(`INSERT INTO "Set" (id, title, type, "channelId", "updatedAt") VALUES ($1, $2, 'photo', $3, now())`, [`${s.id}-set`, `Test set ilt ${s.date} ${RUN}`, CHANNEL.id]);
     await db.query(`INSERT INTO "SetSession" ("setId", "sessionId", "isPrimary") VALUES ($1, $2, true)`, [`${s.id}-set`, s.id]);
     await db.query(
-      `INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId", "intensityReviewedAt") VALUES ($1, $2, $3, 'crd_model', ${reviewed ? "now()" : "NULL"})`,
+      `INSERT INTO "SessionContribution" (id, "sessionId", "personId", "roleDefinitionId") VALUES ($1, $2, $3, 'crd_model')`,
       [s.c, s.id, who.id],
     );
   }
   await db.query(`INSERT INTO "IntensityAct" (id, "scenarioId", name, level) VALUES ($1, 'dsit-solo', $2, 3)`, [ACT.id, ACT.name]);
   await db.query(`INSERT INTO "IntensityPreset" (id, "scenarioId", name, "sortOrder") VALUES ($1, 'dsit-solo', $2, -1000)`, [PRESET.id, PRESET.name]);
   await db.query(`INSERT INTO "IntensityPresetAct" ("presetId", "actId") VALUES ($1, $2)`, [PRESET.id, ACT.id]);
-  // Last time Anna did the act; Bea's confirmed session carries the preset — the channel's usual
+  // Last time Anna did the act; Bea's session carries the preset — the channel's usual
   await db.query(`INSERT INTO "ContributionAct" (id, "contributionId", "actId") VALUES ($1, $2, $3)`, [`${OLD.c}-act`, OLD.c, ACT.id]);
   await db.query(`INSERT INTO "ContributionAct" (id, "contributionId", "actId", "presetId") VALUES ($1, $2, $3, $4)`, [`${BEA.c}-act`, BEA.c, ACT.id, PRESET.id]);
 });
 
 test.beforeEach(async () => {
   await db.query(`DELETE FROM "ContributionAct" WHERE "contributionId" = $1`, [NOW.c]);
-  await db.query(`UPDATE "SessionContribution" SET "intensityReviewedAt" = NULL WHERE id = $1`, [NOW.c]);
 });
 
 test.afterAll(async () => {
@@ -79,7 +78,7 @@ async function openPanel(page: Page) {
   return panel;
 }
 
-test("Like last time names the session, copies it to review, Undo takes it back", async ({ page }) => {
+test("Like last time names the session, copies it in, Undo takes it back", async ({ page }) => {
   const panel = await openPanel(page);
   await panel.getByRole("button", { name: "Like last time…" }).click();
   const item = page.getByRole("menuitem", { name: new RegExp(`${A.name} \\(${A.icg}\\)`) });
@@ -87,7 +86,6 @@ test("Like last time names the session, copies it to review, Undo takes it back"
   await expect(item).toContainText(CHANNEL.name);
   await item.click();
   await expect.poll(ticks).toEqual([{ act: ACT.id, preset: null }]);
-  await expect(panel.getByText("To review — check the ticks against the photos")).toBeVisible();
   await page.getByRole("button", { name: "Undo" }).click();
   await expect.poll(ticks).toEqual([]);
 });

@@ -42,9 +42,8 @@ export function predicateSuggestions(entity: TaggableEntity): { insert: string; 
       hint: entity === "PERSON" ? "peak intensity ≥ N (also > < <= =)" : entity === "MEDIA_ITEM" ? "evidence for an act valued ≥ N" : "intensity ≥ N (also > < <= =)",
     },
     { kind: "intensity", insert: "intensity:", hint: "within a scenario — scenario>=N" },
-    { kind: "rated", insert: "rated:unrated", hint: "no model's intensity recorded yet" },
-    { kind: "rated", insert: "rated:review", hint: "intensity to review — not all confirmed" },
-    { kind: "rated", insert: "rated:done", hint: "every model's intensity confirmed" },
+    { kind: "rated", insert: "rated:unrated", hint: "no model has an act yet" },
+    { kind: "rated", insert: "rated:rated", hint: "a model has an act" },
     { kind: "tone", insert: "tone:bw", hint: entity === "MEDIA_ITEM" ? "black & white" : "all photos black & white" },
     { kind: "tone", insert: "tone:color", hint: entity === "MEDIA_ITEM" ? "in color" : "all photos in color" },
     ...(entity === "MEDIA_ITEM" ? [] : [{ kind: "tone" as const, insert: "tone:mixed", hint: "color and black & white photos" }]),
@@ -64,7 +63,7 @@ export function normalizeToneValue(v: string): "color" | "bw" | "mixed" | null {
   return null;
 }
 
-const RATED_TEXT: Record<string, string> = { unrated: "Not rated yet", review: "Intensity to review", done: "Intensity confirmed" };
+const RATED_TEXT: Record<string, string> = { unrated: "Not rated yet", rated: "Intensity rated" };
 
 const OP_TEXT: Record<string, string> = { ">=": "≥", "<=": "≤", ">": ">", "<": "<", "=": "=", ":": "=" };
 

@@ -211,3 +211,18 @@ They are written down here so later acts are placed the same way; nothing in the
 7. **The ladders kept apart:** seeing → showing → opening is one axis (Visible, Showing, Flaunting, Unfolding 3,
    Opening 4, Stretching Open 5, Gaping 7 as the result); something inside without visible lust (Insertion 3) is
    below showing lust (Masturbation 3.5).
+
+## Amendment 2026-11-28 — no confirming: a tick is the rating
+
+The review state of 2026-10-24 (`SessionContribution.intensityReviewedAt`, *to review* / *confirmed*, the review
+bar, ⏎ to confirm, "Confirm all & next") is retired. Intensity works like tagging: it is never finished, every tick
+is the rating, later passes extend, refine or narrow it, and mistakes are corrected where they are.
+
+- **Rated** is derived: a lead has an act, or the Max extra (extras alone are surcharges and do not rate). A session
+  or set is rated once one of its leads is (`ratedSql`, `intensityReview`, `sessionReview`). `rated:unrated` /
+  `rated:rated`; the retired `rated:review` and `rated:done` read as `rated`.
+- **The rating queue** walks a list's unrated sessions; *Next session* (⏎ in the panel) goes on.
+- **Presets, bulk presets, "Same as…" and "Like last time" only add** what a person lacks, so nothing needs guarding
+  any more: bulk reaches rated models too, "like last time" copies from the latest earlier session with acts, the
+  channel's usual preset counts every model. Ticks from a preset keep their ◇ (provenance).
+- The column stays unread until it is dropped by a migration once this is live on both tenants.

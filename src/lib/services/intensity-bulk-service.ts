@@ -4,9 +4,9 @@ import { LEAD_ROLE } from "@/lib/services/session-contributors";
 import { applyIntensityPreset, undoIntensityPreset, type PresetUndo } from "@/lib/services/intensity-service";
 
 // A preset applied in bulk from /sessions and /sets (2026-10-27, slice 4): to
-// the models of the selected sessions — from sets, their sessions — who are not
-// confirmed yet and whose cast fits the preset's scenario (a Solo preset never
-// lands on a couple). Each lands to review, as in the panel; Undo takes it back.
+// the models of the selected sessions — from sets, their sessions — whose cast
+// fits the preset's scenario (a Solo preset never lands on a couple). It only
+// adds what each lacks, so rated work is never touched; Undo takes it back.
 
 export type BulkEntity = "SESSION" | "SET";
 
@@ -19,8 +19,6 @@ export type BulkPresetPlan = {
   contributionIds: string[];
   /** Sessions with at least one of them */
   sessions: number;
-  /** Models left alone: already confirmed */
-  confirmed: number;
   /** Models left alone: their cast suggests another scenario */
   otherCast: number;
 };
@@ -63,17 +61,12 @@ export async function planBulkIntensityPreset(entity: BulkEntity, ids: string[],
   const leads = await prisma.sessionContribution.findMany({
     where: { sessionId: { in: sessionIds }, roleDefinition: LEAD_ROLE },
     orderBy: [{ sessionId: "asc" }, { createdAt: "asc" }],
-    select: { id: true, sessionId: true, intensityReviewedAt: true, person: { select: { id: true, sexAtBirth: true } } },
+    select: { id: true, sessionId: true, person: { select: { id: true, sexAtBirth: true } } },
   });
   const contributionIds: string[] = [];
   const sessions = new Set<string>();
-  let confirmed = 0;
   let otherCast = 0;
   for (const c of leads) {
-    if (c.intensityReviewedAt) {
-      confirmed++;
-      continue;
-    }
     const others = leads.filter((o) => o.sessionId === c.sessionId && o.person.id !== c.person.id).map((o) => o.person.sexAtBirth);
     const suggested = suggestScenarioIds(c.person.sexAtBirth, others);
     if (suggested.length > 0 && !suggested.includes(preset.scenarioId)) {
@@ -87,7 +80,6 @@ export async function planBulkIntensityPreset(entity: BulkEntity, ids: string[],
     preset: { id: preset.id, name: preset.name, scenario: preset.scenario.name },
     contributionIds,
     sessions: sessions.size,
-    confirmed,
     otherCast,
   };
 }

@@ -321,7 +321,7 @@ describe("extras for some scenarios only (2026-10-23)", () => {
       const sc = cat.scenarios.find((x) => x.id === ids.scenario)!;
       const acts = new Map(sc.acts.map((a) => [a.id, { level: a.level, name: a.name, scenarioId: sc.id, scenario: sc.name }]));
       const view = personView(
-        { reviewed: false, extraIds: [ids.semi!, ids.first!], acts: [{ id: "x", actId: ids.act2!, presetId: null, notes: null, overrides: [], mediaIds: [] }] },
+        { extraIds: [ids.semi!, ids.first!], acts: [{ id: "x", actId: ids.act2!, presetId: null, notes: null, overrides: [], mediaIds: [] }] },
         { scenarios: [], groups: cat.groups, extras: cat.extras, max: cat.max, presets: [] },
         acts,
       );

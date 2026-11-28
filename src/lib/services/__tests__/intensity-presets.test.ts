@@ -6,7 +6,6 @@ import {
   getSessionIntensity,
   setContributionAct,
   setContributionExtras,
-  setIntensityReviewed,
   undoIntensityPreset,
 } from "@/lib/services/intensity-service";
 import {
@@ -21,8 +20,8 @@ import {
 } from "@/lib/services/intensity-catalog-service";
 
 // Intensity presets (2026-10-24): a bundle of acts and session extras applied to
-// a session's models — adds only, marks its ticks, puts them to review — with
-// Undo; confirming per model; a copy, so editing or deleting it changes no session.
+// a session's models — adds only, never removes, marks its ticks — with Undo;
+// a copy, so editing or deleting it changes no session. No confirming (2026-11-28).
 const RUN = `ipr${Date.now().toString(36)}`;
 const ids: Record<string, string> = {};
 
@@ -30,9 +29,6 @@ async function person(key: string) {
   ids[key] = (await prisma.person.create({ data: { icgId: `${RUN}-${key}`.toUpperCase(), sexAtBirth: "female" } })).id;
   await prisma.personAlias.create({ data: { personId: ids[key]!, name: `${RUN} ${key}`, isCommon: true } });
 }
-
-const reviewedAt = async (id: string) =>
-  (await prisma.sessionContribution.findUniqueOrThrow({ where: { id }, select: { intensityReviewedAt: true } })).intensityReviewedAt;
 
 beforeAll(async () => {
   await person("anna");
@@ -90,12 +86,10 @@ describe("intensity presets", () => {
     expect((await getIntensityPresets()).find((x) => x.id === p)!.actIds).toEqual([]);
   });
 
-  it("adds only what is missing, marks its ticks, lays its extras over and puts the model to review", async () => {
-    // Anna: low by hand, semi + first time, confirmed
+  it("adds only what is missing, marks its ticks and lays its extras over", async () => {
+    // Anna: low by hand, semi + first time
     await setContributionAct(ids.cAnna!, ids.low!, true);
     await setContributionExtras(ids.cAnna!, [ids.semi!, ids.first!]);
-    await setIntensityReviewed([ids.cAnna!], true);
-    expect(await reviewedAt(ids.cAnna!)).not.toBeNull();
 
     const undo = await applyIntensityPreset([ids.cAnna!, ids.cBea!], ids.preset!);
     expect(undo.people.find((p) => p.contributionId === ids.cAnna)!.actIds).toEqual([ids.mid]);
@@ -107,34 +101,40 @@ describe("intensity presets", () => {
     expect(anna.acts.map((a) => [a.actId, a.presetId]).sort()).toEqual([[ids.low, null], [ids.mid, ids.preset]].sort());
     // Secluded replaces semi in its group, first time stays
     expect(anna.extraIds.sort()).toEqual([ids.secluded, ids.first].sort());
-    expect(anna.reviewed).toBe(false);
     expect(bea.acts.map((a) => a.presetId)).toEqual([ids.preset, ids.preset]);
     expect(bea.extraIds).toEqual([ids.secluded]);
   });
 
-  it("Undo takes its ticks back and returns extras and review state", async () => {
+  it("Undo takes its ticks back and returns the extras", async () => {
     await setContributionAct(ids.cBea!, ids.low!, false);
     await setContributionAct(ids.cBea!, ids.mid!, false);
     await setContributionExtras(ids.cBea!, []);
-    await setIntensityReviewed([ids.cBea!], true);
     const undo = await applyIntensityPreset([ids.cBea!], ids.preset!);
     await undoIntensityPreset(undo);
     const bea = (await getSessionIntensity(ids.session!)).find((r) => r.id === ids.cBea)!;
     expect(bea.acts).toEqual([]);
     expect(bea.extraIds).toEqual([]);
-    expect(bea.reviewed).toBe(true);
+  });
+
+  it("never removes an act: a hand tick outside the preset stays", async () => {
+    await setContributionAct(ids.cBea!, ids.elsewhere!, true);
+    const undo = await applyIntensityPreset([ids.cBea!], ids.preset!);
+    let bea = (await getSessionIntensity(ids.session!)).find((r) => r.id === ids.cBea)!;
+    expect(bea.acts.map((a) => a.actId)).toContain(ids.elsewhere);
+    await undoIntensityPreset(undo);
+    bea = (await getSessionIntensity(ids.session!)).find((r) => r.id === ids.cBea)!;
+    expect(bea.acts.map((a) => a.actId)).toEqual([ids.elsewhere]);
+    await setContributionAct(ids.cBea!, ids.elsewhere!, false);
   });
 
   it("is for the models only — someone only appearing is refused", async () => {
     await expect(applyIntensityPreset([ids.cGuest!], ids.preset!)).rejects.toThrow(/for the models/);
-    await setIntensityReviewed([ids.cGuest!], true);
-    expect(await reviewedAt(ids.cGuest!)).toBeNull();
   });
 
-  it("Same as… puts the copied-to model to review", async () => {
-    await setIntensityReviewed([ids.cBea!], true);
+  it("Same as… gives the copied-to model the acts it lacks", async () => {
     await copyContributionIntensity(ids.cAnna!, ids.cBea!);
-    expect(await reviewedAt(ids.cBea!)).toBeNull();
+    const bea = (await getSessionIntensity(ids.session!)).find((r) => r.id === ids.cBea)!;
+    expect(bea.acts.map((a) => a.actId).sort()).toEqual([ids.low, ids.mid].sort());
   });
 
   it("is a copy: deleting it keeps the ticks, which forget the preset", async () => {

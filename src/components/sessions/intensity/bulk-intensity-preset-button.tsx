@@ -28,13 +28,13 @@ export type BulkIntensityPresetButtonProps = {
   ids: string[];
 };
 
-type Plan = { preset: { id: string; name: string; scenario: string }; models: number; sessions: number; confirmed: number; otherCast: number };
+type Plan = { preset: { id: string; name: string; scenario: string }; models: number; sessions: number; otherCast: number };
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 // A preset for the whole selection (2026-10-27, slice 4): pick one, see whom it
-// reaches — models not confirmed yet whose cast fits its scenario — then apply.
-// They land to review, as in the panel; the toast offers Undo.
+// reaches — models whose cast fits its scenario; it only adds what each lacks —
+// then apply. The toast offers Undo.
 export function BulkIntensityPresetButton({ entity, ids }: BulkIntensityPresetButtonProps) {
   const [open, setOpen] = useState(false);
   const [choices, setChoices] = useState<BulkPresetChoices | null>(null);
@@ -106,8 +106,8 @@ export function BulkIntensityPresetButton({ entity, ids }: BulkIntensityPresetBu
         <DialogHeader>
           <DialogTitle>Intensity preset for {what}</DialogTitle>
           <DialogDescription>
-            Ticks the preset&apos;s acts and sets its extras for the models not confirmed yet, where the cast fits its scenario.
-            Nothing is taken away; they land <em>to review</em>.
+            Ticks the preset&apos;s acts each model lacks and sets its extras, where the cast fits its scenario.
+            Nothing is taken away.
           </DialogDescription>
         </DialogHeader>
 
@@ -163,7 +163,6 @@ export function BulkIntensityPresetButton({ entity, ids }: BulkIntensityPresetBu
                 <strong>{plan.preset.name}</strong> ({plan.preset.scenario}) for{" "}
                 <strong>{plural(plan.models, "model")}</strong> in {plural(plan.sessions, "session")}.
               </p>
-              {plan.confirmed > 0 && <p className="text-xs text-muted-foreground">{plural(plan.confirmed, "model")} already confirmed — left alone.</p>}
               {plan.otherCast > 0 && (
                 <p className="text-xs text-muted-foreground">
                   {plural(plan.otherCast, "model")} whose cast suggests another scenario — left alone.

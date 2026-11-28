@@ -473,24 +473,25 @@ In the header's KPI box, **INTENSITY** (ADR-0036; it replaced CP/WCP on 2026-10-
 - **Filtering** (once the catalog has acts): /people has a **Peak intensity** filter, /sessions and /sets an
   **Intensity** filter — *Anything recorded*, ≥ 3, ≥ 5, ≥ 7, ≥ 9, *10 · Max*. For any value or a scenario use
   the query box: `intensity>=6.5`, `intensity:G-G>=5`, `act:Topless`. Next to it, **Rated** (2026-10-25) —
-  *Not rated yet* (no model has anything recorded), *To review* (something recorded or partly confirmed),
-  *Confirmed* (every model confirmed); in the query box `rated:unrated`, `rated:review`, `rated:done`. Only the
-  models count, not someone only appearing; a set takes its sessions together.
+  *Not rated yet* (no model has an act) and *Rated* (a model has an act, or the Max extra — extras alone don't
+  rate); in the query box `rated:unrated`, `rated:rated`. There is **nothing to confirm** (2026-11-28): intensity is
+  like tagging, never finished — every tick is the rating, you refine it in later passes and correct mistakes.
+  The retired `rated:review` and `rated:done` still read as `rated:rated`. Only the models count, not someone only
+  appearing; a set takes its sessions together.
 - **Rating a backlog — Rate these** (2026-10-25): on /sessions or /sets, filter the list as you like and click
-  **Rate these** (top right). The list's sessions whose models are not rated yet or to review open one after
+  **Rate these** (top right). The list's sessions not rated yet open one after
   the other — ordered by **channel** (the primary set's; a channel keeps a style, so the same presets keep
   fitting), then by date. A bar on top reads *Rating 3 / 120 · Channel* with **Prev** / **Next** (keys **[** and
-  **]**; Next skips without confirming) and **List** to leave. The intensity panel opens by itself; apply a
-  preset (its digit), fix the deltas, then **Confirm all & next** (or **⏎** while the focus is in the panel)
-  confirms everyone in the session and goes on. Confirmed sessions leave the queue, so the count shrinks as you
-  go; after the last one you are back on the list. From /sets the queue walks the sessions of the listed sets.
+  **]**) and **List** to leave. The intensity panel opens by itself; apply a preset (its digit), fix the deltas,
+  then **Next session** (or **⏎** while the focus is in the panel). A session leaves the queue once it has an act,
+  so the count shrinks as you go; after the last one you are back on the list. From /sets the queue walks the sessions of the listed sets.
 - **A preset for many sessions at once** (2026-10-27): on /sessions or /sets, click **Select**, pick the cards
   (or **All N**), then **Intensity preset…** in the selection bar. Pick a preset; the dialog says whom it reaches —
-  *Artistic nude (Solo) for 38 models in 35 sessions* — and whom it leaves alone: models **already confirmed**, and
-  models whose **cast suggests another scenario** (a Solo preset never lands on a couple). From /sets it takes the
-  sets' sessions. **Apply** ticks its acts and sets its extras for them — nothing is taken away — and they land
-  *to review*, their ticks marked ◇; the toast offers **Undo**. Then go through them with **Rate these** and the
-  *To review* filter. If someone rated meanwhile, Apply refuses — open the dialog again.
+  *Artistic nude (Solo) for 38 models in 35 sessions* — and whom it leaves alone: models whose **cast suggests
+  another scenario** (a Solo preset never lands on a couple). From /sets it takes the sets' sessions. **Apply**
+  ticks the acts each model **lacks** and sets its extras — nothing is ever taken away, so models already rated are
+  safe to include; its ticks are marked ◇ and the toast offers **Undo**. If the reach changed meanwhile, Apply
+  refuses — open the dialog again.
 
 **Overview**
 - **Showcase** — the person's best photos as a mosaic: one large tile and the next ones beside it (desktop 7,
@@ -800,12 +801,12 @@ Click **"Add Session"** to create a production session:
 - **Linked Sets** — sets connected via SetSession. Shows primary badge and release date. Click to navigate to set detail.
 - **Intensity** (ADR-0036; once the intensity catalog has acts) — recorded in a **panel beside the photos**, so you look and tick at once. Open it with **Intensity** in the Media header (or in the sidebar's Intensity box, which shows each person's value while the panel is closed); × closes it. It takes the sidebar's place, a little wider, and stays in view while the photos scroll; the page remembers it open or closed.
   - **People** on camera are chips at the top — `Name (ICG-ID)` and their intensity in this session (hover the value: how it comes about). Click a chip to add it to or take it out of the selection, **only** to work on that person alone, **All** for everyone. With **several selected, every change applies to all of them.** An act or extra only some of them have shows a half tick (−) or a dashed outline and names who (*only Anna*); a click sets it for all.
-  - **Same as…** (one person selected): takes another person's extras and the acts this person lacks — with that act's own extras, not its notes. Acts they already have stay as they were. The person is *to review* afterwards.
-  - **Like last time…** (2026-10-27, beside *Same as…*) — copies each selected person's **own last confirmed session**: the latest one up to this session's date **in the same channel**, else the latest in any channel (undated sessions never count; a session without a date takes the latest). The menu names it before anything is copied — `Name (ICG-ID)`, the date, the channel (*other channel* in amber when it is not this one) and the value it had — so you see what you take. Pick one person, or **For all N selected**. It adds the acts they lack with those acts' own extras — not notes or photos — and lays its session extras over theirs (a grouped one replaces their choice there); acts they already have stay. They are *to review* afterwards; the toast offers **Undo**. Greyed out when nobody selected has an earlier confirmed session.
-  - **Usual for {channel}** (2026-10-27) — the first pill in the preset row: the preset carried by the most confirmed models of this session's channel (dashed border, no digit). It is only a suggestion — nothing is applied until you click it — and it only shows when its scenario fits the selected people's cast.
-  - **Presets** (2026-10-24) — each preset is for **one scenario**; a switch **Presets for Solo · G-G · G-B · Group** (only scenarios that have presets) sits above the pills and starts on the scenario the cast suggests (two women → G-G, marked with a dot); switch it when the suggestion is wrong (a person missing from the cast, an unknown sex) — picking a scenario also opens its acts below. **All** (at the end, once two scenarios have presets) shows every preset in one row, each naming its scenario, numbered 1–9 in catalog order. The pills are that scenario's presets, numbered **1–9** in the catalog's order, each with the value it gives in its heat colour. A click (or the digit, while the focus is in the panel and not in a text field) ticks the preset's acts for the **selected** people and sets its session extras — a grouped one (e.g. *Location*) replaces their choice there; **nothing is taken away**, acts they already have stay as they were. A toast names the people, with **Undo**. Ticks from a preset carry a small amber **◇** until the person is confirmed — check them against the photos.
-  - **To review / Confirm** — each person is *not rated*, *to review* (something recorded, not yet confirmed — an amber dot on their chip) or *confirmed* (✓). The bar under the presets says where the selection stands; **Confirm** (or **⏎** with the focus on an act's tick) marks the selected people as checked — also with no acts at all, "nothing to rate". A preset, *Same as…* or *Like last time…* puts them back to *to review*; your own ticks don't. **Review again** takes a confirmation back.
-  - **Above the preset?** — while someone selected is to review, the acts of the preset's scenarios **above its highest act** are listed first in a dashed box: a person's value is their highest act, so this is the check that matters after a preset.
+  - **Same as…** (one person selected): takes another person's extras and the acts this person lacks — with that act's own extras, not its notes. Acts they already have stay as they were. Nothing is taken away.
+  - **Like last time…** (2026-10-27, beside *Same as…*) — copies each selected person's **own last session with acts**: the latest one up to this session's date **in the same channel**, else the latest in any channel (undated sessions never count; a session without a date takes the latest). The menu names it before anything is copied — `Name (ICG-ID)`, the date, the channel (*other channel* in amber when it is not this one) and the value it had — so you see what you take. Pick one person, or **For all N selected**. It adds the acts they lack with those acts' own extras — not notes or photos — and lays its session extras over theirs (a grouped one replaces their choice there); acts they already have stay. The toast offers **Undo**. Greyed out when nobody selected has an earlier session with acts.
+  - **Usual for {channel}** (2026-10-27) — the first pill in the preset row: the preset carried by the most models of this session's channel (dashed border, no digit). It is only a suggestion — nothing is applied until you click it — and it only shows when its scenario fits the selected people's cast.
+  - **Presets** (2026-10-24) — each preset is for **one scenario**; a switch **Presets for Solo · G-G · G-B · Group** (only scenarios that have presets) sits above the pills and starts on the scenario the cast suggests (two women → G-G, marked with a dot); switch it when the suggestion is wrong (a person missing from the cast, an unknown sex) — picking a scenario also opens its acts below. **All** (at the end, once two scenarios have presets) shows every preset in one row, each naming its scenario, numbered 1–9 in catalog order. The pills are that scenario's presets, numbered **1–9** in the catalog's order, each with the value it gives in its heat colour. A click (or the digit, while the focus is in the panel and not in a text field) ticks the preset's acts for the **selected** people and sets its session extras — a grouped one (e.g. *Location*) replaces their choice there; **nothing is taken away**, acts they already have stay as they were. A toast names the people, with **Undo**. Ticks from a preset carry a small amber **◇** — where a tick came from, so you can check it against the photos.
+  - **No confirming** (2026-11-28) — there is no *to review* or *confirmed* any more: a tick is the rating. In the rating queue a **Next session** button (or **⏎**) goes on.
+  - **Above the preset?** — while someone selected has ticks from a preset, the acts of the preset's scenarios **above its highest act** are listed first in a dashed box: a person's value is their highest act, so this is the check that matters after a preset.
   - **Extras in this session** apply to every act: one per group (e.g. *Location*), the others as toggles (*First time*), or **Max** — it makes the person's session 10, even before any act is ticked (on one act only, it sets that act to 10).
   - **Find an act**: type part of a title or description — matching acts show in every scenario; **Enter** ticks the first, Esc clears.
   - **Scenarios** fold open below; those the cast suggests are open and marked *suggested* (alone → Solo; one other woman → G-G; a man → G-B; two or more others → Group; an unknown sex suggests nothing), and so are those with ticks.
@@ -1254,7 +1255,7 @@ In the image viewer:
 | `act:Topless`, `act:"G-G/Kiss on the lips"` | an intensity act by name, or scenario/name: images linked to it as evidence; sessions, sets and people where it was ticked |
 | `intensity>=6` (also `>`, `<=`, `<`, `=`) | by intensity: a session's (its best person), a set's (its sessions'), a person's **peak**; an image's best act it is evidence for. Max counts as 10. Nothing recorded never matches |
 | `intensity:G-G>=5`, `intensity:"Special one<3"` | the same within a scenario — only acts there count (a session's Max does not) |
-| `rated:unrated`, `rated:review`, `rated:done` | where the models' intensity stands (sessions, sets): nothing recorded · to review · every model confirmed |
+| `rated:unrated`, `rated:rated` | where the models' intensity stands (sessions, sets): no model has an act · a model has an act (or Max) — the retired `review` / `done` read as `rated` |
 
 A condition that does not apply to the page (`type:video` on /people) shows as a warning chip and is ignored. So does an unknown ICG-ID, tag or label.
 

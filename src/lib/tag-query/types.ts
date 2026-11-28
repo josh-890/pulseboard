@@ -58,7 +58,7 @@ export type ResolvedPredicate =
   /** Intensity compared with a value — overall, or within scenarios (no session-wide Max there) */
   | { kind: "intensity"; op: ">=" | "<=" | ">" | "<" | "="; value: number; scenarioIds: string[] | null; max: number }
   /** Where the models' intensity stands (2026-10-25): none recorded, to review, confirmed — leads only */
-  | { kind: "rated"; value: "unrated" | "review" | "done" }
+  | { kind: "rated"; value: "unrated" | "rated" }
   /** Color or B&W (ADR-0041): an image's tone; a set's or session's photos all color, all B&W, or mixed */
   | { kind: "tone"; value: "color" | "bw" | "mixed" }
   /** The archive copy is a stub — a placeholder until the real set arrives (ADR-0032) */

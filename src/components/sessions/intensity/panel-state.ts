@@ -22,8 +22,7 @@ export type PanelAct = {
   overrides: ActExtraOverride[];
   mediaIds: string[];
 };
-/** `reviewed`: the person's intensity here is confirmed as checked */
-export type PersonState = { reviewed: boolean; extraIds: string[]; acts: PanelAct[] };
+export type PersonState = { extraIds: string[]; acts: PanelAct[] };
 export type PanelState = Record<string, PersonState>;
 
 export type RestoreItem = { contributionId: string; actId: string; notes: string | null; overrides: ActExtraOverride[]; mediaIds: string[] };
@@ -38,12 +37,11 @@ export type PanelChange =
   | { kind: "copy"; fromId: string; toId: string }
   | { kind: "preset"; presetId: string; entries: { contributionId: string; actIds: string[]; extraIds: string[] }[] }
   | { kind: "lastTime"; entries: { contributionId: string; acts: { actId: string; overrides: ActExtraOverride[] }[]; extraIds: string[] }[] }
-  | { kind: "unpreset"; presetId: string | null; entries: { contributionId: string; actIds: string[]; extraIds: string[]; reviewed: boolean }[] }
-  | { kind: "review"; contributionIds: string[]; reviewed: boolean };
+  | { kind: "unpreset"; presetId: string | null; entries: { contributionId: string; actIds: string[]; extraIds: string[] }[] };
 
 export function initialPanelState(contributions: SessionIntensity): PanelState {
   return Object.fromEntries(
-    contributions.map((c) => [c.id, { reviewed: c.reviewed, extraIds: c.extraIds, acts: c.acts.map((a) => ({ ...a })) }]),
+    contributions.map((c) => [c.id, { extraIds: c.extraIds, acts: c.acts.map((a) => ({ ...a })) }]),
   );
 }
 
@@ -101,7 +99,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
         const added = from.acts
           .filter((a) => !has.has(a.actId))
           .map((a) => ({ id: null, actId: a.actId, presetId: null, notes: null, overrides: a.overrides, mediaIds: [] }));
-        return { reviewed: false, extraIds: from.extraIds, acts: [...p.acts, ...added] };
+        return { extraIds: from.extraIds, acts: [...p.acts, ...added] };
       });
     }
     case "preset":
@@ -112,7 +110,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
             const added = e.actIds
               .filter((id) => !has.has(id))
               .map((actId) => ({ id: null, actId, presetId: change.presetId, notes: null, overrides: [], mediaIds: [] }));
-            return { reviewed: false, extraIds: e.extraIds, acts: [...p.acts, ...added] };
+            return { extraIds: e.extraIds, acts: [...p.acts, ...added] };
           }),
         state,
       );
@@ -124,7 +122,7 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
             const added = e.acts
               .filter((a) => !has.has(a.actId))
               .map((a) => ({ id: null, actId: a.actId, presetId: null, notes: null, overrides: a.overrides, mediaIds: [] }));
-            return { reviewed: false, extraIds: e.extraIds, acts: [...p.acts, ...added] };
+            return { extraIds: e.extraIds, acts: [...p.acts, ...added] };
           }),
         state,
       );
@@ -132,14 +130,11 @@ export function reducePanel(state: PanelState, change: PanelChange): PanelState 
       return change.entries.reduce(
         (s, e) =>
           withPerson(s, e.contributionId, (p) => ({
-            reviewed: e.reviewed,
             extraIds: e.extraIds,
             acts: p.acts.filter((a) => !(a.presetId === change.presetId && e.actIds.includes(a.actId))),
           })),
         state,
       );
-    case "review":
-      return change.contributionIds.reduce((s, id) => withPerson(s, id, (p) => ({ ...p, reviewed: change.reviewed })), state);
   }
 }
 

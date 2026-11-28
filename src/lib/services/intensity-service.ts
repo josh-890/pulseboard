@@ -29,7 +29,6 @@ export async function getSessionIntensity(sessionId: string) {
           aliases: { where: { isCommon: true }, take: 1, select: { name: true } },
         },
       },
-      intensityReviewedAt: true,
       intensityExtras: { select: { extraId: true } },
       intensityActs: {
         orderBy: { createdAt: "asc" },
@@ -58,7 +57,6 @@ export async function getSessionIntensity(sessionId: string) {
         name: c.person.aliases[0]?.name ?? c.person.icgId ?? c.person.id,
       },
       suggestedScenarioIds: suggestScenarioIds(c.person.sexAtBirth, [...others.values()]),
-      reviewed: c.intensityReviewedAt !== null,
       extraIds: c.intensityExtras.map((e) => e.extraId),
       acts: c.intensityActs.map((a) => ({
         id: a.id,
@@ -279,8 +277,6 @@ export async function copyContributionIntensity(fromId: string, toId: string) {
       }),
     ]);
     if (from.sessionId !== to.sessionId) throw new Error("Both must be in the same session.");
-    // Filled from someone else — to review again
-    await tx.sessionContribution.update({ where: { id: toId }, data: { intensityReviewedAt: null } });
     await tx.contributionExtra.deleteMany({ where: { contributionId: toId } });
     if (from.intensityExtras.length) {
       await tx.contributionExtra.createMany({ data: from.intensityExtras.map((e) => ({ contributionId: toId, extraId: e.extraId })) });
@@ -295,19 +291,19 @@ export async function copyContributionIntensity(fromId: string, toId: string) {
   });
 }
 
-// ─── Presets and review (2026-10-24) ─────────────────────────────────────────
+// ─── Presets (2026-10-24) ─────────────────────────────────────────
 
 /** What applying a preset — or copying "like last time" (presetId null) — changed, per person: enough to take it back */
 export type PresetUndo = {
   presetId: string | null;
-  people: { contributionId: string; actIds: string[]; extraIds: string[]; reviewedAt: string | null }[];
+  people: { contributionId: string; actIds: string[]; extraIds: string[] }[];
 };
 
 /**
  * Applies a preset to models in one or more sessions: the acts each lacks are
  * ticked (marked as from the preset), its extras laid over theirs — a grouped
- * one replaces their choice in that group — and each is to review again.
- * Ticks they already have stay as they are. Leads only.
+ * one replaces their choice in that group. Ticks they already have stay as
+ * they are — a preset only adds, never removes. Leads only.
  */
 export async function applyIntensityPreset(contributionIds: string[], presetId: string): Promise<PresetUndo> {
   const ids = [...new Set(contributionIds)];
@@ -321,7 +317,6 @@ export async function applyIntensityPreset(contributionIds: string[], presetId: 
         where: { id: { in: ids }, roleDefinition: LEAD_ROLE },
         select: {
           id: true,
-          intensityReviewedAt: true,
           intensityExtras: { select: { extraId: true } },
           intensityActs: { select: { actId: true } },
         },
@@ -342,14 +337,13 @@ export async function applyIntensityPreset(contributionIds: string[], presetId: 
       const next = await checkExtras(tx, add.extraIds);
       await tx.contributionExtra.deleteMany({ where: { contributionId: p.id } });
       if (next.length) await tx.contributionExtra.createMany({ data: next.map((extraId) => ({ contributionId: p.id, extraId })) });
-      await tx.sessionContribution.update({ where: { id: p.id }, data: { intensityReviewedAt: null } });
-      undo.push({ contributionId: p.id, actIds: add.actIds, extraIds: before, reviewedAt: p.intensityReviewedAt?.toISOString() ?? null });
+      undo.push({ contributionId: p.id, actIds: add.actIds, extraIds: before });
     }
     return { presetId, people: undo };
   });
 }
 
-/** Takes a preset back: the acts it ticked go (if still from it), the extras and the review state return */
+/** Takes a preset back: the acts it ticked go (if still from it), the extras return */
 export async function undoIntensityPreset(undo: PresetUndo) {
   await prisma.$transaction(async (tx) => {
     for (const p of undo.people) {
@@ -359,10 +353,6 @@ export async function undoIntensityPreset(undo: PresetUndo) {
       const ids = await checkExtras(tx, p.extraIds);
       await tx.contributionExtra.deleteMany({ where: { contributionId: p.contributionId } });
       if (ids.length) await tx.contributionExtra.createMany({ data: ids.map((extraId) => ({ contributionId: p.contributionId, extraId })) });
-      await tx.sessionContribution.update({
-        where: { id: p.contributionId },
-        data: { intensityReviewedAt: p.reviewedAt ? new Date(p.reviewedAt) : null },
-      });
     }
   });
 }
@@ -378,10 +368,10 @@ const CHANNEL_LINK = {
 };
 
 /**
- * What can speed up rating a session: per model, the confirmed session "like
+ * What can speed up rating a session: per model, the session with acts "like
  * last time" would copy (the nearest one up to this date, same channel first —
  * with its acts and extras, to show its value and copy optimistically), and the
- * preset most confirmed models of this channel carry. Neither is applied by itself.
+ * preset most models of this channel carry. Neither is applied by itself.
  */
 export async function getIntensityHints(sessionId: string) {
   const session = await prisma.session.findUniqueOrThrow({
@@ -404,7 +394,6 @@ export async function getIntensityHints(sessionId: string) {
             personId: { in: personIds },
             sessionId: { not: sessionId },
             roleDefinition: LEAD_ROLE,
-            intensityReviewedAt: { not: null },
             intensityActs: { some: {} },
           },
           select: {
@@ -422,7 +411,6 @@ export async function getIntensityHints(sessionId: string) {
             contribution: {
               sessionId: { not: sessionId },
               roleDefinition: LEAD_ROLE,
-              intensityReviewedAt: { not: null },
               session: { setSessionLinks: { some: { set: { channelId: channel.id } } } },
             },
           },
@@ -466,9 +454,9 @@ export type IntensityHints = Awaited<ReturnType<typeof getIntensityHints>>;
 
 /**
  * "Like last time": gives each model the acts they lack from their own earlier
- * confirmed session — with that session's departures, not notes or photos —
+ * session with acts — with that session's departures, not notes or photos —
  * and lays its extras over theirs (a grouped one replaces their choice in that
- * group). Each is to review again. Returns what to take back (presetId null).
+ * group). Only adds. Returns what to take back (presetId null).
  */
 export async function copyIntensityLikeLastTime(pairs: { fromId: string; toId: string }[]): Promise<PresetUndo> {
   return prisma.$transaction(async (tx) => {
@@ -480,7 +468,6 @@ export async function copyIntensityLikeLastTime(pairs: { fromId: string; toId: s
           id: true,
           personId: true,
           sessionId: true,
-          intensityReviewedAt: true,
           intensityExtras: { select: { extraId: true } },
           intensityActs: { select: { actId: true, extras: { select: { extraId: true, mode: true } } } },
         },
@@ -496,7 +483,6 @@ export async function copyIntensityLikeLastTime(pairs: { fromId: string; toId: s
       const to = byId.get(toId);
       if (!from || !to) throw new Error("Like last time is for the models — someone only appearing carries no intensity.");
       if (from.personId !== to.personId || from.sessionId === to.sessionId) throw new Error("Last time must be the same person in another session.");
-      if (!from.intensityReviewedAt) throw new Error("That session is not confirmed — only a confirmed one is copied.");
       const before = to.intensityExtras.map((e) => e.extraId);
       const add = presetAdditions(
         { actIds: to.intensityActs.map((a) => a.actId), extraIds: before },
@@ -510,18 +496,9 @@ export async function copyIntensityLikeLastTime(pairs: { fromId: string; toId: s
       const next = await checkExtras(tx, add.extraIds);
       await tx.contributionExtra.deleteMany({ where: { contributionId: toId } });
       if (next.length) await tx.contributionExtra.createMany({ data: next.map((extraId) => ({ contributionId: toId, extraId })) });
-      await tx.sessionContribution.update({ where: { id: toId }, data: { intensityReviewedAt: null } });
-      undo.push({ contributionId: toId, actIds: add.actIds, extraIds: before, reviewedAt: to.intensityReviewedAt?.toISOString() ?? null });
+      undo.push({ contributionId: toId, actIds: add.actIds, extraIds: before });
     }
     return { presetId: null, people: undo };
-  });
-}
-
-/** Confirms models' intensity as checked — or takes the confirmation back */
-export async function setIntensityReviewed(contributionIds: string[], reviewed: boolean) {
-  await prisma.sessionContribution.updateMany({
-    where: { id: { in: contributionIds }, roleDefinition: LEAD_ROLE },
-    data: { intensityReviewedAt: reviewed ? new Date() : null },
   });
 }
 

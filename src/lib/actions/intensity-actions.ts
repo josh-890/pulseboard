@@ -17,7 +17,6 @@ import {
   setActEvidence,
   setActsEvidence,
   setSetActExcluded,
-  setIntensityReviewed,
   undoIntensityPreset,
   type PresetUndo,
 } from "@/lib/services/intensity-service";
@@ -146,14 +145,7 @@ export async function undoIntensityPresetAction(undo: PresetUndo) {
   );
 }
 
-export async function setIntensityReviewedAction(contributionIds: string[], reviewed: boolean) {
-  return run(
-    () => getContributionsSessionId(contributionIds),
-    () => setIntensityReviewed(contributionIds, reviewed),
-  );
-}
-
-/** "Like last time" (2026-10-27): each model's own earlier confirmed session copied in; returns what to take back */
+/** "Like last time" (2026-10-27): each model's own earlier session with acts copied in; returns what to take back */
 export async function copyIntensityLikeLastTimeAction(
   pairs: { fromId: string; toId: string }[],
 ): Promise<SimpleActionResult & { undo?: PresetUndo }> {

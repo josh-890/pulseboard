@@ -267,21 +267,20 @@ export function intensityTextColor(value: number, max: number): string {
 }
 
 /**
- * Where a person's intensity in a session stands (presets, 2026-10-24):
- * unrated — nothing recorded and not confirmed; to review — recorded (by hand,
- * a preset or a copy) but not confirmed; done — confirmed, with or without acts.
+ * Where a person's intensity in a session stands (2026-11-28): rated once an
+ * act is ticked — or the Max extra set, which is a value on its own. Extras
+ * alone are surcharges without an act and do not rate. Intensity is never
+ * "finished": every tick is the confirmation, refining goes on (ADR-0036).
  */
-export type IntensityReview = "unrated" | "review" | "done";
+export type IntensityReview = "unrated" | "rated";
 
-export function intensityReview(p: { reviewed: boolean; acts: number; extras: number }): IntensityReview {
-  if (p.reviewed) return "done";
-  return p.acts > 0 || p.extras > 0 ? "review" : "unrated";
+export function intensityReview(p: { acts: number; max: boolean }): IntensityReview {
+  return p.acts > 0 || p.max ? "rated" : "unrated";
 }
 
-/** A session's state from its models': done when all are, unrated when none has anything, else to review */
+/** A session's state from its models': rated as soon as one of them is */
 export function sessionReview(people: IntensityReview[]): IntensityReview {
-  if (people.length > 0 && people.every((r) => r === "done")) return "done";
-  return people.every((r) => r === "unrated") ? "unrated" : "review";
+  return people.some((r) => r === "rated") ? "rated" : "unrated";
 }
 
 /**
@@ -301,7 +300,7 @@ export function presetAdditions(
 }
 
 /**
- * "Like last time" (2026-10-27): of a person's confirmed sessions, the one to
+ * "Like last time" (2026-10-27): of a person's sessions with acts, the one to
  * copy from — the latest up to this session's date in the same channel, else
  * the latest up to it in any. Undated sessions are never "last time"; an
  * undated session takes the latest dated one.
@@ -318,7 +317,7 @@ export function pickLastTime<T extends { date: Date | null; channelId: string | 
 
 /**
  * The channel's usual preset (2026-10-27): the one whose ticks the most
- * confirmed models carry, ties in catalog order; null when none has any
+ * models carry, ties in catalog order; null when none has any
  */
 export function usualPreset(uses: { presetId: string; contributionId: string }[], order: string[]): { presetId: string; models: number } | null {
   const models = new Map<string, Set<string>>();
@@ -351,8 +350,7 @@ export function presetValue(
 /** The browsers' Rated filter (2026-10-25): where the models' intensity stands */
 export const RATED_FILTER_OPTIONS = [
   { value: "unrated", label: "Not rated yet" },
-  { value: "review", label: "To review" },
-  { value: "done", label: "Confirmed" },
+  { value: "rated", label: "Rated" },
 ] as const;
 
 /** The `rated=` URL parameter added to the `tags=` query text, as `withIntensityFilter` */
