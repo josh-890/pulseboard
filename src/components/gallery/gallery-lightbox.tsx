@@ -319,7 +319,25 @@ function SimpleLightbox({
     [item, handleFavorite, markTags, tagController],
   );
 
-  const { armed: armedTag, arm: armTag } = useArmedTag();
+  const { armed: armedTag, arm: armTagStore, disarm: disarmTag } = useArmedTag();
+  // ADR-0036 (2026-11-28): an act held ready — P links it on each photo while paging.
+  // One thing is armed at a time: arming an act lets go of the tag, and back.
+  const [armedAct, setArmedAct] = useState<{ actId: string; personIds: string[] } | null>(null);
+  const [actPickMode, setActPickMode] = useState<"apply" | "arm">("apply");
+  const armTag = useCallback(
+    (tag: PaletteTag) => {
+      setArmedAct(null);
+      armTagStore(tag);
+    },
+    [armTagStore],
+  );
+  const armAct = useCallback(
+    (actId: string, personIds: string[]) => {
+      disarmTag();
+      setArmedAct({ actId, personIds });
+    },
+    [disarmTag],
+  );
   const [armPaletteOpen, setArmPaletteOpen] = useState(false);
   const applyTagToCurrent = useCallback(
     (tag: PaletteTag, on?: boolean) => {
@@ -694,10 +712,16 @@ function SimpleLightbox({
           break;
         case "p":
         case "P":
-          // ADR-0033 painter: P puts the armed tag on, Shift+P takes it off.
+          // ADR-0033 painter: P puts the armed tag on, Shift+P takes it off — or the armed act (2026-11-28)
           if (item) {
             e.preventDefault();
-            if (!armedTag) toast.message("No tag armed — Shift+T to arm one");
+            if (armedAct && photoIntensity) {
+              const on = photoIntensity.peopleOn(item).leads.map((l) => l.personId).filter((id) => armedAct.personIds.includes(id));
+              const act = photoIntensity.actById.get(armedAct.actId);
+              if (on.length === 0) toast.message(`Nobody the act is armed for is on this photo`);
+              else if (e.shiftKey) photoIntensity.unlink([item], on, armedAct.actId);
+              else if (act && photoIntensity.stateAt([item], on, armedAct.actId).linked !== "all") photoIntensity.apply([item], on, armedAct.actId);
+            } else if (!armedTag) toast.message("Nothing armed — Shift+T arms a tag, Shift+A an act");
             else applyTagToCurrent(armedTag, !e.shiftKey);
           }
           break;
@@ -782,6 +806,8 @@ function SimpleLightbox({
           // ADR-0036 (2026-11-28): rate an act on this photo
           if (photoIntensity && item && !e.metaKey && !e.ctrlKey && !e.altKey) {
             e.preventDefault();
+            // Shift+A: pick an act to arm for painting with P
+            setActPickMode(e.shiftKey ? "arm" : "apply");
             setToolbarMenu("acts");
           }
           break;
@@ -834,7 +860,7 @@ function SimpleLightbox({
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, photoIntensity, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router, cast, toggleFocusHotkey]);
+  }, [onClose, goNext, goPrev, handleToggleInfoPanel, hasFocalPointSupport, canCopyToReference, handleCopyTrigger, setMark, addToTarget, item, armedTag, applyTagToCurrent, tagSlots, toggleTagMark, deleteConfirmOpen, shortcutsOpen, toolbarMenu, toggleTray, photoIntensity, armedAct, onDelete, onSetCover, coverMediaItemId, showOrigin, origin, router, cast, toggleFocusHotkey]);
 
   useEffect(() => {
     const original = document.body.style.overflow;
@@ -893,6 +919,11 @@ function SimpleLightbox({
     onSetBackgroundPersons: handleSetBackground,
     showOrigin,
     origin,
+    photoIntensity,
+    onRateAct: () => {
+      setActPickMode("apply");
+      setToolbarMenu("acts");
+    },
   };
 
   return createPortal(
@@ -944,7 +975,24 @@ function SimpleLightbox({
         onArm={() => setArmPaletteOpen(true)}
         onCategory={() => setAssignOpen(true)}
         onCompose={composeHref && item ? () => router.push(`${composeHref}?photo=${item.id}`) : undefined}
-        acts={photoIntensity && item ? { intensity: photoIntensity, item, onPrev: goPrev, onNext: goNext } : undefined}
+        acts={
+          photoIntensity && item
+            ? {
+                intensity: photoIntensity,
+                item,
+                onPrev: goPrev,
+                onNext: goNext,
+                mode: actPickMode,
+                onModeChange: setActPickMode,
+                armed: armedAct,
+                onArm: (actId, personIds) => {
+                  armAct(actId, personIds);
+                  setToolbarMenu(null);
+                },
+                onDisarm: () => setArmedAct(null),
+              }
+            : undefined
+        }
         armedTag={armedTag}
         onApplySlot={(tag) => applyTagToCurrent(tag)}
         slotStateOf={(tagId) => (tagController?.directTagIds.includes(tagId) ? "all" : "none")}

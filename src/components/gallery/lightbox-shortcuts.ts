@@ -15,6 +15,7 @@ export type ShortcutId =
   | "target"
   | "tag"
   | "arm"
+  | "armAct"
   | "paint"
   | "unpaint"
   | "slots"
@@ -58,11 +59,12 @@ export const LIGHTBOX_SHORTCUT_GROUPS: { title: string; note?: string; items: Sh
       { id: "target", label: "Add to the target collection", keys: ["G"] },
       { id: "tag", label: "Tag this photo", keys: ["T"] },
       { id: "arm", label: "Arm a tag to paint with", keys: ["⇧T"] },
-      { id: "paint", label: "Paint the armed tag on", keys: ["P"] },
-      { id: "unpaint", label: "Take the armed tag off", keys: ["⇧P"] },
+      { id: "paint", label: "Paint the armed tag or act on", keys: ["P"] },
+      { id: "unpaint", label: "Take the armed tag or act off", keys: ["⇧P"] },
       { id: "slots", label: "Toggle a quick-tag slot", keys: ["1", "…", "9"] },
       { id: "category", label: "Assign to a detail category", keys: ["D"] },
       { id: "acts", label: "Rate an act — tick it and link the photo (with intensity)", keys: ["A"] },
+      { id: "armAct", label: "Arm an act to paint with P (with intensity)", keys: ["⇧A"] },
       { id: "compare", label: "Compare tray — add / remove", keys: ["X"] },
       { id: "background", label: "In the shot, not the focus (bg) ↔ the focus — the filtered person or the only lead", keys: ["N"] },
       { id: "cover", label: "Set as cover", keys: ["#"] },

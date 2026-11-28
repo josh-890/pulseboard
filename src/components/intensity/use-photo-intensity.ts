@@ -206,8 +206,20 @@ export function usePhotoIntensity(
     [leadsOf, restore],
   );
 
+  /** The acts ticked for a lead, by id — what the viewer's panel lists */
+  const actsOf = useCallback(
+    (contributionId: string) =>
+      [...ticks]
+        .filter((k) => k.startsWith(`${contributionId}:`))
+        .map((k) => actById.get(k.slice(contributionId.length + 1)))
+        .filter((a) => a !== undefined)
+        .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name)),
+    [ticks, actById],
+  );
+
   if (!data) return null;
   return {
+    actsOf,
     catalog: data.catalog,
     actById,
     castById,

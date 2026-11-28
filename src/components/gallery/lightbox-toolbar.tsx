@@ -41,7 +41,18 @@ export type LightboxToolbarProps = {
   /** ADR-0042: open this photo in the tag workbench — only where a Composer exists */
   onCompose?: () => void;
   /** ADR-0036 (2026-11-28): rate an act on this photo — only in a gallery with intensity */
-  acts?: { intensity: PhotoIntensity; item: GalleryItem; onPrev: () => void; onNext: () => void };
+  acts?: {
+    intensity: PhotoIntensity;
+    item: GalleryItem;
+    onPrev: () => void;
+    onNext: () => void;
+    /** Pick to rate (A), or to arm for painting with P (⇧A) */
+    mode: "apply" | "arm";
+    onModeChange: (mode: "apply" | "arm") => void;
+    armed: { actId: string; personIds: string[] } | null;
+    onArm: (actId: string, personIds: string[]) => void;
+    onDisarm: () => void;
+  };
   armedTag: PaletteTag | null;
   onApplySlot: (tag: PaletteTag) => void;
   slotStateOf: (tagId: string) => SlotState;
@@ -120,10 +131,7 @@ export function LightboxToolbar(props: LightboxToolbarProps) {
             )}
             {props.acts && (
               <LightboxActPill
-                intensity={props.acts.intensity}
-                item={props.acts.item}
-                onPrev={props.acts.onPrev}
-                onNext={props.acts.onNext}
+                {...props.acts}
                 open={openMenu === "acts"}
                 onOpenChange={(open) => onOpenMenuChange(open ? "acts" : null)}
               />

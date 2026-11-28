@@ -17,6 +17,8 @@ export type PhotoActPickerProps = {
   /** ← → page the viewer while the search is empty */
   onPrev?: () => void;
   onNext?: () => void;
+  /** Arm mode (⇧A): a pick holds the act ready to paint with P, instead of rating this photo */
+  onArm?: (actId: string, personIds: string[]) => void;
 };
 
 type Row = { id: string; name: string; description: string | null; level: number; scenarioId: string; scenarioName: string };
@@ -26,7 +28,7 @@ type Row = { id: string; name: string; description: string | null; level: number
 // (type to find it anywhere). A pick ticks it for the chosen people where
 // missing and links the photos; picking a linked act again takes the photos
 // back (the tick stays). ↑↓ move, ⏎ picks, ← → page while the search is empty.
-export function PhotoActPicker({ intensity, items, dark, onPrev, onNext }: PhotoActPickerProps) {
+export function PhotoActPicker({ intensity, items, dark, onPrev, onNext, onArm }: PhotoActPickerProps) {
   const first = items[0];
   const leads = useMemo(() => {
     const byPerson = new Map<string, PhotoLead>();
@@ -66,6 +68,10 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext }: Photo
 
   function pick(row: Row) {
     if (chosen.length === 0) return;
+    if (onArm) {
+      onArm(row.id, chosen);
+      return;
+    }
     const st = intensity.stateAt(items, chosen, row.id);
     if (st.linked === "all") intensity.unlink(items, chosen, row.id);
     else intensity.apply(items, chosen, row.id);
@@ -229,7 +235,9 @@ export function PhotoActPicker({ intensity, items, dark, onPrev, onNext }: Photo
           );
         })}
       </ul>
-      <p className={cn("px-1 text-[10px]", muted)}>⏎ tick and link · again: unlink · ↑↓ · ← → photo · Esc</p>
+      <p className={cn("px-1 text-[10px]", muted)}>
+        {onArm ? "⏎ arms the act — then P links it on each photo, ⇧P takes it off" : "⏎ tick and link · again: unlink · ↑↓ · ← → photo · Esc"}
+      </p>
     </div>
   );
 }

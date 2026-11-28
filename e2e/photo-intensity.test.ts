@@ -134,3 +134,30 @@ test("the picker stays open: → pages on, the same act links the next photo; bo
   await expect(picker).toHaveCount(0);
   await expect(page.getByText(`2 / ${PHOTOS.length}`)).toBeVisible();
 });
+
+test("⇧A arms an act, P links it on each photo while paging, ⇧P takes it off; the info panel lists it", async ({ page }) => {
+  const picker = await openViewer(page, 0);
+  await page.getByRole("radio", { name: /Arm to paint/ }).click();
+  await picker.getByLabel("Find an act").fill(SOLO_ACT.name);
+  await page.keyboard.press("Enter");
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByTestId("armed-act")).toContainText(SOLO_ACT.name);
+  // Arming does not rate this photo
+  expect(await state(A.c, SOLO_ACT.id)).toBeNull();
+
+  await page.keyboard.press("p");
+  await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([PHOTOS[0]!.id]);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("p");
+  await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([PHOTOS[0]!.id, PHOTOS[1]!.id].sort());
+  await page.keyboard.press("Shift+P");
+  await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([PHOTOS[0]!.id]);
+
+  // The info panel (I): Ada's acts, this photo's marked — × takes it back
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("i");
+  const section = page.getByTestId("photo-intensity-section");
+  await expect(section.getByRole("list", { name: `Acts of ${A.name} (${A.icg})` })).toContainText(SOLO_ACT.name);
+  await section.getByRole("button", { name: `Take this photo back from ${SOLO_ACT.name} — ${A.name} (${A.icg})` }).click();
+  await expect.poll(() => state(A.c, SOLO_ACT.id)).toEqual([]);
+});

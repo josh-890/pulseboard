@@ -24,8 +24,11 @@ import {
   Tag,
   User,
   Users,
+  Gauge,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PhotoIntensitySection } from "@/components/intensity/photo-intensity-section";
+import type { PhotoIntensity } from "@/components/intensity/use-photo-intensity";
 import { cn } from "@/lib/utils";
 import type { GalleryItem, PersonMediaUsage, PersonMediaLinkSummary } from "@/lib/types";
 import type { GalleryCastMember, MediaItemOrigin } from "@/lib/types/gallery";
@@ -178,6 +181,9 @@ type GalleryInfoPanelProps = {
   // `showOrigin` is set an "Origin" section leads; `origin` undefined = loading.
   showOrigin?: boolean;
   origin?: MediaItemOrigin | null;
+  /** ADR-0036 (2026-11-28): the acts of the people on the photo — with intensity */
+  photoIntensity?: PhotoIntensity | null;
+  onRateAct?: () => void;
 };
 
 export function GalleryInfoPanel({
@@ -207,9 +213,11 @@ export function GalleryInfoPanel({
   onSetBackgroundPersons,
   showOrigin,
   origin,
+  photoIntensity,
+  onRateAct,
 }: GalleryInfoPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(["origin", "tone", "cover", "headshot", "favorite", "usage", "people-shown", "tags", "focal", "info", "source"]),
+    new Set(["origin", "tone", "cover", "headshot", "favorite", "usage", "people-shown", "intensity", "tags", "focal", "info", "source"]),
   );
   const [isPending, startTransition] = useTransition();
   const [isFocalPending, startFocalTransition] = useTransition();
@@ -1019,6 +1027,20 @@ export function GalleryInfoPanel({
               />
             </div>
           )}
+        </>
+      )}
+
+      {/* Intensity on the photo (ADR-0036, 2026-11-28) — galleries with intensity */}
+      {photoIntensity && (
+        <>
+          <SectionHeader
+            title="Intensity"
+            icon={<Gauge size={14} />}
+            section="intensity"
+            expanded={expandedSections.has("intensity")}
+            onToggle={toggleSection}
+          />
+          {expandedSections.has("intensity") && <PhotoIntensitySection intensity={photoIntensity} item={item} onRate={onRateAct} />}
         </>
       )}
 
